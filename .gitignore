@@ -1,0 +1,12 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Convex local state
+.env.local
+.convex/
+convex/_generated/
+
+# Local temp artifacts
+tmp/
+out/

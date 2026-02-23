@@ -1,0 +1,17 @@
+{
+  "name": "testers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "node ./scripts/ci_lint.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:ci-targeted": "node ./scripts/run_ci_targeted_tests.mjs",
+    "test:runtime": "RUN_CONVEX_RUNTIME_TESTS=1 node --test tests/convex_runtime_contract_enforcement.test.mjs",
+    "ci:smoke": "bash ./scripts/ci/smoke.sh",
+    "ci:full": "bash ./scripts/ci/full.sh"
+  }
+}

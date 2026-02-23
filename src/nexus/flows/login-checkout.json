@@ -1,0 +1,181 @@
+{
+  "name": "login-checkout",
+  "description": "Complete user journey: login → browse → checkout",
+  "version": "1.0.0",
+  "args": {
+    "email": {
+      "required": true,
+      "desc": "User email for login"
+    },
+    "password": {
+      "required": true,
+      "desc": "User password"
+    },
+    "product": {
+      "required": false,
+      "default": "featured",
+      "desc": "Product to purchase"
+    }
+  },
+  "assertions": [
+    {
+      "name": "user_logged_in",
+      "description": "User should be logged in after authentication",
+      "check": "return !!document.querySelector('[data-testid=\"user-menu\"]')"
+    },
+    {
+      "name": "cart_updated",
+      "description": "Cart count should increase after adding product",
+      "check": "return parseInt(document.querySelector('[data-testid=\"cart-count\"]')?.textContent || '0') > 0"
+    },
+    {
+      "name": "order_confirmed",
+      "description": "Order confirmation should be visible",
+      "check": "return document.body.textContent.includes('Order confirmed')"
+    }
+  ],
+  "steps": [
+    {
+      "tool": "navigate",
+      "args": { "url": "https://myapp.com/login" },
+      "description": "Navigate to login page"
+    },
+    {
+      "tool": "wait",
+      "args": { "duration": 1000 },
+      "description": "Wait for page to load"
+    },
+    {
+      "tool": "screenshot",
+      "args": { "output": "/tmp/nexus-login-page.png" },
+      "description": "Capture login page"
+    },
+    {
+      "tool": "type",
+      "args": {
+        "text": "%{email}",
+        "selector": "input[name=email]"
+      },
+      "description": "Enter email"
+    },
+    {
+      "tool": "type",
+      "args": {
+        "text": "%{password}",
+        "selector": "input[name=password]"
+      },
+      "description": "Enter password"
+    },
+    {
+      "tool": "click",
+      "args": { "selector": "button[type=submit]" },
+      "description": "Submit login form"
+    },
+    {
+      "tool": "wait",
+      "args": { "selector": "[data-testid=\"user-menu\"]", "timeout": 5000 },
+      "description": "Wait for login to complete"
+    },
+    {
+      "tool": "assert",
+      "args": { "name": "user_logged_in" }
+    },
+    {
+      "tool": "navigate",
+      "args": { "url": "https://myapp.com/products/%{product}" },
+      "description": "Navigate to product page"
+    },
+    {
+      "tool": "wait",
+      "args": { "duration": 1000 }
+    },
+    {
+      "tool": "screenshot",
+      "args": { "output": "/tmp/nexus-product-page.png" }
+    },
+    {
+      "tool": "click",
+      "args": { "selector": "[data-testid=\"add-to-cart\"]" },
+      "description": "Add product to cart"
+    },
+    {
+      "tool": "wait",
+      "args": { "duration": 500 }
+    },
+    {
+      "tool": "assert",
+      "args": { "name": "cart_updated" }
+    },
+    {
+      "tool": "click",
+      "args": { "selector": "[data-testid=\"cart-icon\"]" },
+      "description": "Open cart"
+    },
+    {
+      "tool": "wait",
+      "args": { "selector": "[data-testid=\"checkout-button\"]" }
+    },
+    {
+      "tool": "click",
+      "args": { "selector": "[data-testid=\"checkout-button\"]" },
+      "description": "Proceed to checkout"
+    },
+    {
+      "tool": "wait",
+      "args": { "selector": "[data-testid=\"payment-form\"]" }
+    },
+    {
+      "tool": "screenshot",
+      "args": { "output": "/tmp/nexus-checkout-page.png" }
+    },
+    {
+      "tool": "type",
+      "args": {
+        "text": "4242424242424242",
+        "selector": "input[name=card-number]"
+      },
+      "description": "Enter test card number"
+    },
+    {
+      "tool": "type",
+      "args": {
+        "text": "12/25",
+        "selector": "input[name=card-expiry]"
+      }
+    },
+    {
+      "tool": "type",
+      "args": {
+        "text": "123",
+        "selector": "input[name=card-cvc]"
+      }
+    },
+    {
+      "tool": "click",
+      "args": { "selector": "[data-testid=\"place-order\"]" },
+      "description": "Place order"
+    },
+    {
+      "tool": "wait",
+      "args": { "selector": "[data-testid=\"order-confirmation\"]", "timeout": 10000 }
+    },
+    {
+      "tool": "assert",
+      "args": { "name": "order_confirmed" }
+    },
+    {
+      "tool": "screenshot",
+      "args": { "output": "/tmp/nexus-order-confirmed.png" }
+    }
+  ],
+  "on_error": {
+    "screenshot": true,
+    "save_network": true,
+    "save_console": true
+  },
+  "self_healing": {
+    "enabled": true,
+    "strategies": ["testid_fallback", "role_fallback", "text_search"],
+    "min_confidence": 0.7
+  }
+}

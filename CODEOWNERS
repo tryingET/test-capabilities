@@ -1,0 +1,15 @@
+# Core + org context snapshots
+docs/_core/** @holding-owner
+docs/org_context/** @software-owner
+
+# Owned repo delivery + governance
+docs/owned/** @software-owner
+docs/system4d/** @software-owner
+docs/decisions/** @software-owner
+docs/dev/** @software-owner
+policy/** @software-owner
+
+# Code
+scripts/** @software-owner
+src/** @software-owner
+tests/** @software-owner
