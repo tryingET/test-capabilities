@@ -70,16 +70,16 @@ export interface TrainingData {
 // ============================================
 
 export class GradientBoostingPredictor implements PredictionModel {
-  name = 'gradient-boost';
-  version = '1.0.0';
+  name = "gradient-boost";
+  version = "1.0.0";
   features = [
-    'errorRate',
-    'responseTimeP95',
-    'memoryUsage',
-    'timeSinceDeployment',
-    'rageClickRate',
-    'abandonmentRate',
-    'recentFailures',
+    "errorRate",
+    "responseTimeP95",
+    "memoryUsage",
+    "timeSinceDeployment",
+    "rageClickRate",
+    "abandonmentRate",
+    "recentFailures",
   ];
 
   // Simplified model weights (would be trained)
@@ -133,25 +133,25 @@ export class GradientBoostingPredictor implements PredictionModel {
     return Math.min(1, score / totalWeight);
   }
 
-  private calculateRiskScore(input: PredictionInput, component: string): number {
+  private calculateRiskScore(input: PredictionInput, _component: string): number {
     // Composite risk score considering multiple factors
     const systemRisk = (input.cpuUsage + input.memoryUsage + input.diskUsage) / 3;
     const userRisk = (input.rageClickRate + input.abandonmentRate + input.bounceRate) / 3;
     const historyRisk = Math.min(1, input.recentFailures / 10);
 
-    return (systemRisk * 0.3 + userRisk * 0.4 + historyRisk * 0.3);
+    return systemRisk * 0.3 + userRisk * 0.4 + historyRisk * 0.3;
   }
 
-  private calculateConfidence(input: PredictionInput, component: string): number {
+  private calculateConfidence(input: PredictionInput, _component: string): number {
     // Confidence based on data completeness and historical accuracy
-    const completeness = Object.values(input).filter(v => v !== undefined && v !== null).length / 
-                         Object.keys(input).length;
-    return 0.7 + (completeness * 0.25);
+    const completeness =
+      Object.values(input).filter((v) => v !== undefined && v !== null).length /
+      Object.keys(input).length;
+    return 0.7 + completeness * 0.25;
   }
 
   private identifyTrigger(input: PredictionInput, weights: Record<string, number>): string {
-    const sortedFeatures = Object.entries(weights)
-      .sort((a, b) => b[1] - a[1]);
+    const sortedFeatures = Object.entries(weights).sort((a, b) => b[1] - a[1]);
 
     const topFeature = sortedFeatures[0][0];
     const value = (input as Record<string, number>)[topFeature] || 0;
@@ -161,12 +161,12 @@ export class GradientBoostingPredictor implements PredictionModel {
 
   private featureToTrigger(feature: string, value: number): string {
     const triggers: Record<string, (v: number) => string> = {
-      errorRate: (v) => v > 0.05 ? 'High error rate detected' : 'Elevated error rate',
-      responseTimeP95: (v) => v > 2000 ? 'Severe latency spike' : 'Response time degradation',
-      memoryUsage: (v) => v > 0.9 ? 'Critical memory pressure' : 'Memory usage elevated',
-      abandonmentRate: (v) => v > 0.3 ? 'High user abandonment' : 'Rising abandonment rate',
-      rageClickRate: (v) => v > 0.1 ? 'User frustration detected' : 'Click frustration rising',
-      recentFailures: (v) => v > 5 ? 'Recent failure cluster' : 'Elevated failure frequency',
+      errorRate: (v) => (v > 0.05 ? "High error rate detected" : "Elevated error rate"),
+      responseTimeP95: (v) => (v > 2000 ? "Severe latency spike" : "Response time degradation"),
+      memoryUsage: (v) => (v > 0.9 ? "Critical memory pressure" : "Memory usage elevated"),
+      abandonmentRate: (v) => (v > 0.3 ? "High user abandonment" : "Rising abandonment rate"),
+      rageClickRate: (v) => (v > 0.1 ? "User frustration detected" : "Click frustration rising"),
+      recentFailures: (v) => (v > 5 ? "Recent failure cluster" : "Elevated failure frequency"),
     };
 
     return triggers[feature]?.(value) || `Elevated ${feature}`;
@@ -175,40 +175,45 @@ export class GradientBoostingPredictor implements PredictionModel {
   private suggestPrevention(component: string, input: PredictionInput): string {
     const preventions: Record<string, Record<string, string>> = {
       checkout: {
-        high_latency: 'Add circuit breaker for payment service',
-        high_errors: 'Implement retry with exponential backoff',
-        high_abandonment: 'Simplify checkout flow, add progress indicators',
+        high_latency: "Add circuit breaker for payment service",
+        high_errors: "Implement retry with exponential backoff",
+        high_abandonment: "Simplify checkout flow, add progress indicators",
       },
       search: {
-        high_latency: 'Add query timeout and result caching',
-        high_errors: 'Implement search fallback to cached results',
-        high_rage: 'Add search suggestions and auto-complete',
+        high_latency: "Add query timeout and result caching",
+        high_errors: "Implement search fallback to cached results",
+        high_rage: "Add search suggestions and auto-complete",
       },
       auth: {
-        high_errors: 'Review auth token refresh logic',
-        high_memory: 'Check for memory leaks in session management',
-        high_failures: 'Review recent auth changes for regressions',
+        high_errors: "Review auth token refresh logic",
+        high_memory: "Check for memory leaks in session management",
+        high_failures: "Review recent auth changes for regressions",
       },
       api: {
-        high_latency: 'Scale horizontally or add caching layer',
-        high_errors: 'Review API rate limits and error handling',
-        high_memory: 'Review request/response payload sizes',
+        high_latency: "Scale horizontally or add caching layer",
+        high_errors: "Review API rate limits and error handling",
+        high_memory: "Review request/response payload sizes",
       },
     };
 
     const componentPreventions = preventions[component] || {};
-    const topIssue = input.responseTimeP95 > 1000 ? 'high_latency' :
-                     input.errorRate > 0.05 ? 'high_errors' :
-                     input.rageClickRate > 0.1 ? 'high_rage' : 'high_abandonment';
+    const topIssue =
+      input.responseTimeP95 > 1000
+        ? "high_latency"
+        : input.errorRate > 0.05
+          ? "high_errors"
+          : input.rageClickRate > 0.1
+            ? "high_rage"
+            : "high_abandonment";
 
-    return componentPreventions[topIssue] || 'Monitor closely and review logs';
+    return componentPreventions[topIssue] || "Monitor closely and review logs";
   }
 
   private estimateTimeHorizon(probability: number): string {
-    if (probability > 0.7) return '< 1 hour';
-    if (probability > 0.5) return '1-6 hours';
-    if (probability > 0.3) return '6-24 hours';
-    return '1-7 days';
+    if (probability > 0.7) return "< 1 hour";
+    if (probability > 0.5) return "1-6 hours";
+    if (probability > 0.3) return "6-24 hours";
+    return "1-7 days";
   }
 
   private getRelatedMetrics(input: PredictionInput, weights: Record<string, number>): string[] {
@@ -243,7 +248,7 @@ export class PredictionEngine {
     this.recentPredictions = predictions;
 
     // Enrich with historical context
-    return predictions.map(p => this.enrichWithHistory(p));
+    return predictions.map((p) => this.enrichWithHistory(p));
   }
 
   async addTrainingData(data: TrainingData): Promise<void> {
@@ -255,35 +260,33 @@ export class PredictionEngine {
     }
   }
 
-  async recordOutcome(predictionId: string, failed: boolean): Promise<void> {
+  async recordOutcome(_predictionId: string, _failed: boolean): Promise<void> {
     // Track prediction accuracy for model improvement
     // In production, this would update the model's performance metrics
   }
 
   private enrichWithHistory(prediction: Prediction): Prediction {
     // Add historical context to predictions
-    const similarFailures = this.historicalData.filter(d => 
-      d.outcome.failed && d.outcome.component === prediction.component
+    const similarFailures = this.historicalData.filter(
+      (d) => d.outcome.failed && d.outcome.component === prediction.component,
     ).length;
 
     return {
       ...prediction,
-      confidence: Math.min(0.95, prediction.confidence + (similarFailures * 0.01)),
+      confidence: Math.min(0.95, prediction.confidence + similarFailures * 0.01),
     };
   }
 
   getTopRisks(n: number = 5): Prediction[] {
-    return this.recentPredictions
-      .sort((a, b) => b.riskScore - a.riskScore)
-      .slice(0, n);
+    return this.recentPredictions.sort((a, b) => b.riskScore - a.riskScore).slice(0, n);
   }
 
   getPredictionsByComponent(component: string): Prediction[] {
-    return this.recentPredictions.filter(p => p.component === component);
+    return this.recentPredictions.filter((p) => p.component === component);
   }
 
   getPredictionsByHorizon(horizon: string): Prediction[] {
-    return this.recentPredictions.filter(p => p.timeHorizon === horizon);
+    return this.recentPredictions.filter((p) => p.timeHorizon === horizon);
   }
 }
 
@@ -292,7 +295,7 @@ export class PredictionEngine {
 // ============================================
 
 export class PredictionCollector {
-  async collectMetrics(source: string): Promise<PredictionInput> {
+  async collectMetrics(_source: string): Promise<PredictionInput> {
     // Collect metrics from various sources
     // In production, this would connect to APM tools, logs, etc.
 
@@ -330,7 +333,7 @@ export class PredictionCollector {
   async startCollection(interval: number = 60000): Promise<void> {
     // Start periodic metric collection
     setInterval(async () => {
-      const metrics = await this.collectMetrics('auto');
+      const _metrics = await this.collectMetrics("auto");
       // Store or process metrics
     }, interval);
   }

@@ -3,7 +3,7 @@
  * The brain that coordinates all testing agents
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 // ============================================
 // TYPES & SCHEMAS
@@ -16,32 +16,38 @@ export const TargetSchema = z.object({
 });
 
 export const AgentConfigSchema = z.object({
-  type: z.enum(['bombadil', 'surf', 'api-fuzzer', 'cli-tester']),
+  type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester"]),
   enabled: z.boolean().default(true),
-  intensity: z.enum(['gentle', 'normal', 'aggressive']).default('normal'),
+  intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
   duration: z.string().optional(),
   focus: z.array(z.string()).optional(),
 });
 
 export const NexusConfigSchema = z.object({
-  version: z.literal('2.0'),
+  version: z.literal("2.0"),
   name: z.string(),
   targets: TargetSchema,
   agents: z.record(z.string(), AgentConfigSchema).optional(),
-  intelligence: z.object({
-    selfHealing: z.boolean().default(true),
-    prediction: z.boolean().default(true),
-    correlation: z.boolean().default(true),
-    collective: z.boolean().default(false),
-  }).optional(),
-  quantum: z.object({
-    enabled: z.boolean().default(false),
-    branches: z.number().default(100),
-  }).optional(),
-  chaos: z.object({
-    enabled: z.boolean().default(false),
-    experiments: z.array(z.string()).optional(),
-  }).optional(),
+  intelligence: z
+    .object({
+      selfHealing: z.boolean().default(true),
+      prediction: z.boolean().default(true),
+      correlation: z.boolean().default(true),
+      collective: z.boolean().default(false),
+    })
+    .optional(),
+  quantum: z
+    .object({
+      enabled: z.boolean().default(false),
+      branches: z.number().default(100),
+    })
+    .optional(),
+  chaos: z
+    .object({
+      enabled: z.boolean().default(false),
+      experiments: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export type NexusConfig = z.infer<typeof NexusConfigSchema>;
@@ -59,18 +65,18 @@ export interface Finding {
   timestamp: Date;
 }
 
-export type FindingType = 
-  | 'bug'
-  | 'performance'
-  | 'security'
-  | 'accessibility'
-  | 'ux'
-  | 'api_contract'
-  | 'race_condition'
-  | 'memory_leak'
-  | 'visual_regression';
+export type FindingType =
+  | "bug"
+  | "performance"
+  | "security"
+  | "accessibility"
+  | "ux"
+  | "api_contract"
+  | "race_condition"
+  | "memory_leak"
+  | "visual_regression";
 
-export type Severity = 'low' | 'medium' | 'high' | 'critical';
+export type Severity = "low" | "medium" | "high" | "critical";
 
 export interface TestResult {
   passed: boolean;
@@ -114,7 +120,7 @@ export interface EdgeCase {
 export interface RareBug {
   description: string;
   probability: string;
-  impact: 'low' | 'medium' | 'high' | 'critical';
+  impact: "low" | "medium" | "high" | "critical";
   reproduction?: string;
 }
 
@@ -140,16 +146,16 @@ export class NexusOrchestrator {
       if (!agentConfig.enabled) continue;
 
       switch (agentConfig.type) {
-        case 'bombadil':
+        case "bombadil":
           this.agents.set(name, new BombadilAgent(agentConfig));
           break;
-        case 'surf':
+        case "surf":
           this.agents.set(name, new SurfAgent(agentConfig));
           break;
-        case 'api-fuzzer':
+        case "api-fuzzer":
           this.agents.set(name, new ApiFuzzerAgent(agentConfig));
           break;
-        case 'cli-tester':
+        case "cli-tester":
           this.agents.set(name, new CliTesterAgent(agentConfig));
           break;
       }
@@ -161,13 +167,11 @@ export class NexusOrchestrator {
 
     // Phase 1: Run all agents in parallel
     const agentResults = await Promise.all(
-      Array.from(this.agents.values()).map(agent => agent.execute(this.config.targets))
+      Array.from(this.agents.values()).map((agent) => agent.execute(this.config.targets)),
     );
 
     // Phase 2: Correlate findings across agents
-    const correlatedFindings = this.correlateFindings(
-      agentResults.flatMap(r => r.findings)
-    );
+    const correlatedFindings = this.correlateFindings(agentResults.flatMap((r) => r.findings));
 
     // Phase 3: Run prediction if enabled
     if (this.config.intelligence?.prediction) {
@@ -209,14 +213,14 @@ export class NexusOrchestrator {
     for (const [component, componentFindings] of byComponent) {
       if (componentFindings.length > 1) {
         // Check for API + UI correlation
-        const apiFinding = componentFindings.find(f => f.type === 'api_contract');
-        const uiFinding = componentFindings.find(f => f.type === 'bug');
-        
+        const apiFinding = componentFindings.find((f) => f.type === "api_contract");
+        const uiFinding = componentFindings.find((f) => f.type === "bug");
+
         if (apiFinding && uiFinding) {
           correlations.push({
             id: `corr-${component}`,
-            type: 'bug',
-            severity: 'high',
+            type: "bug",
+            severity: "high",
             component,
             description: `Cross-domain issue: API validation differs from UI handling`,
             evidence: [apiFinding.description, uiFinding.description],
@@ -235,14 +239,14 @@ export class NexusOrchestrator {
     const predictions: Prediction[] = [];
 
     for (const finding of findings) {
-      if (finding.severity === 'high' || finding.severity === 'critical') {
+      if (finding.severity === "high" || finding.severity === "critical") {
         predictions.push({
           component: finding.component,
           probability: 0.6 + Math.random() * 0.3,
           trigger: `Based on finding: ${finding.type}`,
           preventiveAction: finding.recommendation,
           confidence: 0.75,
-          horizon: '24h',
+          horizon: "24h",
         });
       }
     }
@@ -252,14 +256,14 @@ export class NexusOrchestrator {
 
   private async runQuantumSimulation(): Promise<QuantumInsights> {
     const branches = this.config.quantum?.branches || 100;
-    
+
     // Simulate parallel universe testing
     return {
       universesSimulated: branches,
       uniquePaths: Math.floor(branches * 0.85),
       edgeCasesFound: [],
       rareBugs: [],
-      collapseStrategy: 'significance',
+      collapseStrategy: "significance",
     };
   }
 
@@ -271,13 +275,12 @@ export class NexusOrchestrator {
       low: 1,
     };
 
-    const deductions = findings.reduce((sum, f) => 
-      sum + (weights[f.severity] || 0), 0);
+    const deductions = findings.reduce((sum, f) => sum + (weights[f.severity] || 0), 0);
 
     return Math.max(0, 100 - deductions);
   }
 
-  private calculateCoverage(results: AgentResult[]): CoverageReport {
+  private calculateCoverage(_results: AgentResult[]): CoverageReport {
     return {
       userFlows: 85 + Math.floor(Math.random() * 10),
       apiEndpoints: 95 + Math.floor(Math.random() * 5),
@@ -301,9 +304,7 @@ interface TestAgent {
 }
 
 class BombadilAgent implements TestAgent {
-  constructor(private config: AgentConfig) {}
-  
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(_targets: Target): Promise<AgentResult> {
     // Bombadil property-based fuzzing
     return {
       findings: [],
@@ -313,9 +314,7 @@ class BombadilAgent implements TestAgent {
 }
 
 class SurfAgent implements TestAgent {
-  constructor(private config: AgentConfig) {}
-  
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(_targets: Target): Promise<AgentResult> {
     // surf-cli browser automation
     return {
       findings: [],
@@ -325,9 +324,7 @@ class SurfAgent implements TestAgent {
 }
 
 class ApiFuzzerAgent implements TestAgent {
-  constructor(private config: AgentConfig) {}
-  
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(_targets: Target): Promise<AgentResult> {
     // API fuzzing
     return {
       findings: [],
@@ -337,9 +334,7 @@ class ApiFuzzerAgent implements TestAgent {
 }
 
 class CliTesterAgent implements TestAgent {
-  constructor(private config: AgentConfig) {}
-  
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(_targets: Target): Promise<AgentResult> {
     // CLI testing
     return {
       findings: [],

@@ -3,72 +3,68 @@
  * The Future of AI-Driven Testing
  */
 
-// Core
-export { NexusOrchestrator } from './core/orchestrator';
-export type { 
-  NexusConfig, 
-  Target, 
-  AgentConfig, 
-  Finding, 
-  TestResult,
+export type {
+  AgentConfig,
   CoverageReport,
+  Finding,
+  FindingType,
+  NexusConfig,
   Prediction,
   QuantumInsights,
-  FindingType,
   Severity,
-} from './core/orchestrator';
-
-// Self-healing
-export { SelfHealingEngine, TestFileHealer } from './healing/self-healing';
+  Target,
+  TestResult,
+} from "./core/orchestrator";
+// Core
+export { NexusOrchestrator } from "./core/orchestrator";
 export type {
-  HealingStrategy,
-  HealingContext,
-  HealingResult,
-  HealingProposal,
   ElementSnapshot,
-} from './healing/self-healing';
-
-// Surf Integration
-export { SurfClient, SurfFlowBuilder } from './integrations/surf-client';
+  HealingContext,
+  HealingProposal,
+  HealingResult,
+  HealingStrategy,
+} from "./healing/self-healing";
+// Self-healing
+export { SelfHealingEngine, TestFileHealer } from "./healing/self-healing";
 export type {
+  NetworkRequest,
+  SurfActionResult,
   SurfConfig,
   SurfElement,
   SurfSnapshot,
-  SurfActionResult,
-  NetworkRequest,
-} from './integrations/surf-client';
-
-// Quantum
-export { QuantumSimulator, QuantumTestRunner } from './quantum/simulator';
+} from "./integrations/surf-client";
+// Surf Integration
+export { SurfClient, SurfFlowBuilder } from "./integrations/surf-client";
 export type {
-  QuantumConfig,
-  QuantumBranch,
-  QuantumAction,
-  QuantumState,
-  Discovery,
-  QuantumResult,
-  QuantumCoverage,
-} from './quantum/simulator';
-
-// Prediction
-export { 
-  PredictionEngine, 
-  GradientBoostingPredictor, 
-  PredictionCollector 
-} from './prediction/engine';
-export type {
-  PredictionInput,
   Prediction,
+  PredictionInput,
   PredictionModel,
   TrainingData,
-} from './prediction/engine';
+} from "./prediction/engine";
+// Prediction
+export {
+  GradientBoostingPredictor,
+  PredictionCollector,
+  PredictionEngine,
+} from "./prediction/engine";
+export type {
+  Discovery,
+  QuantumAction,
+  QuantumBranch,
+  QuantumConfig,
+  QuantumCoverage,
+  QuantumResult,
+  QuantumState,
+} from "./quantum/simulator";
+// Quantum
+export { QuantumSimulator, QuantumTestRunner } from "./quantum/simulator";
 
 // Version
-export const VERSION = '2.0.0';
+export const VERSION = "2.0.0";
 
+import type { NexusConfig } from "./core/orchestrator";
 // Convenience factory
-import { NexusOrchestrator } from './core/orchestrator';
-import type { NexusConfig } from './core/orchestrator';
+import { NexusOrchestrator } from "./core/orchestrator";
 
 export function createNexus(config: NexusConfig): NexusOrchestrator {
   return new NexusOrchestrator(config);

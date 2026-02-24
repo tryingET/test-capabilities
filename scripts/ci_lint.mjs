@@ -1,6 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 
 function ensureNode20() {
   const major = Number(process.versions.node.split(".")[0]);
