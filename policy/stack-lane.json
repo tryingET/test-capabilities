@@ -1,0 +1,15 @@
+{
+  "lane": "ts",
+  "tech_stack_core": {
+    "tool": "tech-stack-core",
+    "lane": "pi-ts",
+    "repository": "https://github.com/lightningralf/tech-stack-core",
+    "command": "uv tool run --from ~/ai-society/core/tech-stack-core tech-stack-core show pi-ts --prefer-repo"
+  },
+  "notes": {
+    "runtime": "node >=20",
+    "module": "esm",
+    "testing": "node --test + bombadil + agent-browser",
+    "quality": "biome"
+  }
+}
