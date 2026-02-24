@@ -10,3 +10,6 @@ convex/_generated/
 # Local temp artifacts
 tmp/
 out/
+
+# Generated artifacts
+ontology/*.generated.*
