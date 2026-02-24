@@ -1,7 +1,7 @@
 # AGENTS.md — testers
 
 ## Intent
-Template for an owned repo (context + code + tests).
+Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven testing guides, and autonomous quality assurance tooling.
 
 ## Guardrails
 - No secrets in git.
@@ -15,11 +15,13 @@ Template for an owned repo (context + code + tests).
 - Code-file triage (optional/experimental): `./scripts/code-list.sh`
 - Tech stack lanes list: `./scripts/tech-stack.sh list`
 - Tech stack lane details: `./scripts/tech-stack.sh show <py|ts|pi-ts|go> --prefer-repo`
+- Quality gate: `npm run check` (lint + test)
 
 ## Read order
 1) `docs/_core/`
-2) `docs/org_context/`
-3) `docs/owned/`
-4) `docs/decisions/`
-5) `docs/learnings/`
-6) `docs/system4d/`
+2) `docs/project/vision.md`
+3) `docs/org_context/`
+4) `docs/learnings/`
+5) `docs/system4d/`
+6) `docs/NEXUS-TESTING-FRAMEWORK.md`
+7) `docs/LLM-TESTING-GUIDE.md`
