@@ -1,8 +1,6 @@
-_commit: 927e4c2
-_src_path: /home/lightningralf/ai-society/softwareco/tpl-owned-repo
-core_owner_handle: '@holding-owner'
-org_owner_handle: '@software-owner'
-owned_owner_handle: '@software-owner'
-repo_slug: testers
-
-
+_commit: 2141760
+_src_path: ../../softwareco-templates/copier/tpl-project-repo
+core_owner_handle: '@softwareco'
+org_owner_handle: '@softwareco'
+owned_owner_handle: '@softwareco'
+repo_slug: test-capabilities
