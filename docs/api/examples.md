@@ -1,13 +1,13 @@
 # Examples
 
-> Common NEXUS usage patterns.
+> Common TEST-CAPABILITIES usage patterns.
 
 ---
 
 ## Example 1: Quick Smoke Test
 
 ```bash
-nexus test --quick --target https://myapp.com
+test-capabilities test --quick --target https://myapp.com
 ```
 
 Use for: Pre-commit hooks, quick validation.
@@ -17,7 +17,7 @@ Use for: Pre-commit hooks, quick validation.
 ## Example 2: Full Autonomous Suite
 
 ```bash
-nexus test --target https://myapp.com \
+test-capabilities test --target https://myapp.com \
   --autonomous \
   --self-heal \
   --predict \
@@ -31,7 +31,7 @@ Use for: Nightly runs, release validation.
 ## Example 3: Browser Flow Testing
 
 ```typescript
-import { SurfClient, SurfFlowBuilder } from '@nexus/testing-framework';
+import { SurfClient, SurfFlowBuilder } from '@test-capabilities/testing-framework';
 
 const surf = new SurfClient();
 
@@ -52,7 +52,7 @@ console.log('Passed:', result.success);
 ## Example 4: Self-Healing
 
 ```typescript
-import { SelfHealingEngine } from '@nexus/testing-framework';
+import { SelfHealingEngine } from '@test-capabilities/testing-framework';
 
 const healer = new SelfHealingEngine();
 
@@ -72,7 +72,7 @@ const result = await healer.heal({
 ## Example 5: Failure Prediction
 
 ```typescript
-import { PredictionEngine } from '@nexus/testing-framework';
+import { PredictionEngine } from '@test-capabilities/testing-framework';
 
 const engine = new PredictionEngine();
 
@@ -96,7 +96,7 @@ const predictions = await engine.analyze({
 ## Example 6: Quantum Edge Case Discovery
 
 ```typescript
-import { QuantumTestRunner } from '@nexus/testing-framework';
+import { QuantumTestRunner } from '@test-capabilities/testing-framework';
 
 const runner = new QuantumTestRunner({
   branches: 1000,
@@ -114,7 +114,7 @@ console.log('Rare bugs:', result.rareBugs);
 ## Example 7: AI-Powered Analysis (No API Keys)
 
 ```typescript
-import { SurfClient } from '@nexus/testing-framework';
+import { SurfClient } from '@test-capabilities/testing-framework';
 
 const surf = new SurfClient();
 await surf.goto('https://myapp.com');
@@ -132,8 +132,8 @@ const summary = await surf.queryGemini('Summarize this page');
 ## Example 8: CI/CD Integration
 
 ```yaml
-# .github/workflows/nexus.yml
-name: NEXUS Testing
+# .github/workflows/test-capabilities.yml
+name: TEST-CAPABILITIES Testing
 
 on: [push, pull_request]
 
@@ -143,11 +143,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install NEXUS
-        run: npm install -g @nexus/testing-framework
+      - name: Install TEST-CAPABILITIES
+        run: npm install -g @test-capabilities/testing-framework
       
       - name: Run Tests
-        run: nexus test --target ${{ secrets.APP_URL }} --fail-threshold high
+        run: test-capabilities test --target ${{ secrets.APP_URL }} --fail-threshold high
 ```
 
 ---

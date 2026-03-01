@@ -10,9 +10,9 @@ read_when:
   - "Evaluating browser automation frameworks"
 ---
 
-## 🚀 NEW: NEXUS Testing Framework
+## 🚀 NEW: TEST-CAPABILITIES Testing Framework
 
-**NEXUS** is the ultimate autonomous testing framework that unifies all tools below into one powerful system:
+**TEST-CAPABILITIES** is the ultimate autonomous testing framework that unifies all tools below into one powerful system:
 
 - **Self-healing tests** that fix themselves when UI changes
 - **Quantum simulation** that explores 1000s of parallel test paths
@@ -21,11 +21,11 @@ read_when:
 - **Cross-domain correlation** connecting web, API, and CLI findings
 
 ```bash
-npm install -g @nexus/testing-framework
-nexus test --target https://your-app.com --autonomous
+npm install -g @test-capabilities/testing-framework
+test-capabilities test --target https://your-app.com --autonomous
 ```
 
-See [NEXUS-TESTING-FRAMEWORK.md](./NEXUS-TESTING-FRAMEWORK.md) for full documentation.
+See [TEST-CAPABILITIES-TESTING-FRAMEWORK.md](./TEST-CAPABILITIES-TESTING-FRAMEWORK.md) for full documentation.
 
 ---
 
@@ -35,23 +35,23 @@ See [NEXUS-TESTING-FRAMEWORK.md](./NEXUS-TESTING-FRAMEWORK.md) for full document
 
 | Question | Answer → Tool |
 |----------|---------------|
-| **Ultimate testing** | **NEXUS** (all-in-one) |
+| **Ultimate testing** | **TEST-CAPABILITIES** (all-in-one) |
 | CI/CD verification? | `verify.sh` + BATS |
 | Docs/demo for README? | asciinema cast |
 | Marketing showcase? | VHS gif |
 | Web UI fuzzing? | Bombadil |
 | LLM navigates browser? | Surf-CLI / Stagehand / agent-browser |
 | LLM generates tests? | BATS + LLM |
-| Full AI test agent? | NEXUS / pi-agent-browser |
+| Full AI test agent? | TEST-CAPABILITIES / pi-agent-browser |
 
 ### By Project Type
 
 ```
 CLI / Scripts     → shellcheck → BATS → verify.sh
 Web App (fuzzing) → Bombadil (property-based)
-Web App (LLM)     → Surf-CLI / Stagehand / NEXUS
-API               → Snapshot tests + contract tests + NEXUS
-Everything        → NEXUS (unified autonomous testing)
+Web App (LLM)     → Surf-CLI / Stagehand / TEST-CAPABILITIES
+API               → Snapshot tests + contract tests + TEST-CAPABILITIES
+Everything        → TEST-CAPABILITIES (unified autonomous testing)
 ```
 
 ---
@@ -293,7 +293,7 @@ surf network --format curl          # Get all as curl commands
 surf network.get r_001              # Get specific request details
 ```
 
-**Validated**: ✓ Integrates with NEXUS framework
+**Validated**: ✓ Integrates with TEST-CAPABILITIES framework
 
 ---
 

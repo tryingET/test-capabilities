@@ -9,7 +9,7 @@
 ### Constructor
 
 ```typescript
-import { PredictionEngine } from '@nexus/testing-framework';
+import { PredictionEngine } from '@test-capabilities/testing-framework';
 
 const engine = new PredictionEngine();
 ```
@@ -145,7 +145,7 @@ await engine.recordOutcome('pred_001', true); // Prediction was correct
 ### Implement PredictionModel
 
 ```typescript
-import { PredictionModel, PredictionInput, Prediction } from '@nexus/testing-framework';
+import { PredictionModel, PredictionInput, Prediction } from '@test-capabilities/testing-framework';
 
 class CustomPredictor implements PredictionModel {
   name = 'custom-predictor';
@@ -170,8 +170,8 @@ const engine = new PredictionEngine(new CustomPredictor());
 ## CLI Usage
 
 ```bash
-nexus predict --target https://myapp.com
-nexus predict --target https://myapp.com --horizon 48
+test-capabilities predict --target https://myapp.com
+test-capabilities predict --target https://myapp.com --horizon 48
 ```
 
 ---
@@ -181,7 +181,7 @@ nexus predict --target https://myapp.com --horizon 48
 ### PredictionCollector
 
 ```typescript
-import { PredictionCollector } from '@nexus/testing-framework';
+import { PredictionCollector } from '@test-capabilities/testing-framework';
 
 const collector = new PredictionCollector();
 

@@ -547,7 +547,7 @@ We are approaching this threshold. testers is the infrastructure that will carry
 **"One config. One report. One mental model."**
 
 Deliverables:
-- Unified `nexus.yaml` specification
+- Unified `test-capabilities.yaml` specification
 - Normalized observation protocol
 - Basic correlation (failure → root cause)
 - The definitive LLM testing knowledge base

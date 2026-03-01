@@ -1,12 +1,13 @@
 {
   "name": "test-capabilities",
   "version": "0.1.0",
-  "description": "Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven testing guides, autonomous quality assurance",
+  "description": "Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, autonomous quality assurance",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "bin": {
-    "nexus": "./bin/nexus"
+    "tc": "./bin/test-capabilities",
+    "test-capabilities": "./bin/test-capabilities"
   },
   "engines": {
     "node": ">=20"
@@ -29,7 +30,7 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "tech-stack": "bash ./scripts/tech-stack.sh",
-    "nexus": "node bin/nexus"
+    "test-capabilities": "node bin/test-capabilities"
   },
   "keywords": [
     "testing",
@@ -40,7 +41,7 @@
     "browser-automation",
     "fuzzing",
     "quantum-testing",
-    "nexus"
+    "test-capabilities"
   ],
   "dependencies": {
     "chalk": "^4.1.2",

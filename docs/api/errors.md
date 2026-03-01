@@ -10,7 +10,7 @@
 |------|---------|--------|
 | 0 | Success | All tests passed, health >= 70 |
 | 1 | Test failures | Review findings, fix issues |
-| 2 | Configuration error | Check nexus.yaml syntax |
+| 2 | Configuration error | Check test-capabilities.yaml syntax |
 | 3 | Connection error | Verify target is accessible |
 | 4 | Timeout | Increase timeout or simplify |
 
@@ -199,15 +199,15 @@ async function runTests(config: NexusConfig) {
 
 ```bash
 # Fail fast on first error
-nexus test --fail-fast
+test-capabilities test --fail-fast
 
 # Continue on errors
-nexus test --no-fail-fast
+test-capabilities test --no-fail-fast
 
 # Set thresholds
-nexus test --fail-threshold critical  # Only fail on critical
-nexus test --fail-threshold high      # Fail on high+
-nexus test --fail-threshold medium    # Fail on medium+
+test-capabilities test --fail-threshold critical  # Only fail on critical
+test-capabilities test --fail-threshold high      # Fail on high+
+test-capabilities test --fail-threshold medium    # Fail on medium+
 ```
 
 ---
@@ -217,19 +217,19 @@ nexus test --fail-threshold medium    # Fail on medium+
 ### Verbose Output
 
 ```bash
-nexus test --verbose --target https://myapp.com
+test-capabilities test --verbose --target https://myapp.com
 ```
 
 ### Debug Mode
 
 ```bash
-DEBUG=nexus:* nexus test --target https://myapp.com
+DEBUG=test-capabilities:* test-capabilities test --target https://myapp.com
 ```
 
 ### Save Debug Info
 
 ```typescript
-const result = await nexus.run();
+const result = await test-capabilities.run();
 
 if (!result.passed) {
   // Save detailed debug info
@@ -253,7 +253,7 @@ if (!result.passed) {
 
 When reporting issues, include:
 
-1. NEXUS version: `nexus --version`
+1. TEST-CAPABILITIES version: `test-capabilities --version`
 2. Node version: `node --version`
 3. Config file (redact secrets)
 4. Full error message
@@ -261,7 +261,7 @@ When reporting issues, include:
 
 ```bash
 # Gather debug info
-nexus --version > debug-info.txt
+test-capabilities --version > debug-info.txt
 node --version >> debug-info.txt
-nexus test --verbose --target https://myapp.com 2>&1 | tee -a debug-info.txt
+test-capabilities test --verbose --target https://myapp.com 2>&1 | tee -a debug-info.txt
 ```

@@ -1,5 +1,5 @@
 /**
- * NEXUS Prediction Engine
+ * TEST-CAPABILITIES Prediction Engine
  * ML-powered failure prediction
  */
 

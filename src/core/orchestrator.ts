@@ -1,5 +1,5 @@
 /**
- * NEXUS Core Orchestrator
+ * TEST-CAPABILITIES Core Orchestrator
  * The brain that coordinates all testing agents
  */
 
@@ -23,7 +23,7 @@ export const AgentConfigSchema = z.object({
   focus: z.array(z.string()).optional(),
 });
 
-export const NexusConfigSchema = z.object({
+export const TestCapabilitiesConfigSchema = z.object({
   version: z.literal("2.0"),
   name: z.string(),
   targets: TargetSchema,
@@ -50,7 +50,7 @@ export const NexusConfigSchema = z.object({
     .optional(),
 });
 
-export type NexusConfig = z.infer<typeof NexusConfigSchema>;
+export type TestCapabilitiesConfig = z.infer<typeof TestCapabilitiesConfigSchema>;
 export type Target = z.infer<typeof TargetSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
@@ -128,14 +128,14 @@ export interface RareBug {
 // ORCHESTRATOR CLASS
 // ============================================
 
-export class NexusOrchestrator {
-  private config: NexusConfig;
+export class TestCapabilitiesOrchestrator {
+  private config: TestCapabilitiesConfig;
   private agents: Map<string, TestAgent> = new Map();
   private findings: Finding[] = [];
   private predictions: Prediction[] = [];
 
-  constructor(config: NexusConfig) {
-    this.config = NexusConfigSchema.parse(config);
+  constructor(config: TestCapabilitiesConfig) {
+    this.config = TestCapabilitiesConfigSchema.parse(config);
     this.initializeAgents();
   }
 
@@ -347,4 +347,4 @@ class CliTesterAgent implements TestAgent {
 // EXPORTS
 // ============================================
 
-export default NexusOrchestrator;
+export default TestCapabilitiesOrchestrator;

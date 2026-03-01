@@ -15,7 +15,7 @@
 
 ```bash
 # Core framework
-npm install -g @nexus/testing-framework
+npm install -g @test-capabilities/testing-framework
 
 # Surf-CLI integration (recommended for browser testing)
 npm install -g surf-cli
@@ -32,16 +32,16 @@ chmod +x bombadil
 
 ```bash
 # Quick sanity check
-nexus test --quick --target https://your-app.com
+test-capabilities test --quick --target https://your-app.com
 
 # Full autonomous test
-nexus test --target https://your-app.com --autonomous
+test-capabilities test --target https://your-app.com --autonomous
 ```
 
 Output:
 
 ```
-🚀 NEXUS v2.0.0
+🚀 TEST-CAPABILITIES v2.0.0
 
 Testing: https://your-app.com
 
@@ -58,7 +58,7 @@ Health Score: 94
 
 ## Configuration
 
-Create `nexus.yaml`:
+Create `test-capabilities.yaml`:
 
 ```yaml
 version: '2.0'
@@ -84,7 +84,7 @@ intelligence:
 Run with config:
 
 ```bash
-nexus test --config nexus.yaml
+test-capabilities test --config test-capabilities.yaml
 ```
 
 ---

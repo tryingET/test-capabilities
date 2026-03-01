@@ -1,5 +1,5 @@
 /**
- * NEXUS Self-Healing System
+ * TEST-CAPABILITIES Self-Healing System
  * Tests that fix themselves when things change
  */
 

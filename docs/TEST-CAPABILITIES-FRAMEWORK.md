@@ -1,12 +1,12 @@
-# NEXUS: Autonomous Testing Framework
+# TEST-CAPABILITIES: Autonomous Testing Framework
 
 > **The Future of AI-Driven Testing** — Self-evolving, multimodal, quantum-inspired test orchestration.
 
 ---
 
-## 🌌 What Makes NEXUS Different
+## 🌌 What Makes TEST-CAPABILITIES Different
 
-| Traditional Testing | NEXUS Testing |
+| Traditional Testing | TEST-CAPABILITIES Testing |
 |--------------------|---------------|
 | Write tests manually | Tests write themselves |
 | Fixed test cases | Morphing, adaptive test suites |
@@ -22,7 +22,7 @@
 
 ```
                     ┌─────────────────────────────────────┐
-                    │         NEXUS ORCHESTRATOR          │
+                    │         TEST-CAPABILITIES ORCHESTRATOR          │
                     │   (The Brain of Everything)        │
                     └─────────────────┬───────────────────┘
                                       │
@@ -65,7 +65,7 @@ curl -sL https://github.com/antithesishq/bombadil/releases/latest/download/bomba
 chmod +x bombadil
 
 # Run autonomous testing
-nexus test --target https://your-app.com --autonomous
+test-capabilities test --target https://your-app.com --autonomous
 ```
 
 ---
@@ -79,7 +79,7 @@ nexus test --target https://your-app.com --autonomous
 **After:** Single YAML config, unified execution, correlated insights.
 
 ```yaml
-# nexus.yaml - The One Config to Rule Them All
+# test-capabilities.yaml - The One Config to Rule Them All
 version: 2.0
 name: "My App Testing Suite"
 
@@ -125,22 +125,22 @@ prediction:
 ### Surf-CLI Integration Commands
 
 ```bash
-# NEXUS extends surf-cli with superpowers
+# TEST-CAPABILITIES extends surf-cli with superpowers
 
 # Smart exploration (AI decides what to test)
-nexus surf explore --url https://myapp.com --depth 5
+test-capabilities surf explore --url https://myapp.com --depth 5
 
 # Multi-step flows with validation
-nexus surf flow login-checkout --record --validate
+test-capabilities surf flow login-checkout --record --validate
 
 # AI-powered assertions
-nexus surf assert "page should show welcome message after login"
+test-capabilities surf assert "page should show welcome message after login"
 
 # Visual regression with AI diff
-nexus surf compare --baseline ./baselines/ --ai-diff
+test-capabilities surf compare --baseline ./baselines/ --ai-diff
 
 # Network replay for debugging
-nexus surf replay ./captured-session.json
+test-capabilities surf replay ./captured-session.json
 ```
 
 ---
@@ -152,7 +152,7 @@ nexus surf replay ./captured-session.json
 Tests that fix themselves when UI changes:
 
 ```typescript
-// nexus/healing.ts
+// test-capabilities/healing.ts
 import { SurfClient } from 'surf-cli';
 
 export class SelfHealingTest {
@@ -198,7 +198,7 @@ export class SelfHealingTest {
 Correlate findings across CLI, Web, and API:
 
 ```typescript
-// nexus/correlator.ts
+// test-capabilities/correlator.ts
 export class CorrelationEngine {
   correlate(findings: Finding[]): Insight[] {
     return [
@@ -229,7 +229,7 @@ export class CorrelationEngine {
 Know it's going to break before it breaks:
 
 ```typescript
-// nexus/predictor.ts
+// test-capabilities/predictor.ts
 export class FailurePredictor {
   private model = new GradientBoostingClassifier();
   
@@ -272,7 +272,7 @@ export class FailurePredictor {
 Tests that document themselves:
 
 ```typescript
-// nexus/documentation.ts
+// test-capabilities/documentation.ts
 export class LivingDocs {
   async generateFromSession(session: TestSession) {
     return {
@@ -308,7 +308,7 @@ export class LivingDocs {
 Run ALL possible test paths simultaneously:
 
 ```typescript
-// nexus/quantum.ts
+// test-capabilities/quantum.ts
 export class QuantumTestSimulator {
   // Simulate N parallel universes of user behavior
   async simulate(target: string, branches: number = 1000) {
@@ -344,7 +344,7 @@ export class QuantumTestSimulator {
 Test across time, not just versions:
 
 ```typescript
-// nexus/temporal.ts
+// test-capabilities/temporal.ts
 export class TemporalTester {
   async testAcrossTime(config: {
     startDate: Date;
@@ -374,7 +374,7 @@ export class TemporalTester {
 Break things on purpose, learn from the chaos:
 
 ```typescript
-// nexus/chaos.ts
+// test-capabilities/chaos.ts
 export class ChaosOrchestrator {
   async inject(target: TestTarget, experiments: ChaosExperiment[]) {
     for (const exp of experiments) {
@@ -410,7 +410,7 @@ export class ChaosOrchestrator {
 Tests that understand your app's soul:
 
 ```typescript
-// nexus/sentient.ts
+// test-capabilities/sentient.ts
 export class SentientTestGenerator {
   // Understand the app's purpose
   async comprehend(baseUrl: string): Promise<AppPersona> {
@@ -451,7 +451,7 @@ export class SentientTestGenerator {
 Debug across time, state, and parallel executions:
 
 ```typescript
-// nexus/dimensional.ts
+// test-capabilities/dimensional.ts
 export class InterdimensionalDebugger {
   async captureSnapshot(session: TestSession): Promise<DimensionalSnapshot> {
     return {
@@ -488,7 +488,7 @@ export class InterdimensionalDebugger {
 Learn from every test run across all users:
 
 ```typescript
-// nexus/collective.ts
+// test-capabilities/collective.ts
 export class CollectiveIntelligence {
   // Share anonymized patterns
   async contribute(findings: Finding[]) {
@@ -520,7 +520,7 @@ export class CollectiveIntelligence {
 Describe what you want in plain English:
 
 ```typescript
-// nexus/nl.ts
+// test-capabilities/nl.ts
 export class NaturalLanguageTester {
   async interpret(spec: string): Promise<ExecutableTest> {
     // "Make sure users can checkout within 3 clicks"
@@ -546,13 +546,13 @@ See your entire test surface in 3D:
 
 ```bash
 # Generate interactive visualization
-nexus visualize --output ./test-hologram.html
+test-capabilities visualize --output ./test-hologram.html
 
 # Real-time test dashboard
-nexus dashboard --port 3001
+test-capabilities dashboard --port 3001
 
 # Generate VR walkthrough
-nexus vr --output ./test-vr-experience
+test-capabilities vr --output ./test-vr-experience
 ```
 
 ---
@@ -563,7 +563,7 @@ nexus vr --output ./test-vr-experience
 
 ```bash
 # One command to rule them all
-nexus test --target https://myapp.com \
+test-capabilities test --target https://myapp.com \
   --autonomous \
   --self-heal \
   --predict \
@@ -573,8 +573,8 @@ nexus test --target https://myapp.com \
 ### Example 2: CI/CD Integration
 
 ```yaml
-# .github/workflows/nexus.yml
-name: NEXUS Testing
+# .github/workflows/test-capabilities.yml
+name: TEST-CAPABILITIES Testing
 
 on: [push, pull_request]
 
@@ -584,11 +584,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Run NEXUS
+      - name: Run TEST-CAPABILITIES
         run: |
-          nexus test \
+          test-capabilities test \
             --target ${{ secrets.APP_URL }} \
-            --config ./nexus.yaml \
+            --config ./test-capabilities.yaml \
             --fail-threshold high \
             --upload-artifacts
 ```
@@ -600,10 +600,10 @@ jobs:
 # .git/hooks/pre-commit
 
 # Quick sanity check before every commit
-nexus test --quick --target http://localhost:3000
+test-capabilities test --quick --target http://localhost:3000
 
 if [ $? -ne 0 ]; then
-  echo "❌ NEXUS found issues. Fix before committing."
+  echo "❌ TEST-CAPABILITIES found issues. Fix before committing."
   exit 1
 fi
 ```
@@ -616,7 +616,7 @@ fi
 
 ```json
 {
-  "nexus_version": "2.0.0",
+  "test-capabilities_version": "2.0.0",
   "timestamp": "2026-02-22T20:00:00Z",
   "target": "https://myapp.com",
   "summary": {
@@ -667,7 +667,7 @@ fi
 ## 🔧 Configuration Reference
 
 ```yaml
-# nexus.yaml - Complete Reference
+# test-capabilities.yaml - Complete Reference
 version: 2.0
 
 # Target configuration
@@ -738,7 +738,7 @@ reporting:
   artifacts: [screenshots, videos, traces]
   upload:
     enabled: true
-    destination: s3://my-bucket/nexus-reports
+    destination: s3://my-bucket/test-capabilities-reports
 ```
 
 ---
@@ -746,7 +746,7 @@ reporting:
 ## 🚦 Health Score Algorithm
 
 ```typescript
-// How NEXUS calculates your app's health
+// How TEST-CAPABILITIES calculates your app's health
 function calculateHealthScore(findings: Findings): number {
   const weights = {
     critical_bugs: 25,
@@ -773,17 +773,17 @@ function calculateHealthScore(findings: Findings): number {
 
 | Resource | Link |
 |----------|------|
-| NEXUS Academy | `nexus learn` |
-| Interactive Tutorial | `nexus tutorial` |
-| Example Projects | `nexus examples` |
-| Best Practices Guide | `nexus docs best-practices` |
-| API Reference | `nexus docs api` |
+| TEST-CAPABILITIES Academy | `test-capabilities learn` |
+| Interactive Tutorial | `test-capabilities tutorial` |
+| Example Projects | `test-capabilities examples` |
+| Best Practices Guide | `test-capabilities docs best-practices` |
+| API Reference | `test-capabilities docs api` |
 
 ---
 
 ## 🤝 Contributing
 
-NEXUS is designed to be extensible. Create your own:
+TEST-CAPABILITIES is designed to be extensible. Create your own:
 
 - **Sensors**: Detect anomalies in new domains
 - **Strategies**: New self-healing approaches
@@ -793,10 +793,10 @@ NEXUS is designed to be extensible. Create your own:
 
 ```bash
 # Create a new extension
-nexus extension create my-sensor
+test-capabilities extension create my-sensor
 
-# Publish to NEXUS marketplace
-nexus extension publish
+# Publish to TEST-CAPABILITIES marketplace
+test-capabilities extension publish
 ```
 
 ---
@@ -809,4 +809,4 @@ MIT License - Use it, improve it, share it.
 
 > *"The best test is the one that writes itself, heals itself, and prevents bugs before they exist."*
 > 
-> — NEXUS Philosophy
+> — TEST-CAPABILITIES Philosophy

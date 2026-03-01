@@ -40,4 +40,4 @@ read_when:
 
 1. Should collective intelligence (pattern sharing) be opt-in or opt-out?
 2. What's the budget threshold for LLM operations in CI?
-3. How do we version the NEXUS framework for external consumers?
+3. How do we version the TEST-CAPABILITIES framework for external consumers?

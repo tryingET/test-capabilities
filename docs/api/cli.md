@@ -1,21 +1,21 @@
 # CLI Reference
 
-> All NEXUS commands and options.
+> All TEST-CAPABILITIES commands and options.
 
 ---
 
-## nexus test
+## test-capabilities test
 
 Run the full test suite.
 
 ```bash
-nexus test [options]
+test-capabilities test [options]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--target <url>` | Target URL or path | Required |
-| `--config <file>` | Configuration file | `nexus.yaml` |
+| `--config <file>` | Configuration file | `test-capabilities.yaml` |
 | `--quick` | Fast sanity check | `false` |
 | `--autonomous` | Full autonomous mode | `false` |
 | `--self-heal` | Enable self-healing | `false` |
@@ -25,12 +25,12 @@ nexus test [options]
 
 ---
 
-## nexus surf
+## test-capabilities surf
 
 Browser testing with surf-cli integration.
 
 ```bash
-nexus surf <action> [options]
+test-capabilities surf <action> [options]
 ```
 
 | Action | Description |
@@ -54,12 +54,12 @@ Options:
 
 ---
 
-## nexus predict
+## test-capabilities predict
 
 Run ML-powered failure prediction.
 
 ```bash
-nexus predict [options]
+test-capabilities predict [options]
 ```
 
 | Option | Description | Default |
@@ -70,12 +70,12 @@ nexus predict [options]
 
 ---
 
-## nexus quantum
+## test-capabilities quantum
 
 Run quantum test simulation.
 
 ```bash
-nexus quantum [options]
+test-capabilities quantum [options]
 ```
 
 | Option | Description | Default |
@@ -87,12 +87,12 @@ nexus quantum [options]
 
 ---
 
-## nexus heal
+## test-capabilities heal
 
 Analyze and fix broken tests.
 
 ```bash
-nexus heal [options]
+test-capabilities heal [options]
 ```
 
 | Option | Description | Default |
@@ -103,12 +103,12 @@ nexus heal [options]
 
 ---
 
-## nexus report
+## test-capabilities report
 
 Generate test reports.
 
 ```bash
-nexus report [options]
+test-capabilities report [options]
 ```
 
 | Option | Description | Default |
@@ -120,17 +120,17 @@ nexus report [options]
 
 ---
 
-## nexus visualize
+## test-capabilities visualize
 
 Generate interactive visualization.
 
 ```bash
-nexus visualize [options]
+test-capabilities visualize [options]
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--output <file>` | Output HTML file | `nexus-viz.html` |
+| `--output <file>` | Output HTML file | `test-capabilities-viz.html` |
 | `--real-time` | Enable real-time updates | `false` |
 | `--port <n>` | Dashboard port | `3001` |
 
@@ -154,8 +154,8 @@ Available for all commands:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NEXUS_CONFIG` | Config file path | `./nexus.yaml` |
-| `NEXUS_REPORT_DIR` | Report directory | `./reports` |
-| `NEXUS_PARALLEL` | Max parallel workers | `4` |
-| `NEXUS_TIMEOUT` | Default timeout (ms) | `60000` |
+| `TEST-CAPABILITIES_CONFIG` | Config file path | `./test-capabilities.yaml` |
+| `TEST-CAPABILITIES_REPORT_DIR` | Report directory | `./reports` |
+| `TEST-CAPABILITIES_PARALLEL` | Max parallel workers | `4` |
+| `TEST-CAPABILITIES_TIMEOUT` | Default timeout (ms) | `60000` |
 | `SURF_SOCKET_PATH` | Surf socket path | `/tmp/surf.sock` |

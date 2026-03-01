@@ -1,4 +1,4 @@
-# NEXUS
+# TEST-CAPABILITIES
 
 > **The testing framework that tests itself.**
 
@@ -6,10 +6,10 @@
 
 ## What is this?
 
-NEXUS is an autonomous testing framework. It writes tests, heals them when they break, and predicts failures before they happen.
+TEST-CAPABILITIES is an autonomous testing framework. It writes tests, heals them when they break, and predicts failures before they happen.
 
 ```bash
-nexus test --target https://your-app.com
+test-capabilities test --target https://your-app.com
 ```
 
 ---
@@ -18,17 +18,17 @@ nexus test --target https://your-app.com
 
 ```bash
 # Install
-npm install -g @nexus/testing-framework
+npm install -g @test-capabilities/framework
 
 # Run
-nexus test --target https://your-app.com
+test-capabilities test --target https://your-app.com
 ```
 
 Returns: health score, bugs found, coverage report, failure predictions.
 
 ---
 
-## Why NEXUS?
+## Why TEST-CAPABILITIES?
 
 | Before | After |
 |--------|-------|
@@ -54,12 +54,12 @@ Returns: health score, bugs found, coverage report, failure predictions.
 ## Commands
 
 ```bash
-nexus test          # Run full test suite
-nexus test --quick  # Fast sanity check
-nexus surf          # Browser testing
-nexus predict       # ML failure prediction
-nexus quantum       # Parallel universe simulation
-nexus heal          # Fix broken tests
+test-capabilities test          # Run full test suite
+test-capabilities test --quick  # Fast sanity check
+test-capabilities surf          # Browser testing
+test-capabilities predict       # ML failure prediction
+test-capabilities quantum       # Parallel universe simulation
+test-capabilities heal          # Fix broken tests
 ```
 
 ---
@@ -68,7 +68,7 @@ nexus heal          # Fix broken tests
 
 ```
 ┌─────────────────────────────────────────────┐
-│                 NEXUS CORE                   │
+│                 TEST-CAPABILITIES CORE                   │
 │                                             │
 │   ┌────────┐ ┌────────┐ ┌────────┐        │
 │   │ SURF   │ │BOMBADIL│ │  API   │        │

@@ -1,23 +1,23 @@
 /**
- * NEXUS Test Example
+ * TEST-CAPABILITIES Test Example
  * Demonstrates the full power of autonomous testing
  */
 
 import {
-  createNexus,
+  createTestCapabilities,
   PredictionEngine,
   QuantumTestRunner,
   SelfHealingEngine,
   SurfClient,
   SurfFlowBuilder,
-} from "@nexus/testing-framework";
+} from "@test-capabilities/framework";
 
 // ============================================
 // Example 1: Full Autonomous Test
 // ============================================
 
 async function runAutonomousTest() {
-  const nexus = createNexus({
+  const tc = createTestCapabilities({
     version: "2.0",
     name: "My App Test",
     targets: {
@@ -45,7 +45,7 @@ async function runAutonomousTest() {
     },
   });
 
-  const result = await nexus.run();
+  const result = await tc.run();
 
   console.log(
     "Health Score:",
@@ -275,7 +275,7 @@ async function _runNetworkAnalysis() {
 // ============================================
 
 async function main() {
-  console.log("🚀 NEXUS Testing Framework Examples\n");
+  console.log("🚀 TEST-CAPABILITIES Testing Framework Examples\n");
 
   console.log("━".repeat(50));
   console.log("Example 1: Autonomous Test");

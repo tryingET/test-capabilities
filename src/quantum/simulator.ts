@@ -1,5 +1,5 @@
 /**
- * NEXUS Quantum Test Simulator
+ * TEST-CAPABILITIES Quantum Test Simulator
  * Run ALL possible test paths simultaneously
  */
 

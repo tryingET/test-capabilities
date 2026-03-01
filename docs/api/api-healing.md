@@ -177,11 +177,11 @@ for (const p of review) {
 
 ```bash
 # Analyze broken tests
-nexus heal --dir ./tests
+test-capabilities heal --dir ./tests
 
 # Dry run (show fixes without applying)
-nexus heal --dir ./tests --dry-run
+test-capabilities heal --dir ./tests --dry-run
 
 # Set confidence threshold
-nexus heal --dir ./tests --confidence 0.8
+test-capabilities heal --dir ./tests --confidence 0.8
 ```

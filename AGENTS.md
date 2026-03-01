@@ -1,7 +1,7 @@
 # AGENTS.md — test-capabilities
 
 ## Intent
-Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven testing guides, and autonomous quality assurance tooling.
+Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, and autonomous quality assurance tooling.
 
 ## Guardrails
 - No secrets in git.
@@ -23,5 +23,5 @@ Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven tes
 3) `docs/org_context/`
 4) `docs/learnings/`
 5) `docs/system4d/`
-6) `docs/NEXUS-TESTING-FRAMEWORK.md`
+6) `docs/TEST-CAPABILITIES-TESTING-FRAMEWORK.md`
 7) `docs/LLM-TESTING-GUIDE.md`

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * NEXUS - Autonomous Testing Framework
+ * TEST-CAPABILITIES - Autonomous Testing Framework
  * The most advanced AI-driven testing system ever created.
  */
 
@@ -15,7 +15,7 @@ const path = require('path');
 
 // ASCII Art Banner
 const showBanner = () => {
-  console.log(chalk.cyan(figlet.textSync('NEXUS', { 
+  console.log(chalk.cyan(figlet.textSync('TEST-CAPABILITIES', { 
     font: 'ANSI Shadow',
     horizontalLayout: 'fitted'
   })));
@@ -24,17 +24,17 @@ const showBanner = () => {
 };
 
 program
-  .name('nexus')
+  .name('test-capabilities')
   .description('The Future of AI-Driven Testing')
   .version('2.0.0');
 
 // ============================================
-// NEXUS TEST COMMAND
+// TEST-CAPABILITIES TEST COMMAND
 // ============================================
 program.command('test')
   .description('Run autonomous testing suite')
   .option('-t, --target <url>', 'Target URL or path')
-  .option('-c, --config <file>', 'Configuration file', 'nexus.yaml')
+  .option('-c, --config <file>', 'Configuration file', 'test-capabilities.yaml')
   .option('-a, --autonomous', 'Enable full autonomous mode')
   .option('--self-heal', 'Enable self-healing tests')
   .option('--predict', 'Enable failure prediction')
@@ -44,7 +44,7 @@ program.command('test')
   .option('--report <dir>', 'Report output directory', './reports')
   .action(async (options) => {
     showBanner();
-    const spinner = ora('Initializing NEXUS testing engine...').start();
+    const spinner = ora('Initializing TEST-CAPABILITIES testing engine...').start();
     
     try {
       // Check for surf-cli
@@ -86,7 +86,7 @@ program.command('test')
   });
 
 // ============================================
-// NEXUS SURF COMMAND - surf-cli integration
+// TEST-CAPABILITIES SURF COMMAND - surf-cli integration
 // ============================================
 program.command('surf')
   .description('Advanced browser testing with surf-cli')
@@ -132,7 +132,7 @@ program.command('surf')
   });
 
 // ============================================
-// NEXUS PREDICT COMMAND
+// TEST-CAPABILITIES PREDICT COMMAND
 // ============================================
 program.command('predict')
   .description('Predict potential failures using ML')
@@ -167,7 +167,7 @@ program.command('predict')
   });
 
 // ============================================
-// NEXUS QUANTUM COMMAND
+// TEST-CAPABILITIES QUANTUM COMMAND
 // ============================================
 program.command('quantum')
   .description('Run quantum test simulation')
@@ -209,7 +209,7 @@ program.command('quantum')
   });
 
 // ============================================
-// NEXUS HEAL COMMAND
+// TEST-CAPABILITIES HEAL COMMAND
 // ============================================
 program.command('heal')
   .description('Analyze and fix broken tests')
@@ -252,11 +252,11 @@ program.command('heal')
   });
 
 // ============================================
-// NEXUS VISUALIZE COMMAND
+// TEST-CAPABILITIES VISUALIZE COMMAND
 // ============================================
 program.command('visualize')
   .description('Generate interactive test visualization')
-  .option('-o, --output <file>', 'Output HTML file', 'nexus-viz.html')
+  .option('-o, --output <file>', 'Output HTML file', 'test-capabilities-viz.html')
   .option('--real-time', 'Enable real-time updates')
   .option('--port <n>', 'Port for real-time dashboard', '3001')
   .action(async (options) => {
@@ -281,7 +281,7 @@ program.command('visualize')
   });
 
 // ============================================
-// NEXUS REPORT COMMAND
+// TEST-CAPABILITIES REPORT COMMAND
 // ============================================
 program.command('report')
   .description('Generate comprehensive test report')

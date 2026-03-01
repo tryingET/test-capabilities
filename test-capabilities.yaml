@@ -1,4 +1,4 @@
-# NEXUS Configuration
+# TEST-CAPABILITIES Configuration
 # The One Config to Rule Them All
 # Version 2.0
 
@@ -92,7 +92,7 @@ intelligence:
 
   # Collective intelligence (opt-in)
   collective: false
-  collective_endpoint: https://nexus-collective.example.com
+  collective_endpoint: https://test-capabilities-collective.example.com
 
 # ===========================================
 # QUANTUM SIMULATION
@@ -161,7 +161,7 @@ reporting:
   # Upload configuration
   upload:
     enabled: false
-    destination: s3://my-bucket/nexus-reports
+    destination: s3://my-bucket/test-capabilities-reports
     retention: 30d
 
 # ===========================================

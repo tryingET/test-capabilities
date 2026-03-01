@@ -36,7 +36,7 @@ Quantum simulation runs thousands of parallel test paths simultaneously, then "c
 ### Constructor
 
 ```typescript
-import { QuantumTestRunner } from '@nexus/testing-framework';
+import { QuantumTestRunner } from '@test-capabilities/testing-framework';
 
 const runner = new QuantumTestRunner({
   branches: 1000,              // Number of parallel universes
@@ -142,7 +142,7 @@ For more control, use the simulator directly.
 ### Constructor
 
 ```typescript
-import { QuantumSimulator } from '@nexus/testing-framework';
+import { QuantumSimulator } from '@test-capabilities/testing-framework';
 
 const simulator = new QuantumSimulator({
   branches: 1000,
@@ -171,13 +171,13 @@ const result = await simulator.simulate({
 
 ```bash
 # Run with 100 branches (default)
-nexus quantum --target https://myapp.com
+test-capabilities quantum --target https://myapp.com
 
 # Run with 1000 branches
-nexus quantum --target https://myapp.com --branches 1000
+test-capabilities quantum --target https://myapp.com --branches 1000
 
 # Use diversity collapse
-nexus quantum --target https://myapp.com --strategy diversity
+test-capabilities quantum --target https://myapp.com --strategy diversity
 ```
 
 ---

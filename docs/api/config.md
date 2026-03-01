@@ -1,6 +1,6 @@
 # Configuration
 
-> Full nexus.yaml reference.
+> Full test-capabilities.yaml reference.
 
 ---
 
@@ -172,10 +172,10 @@ env:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXUS_CONFIG` | `./nexus.yaml` | Config file path |
-| `NEXUS_REPORT_DIR` | `./reports` | Report output |
-| `NEXUS_PARALLEL` | `4` | Max parallel workers |
-| `NEXUS_TIMEOUT` | `60000` | Default timeout (ms) |
+| `TEST-CAPABILITIES_CONFIG` | `./test-capabilities.yaml` | Config file path |
+| `TEST-CAPABILITIES_REPORT_DIR` | `./reports` | Report output |
+| `TEST-CAPABILITIES_PARALLEL` | `4` | Max parallel workers |
+| `TEST-CAPABILITIES_TIMEOUT` | `60000` | Default timeout (ms) |
 | `SURF_SOCKET_PATH` | `/tmp/surf.sock` | Surf socket |
 | `SURF_NETWORK_PATH` | `/tmp/surf` | Network logs |
 | `CHROME_PATH` | auto | Chrome binary path |
@@ -231,5 +231,5 @@ export DB_URL="postgres://..."
 export API_KEY="sk-..."
 export SECRET="..."
 
-nexus test --config nexus.yaml
+test-capabilities test --config test-capabilities.yaml
 ```

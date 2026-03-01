@@ -10,7 +10,7 @@ read_when:
 
 ### In Scope
 
-- NEXUS framework (orchestrator, self-healing, quantum simulator, prediction)
+- TEST-CAPABILITIES framework (orchestrator, self-healing, quantum simulator, prediction)
 - LLM testing prompts and guides
 - Testing tool integrations (Bombadil, agent-browser, Stagehand)
 - Decision matrices for tool selection

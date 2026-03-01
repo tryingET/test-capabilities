@@ -1,12 +1,12 @@
 # AGENTS.md
 
-> **NEXUS Testing Framework — Agent Entry Point**
+> **TEST-CAPABILITIES Testing Framework — Agent Entry Point**
 
 ---
 
-## What is NEXUS?
+## What is TEST-CAPABILITIES?
 
-NEXUS is an autonomous testing framework that:
+TEST-CAPABILITIES is an autonomous testing framework that:
 1. Writes tests automatically
 2. Heals broken tests when UI changes
 3. Predicts failures before they happen
@@ -19,19 +19,19 @@ NEXUS is an autonomous testing framework that:
 ```
 What does user want?
 │
-├─ "Test my app" ───────────→ nexus test --target <url>
+├─ "Test my app" ───────────→ test-capabilities test --target <url>
 │
-├─ "Quick check" ───────────→ nexus test --quick --target <url>
+├─ "Quick check" ───────────→ test-capabilities test --quick --target <url>
 │
-├─ "Fix broken tests" ──────→ nexus heal --dir <path>
+├─ "Fix broken tests" ──────→ test-capabilities heal --dir <path>
 │
-├─ "Predict failures" ──────→ nexus predict --target <url>
+├─ "Predict failures" ──────→ test-capabilities predict --target <url>
 │
-├─ "Explore edge cases" ────→ nexus quantum --target <url>
+├─ "Explore edge cases" ────→ test-capabilities quantum --target <url>
 │
 ├─ "Browser automation" ────→ Read [docs/api-surf.md](docs/api-surf.md)
 │
-└─ "Full autonomous" ───────→ nexus test --target <url> --autonomous
+└─ "Full autonomous" ───────→ test-capabilities test --target <url> --autonomous
 ```
 
 ---
@@ -84,11 +84,11 @@ What does user want?
 ## One-Liner Reference
 
 ```bash
-nexus test --target <url> [--quick] [--autonomous] [--self-heal] [--predict]
-nexus surf <action> [args]
-nexus predict --target <url>
-nexus quantum --target <url> [--branches N]
-nexus heal --dir <path>
+test-capabilities test --target <url> [--quick] [--autonomous] [--self-heal] [--predict]
+test-capabilities surf <action> [args]
+test-capabilities predict --target <url>
+test-capabilities quantum --target <url> [--branches N]
+test-capabilities heal --dir <path>
 ```
 
 ---

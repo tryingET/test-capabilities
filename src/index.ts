@@ -1,5 +1,5 @@
 /**
- * NEXUS Testing Framework
+ * TEST-CAPABILITIES Testing Framework
  * The Future of AI-Driven Testing
  */
 
@@ -8,15 +8,15 @@ export type {
   CoverageReport,
   Finding,
   FindingType,
-  NexusConfig,
   Prediction,
   QuantumInsights,
   Severity,
   Target,
+  TestCapabilitiesConfig,
   TestResult,
 } from "./core/orchestrator";
 // Core
-export { NexusOrchestrator } from "./core/orchestrator";
+export { TestCapabilitiesOrchestrator } from "./core/orchestrator";
 export type {
   ElementSnapshot,
   HealingContext,
@@ -62,12 +62,14 @@ export { QuantumSimulator, QuantumTestRunner } from "./quantum/simulator";
 // Version
 export const VERSION = "2.0.0";
 
-import type { NexusConfig } from "./core/orchestrator";
+import type { TestCapabilitiesConfig } from "./core/orchestrator";
 // Convenience factory
-import { NexusOrchestrator } from "./core/orchestrator";
+import { TestCapabilitiesOrchestrator } from "./core/orchestrator";
 
-export function createNexus(config: NexusConfig): NexusOrchestrator {
-  return new NexusOrchestrator(config);
+export function createTestCapabilities(
+  config: TestCapabilitiesConfig,
+): TestCapabilitiesOrchestrator {
+  return new TestCapabilitiesOrchestrator(config);
 }
 
-export default NexusOrchestrator;
+export default TestCapabilitiesOrchestrator;

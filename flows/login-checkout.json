@@ -47,7 +47,7 @@
     },
     {
       "tool": "screenshot",
-      "args": { "output": "/tmp/nexus-login-page.png" },
+      "args": { "output": "/tmp/test-capabilities-login-page.png" },
       "description": "Capture login page"
     },
     {
@@ -91,7 +91,7 @@
     },
     {
       "tool": "screenshot",
-      "args": { "output": "/tmp/nexus-product-page.png" }
+      "args": { "output": "/tmp/test-capabilities-product-page.png" }
     },
     {
       "tool": "click",
@@ -126,7 +126,7 @@
     },
     {
       "tool": "screenshot",
-      "args": { "output": "/tmp/nexus-checkout-page.png" }
+      "args": { "output": "/tmp/test-capabilities-checkout-page.png" }
     },
     {
       "tool": "type",
@@ -165,7 +165,7 @@
     },
     {
       "tool": "screenshot",
-      "args": { "output": "/tmp/nexus-order-confirmed.png" }
+      "args": { "output": "/tmp/test-capabilities-order-confirmed.png" }
     }
   ],
   "on_error": {

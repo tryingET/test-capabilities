@@ -1,6 +1,6 @@
 # Integration Patterns
 
-> Common patterns for using NEXUS.
+> Common patterns for using TEST-CAPABILITIES.
 
 ---
 
@@ -9,11 +9,11 @@
 Run complete autonomous testing.
 
 ```typescript
-import { createNexus, PredictionEngine } from '@nexus/testing-framework';
+import { createNexus, PredictionEngine } from '@test-capabilities/testing-framework';
 
 async function runFullTestSuite(target: string) {
-  // 1. Configure NEXUS
-  const nexus = createNexus({
+  // 1. Configure TEST-CAPABILITIES
+  const test-capabilities = createNexus({
     version: '2.0',
     name: 'Full Suite',
     targets: { web: target },
@@ -29,7 +29,7 @@ async function runFullTestSuite(target: string) {
   });
 
   // 2. Run tests
-  const result = await nexus.run();
+  const result = await test-capabilities.run();
 
   // 3. Generate report
   return {
@@ -48,7 +48,7 @@ async function runFullTestSuite(target: string) {
 Test specific user journeys.
 
 ```typescript
-import { SurfClient, SurfFlowBuilder } from '@nexus/testing-framework';
+import { SurfClient, SurfFlowBuilder } from '@test-capabilities/testing-framework';
 
 async function testCheckoutFlow(baseUrl: string) {
   const surf = new SurfClient({ autoScreenshot: true });
@@ -80,7 +80,7 @@ async function testCheckoutFlow(baseUrl: string) {
 Maintain tests with self-healing.
 
 ```typescript
-import { TestFileHealer } from '@nexus/testing-framework';
+import { TestFileHealer } from '@test-capabilities/testing-framework';
 
 async function maintainTests(testsDir: string) {
   const healer = new TestFileHealer();
@@ -115,7 +115,7 @@ async function maintainTests(testsDir: string) {
 Ongoing prediction and alerting.
 
 ```typescript
-import { PredictionEngine, PredictionCollector } from '@nexus/testing-framework';
+import { PredictionEngine, PredictionCollector } from '@test-capabilities/testing-framework';
 
 async function startMonitoring() {
   const engine = new PredictionEngine();
@@ -147,8 +147,8 @@ async function startMonitoring() {
 GitHub Actions integration.
 
 ```yaml
-# .github/workflows/nexus.yml
-name: NEXUS Testing
+# .github/workflows/test-capabilities.yml
+name: TEST-CAPABILITIES Testing
 
 on:
   push:
@@ -168,32 +168,32 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install NEXUS
-        run: npm install -g @nexus/testing-framework
+      - name: Install TEST-CAPABILITIES
+        run: npm install -g @test-capabilities/testing-framework
 
       - name: Quick Test (PR)
         if: github.event_name == 'pull_request'
-        run: nexus test --quick --target ${{ secrets.APP_URL }}
+        run: test-capabilities test --quick --target ${{ secrets.APP_URL }}
 
       - name: Full Test (Main)
         if: github.event_name == 'push'
         run: |
-          nexus test \
+          test-capabilities test \
             --target ${{ secrets.APP_URL }} \
-            --config ./nexus.yaml \
+            --config ./test-capabilities.yaml \
             --fail-threshold high \
             --report ./reports
 
       - name: Nightly Deep Test
         if: github.event_name == 'schedule'
         run: |
-          nexus test --target ${{ secrets.APP_URL }} --autonomous
-          nexus quantum --target ${{ secrets.APP_URL }} --branches 500
+          test-capabilities test --target ${{ secrets.APP_URL }} --autonomous
+          test-capabilities quantum --target ${{ secrets.APP_URL }} --branches 500
 
       - name: Upload Report
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-report
+          name: test-capabilities-report
           path: ./reports
 ```
 
@@ -205,16 +205,16 @@ jobs:
 #!/bin/bash
 # .git/hooks/pre-commit
 
-echo "Running NEXUS quick check..."
+echo "Running TEST-CAPABILITIES quick check..."
 
-nexus test --quick --target http://localhost:3000
+test-capabilities test --quick --target http://localhost:3000
 
 if [ $? -ne 0 ]; then
-  echo "❌ NEXUS found issues. Fix before committing."
+  echo "❌ TEST-CAPABILITIES found issues. Fix before committing."
   exit 1
 fi
 
-echo "✅ NEXUS checks passed"
+echo "✅ TEST-CAPABILITIES checks passed"
 ```
 
 ---
@@ -224,17 +224,17 @@ echo "✅ NEXUS checks passed"
 Run multiple targets in parallel.
 
 ```typescript
-import { createNexus } from '@nexus/testing-framework';
+import { createNexus } from '@test-capabilities/testing-framework';
 
 async function testMultipleTargets(targets: string[]) {
   const results = await Promise.all(
     targets.map(async (target) => {
-      const nexus = createNexus({
+      const test-capabilities = createNexus({
         version: '2.0',
         name: target,
         targets: { web: target },
       });
-      return { target, result: await nexus.run() };
+      return { target, result: await test-capabilities.run() };
     })
   );
 
@@ -251,7 +251,7 @@ async function testMultipleTargets(targets: string[]) {
 ## Pattern: Visual Regression
 
 ```typescript
-import { SurfClient } from '@nexus/testing-framework';
+import { SurfClient } from '@test-capabilities/testing-framework';
 import { compareImages } from './image-diff';
 
 async function visualRegression(
@@ -287,7 +287,7 @@ async function visualRegression(
 ## Pattern: API Testing
 
 ```typescript
-import { SurfClient } from '@nexus/testing-framework';
+import { SurfClient } from '@test-capabilities/testing-framework';
 
 async function testAPI(baseUrl: string) {
   const surf = new SurfClient({ networkCapture: true });

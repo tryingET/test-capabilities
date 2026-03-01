@@ -1,5 +1,5 @@
 /**
- * NEXUS Surf-CLI Integration
+ * TEST-CAPABILITIES Surf-CLI Integration
  * Advanced browser testing powered by surf-cli
  */
 

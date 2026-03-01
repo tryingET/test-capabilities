@@ -3,7 +3,7 @@
 ## TRUE INTENT
 
 `test-capabilities` (formerly `testers`) is a product repo for testing capabilities:
-- NEXUS framework,
+- TEST-CAPABILITIES framework,
 - testing guides/prompts,
 - tool integration patterns.
 
@@ -17,7 +17,7 @@ It is **not** the FCOS proving lane control surface.
 ## Session 2026-03-01
 
 ### Done
-- Renamed `src/nexus/` → `src/test-capabilities/` for consistency
+- Renamed `src/test-capabilities/` → `src/test-capabilities/` for consistency
 - Updated path references in README.md and docs/system4d/fog.md
 - Renamed package from `testers` → `test-capabilities` in package.json
 - Verified quality gate still passes

@@ -1,13 +1,13 @@
 # API Reference
 
-> Programmatic access to NEXUS.
+> Programmatic access to TEST-CAPABILITIES.
 
 ---
 
 ## Installation
 
 ```bash
-npm install @nexus/testing-framework
+npm install @test-capabilities/testing-framework
 ```
 
 ---
@@ -42,7 +42,7 @@ import {
   Finding,
   Prediction,
   QuantumResult,
-} from '@nexus/testing-framework';
+} from '@test-capabilities/testing-framework';
 ```
 
 ---
@@ -75,9 +75,9 @@ import {
 Create an orchestrator instance.
 
 ```typescript
-import { createNexus } from '@nexus/testing-framework';
+import { createNexus } from '@test-capabilities/testing-framework';
 
-const nexus = createNexus({
+const test-capabilities = createNexus({
   version: '2.0',
   name: 'My App',
   targets: {
@@ -85,7 +85,7 @@ const nexus = createNexus({
   },
 });
 
-const result = await nexus.run();
+const result = await test-capabilities.run();
 ```
 
 ### Config
@@ -130,6 +130,6 @@ interface TestResult {
 ## Version
 
 ```typescript
-import { VERSION } from '@nexus/testing-framework';
+import { VERSION } from '@test-capabilities/testing-framework';
 console.log(VERSION); // '2.0.0'
 ```
