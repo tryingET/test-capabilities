@@ -1,6 +1,17 @@
-_commit: 2141760
-_src_path: ../../softwareco-templates/copier/tpl-project-repo
-core_owner_handle: '@softwareco'
-org_owner_handle: '@softwareco'
-owned_owner_handle: '@softwareco'
+_src_path: /home/tryinget/ai-society/softwareco/copier/tpl-project-repo
+company_name: Software Company
+company_ontology_ref: <gitlab:org/ontology@v0.1.0>
+company_slug: softwareco
+core_owner_handle: '@core-owner'
+enable_community_pack: false
+enable_release_pack: false
+enable_software_pack: false
+enable_vouch_gate: false
+kernel_ontology_ref: <gitlab:org/ontology-kernel@v0.1.0>
+language: python
+location: owned
+org_owner_handle: '@org-owners'
+project_owner_handle: '@project-owners'
 repo_slug: test-capabilities
+
+

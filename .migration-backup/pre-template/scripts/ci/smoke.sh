@@ -4,17 +4,15 @@ set -eu
 say() { printf '%s\n' "$*"; }
 err() { printf '%s\n' "$*" >&2; }
 die() { err "error: $*"; exit 1; }
-die_env() { err "error: $*"; exit 2; }
 
 need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die_env "missing dependency: $1"
+  command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"
 }
 
 need_cmd git
-need_cmd grep
-need_cmd sed
+need_cmd rg
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || die_env "not a git repo"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || die "not a git repo"
 cd "$repo_root"
 
 base_branch="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${CI_DEFAULT_BRANCH:-}}"
@@ -33,20 +31,25 @@ fi
 if [ -z "$base_ref" ] && git show-ref --verify --quiet "refs/heads/$base_branch"; then
   base_ref="$base_branch"
 fi
-[ -n "$base_ref" ] || die_env "cannot resolve base ref for branch '$base_branch' (need origin/$base_branch or local $base_branch)"
+[ -n "$base_ref" ] || die "cannot resolve base ref for branch '$base_branch' (need origin/$base_branch or local $base_branch)"
 
 changed_files="$(git diff --name-only "$base_ref"...HEAD)"
-protected_hits="$(printf '%s\n' "$changed_files" | grep -nE '^(docs/_core($|/))' || true)"
+protected_hits="$(printf '%s\n' "$changed_files" | rg -n '^(docs/_core($|/))' || true)"
 if [ -n "$protected_hits" ]; then
   err "error: protected core paths modified:"
   err "$protected_hits"
   exit 1
 fi
 
-[ -x "./scripts/ci/full.sh" ] || die_env "missing or non-executable: scripts/ci/full.sh"
-if [ -f "./docs/dev/now.md" ]; then
-  [ -f "./AGENTS.md" ] || die "docs/dev/now.md exists but AGENTS.md is missing"
-  grep -q "docs/dev/now.md" "./AGENTS.md" || die "docs/dev/now.md exists but is not referenced from AGENTS.md"
+if [ -f package.json ]; then
+  need_cmd node
+  need_cmd npm
+
+  node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
+  [ "$node_major" -ge 20 ] || die "node >=20 is required (found $(node -v))"
+
+  npm run --silent lint
+  npm run --silent test:ci-targeted
 fi
 
 say "ok: ci smoke"

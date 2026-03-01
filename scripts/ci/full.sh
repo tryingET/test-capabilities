@@ -1,42 +1,30 @@
 #!/bin/sh
 set -eu
 
-say() { printf '%s\n' "$*"; }
-err() { printf '%s\n' "$*" >&2; }
-die() { err "error: $*"; exit 1; }
-
-is_enabled() {
-  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
-    1|true|yes|on) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-deep=0
-
-if [ "${1:-}" = "--deep" ]; then
-  deep=1
-  shift
-fi
-
-[ "$#" -eq 0 ] || die "unsupported args: $*"
 
 "$script_dir/smoke.sh"
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-[ -n "$repo_root" ] && cd "$repo_root"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "error: not a git repo" >&2; exit 1; }
+cd "$repo_root"
 
-if [ -f package.json ]; then
-  npm run --silent test
+if [ -x "./scripts/rocs.sh" ] && [ -f "./ontology/manifest.yaml" ]; then
+  workspace_root="${ROCS_WORKSPACE_ROOT:-$HOME}"
+  workspace_ref_mode="${ROCS_WORKSPACE_REF_MODE:-loose}"
+  core_rocs_default="$HOME/ai-society/core/rocs-cli/.venv/bin/rocs"
+  rocs_bin="${ROCS_BIN:-}"
 
-  if [ "$deep" -eq 1 ]; then
-    if is_enabled "${RUN_CONVEX_RUNTIME_TESTS:-}"; then
-      npm run --silent test:runtime
-    else
-      say "info: deep lane requested; runtime checks skipped (set RUN_CONVEX_RUNTIME_TESTS=1 and CONVEX_URL or CONVEX_DEPLOYMENT)."
-    fi
+  if [ -z "$rocs_bin" ] && [ -x "$core_rocs_default" ]; then
+    rocs_bin="$core_rocs_default"
+  fi
+
+  if [ -n "$rocs_bin" ]; then
+    ROCS_BIN="$rocs_bin" ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh version
+    ROCS_BIN="$rocs_bin" ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh build --repo . --resolve-refs --clean
+    ROCS_BIN="$rocs_bin" ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh validate --repo . --resolve-refs
+  else
+    ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh version
+    ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh build --repo . --resolve-refs --clean
+    ROCS_WORKSPACE_ROOT="$workspace_root" ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode" ./scripts/rocs.sh validate --repo . --resolve-refs
   fi
 fi
-
-say "ok: ci full"
