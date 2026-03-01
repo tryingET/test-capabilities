@@ -25,7 +25,7 @@ read_when:
 ## Exceptions
 
 - `external/` — Vendored binaries not managed by npm
-- `src/nexus/examples/` — Example code, lint rules relaxed
+- `src/examples/` — Example code, lint rules relaxed
 - `ontology/` — Generated artifacts, not manually edited
 
 ## Technical Debt
