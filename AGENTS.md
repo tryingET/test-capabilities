@@ -1,4 +1,4 @@
-# AGENTS.md — testers
+# AGENTS.md — test-capabilities
 
 ## Intent
 Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven testing guides, and autonomous quality assurance tooling.

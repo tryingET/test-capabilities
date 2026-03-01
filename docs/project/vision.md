@@ -1,8 +1,8 @@
 ---
-summary: "Product and technical vision for testers."
+summary: "Product and technical vision for test-capabilities (formerly testers)."
 read_when:
   - "Defining or revisiting project direction."
-  - "Understanding why testers exists and where it's going."
+  - "Understanding why test-capabilities exists and where it's going."
   - "Aligning new features with strategic goals."
 system4d:
   container: "Testing infrastructure for the AI-native era."
@@ -11,7 +11,7 @@ system4d:
   fog: "The convergence of AI, property-based testing, and autonomous agents is still crystallizing."
 ---
 
-# Vision: testers
+# Vision: test-capabilities (formerly testers)
 
 > *We don't build tests. We build the immune system of software.*
 

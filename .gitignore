@@ -13,3 +13,8 @@ out/
 
 # Generated artifacts
 ontology/*.generated.*
+ontology/dist/
+
+# Python caches/build metadata (vendored tooling)
+**/__pycache__/
+**/*.egg-info/

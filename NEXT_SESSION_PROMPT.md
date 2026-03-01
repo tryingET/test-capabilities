@@ -1,52 +1,39 @@
-# NEXT_SESSION_PROMPT.md — testers
-
----
+# NEXT_SESSION_PROMPT.md — test-capabilities
 
 ## TRUE INTENT
 
-**testers** is a testing infrastructure repo. It needs rocs-cli + ontology, but the distribution chain is broken at the L1 template level. Fix the templates first, then come back.
+`test-capabilities` (formerly `testers`) is a product repo for testing capabilities:
+- NEXUS framework,
+- testing guides/prompts,
+- tool integration patterns.
 
----
+It is **not** the FCOS proving lane control surface.
 
-## TESTERS STATUS: COMMITTING NOW
+## FCOS ROLE SPLIT
 
-```
-testers:
-├── Structure: ✅ Aligned with pi-extensions patterns
-├── Quality: ✅ npm run check passes
-├── Docs: ✅ Vision (27KB), system4d (all 4), org_context filled
-├── Lint: ✅ All biome errors fixed
-├── rocs-cli: ⏳ BLOCKED (needs L1 template fix)
-└── ontology: ⏳ BLOCKED (needs rocs-cli first)
-```
+- Product/testing capability repo: `softwareco/owned/test-capabilities`
+- Dedicated canary/proving lane repo: `softwareco/owned/fcos-proving-lane`
 
-**39 files staged** - committing now.
+## Session 2026-03-01
 
----
+### Done
+- Renamed `src/nexus/` → `src/test-capabilities/` for consistency
+- Updated path references in README.md and docs/system4d/fog.md
+- Renamed package from `testers` → `test-capabilities` in package.json
+- Verified quality gate still passes
+- Investigated lost `testers/` folder (deleted via `rm -rf`, not in Feb 20 backup)
+- Confirmed: bombadil binary working, surf-cli missing, surf-client.ts present
 
-## SESSION 2026-02-23/24 SUMMARY
+### Remaining
+- Recover original `testers/` project (surf-cli, pi-extensions integrations) when time permits
+- Backup location: `/mnt/c/Users/mjpa/backup.tar` (88GB, Feb 20 - too early)
+- Install/configure surf-cli for surf-client.ts integration
 
-**Done:**
-- Restructured repo to align with pi-extensions patterns
-- Added: `examples/`, `external/bombadil`, `ontology/`, `policy/stack-lane.json`
-- Added: `biome.jsonc`, `scripts/quality-gate.sh` for unified quality gates
-- Added: `docs/project/vision.md` (27KB vision document)
-- Filled: `docs/org_context/`, `docs/system4d/*` (all 4 files)
-- Updated: `AGENTS.md`, `README.md`, `CODEOWNERS`, `.gitignore`, CI workflows
-- Removed: `docs/owned/`, `convex/README.md`, moved `bombadil` to external/
-- Fixed: 18 files with biome lint issues
+### Commit status
+- Changes staged for commit: rename to test-capabilities, doc updates, new ontology/tools
 
-**Remaining (next session):**
-- Add rocs-cli when L1 templates are fixed
-- Create `ontology/manifest.yaml` + testing domain concepts
-- Run `rocs build` to generate dist/
+## NEXT FOCUS
 
----
-
-## BLOCKERS (TRACKED IN tpl-template-repo)
-
-See: `~/ai-society/core/tpl-template-repo/NEXT_SESSION_PROMPT.md`
-
----
-
-*Updated: 2026-02-24 (commit execution in progress)*
+- Continue evolving testing product capabilities and docs.
+- Keep FCOS proving-lane evidence isolated to `fcos-proving-lane`.
+- Avoid reintroducing control-plane semantics into this repo.
