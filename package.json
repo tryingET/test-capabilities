@@ -1,12 +1,18 @@
 {
-  "name": "testers",
+  "name": "test-capabilities",
   "version": "0.1.0",
+  "description": "Testing infrastructure for the AI-native era — NEXUS framework, LLM-driven testing guides, autonomous quality assurance",
   "private": true,
   "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "nexus": "./bin/nexus"
+  },
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "build": "tsc",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",
@@ -22,9 +28,33 @@
     "docs:list": "bash ./scripts/docs-list.sh",
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
-    "tech-stack": "bash ./scripts/tech-stack.sh"
+    "tech-stack": "bash ./scripts/tech-stack.sh",
+    "nexus": "node bin/nexus"
+  },
+  "keywords": [
+    "testing",
+    "ai",
+    "autonomous",
+    "self-healing",
+    "predictive",
+    "browser-automation",
+    "fuzzing",
+    "quantum-testing",
+    "nexus"
+  ],
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^12.0.0",
+    "figlet": "^1.7.0",
+    "js-yaml": "^4.1.0",
+    "ora": "^5.4.1",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.14"
+    "@biomejs/biome": "2.3.14",
+    "@types/node": "^20.11.0",
+    "@types/figlet": "^1.5.8",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
   }
 }
