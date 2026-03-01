@@ -1,0 +1,68 @@
+ontology:
+  system4d:
+    name: "test-capabilities"
+    version: "0.1"
+    container:
+      boundary:
+        in_scope:
+          - "Testing infrastructure, LLM-assisted quality workflows, and reusable test capability patterns."
+        out_of_scope:
+          - "Owning FCOS policy authority or proving-lane orchestration."
+      constraints:
+        - "Must run in Node.js + scriptable CI environments."
+      edges:
+        - name: "rocs-baseline-validation"
+          direction: "bi"
+          protocol: "file"
+          system: "ai-society/core/rocs-cli"
+          contract: "tools/rocs-cli vendored baseline + deterministic checks"
+      dependencies:
+        - name: "bombadil"
+          type: "runtime"
+          note: "Property-based testing binary in external/bombadil."
+        - name: "rocs-cli"
+          type: "build"
+          note: "Vendored in tools/rocs-cli for FCOS capability checks."
+      anti_goals:
+        - "Becoming the FCOS proving lane or control-plane policy repo."
+    compass:
+      drivers:
+        - "Provide reusable AI-native testing capabilities across repos."
+      outcomes:
+        - "Higher confidence and faster diagnosis in testing workflows."
+      tradeoffs:
+        - decision: "capability-first"
+          chosen: "Prioritize reusable testing primitives over repo-specific app logic."
+          because: "Compounding leverage across teams."
+    engine:
+      triggers:
+        - "Merge request and protected-branch CI pipelines."
+      states:
+        - name: "capability-development"
+          meaning: "Testing framework and guides evolve with quality gates."
+      invariants:
+        - id: "TEST-CAP-INV-001"
+          statement: "Quality gate remains green (`npm run check`)."
+          enforcement: "test"
+        - id: "TEST-CAP-INV-002"
+          statement: "Ontology manifest remains present for capability detection."
+          enforcement: "policy"
+      lifecycle:
+        - "design -> implement -> validate -> publish learnings"
+    fog:
+      assumptions:
+        - id: "TEST-CAP-A-001"
+          statement: "Users need integrated guidance across diverse testing tools."
+          how_to_validate: "Observe adoption of prompts/framework docs in downstream repos."
+      risks:
+        - id: "TEST-CAP-R-001"
+          statement: "Tooling churn may outpace documentation and integration updates."
+          mitigation: "Keep integrations modular and update guides regularly."
+      exceptions:
+        - id: "TEST-CAP-E-INCIDENT"
+          statement: "Incident hotfix allowed"
+          reason: "Record exception and debt immediately."
+      debt:
+        - id: "TEST-CAP-D-001"
+          statement: "Expand ontology concepts from baseline placeholders to testing domain concepts."
+          payoff_plan: "Add stable concept IDs and bridge mappings as framework matures."
