@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "upstream_project": "ai-society/core/rocs-cli",
+  "upstream_version": "0.1.4",
+  "files": {
+    "pyproject.toml": "898235b9882eb42ff6d58345047e7ac5a4ff3c79e3cd566bca09f10d07aafa49",
+    "README.md": "7f632b9312ea8a4fe2bf7f4e9e50605695082f23df934dd4ef41271118df411c",
+    "src/rocs_cli/__init__.py": "2f4c7193a3252d1cda8b4febd253379016ab8bb9b12c019444440a0edeb97c9d",
+    "src/rocs_cli/__main__.py": "9ba623e8eaa92c1a23fb0c295c3646adb412026a263006abf602e6716880e52e",
+    "src/rocs_cli/cache.py": "caef1f3a31abcc3d1c5eb4ddc84f016af2cd8b7deef2c3ed7d30c8427e1117a5",
+    "src/rocs_cli/cli.py": "fecf937c422b47bdfd9a1a406ce971e232b2eec0991a00ebe3915a36e33e9f41",
+    "src/rocs_cli/cli_signature.py": "d1656b2210cf3efcc54b36b7a24599f22a8b6ed534098c6afd0a9f943e17e50c",
+    "src/rocs_cli/errors.py": "f089430d55331d3cd7963b4c9f93abda20e2f25b7a85509070511d944038bd9a",
+    "src/rocs_cli/frontmatter.py": "dc98f6cd0225285d59d281798f6b3794df63bac8db74b775d473719a3136683f",
+    "src/rocs_cli/gitlab.py": "9722b8fec8cfd24f5ff1a85358101e51b2364115ad3f1b2bbb2266b9d32b04ae",
+    "src/rocs_cli/graph.py": "7895649d7851832f92507b071e88d9cadbad5304df1e000a2f5422a91b286808",
+    "src/rocs_cli/id_index.py": "ea9f2a20c00c284c8df52e9ab2f669983c5d26f08acf2e924589e2e88341921d",
+    "src/rocs_cli/index_cache.py": "fb099cf475c97642350dfe1b0b4f02231a662ff8402ebd7d2a7df5af0527d699",
+    "src/rocs_cli/inverses.py": "a06d60ac4067e12e2ee7b4f031c7e6373b7c516703198f30009b64427380fe8b",
+    "src/rocs_cli/layers.py": "5e61cc4b09f8a94f292ba4faee35b012f750c67c7c6d0d9cab0790390e85ec45",
+    "src/rocs_cli/lint.py": "737ab98efb21a50cc5935666c8d85068a7169e882d5a23265445fe4cb79f6f4b",
+    "src/rocs_cli/model.py": "5150a69da52712df7181352a67fce3de13674bd9c2b830e1b250603796cbc295",
+    "src/rocs_cli/normalize.py": "454d580edc85f33479ca75fa9fca55c2b74e7ae0a93590768c2e6f8a95edd7b9",
+    "src/rocs_cli/pack.py": "28b99d529c76002691d3c4abe81277f7a024dc393e424fb2caf7644934c9b43a",
+    "src/rocs_cli/rules.py": "718515e564ee501aecd60682b60ba431ca932eefb14be54ee792b0e2b7759ad7",
+    "src/rocs_cli/rulesets.py": "624156a89690143c32d002250b36288bd69628dd9d8a265a90263baeb7605cc6",
+    "src/rocs_cli/validate.py": "2a77b59388ef6257f266e671ff5359a7597a5dd8d7b5a7549d0c60d7ddf0a5ac",
+    "src/rocs_cli/vendored.py": "76eea8311e2258306b950ae5a7c3175e69c17882f8444a9039c5a27594a6caa3",
+    "src/rocs_cli/workspace.py": "8bd143a8208d4c464c79489a039f19a4d6db41b2df46ad670205051c74d76bab"
+  }
+}
