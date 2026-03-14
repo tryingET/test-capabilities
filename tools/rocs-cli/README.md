@@ -1,3 +1,11 @@
+---
+summary: "Command reference and operational notes for the vendored rocs-cli utility."
+read_when:
+  - "You are using rocs-cli inside this repo"
+  - "You need command/flag details for ontology validation or build flows"
+type: "reference"
+---
+
 # rocs-cli
 
 Minimal ROCS CLI for ai-society.

@@ -1,3 +1,11 @@
+---
+summary: "Prompt template for generating an LLM-driven web-app tester."
+read_when:
+  - "You need a reusable prompt for browser or property-based testing automation"
+  - "You are bootstrapping a web-focused test agent"
+type: "prompt"
+---
+
 # Web App Tester Prompt
 
 Use this prompt to create an LLM-driven tester for web applications.

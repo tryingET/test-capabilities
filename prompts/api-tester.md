@@ -1,3 +1,11 @@
+---
+summary: "Prompt template for generating an LLM-driven API tester."
+read_when:
+  - "You need a reusable prompt for API testing automation"
+  - "You are bootstrapping an API-focused test agent"
+type: "prompt"
+---
+
 # API Tester Prompt
 
 Use this prompt to create an LLM-driven tester for REST/GraphQL APIs.

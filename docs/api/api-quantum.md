@@ -1,3 +1,11 @@
+---
+summary: "API reference for quantum simulation types and execution surfaces."
+read_when:
+  - "You are using or extending quantum simulation"
+  - "You need method-level details for quantum APIs"
+type: "reference"
+---
+
 # Quantum API
 
 > Parallel universe test simulation.
@@ -36,7 +44,7 @@ Quantum simulation runs thousands of parallel test paths simultaneously, then "c
 ### Constructor
 
 ```typescript
-import { QuantumTestRunner } from '@test-capabilities/testing-framework';
+import { QuantumTestRunner } from 'test-capabilities';
 
 const runner = new QuantumTestRunner({
   branches: 1000,              // Number of parallel universes
@@ -142,7 +150,7 @@ For more control, use the simulator directly.
 ### Constructor
 
 ```typescript
-import { QuantumSimulator } from '@test-capabilities/testing-framework';
+import { QuantumSimulator } from 'test-capabilities';
 
 const simulator = new QuantumSimulator({
   branches: 1000,

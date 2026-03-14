@@ -1,3 +1,11 @@
+---
+summary: "Prompt template for generating an LLM-driven CLI tester."
+read_when:
+  - "You need a reusable prompt for CLI testing automation"
+  - "You are bootstrapping a CLI-focused test agent"
+type: "prompt"
+---
+
 # CLI Tester Prompt
 
 Use this prompt to create an LLM-driven tester for CLI tools.

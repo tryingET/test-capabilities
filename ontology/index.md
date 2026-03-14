@@ -1,3 +1,11 @@
+---
+summary: "Entry index for repo-local ontology layers and generated ontology artifacts."
+read_when:
+  - "You are navigating ontology files manually"
+  - "You need quick pointers to manifest, bridge, and concept locations"
+type: "reference"
+---
+
 # Ontology Index (repo)
 
 Start here when browsing manually.

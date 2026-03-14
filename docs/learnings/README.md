@@ -1,3 +1,11 @@
+---
+summary: "Conventions for capturing dated learnings in this repository."
+read_when:
+  - "You are about to add a new learning entry"
+  - "You need the expected structure for learnings documentation"
+type: "reference"
+---
+
 # Learnings
 
 Capture what works, what doesn't, and what to try next.

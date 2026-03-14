@@ -1,3 +1,11 @@
+---
+summary: "API reference for self-healing engine and test file healing surfaces."
+read_when:
+  - "You are integrating or extending self-healing behavior"
+  - "You need method-level details for healing APIs"
+type: "reference"
+---
+
 # Self-Healing API
 
 > Tests that fix themselves when UI changes.

@@ -1,14 +1,14 @@
+---
+summary: "Decision matrix for choosing the right testing tool or approach."
+read_when:
+  - "You are choosing between Bombadil, Stagehand, agent-browser, or adjacent tools"
+  - "You need a quick decision aid for testing-mode selection"
+type: "reference"
+---
+
 # LLM Testing: Decision Matrix & Tool Comparison
 
 > When to use what, and why.
-
----
-summary: "Clear decision matrix for LLM-driven testing tools"
-read_when:
-  - "Choosing between testing frameworks"
-  - "Deciding between Bombadil, Stagehand, agent-browser, or Open Interpreter"
-  - "Understanding what each tool is best at"
----
 
 ## Quick Decision Tree
 
