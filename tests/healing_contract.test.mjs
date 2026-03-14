@@ -107,6 +107,50 @@ test("TestFileHealer.analyzeFile ignores ordinary fill payload literals", async 
   }
 });
 
+test("TestFileHealer.analyzeFile ignores legacy-looking payloads on non-selector click helpers", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('custom', async () => { await actor.click('old-submit-label'); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file);
+
+    assert.deepEqual(proposals, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.analyzeFile still recognizes selector-bearing page.click calls", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('page click', async () => { await page.click('#old-submit'); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file);
+
+    assert.deepEqual(
+      proposals.map((proposal) => ({
+        oldSelector: proposal.oldSelector,
+        newSelector: proposal.newSelector,
+      })),
+      [{ oldSelector: "#old-submit", newSelector: "#submit" }],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.applyProposal uses recorded column to rewrite the intended selector", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");

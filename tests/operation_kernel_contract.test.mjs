@@ -63,6 +63,7 @@ test("executeCliOperation routes the test verb through the typed operation kerne
   assert.equal(result.operationId, "test");
   assert.equal(result.summary.health, "pass");
   assert.equal(result.result.passed, true);
+  assert.equal(result.result.coverage.status, "partial");
   assert.equal(result.input.quick, true);
   assert.equal(result.effectiveConfig.targets.cli, process.execPath);
 });
@@ -114,6 +115,20 @@ test("executeCliOperation rejects surf explore flags that are not wired to runti
   );
 });
 
+test("executeCliOperation requires an explicit surf explore URL", async () => {
+  await assert.rejects(
+    async () => executeCliOperation({ command: "surf", action: "explore" }, {}),
+    /Surf explore requires --url with a valid URL/,
+  );
+});
+
+test("executeCliOperation rejects invalid surf explore targets", async () => {
+  await assert.rejects(
+    async () => executeCliOperation({ command: "surf", action: "explore" }, { url: "not-a-url" }),
+    /Surf explore target must be a valid URL/,
+  );
+});
+
 test("executeCliOperation rejects invalid quantum branch counts", async () => {
   await assert.rejects(
     async () =>
@@ -126,6 +141,13 @@ test("executeCliOperation rejects invalid quantum targets", async () => {
   await assert.rejects(
     async () => executeCliOperation({ command: "quantum" }, { target: "not-a-url", branches: "1" }),
     /Quantum target must be a valid URL/,
+  );
+});
+
+test("executeCliOperation requires an explicit quantum target", async () => {
+  await assert.rejects(
+    async () => executeCliOperation({ command: "quantum" }, { branches: "1" }),
+    /Quantum simulation requires --target with a valid URL/,
   );
 });
 

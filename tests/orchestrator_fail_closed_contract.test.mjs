@@ -60,6 +60,33 @@ test("cli agent fails closed when the configured command does not exist", async 
   );
 });
 
+test("correlation can synthesize repeated supported-agent findings on the same component", async () => {
+  const result = await new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Correlated CLI Failures",
+    targets: { cli: "/definitely/not/a/real/binary" },
+    agents: {
+      cliA: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+      cliB: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  }).run();
+
+  assert.equal(
+    result.findings.some((finding) =>
+      /Correlated findings indicate a systemic issue in cli/.test(finding.description),
+    ),
+    true,
+  );
+});
+
 test(
   "cli agent escalates timed-out commands to SIGKILL when they ignore SIGTERM",
   { timeout: 5000 },

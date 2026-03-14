@@ -33,11 +33,21 @@ function showBanner() {
 function printSuiteSummary(summary) {
   const formatCoverageDimension = (label, value) =>
     summary.coverage.unmeasuredDimensions.includes(label) ? "unmeasured" : `${value}%`;
+  const formatOverallCoverage = () => {
+    switch (summary.coverage.status) {
+      case "unmeasured":
+        return "unmeasured";
+      case "partial":
+        return `partial(${summary.coverage.overall}%)`;
+      default:
+        return `${summary.coverage.overall}%`;
+    }
+  };
 
   console.log(`Health:  ${summary.health === "pass" ? chalk.green("pass") : chalk.red("fail")}`);
   console.log(`Findings: ${summary.findings}`);
   console.log(
-    `Coverage: user=${formatCoverageDimension("userFlows", summary.coverage.userFlows)} api=${formatCoverageDimension("apiEndpoints", summary.coverage.apiEndpoints)} edge=${formatCoverageDimension("edgeCases", summary.coverage.edgeCases)} overall=${summary.coverage.overall}%`,
+    `Coverage: user=${formatCoverageDimension("userFlows", summary.coverage.userFlows)} api=${formatCoverageDimension("apiEndpoints", summary.coverage.apiEndpoints)} edge=${formatCoverageDimension("edgeCases", summary.coverage.edgeCases)} overall=${formatOverallCoverage()}`,
   );
 
   if (summary.coverage.unmeasuredDimensions.length > 0) {
@@ -53,13 +63,26 @@ function printSuiteSummary(summary) {
   }
 }
 
+function renderError(error) {
+  if (error && typeof error === "object" && Array.isArray(error.issues)) {
+    const messages = error.issues
+      .map((issue) => issue?.message)
+      .filter((message) => typeof message === "string" && message.length > 0);
+
+    if (messages.length > 0) {
+      return messages.join("\n");
+    }
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
 function exitWithError(error, spinner, message) {
   if (spinner) {
     spinner.fail(message);
   }
 
-  const rendered = error instanceof Error ? error.message : String(error);
-  console.error(chalk.red(rendered));
+  console.error(chalk.red(renderError(error)));
   process.exit(1);
 }
 

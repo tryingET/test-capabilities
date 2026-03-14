@@ -92,6 +92,8 @@ export class QuantumSimulator {
   private branches: QuantumBranch[] = [];
   private discoveries: Discovery[] = [];
   private pathSet: Set<string> = new Set();
+  private pathPrefixSet: Set<string> = new Set();
+  private branchVisitedUrls: Map<string, Set<string>> = new Map();
 
   constructor(config: Partial<QuantumConfig> = {}) {
     this.config = {
@@ -112,6 +114,8 @@ export class QuantumSimulator {
     this.branches = [];
     this.discoveries = [];
     this.pathSet = new Set();
+    this.pathPrefixSet = new Set();
+    this.branchVisitedUrls = new Map();
 
     // Initialize parallel universes
     this.initializeBranches(initialState);
@@ -155,14 +159,16 @@ export class QuantumSimulator {
   private initializeBranches(initialState: QuantumState): void {
     const baseSeed = this.config.seed ?? Date.now();
     for (let i = 0; i < this.config.branches; i++) {
+      const branchId = randomUUID();
       this.branches.push({
-        id: randomUUID(),
+        id: branchId,
         seed: baseSeed + i,
         path: [],
         state: this.cloneState(initialState),
         discoveries: [],
         terminated: false,
       });
+      this.branchVisitedUrls.set(branchId, new Set([initialState.url]));
     }
   }
 
@@ -184,21 +190,26 @@ export class QuantumSimulator {
       // Simulate action
       const newState = await this.applyAction(branch.state, action, random);
       branch.state = newState;
+      this.branchVisitedUrls.get(branch.id)?.add(newState.url);
 
       // Check for discoveries
       const discoveries = this.analyzeForDiscoveries(branch);
       branch.discoveries.push(...discoveries);
       this.discoveries.push(...discoveries);
 
-      // Record path
+      // Record explored prefix for rarity heuristics.
       const pathKey = this.pathToKey(branch.path);
-      this.pathSet.add(pathKey);
+      this.pathPrefixSet.add(pathKey);
 
       // Check termination conditions
       if (this.shouldTerminate(branch)) {
         branch.terminated = true;
         branch.terminationReason = "natural_end";
       }
+    }
+
+    if (branch.path.length > 0) {
+      this.pathSet.add(this.pathToKey(branch.path));
     }
   }
 
@@ -457,7 +468,7 @@ export class QuantumSimulator {
 
     // Check for rare paths
     const pathKey = this.pathToKey(branch.path);
-    const isUnique = !this.pathSet.has(pathKey);
+    const isUnique = !this.pathPrefixSet.has(pathKey);
     if (isUnique && branch.path.length > 5) {
       discoveries.push({
         type: "rare_path",
@@ -473,8 +484,8 @@ export class QuantumSimulator {
   }
 
   private calculateProbability(branch: QuantumBranch): number {
-    // More unique paths = lower probability
-    const pathUniqueness = 1 / (this.pathSet.size + 1);
+    // More explored path prefixes = lower probability.
+    const pathUniqueness = 1 / (this.pathPrefixSet.size + 1);
     const depthFactor = 1 / (branch.path.length + 1);
     return pathUniqueness * depthFactor * 0.1;
   }
@@ -591,6 +602,7 @@ export class QuantumSimulator {
   private calculateCoverage(): QuantumCoverage {
     const elements = new Set<string>();
     const transitions = new Set<string>();
+    const states = new Set<string>();
 
     for (const branch of this.branches) {
       for (const action of branch.path) {
@@ -599,12 +611,15 @@ export class QuantumSimulator {
       for (let i = 1; i < branch.path.length; i++) {
         transitions.add(`${branch.path[i - 1].target}>${branch.path[i].target}`);
       }
+      for (const visitedUrl of this.branchVisitedUrls.get(branch.id) ?? [branch.state.url]) {
+        states.add(visitedUrl);
+      }
     }
 
     return {
       elements: elements.size,
       paths: this.pathSet.size,
-      states: new Set(this.branches.map((b) => b.state.url)).size,
+      states: states.size,
       transitions: transitions.size,
     };
   }

@@ -138,12 +138,51 @@ export class SurfClient {
     scrollPosition: { x: number; y: number };
   }> {
     const result = await this.run("page.state", []);
-    return JSON.parse(result.message || "{}");
+    return this.parseJsonPayload("page.state", result.message);
   }
 
   async pageText(): Promise<string> {
     const result = await this.run("page.text", []);
     return result.message || "";
+  }
+
+  private looksLikeJsonStart(value: string): boolean {
+    return /^(?:\{|\[|"|-?\d|true\b|false\b|null\b)/.test(value);
+  }
+
+  private parseJsonPayload<T>(command: string, message: string | undefined): T {
+    const raw = (message || "").trim();
+
+    if (raw.length === 0) {
+      throw new Error(`surf ${command} returned empty output where JSON was expected`);
+    }
+
+    const candidates = new Set<string>([raw]);
+    const lines = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (let index = 0; index < lines.length; index += 1) {
+      if (!this.looksLikeJsonStart(lines[index])) {
+        continue;
+      }
+
+      candidates.add(lines.slice(index).join("\n"));
+      candidates.add(lines[index]);
+      break;
+    }
+
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate) as T;
+      } catch {
+        // Try the next candidate shape.
+      }
+    }
+
+    const preview = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+    throw new Error(`Invalid JSON output from surf ${command}: ${preview}`);
   }
 
   private parseSnapshot(raw: string): SurfSnapshot {
@@ -323,7 +362,7 @@ export class SurfClient {
 
   async newTab(url: string): Promise<{ tabId: number; windowId: number }> {
     const result = await this.run("tab.new", [url]);
-    return JSON.parse(result.message || "{}");
+    return this.parseJsonPayload("tab.new", result.message);
   }
 
   async switchTab(id: number | string): Promise<SurfActionResult> {
@@ -336,12 +375,12 @@ export class SurfClient {
 
   async newWindow(url: string): Promise<{ windowId: number; tabId: number }> {
     const result = await this.run("window.new", [url]);
-    return JSON.parse(result.message || "{}");
+    return this.parseJsonPayload("window.new", result.message);
   }
 
   async listWindows(): Promise<Array<{ id: number; tabs: number[] }>> {
     const result = await this.run("window.list", []);
-    return JSON.parse(result.message || "[]");
+    return this.parseJsonPayload("window.list", result.message);
   }
 
   async closeWindow(id: number): Promise<SurfActionResult> {
@@ -369,12 +408,12 @@ export class SurfClient {
     if (options.since) args.push("--since", options.since);
 
     const result = await this.run("network", args);
-    return this.parseNetworkLog(result.message || "");
+    return this.parseJsonPayload("network", result.message);
   }
 
   async getNetworkRequest(id: string): Promise<NetworkRequest | null> {
     const result = await this.run("network.get", [id]);
-    return JSON.parse(result.message || "null");
+    return this.parseJsonPayload("network.get", result.message);
   }
 
   async getNetworkBody(id: string): Promise<string> {
@@ -388,7 +427,7 @@ export class SurfClient {
 
   async getNetworkStats(): Promise<{ requests: number; size: string }> {
     const result = await this.run("network.stats", []);
-    return JSON.parse(result.message || '{"requests":0,"size":"0"}');
+    return this.parseJsonPayload("network.stats", result.message);
   }
 
   // ============================================
@@ -509,7 +548,7 @@ export class SurfClient {
 
   async evaluate<T>(code: string): Promise<T> {
     const result = await this.run("js", [code]);
-    return JSON.parse(result.message || "null");
+    return this.parseJsonPayload("js", result.message);
   }
 
   // ============================================
@@ -518,7 +557,7 @@ export class SurfClient {
 
   async getConsole(): Promise<Array<{ type: string; message: string }>> {
     const result = await this.run("console", []);
-    return JSON.parse(result.message || "[]");
+    return this.parseJsonPayload("console", result.message);
   }
 
   // ============================================
@@ -527,7 +566,7 @@ export class SurfClient {
 
   async getCookies(): Promise<Array<{ name: string; value: string; domain: string }>> {
     const result = await this.run("cookie.list", []);
-    return JSON.parse(result.message || "[]");
+    return this.parseJsonPayload("cookie.list", result.message);
   }
 
   // ============================================
@@ -536,7 +575,7 @@ export class SurfClient {
 
   async listFrames(): Promise<Array<{ index: number; name?: string; selector?: string }>> {
     const result = await this.run("frame.list", []);
-    return JSON.parse(result.message || "[]");
+    return this.parseJsonPayload("frame.list", result.message);
   }
 
   async switchFrame(options: {
@@ -638,15 +677,6 @@ export class SurfClient {
       ];
     });
   }
-
-  private parseNetworkLog(output: string): NetworkRequest[] {
-    if (!output) return [];
-    try {
-      return JSON.parse(output);
-    } catch {
-      return [];
-    }
-  }
 }
 
 // ============================================
@@ -710,19 +740,19 @@ export class SurfFlowBuilder {
         try {
           switch (step.type) {
             case "goto":
-              if (!step.url) throw new Error("goto step requires url");
+              if (step.url === undefined) throw new Error("goto step requires url");
               await this.client.goto(step.url);
               break;
             case "click":
-              if (!step.ref) throw new Error("click step requires ref");
+              if (step.ref === undefined) throw new Error("click step requires ref");
               await this.client.click(step.ref);
               break;
             case "type":
-              if (!step.text) throw new Error("type step requires text");
+              if (step.text === undefined) throw new Error("type step requires text");
               await this.client.type(step.text, { ref: step.ref });
               break;
             case "wait":
-              if (!step.duration) throw new Error("wait step requires duration");
+              if (step.duration === undefined) throw new Error("wait step requires duration");
               await this.client.wait(step.duration);
               break;
             case "waitForElement":

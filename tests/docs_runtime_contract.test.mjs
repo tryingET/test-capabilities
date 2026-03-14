@@ -15,6 +15,8 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
   assert.match(cliDoc, /does \*\*not\*\* replace the required `targets\.cli` smoke target/);
+  assert.match(cliDoc, /kernel no longer defaults to `about:blank`/);
+  assert.match(cliDoc, /Required target URL for the simulator/);
   assert.match(cliDoc, /Fails with an unsupported-option error/);
   assert.doesNotMatch(cliDoc, /Accepted by the wrapper/);
   assert.doesNotMatch(cliDoc, /Run ML-powered failure prediction/);
@@ -26,7 +28,10 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
-  assert.match(gettingStartedDoc, /user=unmeasured api=unmeasured edge=100% overall=100%/);
+  assert.match(
+    gettingStartedDoc,
+    /user=unmeasured api=unmeasured edge=100% overall=partial\(100%\)/,
+  );
   assert.match(gettingStartedDoc, /Coverage gaps: userFlows, apiEndpoints/);
 });
 
@@ -88,7 +93,8 @@ test("quantum API docs avoid unsupported CLI flags and document target/branch va
 test("types docs reflect the tightened quantum and healing contracts", () => {
   const typesDoc = load("docs/api/types.md");
 
-  assert.match(typesDoc, /target` must be a valid URL/i);
+  assert.match(typesDoc, /target` is required and must be a valid URL/i);
+  assert.match(typesDoc, /status: CoverageStatus;/);
   assert.match(typesDoc, /column\?: number;/);
 });
 
@@ -112,11 +118,15 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
   assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
+  assert.match(surfDoc, /warning-prefixed output/i);
 });
 
 test("errors docs include newly fail-closed quantum and surf config cases", () => {
   const errorsDoc = load("docs/api/errors.md");
 
+  assert.match(errorsDoc, /Quantum simulation requires --target with a valid URL/);
   assert.match(errorsDoc, /Quantum target must be a valid URL/);
+  assert.match(errorsDoc, /Surf explore target must be a valid URL/);
+  assert.match(errorsDoc, /Invalid JSON output from surf network/);
   assert.match(errorsDoc, /Unsupported SurfClient config option\(s\): socketPath/);
 });

@@ -87,8 +87,8 @@ interface Discovery {
 
 interface QuantumCoverage {
   elements: number;       // Unique elements touched
-  paths: number;          // Unique paths
-  states: number;         // Unique page states
+  paths: number;          // Completed unique branch paths
+  states: number;         // Visited unique URLs across simulated states
   transitions: number;    // Unique state transitions
 }
 ```
@@ -116,7 +116,7 @@ for (const bug of result.rareBugs) {
 }
 
 // Simulated 1000 universes
-// Found 847 unique paths
+// Found 612 completed unique paths
 // Discovered 2 rare bugs
 //
 // 🐛 Race condition in cart update
@@ -126,6 +126,7 @@ for (const bug of result.rareBugs) {
 
 `edgeCases` is backed by concrete heuristics (for example non-form input targets) rather than a permanently empty placeholder array.
 Navigation targets are now derived as valid URLs, so the simulator no longer fabricates its own non-URL navigation failures and then reports them as discoveries.
+`uniquePaths` / `coverage.paths` now count completed branch paths rather than every intermediate prefix, and `coverage.states` counts visited URLs instead of only each branch's final URL.
 `rareBugs` is deduplicated by semantic finding description so repeat observations do not inflate the count.
 
 ---

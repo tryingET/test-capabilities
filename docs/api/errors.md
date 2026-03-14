@@ -86,6 +86,34 @@ Unsupported option(s) for 'surf explore': --record. Outside the current capabili
 
 ---
 
+### Missing surf explore URL
+
+```text
+Surf explore requires --url with a valid URL.
+```
+
+**Cause**
+- You invoked `surf explore` without `--url`
+
+**Fix**
+- Pass a fully qualified URL such as `https://example.com`
+
+---
+
+### Invalid surf explore URL
+
+```text
+Surf explore target must be a valid URL.
+```
+
+**Cause**
+- `--url` was present but not a valid URL
+
+**Fix**
+- Pass a fully qualified URL such as `https://example.com`
+
+---
+
 ### Unsupported surf action
 
 ```text
@@ -98,6 +126,20 @@ Unsupported surf action(s): typo. Outside the current capability contract.
 **Fix**
 - Use `surf explore` for the current CLI wrapper
 - Use `SurfClient` directly if you need richer browser behavior programmatically
+
+---
+
+### Missing quantum target
+
+```text
+Quantum simulation requires --target with a valid URL.
+```
+
+**Cause**
+- You invoked `quantum` without `--target`
+
+**Fix**
+- Pass a fully qualified URL such as `https://example.com`
 
 ---
 
@@ -126,6 +168,22 @@ Quantum target must be a valid URL.
 
 **Fix**
 - Pass a fully qualified URL such as `https://example.com`
+
+---
+
+### Invalid SurfClient JSON payload
+
+```text
+Invalid JSON output from surf network: warning: capture disabled
+```
+
+**Cause**
+- A surf command that should return JSON printed warnings or plain text without a parseable payload
+- The current runtime now fails clearly instead of silently treating malformed structured output as empty data
+
+**Fix**
+- Re-run the underlying surf command directly to inspect stdout/stderr
+- Remove the warning-producing condition or upgrade the wrapper/parser contract so the command emits a parseable JSON payload
 
 ---
 

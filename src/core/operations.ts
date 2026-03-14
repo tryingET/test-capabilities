@@ -188,7 +188,11 @@ const TestOperationInputSchema = z
 
 const SurfExploreOperationInputSchema = z
   .object({
-    url: z.string().optional().default("about:blank"),
+    url: z
+      .string({
+        required_error: "Surf explore requires --url with a valid URL.",
+      })
+      .url("Surf explore target must be a valid URL."),
     depth: z.string().optional(),
     record: z.boolean().optional().default(false),
     validate: z.boolean().optional().default(false),
@@ -203,10 +207,10 @@ const SurfExploreOperationInputSchema = z
 
 const QuantumOperationInputSchema = z.object({
   target: z
-    .string()
-    .url("Quantum target must be a valid URL.")
-    .optional()
-    .default("https://example.com"),
+    .string({
+      required_error: "Quantum simulation requires --target with a valid URL.",
+    })
+    .url("Quantum target must be a valid URL."),
   branches: z.string().optional().default("100"),
   collapse: z.boolean().optional().default(false),
 });

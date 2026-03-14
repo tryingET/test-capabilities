@@ -165,6 +165,64 @@ printf '%s\n' "$cmd" "$@"
 });
 
 test(
+  "SurfClient tolerates warning-prefixed JSON output for pageState",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurf(`
+cmd="$1"
+shift
+if [ "$cmd" = "page.state" ]; then
+  printf 'warning: devtools reconnecting\n{"modals":[],"loading":false,"scrollPosition":{"x":0,"y":1}}\n'
+  exit 0
+fi
+printf '%s\n' "$cmd" "$@"
+`);
+    const previousPath = process.env.PATH;
+    process.env.PATH = fake.env.PATH;
+
+    try {
+      const client = new SurfClient({ autoScreenshot: false });
+      const state = await client.pageState();
+
+      assert.deepEqual(state, {
+        modals: [],
+        loading: false,
+        scrollPosition: { x: 0, y: 1 },
+      });
+    } finally {
+      process.env.PATH = previousPath;
+      fake.cleanup();
+    }
+  },
+);
+
+test(
+  "SurfClient fails clearly when JSON-bearing commands emit non-JSON output",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurf(`
+cmd="$1"
+shift
+if [ "$cmd" = "network" ]; then
+  printf 'warning: capture disabled\n'
+  exit 0
+fi
+printf '%s\n' "$cmd" "$@"
+`);
+    const previousPath = process.env.PATH;
+    process.env.PATH = fake.env.PATH;
+
+    try {
+      const client = new SurfClient({ autoScreenshot: false });
+      await assert.rejects(() => client.getNetwork(), /Invalid JSON output from surf network/);
+    } finally {
+      process.env.PATH = previousPath;
+      fake.cleanup();
+    }
+  },
+);
+
+test(
   "SurfClient applies screenshotResize to screenshot commands",
   { concurrency: false },
   async () => {
@@ -215,6 +273,24 @@ test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: fa
     assert.equal(assertionRuns, 0);
     assert.deepEqual(result.assertions, []);
     assert.match(result.steps[0]?.error ?? "", /simulated failure/);
+  } finally {
+    process.env.PATH = previousPath;
+    fake.cleanup();
+  }
+});
+
+test("SurfFlowBuilder accepts zero-duration waits", { concurrency: false }, async () => {
+  const fake = withFakeSurf('printf "%s\\n" "$@"');
+  const previousPath = process.env.PATH;
+  process.env.PATH = fake.env.PATH;
+
+  try {
+    const client = new SurfClient({ autoScreenshot: false });
+    const result = await new SurfFlowBuilder(client).wait(0).execute();
+
+    assert.equal(result.success, true);
+    assert.equal(result.steps[0]?.success, true);
+    assert.equal(result.steps[0]?.step.duration, 0);
   } finally {
     process.env.PATH = previousPath;
     fake.cleanup();

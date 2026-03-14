@@ -74,11 +74,11 @@ Autonomous Testing Framework v0.1.0
 Testing complete (pass).
 Health:  pass
 Findings: 0
-Coverage: user=unmeasured api=unmeasured edge=100% overall=100%
+Coverage: user=unmeasured api=unmeasured edge=100% overall=partial(100%)
 Coverage gaps: userFlows, apiEndpoints
 ```
 
-`overall` is now computed from the dimensions the current run actually measured, while `Coverage gaps` makes the missing dimensions explicit instead of silently folding them into the percentage.
+`overall` is now marked as `partial(...)` whenever the run measured only a subset of the documented dimensions, while `Coverage gaps` keeps the missing denominators explicit instead of silently folding them into the percentage.
 
 ---
 

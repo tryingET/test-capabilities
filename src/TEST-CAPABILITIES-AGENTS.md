@@ -87,7 +87,7 @@ The supported CLI currently prints a human-readable summary, for example:
 ```text
 Health:  pass
 Findings: 0
-Coverage: user=unmeasured api=unmeasured edge=100% overall=100%
+Coverage: user=unmeasured api=unmeasured edge=100% overall=partial(100%)
 Coverage gaps: userFlows, apiEndpoints
 ```
 

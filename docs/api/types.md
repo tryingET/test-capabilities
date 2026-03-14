@@ -210,6 +210,7 @@ interface Finding {
 
 ```typescript
 type CoverageDimension = 'userFlows' | 'apiEndpoints' | 'edgeCases';
+type CoverageStatus = 'verified' | 'partial' | 'unmeasured';
 
 interface CoverageReport {
   userFlows: number;
@@ -218,11 +219,13 @@ interface CoverageReport {
   overall: number;
   measuredDimensions: CoverageDimension[];
   unmeasuredDimensions: CoverageDimension[];
+  status: CoverageStatus;
 }
 ```
 
 Runtime note:
 - `overall` is computed from the dimensions that were actually measured in the run
+- `status: 'partial'` means some dimensions were measured but the coverage summary is still incomplete
 - `unmeasuredDimensions` keeps missing denominators explicit instead of silently folding them into the percentage
 
 ---
@@ -308,7 +311,7 @@ interface QuantumOperationResultEnvelope {
 ```
 
 Runtime note:
-- `target` must be a valid URL or the kernel fails closed
+- `target` is required and must be a valid URL or the kernel fails closed
 - `branches` must parse as a positive integer or the kernel fails closed
 
 ### `Discovery`
@@ -439,5 +442,5 @@ interface SurfExploreOperationResultEnvelope {
 ```
 
 Runtime note:
-- `url` is the only implemented `surf explore` option today
+- `url` is required and is the only implemented `surf explore` option today
 - `depth`, `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path

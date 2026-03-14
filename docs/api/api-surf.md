@@ -82,6 +82,8 @@ const state = await surf.pageState();
 // { modals: [], loading: false, scrollPosition: { x: 0, y: 500 } }
 ```
 
+JSON-bearing surf commands now parse warning-prefixed output by extracting the JSON payload, and they fail clearly if the command returns non-JSON text where structured data is required.
+
 ---
 
 ## Interaction

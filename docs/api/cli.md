@@ -86,6 +86,7 @@ Accepted but currently unsupported options:
 ### `test-capabilities surf explore`
 
 Run the real surf CLI through the supported `explore` action.
+An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs.
 
 ```bash
 test-capabilities surf explore --url https://example.com
@@ -95,7 +96,7 @@ Options:
 
 | Option | Description |
 |--------|-------------|
-| `--url <url>` | Target URL |
+| `--url <url>` | Required target URL |
 | `--depth <n>` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
@@ -123,10 +124,11 @@ test-capabilities quantum --target https://example.com --branches 100 --collapse
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--target <url>` | Target URL for the simulator | `https://example.com` |
+| `--target <url>` | Required target URL for the simulator | none |
 | `--branches <n>` | Positive integer branch count | `100` |
 | `--collapse` | Use `significance` collapse instead of `coverage` | `false` |
 
+An explicit `--target` is required so the command cannot silently simulate a placeholder site.
 Invalid branch counts such as `0`, negative values, or non-numeric strings fail closed.
 Non-URL targets also fail closed instead of being simulated as if they were valid browser URLs.
 

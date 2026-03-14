@@ -67,8 +67,8 @@ function stripLegacySelectorPrefix(selector: string): string | undefined {
 const SELECTOR_EXTRACTION_PATTERNS = [
   /getByTestId\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g,
   /locator\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g,
-  /\.click\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*(?:,|\))/g,
-  /\.fill\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,/g,
+  /(?:\b(?:[\w$]*page|[\w$]*frame)|this\.(?:page|frame))\s*\.\s*click\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*(?:,|\))/gi,
+  /(?:\b(?:[\w$]*page|[\w$]*frame)|this\.(?:page|frame))\s*\.\s*fill\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,/gi,
 ] as const;
 
 interface ExtractedSelectorCandidate {

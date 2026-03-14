@@ -47,6 +47,7 @@ export type {
   AgentConfig,
   CoverageDimension,
   CoverageReport,
+  CoverageStatus,
   Finding,
   FindingType,
   Prediction as OrchestratorPrediction,

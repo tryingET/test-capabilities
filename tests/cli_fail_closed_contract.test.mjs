@@ -57,6 +57,23 @@ test("CLI surf explore rejects flags that are not wired to runtime behavior", ()
   );
 });
 
+test("CLI surf explore requires an explicit URL", () => {
+  const result = runCli(["surf", "explore"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    `${result.stdout}\n${result.stderr}`,
+    /Surf explore requires --url with a valid URL/,
+  );
+});
+
+test("CLI surf explore rejects invalid URLs", () => {
+  const result = runCli(["surf", "explore", "--url", "not-a-url"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Surf explore target must be a valid URL/);
+});
+
 test("CLI surf command rejects unknown actions with a contract error", () => {
   const result = runCli(["surf", "typo", "--url", "https://example.com"]);
 
@@ -76,6 +93,16 @@ test("CLI quantum command rejects invalid targets", () => {
 
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /Quantum target must be a valid URL/);
+});
+
+test("CLI quantum command requires an explicit target", () => {
+  const result = runCli(["quantum", "--branches", "1"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    `${result.stdout}\n${result.stderr}`,
+    /Quantum simulation requires --target with a valid URL/,
+  );
 });
 
 test("CLI heal command fails closed when the target directory is missing", () => {

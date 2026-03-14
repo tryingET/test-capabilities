@@ -143,6 +143,7 @@ export interface TestResult {
 }
 
 export type CoverageDimension = "userFlows" | "apiEndpoints" | "edgeCases";
+export type CoverageStatus = "verified" | "partial" | "unmeasured";
 
 export interface CoverageReport {
   userFlows: number;
@@ -151,6 +152,7 @@ export interface CoverageReport {
   overall: number;
   measuredDimensions: CoverageDimension[];
   unmeasuredDimensions: CoverageDimension[];
+  status: CoverageStatus;
 }
 
 export interface Prediction {
@@ -279,6 +281,21 @@ function parseCommandLine(commandLine: string): { command: string; args: string[
   return { command, args };
 }
 
+const SEVERITY_WEIGHT: Record<Severity, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+function getHighestSeverity(findings: Finding[]): Severity {
+  return findings.reduce<Severity>(
+    (highest, finding) =>
+      SEVERITY_WEIGHT[finding.severity] > SEVERITY_WEIGHT[highest] ? finding.severity : highest,
+    "low",
+  );
+}
+
 const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
 
 export class TestCapabilitiesOrchestrator {
@@ -385,7 +402,22 @@ export class TestCapabilitiesOrchestrator {
           recommendation: `Align API and UI validation for ${component}`,
           timestamp: new Date(),
         });
+        continue;
       }
+
+      const distinctDescriptions = [
+        ...new Set(componentFindings.map((finding) => finding.description)),
+      ];
+      correlations.push({
+        id: `corr-${component}`,
+        type: "bug",
+        severity: getHighestSeverity(componentFindings),
+        component,
+        description: `Correlated findings indicate a systemic issue in ${component}`,
+        evidence: distinctDescriptions,
+        recommendation: `Investigate ${component} as one systemic failure surface instead of isolated finding(s).`,
+        timestamp: new Date(),
+      });
     }
 
     return [...findings, ...correlations];
@@ -498,6 +530,12 @@ export class TestCapabilitiesOrchestrator {
       edgeCases,
     };
     const overall = average(measuredDimensions.map((dimension) => coverageByDimension[dimension]));
+    const status: CoverageStatus =
+      measuredDimensions.length === 0
+        ? "unmeasured"
+        : unmeasuredDimensions.length > 0
+          ? "partial"
+          : "verified";
 
     return {
       userFlows,
@@ -506,6 +544,7 @@ export class TestCapabilitiesOrchestrator {
       overall,
       measuredDimensions,
       unmeasuredDimensions,
+      status,
     };
   }
 }

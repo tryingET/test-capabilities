@@ -40,4 +40,5 @@ test("canonical YAML config parses through the fail-closed schema", async () => 
 
   assert.equal(result.passed, true);
   assert.equal(result.coverage.overall > 0, true);
+  assert.equal(result.coverage.status, "partial");
 });

@@ -106,7 +106,7 @@ test("QuantumSimulator derives valid URL navigation targets instead of fabricati
     collapseStrategy: "coverage",
   });
 
-  await simulator.simulate(createInitialState());
+  const result = await simulator.simulate(createInitialState());
   const branch = simulator.branches[0];
   const navigationTargets = branch?.path
     .filter((action) => action.type === "navigate")
@@ -114,6 +114,8 @@ test("QuantumSimulator derives valid URL navigation targets instead of fabricati
 
   assert.equal((navigationTargets?.length ?? 0) > 0, true);
   assert.equal(navigationTargets?.every((target) => /^https?:\/\//.test(target)) ?? false, true);
+  assert.equal(result.uniquePaths, 1);
+  assert.equal(result.coverage.states > 1, true);
 });
 
 test("QuantumSimulator rare bug output is deduplicated by semantic finding", async () => {
