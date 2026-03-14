@@ -32,16 +32,15 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 - Current stack baseline: Node 22 + npm + TypeScript (`pi-ts` lane)
 - Canonical current-work authority is AK.
 - `governance/work-items.json` is the exported compatibility projection.
-- First-class deferred task semantics are **not** implemented in AK yet; do not invent new repo-local queue shapes while waiting for that slice.
+- First-class AK task deferrals are available; park real future work in AK instead of repo-local deferred backlog files.
 
 ## DURABLE GUARDRAILS
 - Keep this file short and current.
 - Keep only one handoff file: `next_session_prompt.md`.
 - Do not mirror queryable runtime/task state in prose when AK/CLI can answer it directly.
 - Do not extend `governance/work-items.json` with custom deferred-task structures.
-- Temporary deferred backlog lives in `governance/deferred-tasks.json` until AK gains first-class deferral support.
-- Until AK gains explicit deferral support, use AK for **current actionable tasks** only.
-- If AK shows no current ready slice for this repo, choose one parked item from `governance/deferred-tasks.json`, promote it into AK as a fresh current task, and work it immediately rather than extending local sidecar semantics.
+- Do not recreate repo-local deferred backlog sidecars; use first-class AK task deferrals for parked future work.
+- If AK shows no current ready slice for this repo, inspect existing AK deferred tasks before inventing new backlog capture surfaces.
 - Keep FCOS proving-lane evidence isolated to `fcos-proving-lane`.
 - Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
 - Operation-kernel refactor trigger: if `src/core/operations.ts` grows beyond the current 4 shipped verbs or gains a second adapter surface beyond the CLI, split it into route manifest vs executor modules before adding more behavior.
@@ -55,8 +54,6 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 6. `docs/system4d/fog.md`
 7. Relevant implementation/docs for the chosen slice
 
-If planning needs the parked backlog, also read `governance/deferred-tasks.json`.
-
 If a future session needs narrative capture, create a repo-local `diary/YYYY-MM-DD--type-scope-summary.md` and then keep only the latest pointer here.
 
 ## NEXT-SESSION START COMMANDS
@@ -69,11 +66,8 @@ npm run release:check
 # Canonical task authority lives in AK
 cd /home/tryinget/ai-society/softwareco/owned/agent-kernel
 source ./.ak-env-v2
-./scripts/ak-v2.sh task list -F json | rg -C 3 '/home/tryinget/ai-society/softwareco/owned/test-capabilities|test-capabilities'
-
-# If nothing current is ready, inspect parked backlog before creating a fresh AK task
-cd /home/tryinget/ai-society/softwareco/owned/test-capabilities
-uv run python -m json.tool governance/deferred-tasks.json
+./scripts/ak-v2.sh task list -F json -v | jq '[.[] | select(.repo == "/home/tryinget/ai-society/softwareco/owned/test-capabilities")]'
+./scripts/ak-v2.sh task deferred -F json | jq '[.[] | select(.task.repo == "/home/tryinget/ai-society/softwareco/owned/test-capabilities")]'
 ```
 
 ## PROJECTION / COMPATIBILITY COMMANDS
@@ -93,4 +87,4 @@ When ending a future session:
 1. update this file only if the stable bootstrap or next-entry pointers changed
 2. keep AK as the authority for current task state
 3. keep `governance/work-items.json` as the exported compatibility projection
-4. keep parked future work in `governance/deferred-tasks.json` until AK grows first-class deferral support
+4. keep parked future work as first-class AK task deferrals and refresh the compatibility projection when needed
