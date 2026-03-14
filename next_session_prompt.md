@@ -44,6 +44,7 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 - If AK shows no current ready slice for this repo, choose one parked item from `governance/deferred-tasks.json`, promote it into AK as a fresh current task, and work it immediately rather than extending local sidecar semantics.
 - Keep FCOS proving-lane evidence isolated to `fcos-proving-lane`.
 - Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
+- Operation-kernel refactor trigger: if `src/core/operations.ts` grows beyond the current 4 shipped verbs or gains a second adapter surface beyond the CLI, split it into route manifest vs executor modules before adding more behavior.
 
 ## DEFAULT READ PATH FOR NEXT SESSION
 1. `AGENTS.md`
