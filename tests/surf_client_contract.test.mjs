@@ -110,10 +110,41 @@ printf '%s\\n' "$cmd" "$@"
   },
 );
 
+test("SurfClient parses tab lists with bordered table output", { concurrency: false }, async () => {
+  const fake = withFakeSurf(`
+cmd="$1"
+shift
+if [ "$cmd" = "tab.list" ]; then
+  printf '│ 3 │ Dashboard │ https://example.com/dashboard │\n'
+  exit 0
+fi
+printf '%s\n' "$cmd" "$@"
+`);
+  const previousPath = process.env.PATH;
+  process.env.PATH = fake.env.PATH;
+
+  try {
+    const client = new SurfClient({ autoScreenshot: false });
+    const tabs = await client.listTabs();
+
+    assert.deepEqual(tabs, [
+      {
+        id: 3,
+        title: "Dashboard",
+        url: "https://example.com/dashboard",
+      },
+    ]);
+  } finally {
+    process.env.PATH = previousPath;
+    fake.cleanup();
+  }
+});
+
 test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: false }, async () => {
   const fake = withFakeSurf('echo "simulated failure" >&2\nexit 1');
   const previousPath = process.env.PATH;
   process.env.PATH = fake.env.PATH;
+  let assertionRuns = 0;
 
   try {
     const client = new SurfClient({ autoScreenshot: false });
@@ -121,11 +152,16 @@ test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: fa
 
     const flow = new SurfFlowBuilder(client)
       .goto("https://example.com")
-      .assert("should never reach assertion success", async () => true);
+      .assert("should never reach assertion success", async () => {
+        assertionRuns += 1;
+        return true;
+      });
 
     const result = await flow.execute();
     assert.equal(result.success, false);
     assert.equal(result.steps[0]?.success, false);
+    assert.equal(assertionRuns, 0);
+    assert.deepEqual(result.assertions, []);
     assert.match(result.steps[0]?.error ?? "", /simulated failure/);
   } finally {
     process.env.PATH = previousPath;

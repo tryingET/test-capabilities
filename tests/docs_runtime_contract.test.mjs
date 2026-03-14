@@ -13,6 +13,8 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
+  assert.match(cliDoc, /quantum\.enabled: true/);
+  assert.match(cliDoc, /does \*\*not\*\* replace the required `targets\.cli` smoke target/);
   assert.match(cliDoc, /Fails with an unsupported-option error/);
   assert.doesNotMatch(cliDoc, /Accepted by the wrapper/);
   assert.doesNotMatch(cliDoc, /Run ML-powered failure prediction/);
@@ -24,6 +26,7 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
+  assert.match(gettingStartedDoc, /overall=33%/);
 });
 
 test("config docs show the strict fail-closed surface instead of legacy top-level sections", () => {
@@ -79,6 +82,8 @@ test("quantum API docs avoid unsupported CLI flags and document branch validatio
 test("api reference shows the operation kernel and a capability-backed orchestrator example", () => {
   const apiReferenceDoc = load("docs/api/api-reference.md");
 
+  assert.match(apiReferenceDoc, /packed artifact/i);
+  assert.doesNotMatch(apiReferenceDoc, /npm install test-capabilities/);
   assert.match(apiReferenceDoc, /executeCliOperation/);
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);

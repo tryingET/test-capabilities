@@ -607,18 +607,21 @@ export class SurfClient {
     result: SurfActionResult,
   ): Array<{ id: number; title: string; url: string }> {
     if (!result.message) return [];
-    // Parse tab list output
-    return result.message
-      .split("\n")
-      .filter((line) => line.includes("│"))
-      .map((line) => {
-        const parts = line.split("│").map((p) => p.trim());
-        return {
-          id: parseInt(parts[0], 10) || 0,
-          title: parts[1] || "",
-          url: parts[2] || "",
-        };
-      });
+
+    return result.message.split("\n").flatMap((line) => {
+      const match = line.match(/^\s*│?\s*(\d+)\s*│\s*(.*?)\s*│\s*(.*?)\s*│?\s*$/);
+      if (!match) {
+        return [];
+      }
+
+      return [
+        {
+          id: parseInt(match[1], 10),
+          title: match[2],
+          url: match[3],
+        },
+      ];
+    });
   }
 
   private parseNetworkLog(output: string): NetworkRequest[] {
@@ -727,11 +730,16 @@ export class SurfFlowBuilder {
         });
 
         if (!success) {
-          break;
+          return {
+            success: false,
+            steps: results,
+            assertions: [],
+            duration: Date.now() - startTime,
+            error,
+          };
         }
       }
 
-      // Run assertions
       const assertionResults = await Promise.all(
         this.assertions.map(async (a) => ({
           description: a.description,
@@ -740,7 +748,7 @@ export class SurfFlowBuilder {
       );
 
       return {
-        success: results.every((r) => r.success) && assertionResults.every((a) => a.passed),
+        success: assertionResults.every((a) => a.passed),
         steps: results,
         assertions: assertionResults,
         duration: Date.now() - startTime,

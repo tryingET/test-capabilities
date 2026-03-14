@@ -62,8 +62,13 @@ Supported options:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--config <file>` | Path to `test-capabilities.yaml` | `test-capabilities.yaml` |
-| `--target <url-or-path>` | Override one target. URLs map to `targets.web`; non-URLs map to `targets.cli`. | none |
+| `--target <url-or-path>` | Override one target. Non-URLs map to `targets.cli`. URLs map to `targets.web` and are only accepted when a real web consumer is enabled for the run (currently: `quantum.enabled: true`). | none |
 | `--quick` | Disable quantum and prediction overlays for a deterministic smoke run | `false` |
+
+Important:
+- the current supported orchestrator agent is still `cli-tester`
+- a URL `--target` does **not** replace the required `targets.cli` smoke target
+- `test --quick --target https://...` fails clearly because quick mode disables the only shipped web consumer (`quantum`)
 
 Accepted but currently unsupported options:
 

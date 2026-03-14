@@ -16,9 +16,14 @@ The package exports a broader **library surface** than the currently supported f
 
 ## Installation
 
+Inside this repo, build locally with:
+
 ```bash
-npm install test-capabilities
+npm install
+npm run build
 ```
+
+For consumer validation, use the packed artifact / tarball flow exercised by `npm run consumer:smoke` rather than assuming a public registry install.
 
 ---
 

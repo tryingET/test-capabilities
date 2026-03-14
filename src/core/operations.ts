@@ -492,6 +492,8 @@ async function runTestOperation(
     config = applyQuickMode(config);
   }
 
+  assertMeaningfulTestTargetOverride(normalized.target, config);
+
   const result = await runSuite(config);
 
   return {
@@ -621,6 +623,25 @@ function applyTargetOverride(
     ...config,
     targets,
   };
+}
+
+function hasWebTargetConsumer(config: TestCapabilitiesConfig): boolean {
+  return config.quantum?.enabled === true;
+}
+
+function assertMeaningfulTestTargetOverride(
+  target: string | undefined,
+  config: TestCapabilitiesConfig,
+): void {
+  if (!target || !isUrl(target)) {
+    return;
+  }
+
+  if (!hasWebTargetConsumer(config)) {
+    throw new Error(
+      "URL targets for 'test' require a real web-consuming runtime path. Enable quantum for this run or pass a CLI command/path target instead.",
+    );
+  }
 }
 
 function withIntelligenceOverrides(

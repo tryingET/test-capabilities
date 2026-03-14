@@ -45,6 +45,9 @@ From a packaged consumer install, use the same `test-capabilities` command surfa
 
 ### Supported CLI/runtime surfaces
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
+  - non-URL targets override `targets.cli`
+  - URL targets override `targets.web` and are only meaningful when `quantum.enabled: true`
+  - URL targets do not replace the required `targets.cli` smoke target
 - `test-capabilities surf explore --url <url>`
 - `test-capabilities quantum --target <url>`
 - `test-capabilities heal --dir <path>`
@@ -97,6 +100,7 @@ From a packaged consumer install, use the same `test-capabilities` command surfa
 
 ```bash
 test-capabilities test --config ./test-capabilities.yaml [--quick] [--target <url-or-path>]
+# URL targets only apply when quantum is enabled; CLI smoke still requires targets.cli
 test-capabilities surf explore --url https://example.com
 test-capabilities quantum --target https://example.com --branches 100 --collapse
 test-capabilities heal --dir ./tests --dry-run

@@ -27,7 +27,7 @@ npm install
 npm run build
 ```
 
-Or install the package globally / as a dependency in your own project.
+For packaged-consumer verification, use the tarball flow exercised by `npm run consumer:smoke` rather than assuming a public registry install.
 
 ---
 
@@ -71,11 +71,13 @@ Expected shape of output:
 
 ```text
 Autonomous Testing Framework v2.0.0
-Testing complete (passed).
+Testing complete (pass).
 Health:  pass
 Findings: 0
-Coverage: user=0% api=0% edge=100% overall=100%
+Coverage: user=0% api=0% edge=100% overall=33%
 ```
+
+`overall` is the simple average of `user`, `api`, and `edge`, so unmeasured dimensions still count as `0` instead of inflating the summary.
 
 ---
 

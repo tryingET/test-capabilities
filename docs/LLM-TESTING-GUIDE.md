@@ -20,6 +20,9 @@ type: "guide"
 
 ### Capability-backed surfaces today
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
+  - non-URL targets override `targets.cli`
+  - URL targets override `targets.web` only when `quantum.enabled: true`
+  - URL targets do not replace the required `targets.cli` smoke target
 - `test-capabilities surf explore --url <url>`
 - `test-capabilities quantum --target <url>`
 - `test-capabilities heal --dir <path>`
@@ -31,7 +34,8 @@ type: "guide"
 - `SurfClient`
 
 ```bash
-npm install -g test-capabilities
+npm install
+npm run build
 
 # Current safe CLI pattern
 cat > test-capabilities.yaml <<'YAML'

@@ -1,15 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-
-const buildResult = spawnSync("npm", ["run", "build", "--silent"], {
-  encoding: "utf8",
-});
-assert.equal(buildResult.status, 0, buildResult.stderr || buildResult.stdout);
 
 const { CAPABILITY_MATRIX } = await import("../dist/core/capabilities.js");
 const {
@@ -71,6 +65,21 @@ test("executeCliOperation routes the test verb through the typed operation kerne
   assert.equal(result.result.passed, true);
   assert.equal(result.input.quick, true);
   assert.equal(result.effectiveConfig.targets.cli, process.execPath);
+});
+
+test("executeCliOperation rejects URL test targets when no supported web consumer is enabled", async () => {
+  await assert.rejects(
+    async () =>
+      executeCliOperation(
+        { command: "test" },
+        {
+          config: new URL("../test-capabilities.yaml", import.meta.url).pathname,
+          target: "https://example.com",
+          quick: true,
+        },
+      ),
+    /URL targets for 'test' require a real web-consuming runtime path/,
+  );
 });
 
 test("executeCliOperation routes surf explore through the typed operation kernel", async () => {

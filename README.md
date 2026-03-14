@@ -50,7 +50,7 @@ That registry owns the supported routes, their input schemas, their executors, a
 
 | Surface | Status | Notes |
 |---------|--------|-------|
-| `test` command | Implemented | Supports `--config`, `--target`, `--quick` |
+| `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets only apply when `quantum.enabled: true` and do not replace the required `targets.cli` smoke target |
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs the real surf CLI if available |

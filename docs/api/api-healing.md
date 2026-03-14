@@ -87,12 +87,13 @@ Executed in priority order until success:
 
 | Priority | Strategy | Success Rate | Description |
 |----------|----------|--------------|-------------|
-| 1 | `testid-fallback` | 95% | Find by `data-testid` |
-| 2 | `role-fallback` | 85% | Find by ARIA role |
-| 3 | `text-search` | 70% | Find by text content |
-| 4 | `vision-ai` | 65% | Use vision AI on screenshot |
-| 5 | `xpath-fallback` | 90% | Find by XPath |
-| 6 | `nearby-search` | 50% | Find near last known position |
+| 1 | `legacy-prefix-trim` | heuristic | Normalizes stale prefixes such as `old-` / `deprecated-` while preserving selector style |
+| 2 | `testid-fallback` | 95% | Find by `data-testid` |
+| 3 | `role-fallback` | 85% | Find by ARIA role |
+| 4 | `text-search` | 70% | Find by text content |
+| 5 | `vision-ai` | 65% | Use vision AI on screenshot |
+| 6 | `xpath-fallback` | 90% | Find by XPath |
+| 7 | `nearby-search` | 50% | Find near last known position |
 
 ### Register Custom Strategy
 
@@ -133,6 +134,7 @@ const proposals = await healer.analyzeFile('./tests/login.spec.ts');
 ```
 
 When the CLI healing path scans a directory, it skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
+The current heuristic path can also normalize obviously stale selector prefixes like `old-login` → `login` when the extracted selector shape is preserved.
 
 ### Proposal
 
@@ -140,6 +142,7 @@ When the CLI healing path scans a directory, it skips common generated/dependenc
 interface HealingProposal {
   file: string;
   line: number;
+  column?: number;
   oldSelector: string;
   newSelector: string;
   confidence: number;
@@ -151,7 +154,7 @@ interface HealingProposal {
 ### `applyProposal(proposal)`
 
 Apply a fix to the file.
-The runtime targets the proposal's recorded line so duplicate selectors elsewhere in the file are not rewritten accidentally.
+The runtime targets the proposal's recorded line and, when available, column so duplicate selectors elsewhere in the file are not rewritten accidentally.
 
 ```typescript
 await healer.applyProposal(proposal);

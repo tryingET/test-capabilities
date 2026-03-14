@@ -5,11 +5,6 @@ import test from "node:test";
 
 const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
 
-const buildResult = spawnSync("npm", ["run", "build", "--silent"], {
-  encoding: "utf8",
-});
-assert.equal(buildResult.status, 0, buildResult.stderr || buildResult.stdout);
-
 function runCli(args) {
   return spawnSync(process.execPath, [binPath, ...args], {
     encoding: "utf8",
@@ -33,6 +28,23 @@ test("CLI test command rejects unsupported flags", () => {
 
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /Unsupported option\(s\) for 'test'/);
+});
+
+test("CLI test command rejects URL overrides when no supported web consumer is enabled", () => {
+  const result = runCli([
+    "test",
+    "--config",
+    new URL("../test-capabilities.yaml", import.meta.url).pathname,
+    "--target",
+    "https://example.com",
+    "--quick",
+  ]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    `${result.stdout}\n${result.stderr}`,
+    /URL targets for 'test' require a real web-consuming runtime path/,
+  );
 });
 
 test("CLI surf explore rejects flags that are not wired to runtime behavior", () => {

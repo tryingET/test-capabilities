@@ -23,6 +23,9 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 
 ### Supported CLI/runtime surfaces
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
+  - non-URL targets override `targets.cli`
+  - URL targets override `targets.web` only when `quantum.enabled: true`
+  - URL targets do not replace the required `targets.cli` smoke target
 - `test-capabilities surf explore --url <url>`
 - `test-capabilities quantum --target <url> [--branches <n>] [--collapse]`
 - `test-capabilities heal --dir <path> [--dry-run]`
@@ -84,7 +87,7 @@ The supported CLI currently prints a human-readable summary, for example:
 ```text
 Health:  pass
 Findings: 0
-Coverage: user=0% api=0% edge=100% overall=100%
+Coverage: user=0% api=0% edge=100% overall=33%
 ```
 
 ### Library API

@@ -1,15 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
-
-const buildResult = spawnSync("npm", ["run", "build", "--silent"], {
-  encoding: "utf8",
-});
-assert.equal(buildResult.status, 0, buildResult.stderr || buildResult.stdout);
 
 const { TestCapabilitiesOrchestrator } = await import("../dist/index.js");
 
@@ -86,7 +80,10 @@ test("cli agent supports quoted commands whose executable path contains spaces",
     }).run();
 
     assert.equal(result.passed, true);
+    assert.equal(result.coverage.userFlows, 0);
+    assert.equal(result.coverage.apiEndpoints, 0);
     assert.equal(result.coverage.edgeCases, 100);
+    assert.equal(result.coverage.overall, 33);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

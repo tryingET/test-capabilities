@@ -43,6 +43,27 @@ export interface ElementSnapshot {
 // HEALING ENGINE
 // ============================================
 
+function stripLegacySelectorPrefix(selector: string): string | undefined {
+  const replacements: Array<[RegExp, string]> = [
+    [/^(?:old-|deprecated-)(.+)$/, "$1"],
+    [/^([#.])(?:old-|deprecated-)(.+)$/, "$1$2"],
+    [/^(\[data-testid=")(?:old-|deprecated-)([^"]+)("\])$/, "$1$2$3"],
+    [/^(\[data-testid=')(?:old-|deprecated-)([^']+)('\])$/, "$1$2$3"],
+    [/^(\/\/\*\[@id=")(?:old-|deprecated-)([^"]+)("\])$/, "$1$2$3"],
+    [/^(\/\/\*\[@id=')(?:old-|deprecated-)([^']+)('\])$/, "$1$2$3"],
+    [/^(\/\/\*\[@name=")(?:old-|deprecated-)([^"]+)("\])$/, "$1$2$3"],
+    [/^(\/\/\*\[@name=')(?:old-|deprecated-)([^']+)('\])$/, "$1$2$3"],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    if (pattern.test(selector)) {
+      return selector.replace(pattern, replacement);
+    }
+  }
+
+  return undefined;
+}
+
 export class SelfHealingEngine {
   private strategies: HealingStrategy[] = [];
 
@@ -51,16 +72,35 @@ export class SelfHealingEngine {
   }
 
   private registerDefaultStrategies(): void {
-    // Strategy 1: Test ID fallback
+    // Strategy 1: Legacy prefix normalization
+    this.register({
+      name: "legacy-prefix-trim",
+      priority: 5,
+      execute: async (ctx) => {
+        const normalizedSelector = stripLegacySelectorPrefix(ctx.originalSelector);
+        if (normalizedSelector && normalizedSelector !== ctx.originalSelector) {
+          return {
+            success: true,
+            newSelector: normalizedSelector,
+            confidence: 0.8,
+            strategy: "legacy-prefix-trim",
+          };
+        }
+        return { success: false, confidence: 0, strategy: "legacy-prefix-trim" };
+      },
+    });
+
+    // Strategy 2: Test ID fallback
     this.register({
       name: "testid-fallback",
       priority: 10,
       execute: async (ctx) => {
-        const testIdMatch = ctx.originalSelector.match(/data-testid="([^"]+)"/);
-        if (testIdMatch) {
+        const testIdMatch = ctx.originalSelector.match(/data-testid=(?:"([^"]+)"|'([^']+)')/);
+        const testId = testIdMatch?.[1] ?? testIdMatch?.[2];
+        if (testId) {
           return {
             success: true,
-            newSelector: `[data-testid="${testIdMatch[1]}"]`,
+            newSelector: `[data-testid="${testId}"]`,
             confidence: 0.95,
             strategy: "testid-fallback",
           };
@@ -69,7 +109,7 @@ export class SelfHealingEngine {
       },
     });
 
-    // Strategy 2: Role-based fallback
+    // Strategy 3: Role-based fallback
     this.register({
       name: "role-fallback",
       priority: 20,
@@ -225,11 +265,11 @@ export class TestFileHealer {
 
     // Extract selectors from test file
     const selectorPattern =
-      /(?:getByRole|getByTestId|getByText|locator|click|fill)\s*\(\s*['"`]([^'"`]+)['"`]/g;
+      /(?:getByRole|getByTestId|getByText|locator|click|fill)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
     let match: RegExpExecArray | null = selectorPattern.exec(content);
 
     while (match !== null) {
-      const selector = match[1];
+      const selector = match[2];
       const isValid = await this.validateSelector(selector);
 
       if (!isValid) {
@@ -240,9 +280,14 @@ export class TestFileHealer {
         });
 
         if (healingResult.success && healingResult.newSelector) {
+          const selectorIndexInMatch = match[0].indexOf(selector);
+          const selectorIndex =
+            selectorIndexInMatch >= 0 ? match.index + selectorIndexInMatch : match.index;
+
           proposals.push({
             file: filePath,
-            line: this.getLineNumber(content, match.index),
+            line: this.getLineNumber(content, selectorIndex),
+            column: this.getColumnNumber(content, selectorIndex),
             oldSelector: selector,
             newSelector: healingResult.newSelector,
             confidence: healingResult.confidence,
@@ -272,13 +317,29 @@ export class TestFileHealer {
     }
 
     const targetLine = lines[lineIndex];
-    if (!targetLine.includes(proposal.oldSelector)) {
+    const targetColumn = proposal.column
+      ? proposal.column - 1
+      : targetLine.indexOf(proposal.oldSelector);
+
+    if (targetColumn < 0) {
       throw new Error(
         `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}'.`,
       );
     }
 
-    lines[lineIndex] = targetLine.replace(proposal.oldSelector, proposal.newSelector);
+    if (
+      targetLine.slice(targetColumn, targetColumn + proposal.oldSelector.length) !==
+      proposal.oldSelector
+    ) {
+      throw new Error(
+        `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}${proposal.column ? `:${proposal.column}` : ""}. Expected '${proposal.oldSelector}'.`,
+      );
+    }
+
+    lines[lineIndex] =
+      targetLine.slice(0, targetColumn) +
+      proposal.newSelector +
+      targetLine.slice(targetColumn + proposal.oldSelector.length);
     const updated = lines.join(lineEnding);
     await this.writeFile(proposal.file, hasTrailingNewline ? `${updated}${lineEnding}` : updated);
   }
@@ -324,11 +385,17 @@ export class TestFileHealer {
   private getLineNumber(content: string, index: number): number {
     return content.slice(0, index).split("\n").length;
   }
+
+  private getColumnNumber(content: string, index: number): number {
+    const lastNewline = content.lastIndexOf("\n", index - 1);
+    return index - lastNewline;
+  }
 }
 
 export interface HealingProposal {
   file: string;
   line: number;
+  column?: number;
   oldSelector: string;
   newSelector: string;
   confidence: number;

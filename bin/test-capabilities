@@ -61,7 +61,10 @@ program.name("test-capabilities").description("The Future of AI-Driven Testing")
 program
   .command("test")
   .description("Run autonomous testing suite")
-  .option("-t, --target <url>", "Target URL or path")
+  .option(
+    "-t, --target <target>",
+    "CLI command/path target, or a URL when a real web consumer is enabled (currently: quantum)",
+  )
   .option("-c, --config <file>", "Configuration file", "test-capabilities.yaml")
   .option("-a, --autonomous", "Enable full autonomous mode")
   .option("--self-heal", "Enable self-healing tests")

@@ -177,6 +177,8 @@ await surf.screenshot({ fullpage: true });
 const tabs = await surf.listTabs();
 ```
 
+The parser tolerates common bordered table output from `surf tab.list` and extracts numeric tab ids, titles, and URLs from each row.
+
 ### `newTab(url)`
 
 ```typescript

@@ -42,7 +42,7 @@
     "consumer:smoke": "node ./scripts/consumer_contract_smoke.mjs",
     "release:check": "npm run check && npm run release:check:quick",
     "release:check:quick": "npm run consumer:smoke",
-    "test": "node --test tests/*.test.mjs",
+    "test": "npm run build --silent && node --test tests/*.test.mjs",
     "test:ci-targeted": "node ./scripts/run_ci_targeted_tests.mjs",
     "test:runtime": "RUN_CONVEX_RUNTIME_TESTS=1 node --test tests/convex_runtime_contract_enforcement.test.mjs",
     "ci:smoke": "bash ./scripts/ci/smoke.sh",

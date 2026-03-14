@@ -1,14 +1,8 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import test from "node:test";
 import yaml from "js-yaml";
-
-const buildResult = spawnSync("npm", ["run", "build", "--silent"], {
-  encoding: "utf8",
-});
-assert.equal(buildResult.status, 0, buildResult.stderr || buildResult.stdout);
 
 const { TestCapabilitiesConfigSchema, TestCapabilitiesOrchestrator } = await import(
   "../dist/index.js"

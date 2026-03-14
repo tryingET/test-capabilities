@@ -475,13 +475,7 @@ export class TestCapabilitiesOrchestrator {
     const userFlows = average(userFlowsValues);
     const apiEndpoints = average(apiEndpointValues);
     const edgeCases = average(edgeCaseValues);
-    const overall = average(
-      [
-        ...[userFlowsValues.length > 0 ? userFlows : undefined],
-        ...[apiEndpointValues.length > 0 ? apiEndpoints : undefined],
-        ...[edgeCaseValues.length > 0 ? edgeCases : undefined],
-      ].filter((value): value is number => typeof value === "number"),
-    );
+    const overall = average([userFlows, apiEndpoints, edgeCases]);
 
     return {
       userFlows,
