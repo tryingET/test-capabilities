@@ -1,6 +1,14 @@
+---
+summary: "API reference for failure prediction engines, inputs, and outputs."
+read_when:
+  - "You are wiring ML-style prediction into TEST-CAPABILITIES"
+  - "You need method-level details for prediction APIs"
+type: "reference"
+---
+
 # Prediction API
 
-> ML-powered failure prediction.
+> Prediction is currently a **library surface**. The fail-closed CLI wrapper does **not** expose `test-capabilities predict` as a supported command today.
 
 ---
 
@@ -9,87 +17,69 @@
 ### Constructor
 
 ```typescript
-import { PredictionEngine } from '@test-capabilities/testing-framework';
+import { PredictionEngine } from 'test-capabilities';
 
 const engine = new PredictionEngine();
 ```
 
 ### `analyze(metrics)`
 
-Analyze system metrics and predict failures.
+Analyze metrics and return ranked predictions.
 
 ```typescript
 const predictions = await engine.analyze({
-  // System metrics
-  errorRate: 0.05,           // 0-1
-  responseTimeP95: 1200,     // ms
-  cpuUsage: 0.6,             // 0-1
-  memoryUsage: 0.7,          // 0-1
-  diskUsage: 0.4,            // 0-1
-
-  // Temporal
-  timeSinceDeployment: 24,   // hours
-  hourOfDay: 14,             // 0-23
-  dayOfWeek: 3,              // 0-6
-
-  // User behavior
+  errorRate: 0.05,
+  responseTimeP95: 1200,
+  cpuUsage: 0.6,
+  memoryUsage: 0.7,
+  diskUsage: 0.4,
+  timeSinceDeployment: 24,
+  hourOfDay: 14,
+  dayOfWeek: 3,
   sessionDepthAvg: 4.5,
-  rageClickRate: 0.08,       // 0-1
-  abandonmentRate: 0.15,     // 0-1
-  bounceRate: 0.3,           // 0-1
-
-  // Code metrics
+  rageClickRate: 0.08,
+  abandonmentRate: 0.15,
+  bounceRate: 0.3,
   filesChanged: 12,
   linesAdded: 250,
   linesDeleted: 100,
-  testCoverageDelta: -0.02,  // -1 to 1
-
-  // Historical
+  testCoverageDelta: -0.02,
   recentFailures: 3,
-  avgTimeBetweenFailures: 8, // hours
+  avgTimeBetweenFailures: 8,
 });
 ```
 
-### Prediction
+### Prediction shape
 
 ```typescript
 interface Prediction {
-  component: string;         // e.g., 'checkout', 'search'
-  probability: number;       // 0-1
-  confidence: number;        // 0-1
-  trigger: string;           // What's causing the risk
-  preventiveAction: string;  // Recommended action
-  timeHorizon: string;       // '< 1 hour', '1-6 hours', '6-24 hours', '1-7 days'
-  relatedMetrics: string[];  // Contributing metrics
-  riskScore: number;         // Composite risk score
+  component: string;
+  probability: number;     // 0-1
+  confidence: number;      // 0-1
+  trigger: string;
+  preventiveAction: string;
+  timeHorizon: string;
+  relatedMetrics: string[];
+  riskScore: number;
 }
 ```
 
 ### Example
 
 ```typescript
-const predictions = await engine.analyze(metrics);
-
-for (const p of predictions) {
-  console.log(`\n${p.component}: ${(p.probability * 100).toFixed(1)}% failure risk`);
-  console.log(`  Trigger: ${p.trigger}`);
-  console.log(`  Horizon: ${p.timeHorizon}`);
-  console.log(`  Prevention: ${p.preventiveAction}`);
+for (const prediction of predictions) {
+  console.log(`${prediction.component}: ${(prediction.probability * 100).toFixed(1)}%`);
+  console.log(`  trigger: ${prediction.trigger}`);
+  console.log(`  horizon: ${prediction.timeHorizon}`);
+  console.log(`  prevention: ${prediction.preventiveAction}`);
 }
-
-// checkout: 34.2% failure risk
-//   Trigger: High traffic
-//   Horizon: 1-6 hours
-//   Prevention: Add rate limiting
 ```
 
 ---
 
-## Utility Methods
+## Utility methods
 
 ### `getTopRisks(n)`
-
-Get top N highest risk predictions.
 
 ```typescript
 const topRisks = engine.getTopRisks(5);
@@ -97,15 +87,11 @@ const topRisks = engine.getTopRisks(5);
 
 ### `getPredictionsByComponent(component)`
 
-Filter predictions by component.
-
 ```typescript
 const checkoutRisks = engine.getPredictionsByComponent('checkout');
 ```
 
 ### `getPredictionsByHorizon(horizon)`
-
-Filter by time horizon.
 
 ```typescript
 const urgentRisks = engine.getPredictionsByHorizon('< 1 hour');
@@ -113,11 +99,9 @@ const urgentRisks = engine.getPredictionsByHorizon('< 1 hour');
 
 ---
 
-## Training (Advanced)
+## Training and feedback
 
 ### `addTrainingData(data)`
-
-Add training data to improve the model.
 
 ```typescript
 await engine.addTrainingData({
@@ -132,20 +116,21 @@ await engine.addTrainingData({
 
 ### `recordOutcome(predictionId, failed)`
 
-Record whether a prediction was accurate.
-
 ```typescript
-await engine.recordOutcome('pred_001', true); // Prediction was correct
+await engine.recordOutcome('pred_001', true);
 ```
 
 ---
 
-## Custom Models
-
-### Implement PredictionModel
+## Custom models
 
 ```typescript
-import { PredictionModel, PredictionInput, Prediction } from '@test-capabilities/testing-framework';
+import type {
+  Prediction,
+  PredictionInput,
+  PredictionModel,
+  TrainingData,
+} from 'test-capabilities';
 
 class CustomPredictor implements PredictionModel {
   name = 'custom-predictor';
@@ -153,12 +138,11 @@ class CustomPredictor implements PredictionModel {
   features = ['errorRate', 'responseTimeP95'];
 
   async predict(input: PredictionInput): Promise<Prediction[]> {
-    // Your ML model logic
-    return predictions;
+    return [];
   }
 
   async train(data: TrainingData[]): Promise<void> {
-    // Training logic
+    console.log(`training on ${data.length} records`);
   }
 }
 
@@ -167,27 +151,45 @@ const engine = new PredictionEngine(new CustomPredictor());
 
 ---
 
-## CLI Usage
+## PredictionCollector
 
-```bash
-test-capabilities predict --target https://myapp.com
-test-capabilities predict --target https://myapp.com --horizon 48
+```typescript
+import { PredictionCollector } from 'test-capabilities';
+
+const collector = new PredictionCollector();
+const metrics = await collector.collectMetrics('service-a');
+```
+
+### Current collector behavior
+
+At the moment, `PredictionCollector` returns **deterministic placeholder metrics per source string** until a real collector is wired in.
+
+That means:
+- repeated calls with the same source return the same metric shape
+- different sources produce different deterministic values
+- this is suitable for contract testing and local experimentation, not for claiming real telemetry ingestion
+
+### `startCollection(interval)`
+
+Starts periodic collection and returns a cleanup function.
+
+```typescript
+const stop = await collector.startCollection(60000);
+
+// later
+stop();
 ```
 
 ---
 
-## Metrics Collection
+## CLI status
 
-### PredictionCollector
+The current CLI wrapper does **not** support direct prediction execution.
 
-```typescript
-import { PredictionCollector } from '@test-capabilities/testing-framework';
+If you run:
 
-const collector = new PredictionCollector();
-
-// Collect from APM tools, logs, etc.
-const metrics = await collector.collectMetrics('auto');
-
-// Start periodic collection
-await collector.startCollection(60000); // Every minute
+```bash
+test-capabilities predict
 ```
+
+it fails clearly as an unsupported command in the current capability contract.

@@ -1,31 +1,64 @@
+---
+summary: "Guide to LLM-driven testing approaches, tools, and tradeoffs."
+read_when:
+  - "You are evaluating LLM-assisted testing approaches"
+  - "You need to compare browser, CLI, and API testing tool options"
+type: "guide"
+---
+
 # LLM-Driven User Flow Testing
 
 > A practical guide to testing user flows with AI, curated frameworks, and validated experiments.
 
----
-summary: "Decision framework and tools for LLM-driven testing"
-read_when:
-  - "Setting up automated testing for a new project"
-  - "Deciding between VHS, BATS, verify.sh, or AI testing"
-  - "Evaluating browser automation frameworks"
----
-
 ## 🚀 NEW: TEST-CAPABILITIES Testing Framework
 
-**TEST-CAPABILITIES** is the ultimate autonomous testing framework that unifies all tools below into one powerful system:
+**TEST-CAPABILITIES** aims to unify multiple testing modes behind one system. The current shipped runtime is intentionally **fail-closed**:
 
-- **Self-healing tests** that fix themselves when UI changes
-- **Quantum simulation** that explores 1000s of parallel test paths
-- **ML-powered prediction** that knows failures before they happen
-- **Surf-CLI integration** for AI-powered browser control
-- **Cross-domain correlation** connecting web, API, and CLI findings
+- supported paths execute
+- unsupported paths error clearly
+- experimental/autonomous claims are not treated as shipped behavior unless wired into a real runtime path
+
+### Capability-backed surfaces today
+- `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
+- `test-capabilities surf explore --url <url>`
+- `test-capabilities quantum --target <url>`
+- `test-capabilities heal --dir <path>`
+
+### Library surfaces available directly
+- `PredictionEngine`
+- `SelfHealingEngine`
+- `QuantumSimulator`
+- `SurfClient`
 
 ```bash
-npm install -g @test-capabilities/testing-framework
-test-capabilities test --target https://your-app.com --autonomous
+npm install -g test-capabilities
+
+# Current safe CLI pattern
+cat > test-capabilities.yaml <<'YAML'
+version: '2.0'
+name: 'CLI Smoke'
+targets:
+  cli: 'node'
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+quantum:
+  enabled: false
+chaos:
+  enabled: false
+YAML
+
+test-capabilities test --quick --config test-capabilities.yaml
 ```
 
-See [TEST-CAPABILITIES-TESTING-FRAMEWORK.md](./TEST-CAPABILITIES-TESTING-FRAMEWORK.md) for full documentation.
+See [TEST-CAPABILITIES-FRAMEWORK.md](./TEST-CAPABILITIES-FRAMEWORK.md) for architecture and [api/cli.md](./api/cli.md) for the exact current CLI contract.
 
 ---
 
@@ -35,23 +68,23 @@ See [TEST-CAPABILITIES-TESTING-FRAMEWORK.md](./TEST-CAPABILITIES-TESTING-FRAMEWO
 
 | Question | Answer → Tool |
 |----------|---------------|
-| **Ultimate testing** | **TEST-CAPABILITIES** (all-in-one) |
+| **Single supported TEST-CAPABILITIES CLI run?** | **TEST-CAPABILITIES** `test` / `quantum` / `heal` / `surf explore` |
 | CI/CD verification? | `verify.sh` + BATS |
 | Docs/demo for README? | asciinema cast |
 | Marketing showcase? | VHS gif |
 | Web UI fuzzing? | Bombadil |
 | LLM navigates browser? | Surf-CLI / Stagehand / agent-browser |
 | LLM generates tests? | BATS + LLM |
-| Full AI test agent? | TEST-CAPABILITIES / pi-agent-browser |
+| Direct predictive library API? | `PredictionEngine` |
 
 ### By Project Type
 
-```
+```text
 CLI / Scripts     → shellcheck → BATS → verify.sh
 Web App (fuzzing) → Bombadil (property-based)
-Web App (LLM)     → Surf-CLI / Stagehand / TEST-CAPABILITIES
-API               → Snapshot tests + contract tests + TEST-CAPABILITIES
-Everything        → TEST-CAPABILITIES (unified autonomous testing)
+Web App (LLM)     → Surf-CLI / Stagehand / agent-browser
+API               → Snapshot tests + contract tests + direct library APIs
+Everything        → TEST-CAPABILITIES where a capability-backed path exists
 ```
 
 ---
@@ -67,7 +100,7 @@ Everything        → TEST-CAPABILITIES (unified autonomous testing)
 | **Open Interpreter** | Any | General computer control, runs code |
 | **Open Computer Use** | Cloud Linux | Secure sandbox, any LLM, E2B |
 | **Piglet** | Windows | Native Windows automation, Zig-based |
-| **Claude Code** | Any | Code + terminal (like pi) |
+| **Claude Code** | Any | Code + terminal |
 
 **Web Testing:**
 
@@ -77,6 +110,7 @@ Everything        → TEST-CAPABILITIES (unified autonomous testing)
 | **Stagehand** | AI navigation with natural language |
 | **agent-browser** | CLI browser automation with @refs |
 | **pi-agent-browser** | LLM browsing integrated with pi |
+| **SurfClient / surf-cli** | Browser control through TEST-CAPABILITIES library + CLI wrapper |
 
 **CLI Testing:**
 
@@ -147,7 +181,7 @@ bombadil test https://your-app.com --headless
 import { always, extract } from "@antithesishq/bombadil";
 export { clicks } from "@antithesishq/bombadil/defaults/actions";
 
-const title = extract((state) => 
+const title = extract((state) =>
     state.document.querySelector("h1")?.textContent ?? ""
 );
 
@@ -175,11 +209,6 @@ await stagehand.init();
 await stagehand.page.goto("https://example.com");
 await stagehand.act("click the login button");
 await stagehand.act("fill the email field with test@example.com");
-
-const { title } = await stagehand.extract(
-    "extract the page title",
-    z.object({ title: z.string() })
-);
 ```
 
 ### 5. pi-agent-browser (LLM + Browser for pi)
@@ -189,26 +218,8 @@ const { title } = await stagehand.extract(
 **Install**:
 ```bash
 pi install npm:pi-agent-browser
-npm install -g agent-browser  # CLI dependency
+npm install -g agent-browser
 ```
-
-**Workflow in pi**:
-```
-You: Test the login flow on https://myapp.com
-
-LLM uses browser tool:
-  browser open https://myapp.com
-  browser snapshot -i        # Gets interactive elements
-  browser click @e1          # Clicks login button
-  browser fill @e2 "user"    # Fills form
-  browser screenshot         # Captures visual
-  browser close
-```
-
-**Features**:
-- Inline screenshots (vision-capable models can see the page)
-- @ref handles for interaction (no CSS selectors)
-- Auto-cleanup on session end
 
 ### 6. agent-browser CLI (Headless Browser for Agents)
 
@@ -219,137 +230,17 @@ LLM uses browser tool:
 npm install -g agent-browser
 ```
 
-**Commands**:
-```bash
-agent-browser open https://example.com
-agent-browser snapshot          # Accessibility tree with @refs
-agent-browser click @e1
-agent-browser fill @e2 "text"
-agent-browser screenshot
-agent-browser close
-```
-
-**Validated**: ✓ Works on this system (2026-02-20)
-
 ### 7. Surf-CLI (Advanced Browser Control for AI Agents)
 
-**Best for**: Zero-config browser automation, AI queries without API keys, network capture
+**Best for**: zero-config browser automation, AI queries without API keys, network capture
 
 **Install**:
 ```bash
 npm install -g surf-cli
-surf install <extension-id>  # After loading extension in Chrome
+surf install <extension-id>
 ```
 
-**Why Surf-CLI**:
-- **Agent-agnostic**: Pure CLI, works with any LLM
-- **Zero config**: Install extension, run commands
-- **AI without API keys**: Query ChatGPT, Gemini, Perplexity, Grok using browser login
-- **Network capture**: Automatic request logging and replay
-- **Smart defaults**: Auto-resize screenshots, auto-capture after actions
-
-**Commands**:
-```bash
-# Navigation
-surf go "https://example.com"
-surf read                           # Accessibility tree
-surf click e5                       # Click by ref
-surf type "hello" --ref e12         # Type into element
-
-# Semantic locators (no selectors needed)
-surf locate.role button --name "Submit" --action click
-surf locate.text "Sign In" --action click
-surf locate.label "Email" --action fill --value "test@example.com"
-
-# Screenshots
-surf screenshot                     # Auto-saves to /tmp
-surf screenshot --annotate          # With element labels
-
-# AI Queries (no API keys!)
-surf chatgpt "explain this code" --with-page
-surf gemini "summarize" --with-page
-surf perplexity "what is this" --with-page
-surf grok "analyze trends" --deep-search
-
-# Network capture
-surf network                        # View requests
-surf network --status 4xx,5xx       # Filter errors
-surf network.curl r_001             # Generate curl command
-
-# Workflows (multi-step automation)
-surf do 'go "https://example.com" | click e5 | screenshot'
-
-# Device emulation
-surf emulate.device "iPhone 14"
-surf emulate.viewport --width 375 --height 812
-```
-
-**Network Replay**:
-```bash
-# Capture network while browsing
-surf go "https://myapp.com"
-# ... interact with page ...
-surf network --format curl          # Get all as curl commands
-surf network.get r_001              # Get specific request details
-```
-
-**Validated**: ✓ Integrates with TEST-CAPABILITIES framework
-
----
-
-## Experiment Results
-
-### Test 1: agent-browser ✅
-
-```bash
-$ agent-browser open https://example.com
-✓ Example Domain
-  https://example.com/
-
-$ agent-browser snapshot | head -10
-- document:
-  - heading "Example Domain" [ref=e1] [level=1]
-  - paragraph: This domain is for use in documentation examples...
-  - link "Learn more" [ref=e2]
-
-$ agent-browser screenshot /tmp/test.png
-✓ Screenshot saved to /tmp/test.png (16KB)
-
-$ agent-browser close
-✓ Browser closed
-```
-
-**Status**: ✅ Working (2026-02-20)
-
-### Test 2: Bombadil ✅
-
-```bash
-$ ./bombadil test https://news.ycombinator.com --headless --output-path /tmp/test
-[INFO] starting test of https://news.ycombinator.com/
-[INFO] picked action: Click { name: "A", ... }
-[INFO] picked action: Click { name: "INPUT", ... }
-[INFO] picked action: TypeText { text: "Md", delay: 185ms }
-[INFO] picked action: PressKey { code: 13 }
-...
-
-$ cat /tmp/test/trace.jsonl | jq -c '{url, action, violations}'
-{"url":"https://news.ycombinator.com/","action":null,"violations":[]}
-{"url":"https://news.ycombinator.com/vote?id=...","action":{"Click":{...}},"violations":[]}
-```
-
-**Status**: ✅ Working - autonomously explores pages, logs actions, captures screenshots
-
-**Note**: Simple pages (example.com) may exit with "no fallback action" - use complex pages for best results.
-
-### Test 3: pi-agent-browser ✅
-
-```bash
-$ pi install npm:pi-agent-browser
-$ npm install -g agent-browser
-Installed
-```
-
-**Status**: ✅ Installed and working with agent-browser CLI
+**Validated**: works as the browser integration behind TEST-CAPABILITIES `SurfClient` and the supported `test-capabilities surf explore` wrapper.
 
 ---
 
@@ -357,7 +248,7 @@ Installed
 
 ### For Creating an LLM Testing System
 
-```
+```text
 Create an LLM-driven user flow tester for a [CLI tool / web app / API].
 
 Requirements:
@@ -384,58 +275,20 @@ Deliverables:
 
 ### For CLI Testing (Specific)
 
-```
+```text
 Create an LLM-driven CLI tester for [tool-name] (a bash-based [domain] tool).
 
 The agent should:
 1. Run `./[tool] --help` to discover commands
-2. Execute realistic user flows:
-   - [flow 1: e.g., Initialize]
-   - [flow 2: e.g., Create/edit/search]
-   - [flow 3: e.g., Run quality checks]
+2. Execute realistic user flows
 3. After each command, evaluate stdout/stderr to determine success
 4. Try edge cases (missing args, invalid names, etc.)
 5. Output JSON report: {flow, steps: [{cmd, output, verdict, reason}]}
-
-Use [Claude API / local model].
-Max [N] flows, max [M] steps per flow.
-```
-
-### For Web App Testing with Bombadil
-
-```
-Create a Bombadil specification for testing [app-name].
-
-The spec should include:
-1. Default actions (clicks, inputs)
-2. Custom invariants:
-   - [invariant 1: e.g., "always has visible navigation"]
-   - [invariant 2: e.g., "loading states eventually resolve"]
-3. Guarantees:
-   - [guarantee 1: e.g., "form submission shows feedback within 5s"]
-
-Output:
-1. spec.ts file
-2. Command to run tests
-3. Expected output format
 ```
 
 ---
 
 ## When to Use What
-
-### VHS vs Alternatives
-
-| Use VHS When | Don't Use VHS When |
-|--------------|-------------------|
-| Marketing gif needed | CI verification needed |
-| Simulated terminal OK | Real execution required |
-| Visual polish matters | Deterministic output matters |
-
-**Better alternatives for docs**:
-- Code blocks with expected output
-- asciinema recordings (real sessions)
-- verify.sh output (actual validation)
 
 ### LLM Testing vs Traditional
 
@@ -446,7 +299,7 @@ Output:
 | Non-deterministic | Deterministic |
 | Good for: complex flows, edge cases | Good for: regression, CI |
 
-**Recommendation**: Use both
+**Recommendation**: use both
 - Traditional (BATS/verify.sh) for CI
 - LLM testing for exploratory/edge cases
 
@@ -495,13 +348,16 @@ await s.act("click the first link");
 
 ## File Index
 
-```
-~/testers/
-├── LLM-TESTING-GUIDE.md    # This file
-├── bombadil                # Binary (v0.2.1)
-├── test-spec.ts            # Sample Bombadil spec
-└── prompts/
-    ├── cli-tester.md       # Prompt for CLI testing
-    ├── web-tester.md       # Prompt for web testing
-    └── api-tester.md       # Prompt for API testing
+```text
+~/test-capabilities/
+├── LLM-TESTING-GUIDE.md
+├── prompts/
+│   ├── cli-tester.md
+│   ├── web-tester.md
+│   └── api-tester.md
+└── docs/api/
+    ├── cli.md
+    ├── config.md
+    ├── examples.md
+    └── patterns.md
 ```

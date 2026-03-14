@@ -31,3 +31,45 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   assert.doesNotMatch(configDoc, /^alerts:/m);
   assert.doesNotMatch(configDoc, /^execution:/m);
 });
+
+test("agent entrypoint routes only to supported CLI surfaces and correct doc paths", () => {
+  const agentsDoc = load("src/TEST-CAPABILITIES-AGENTS.md");
+
+  assert.match(agentsDoc, /test-capabilities test --config <file>/);
+  assert.doesNotMatch(agentsDoc, /→\s+test-capabilities predict --target/);
+  assert.doesNotMatch(agentsDoc, /→\s+test-capabilities test .*--autonomous/);
+  assert.match(agentsDoc, /\.\.\/docs\/api\/cli\.md/);
+  assert.match(agentsDoc, /\.\.\/docs\/api\/api-surf\.md/);
+});
+
+test("product readme no longer advertises unpublished package names or unsupported commands", () => {
+  const readmeDoc = load("docs/TEST-CAPABILITIES-README.md");
+
+  assert.doesNotMatch(readmeDoc, /@test-capabilities\/framework/);
+  assert.doesNotMatch(readmeDoc, /test-capabilities predict\s+#/);
+  assert.match(readmeDoc, /unsupported surfaces fail clearly/i);
+});
+
+test("prediction API docs describe the library surface instead of a supported CLI command", () => {
+  const predictionDoc = load("docs/api/api-prediction.md");
+
+  assert.match(predictionDoc, /library surface/i);
+  assert.doesNotMatch(predictionDoc, /test-capabilities predict --target/);
+  assert.match(predictionDoc, /const stop = await collector\.startCollection\(60000\)/);
+});
+
+test("api reference shows a capability-backed orchestrator example", () => {
+  const apiReferenceDoc = load("docs/api/api-reference.md");
+
+  assert.match(apiReferenceDoc, /type: 'cli-tester'/);
+  assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
+  assert.match(apiReferenceDoc, /validateCapabilityContract/);
+});
+
+test("surf API docs avoid unsupported examples", () => {
+  const surfDoc = load("docs/api/api-surf.md");
+
+  assert.doesNotMatch(surfDoc, /\{ all: true \}/);
+  assert.doesNotMatch(surfDoc, /await surf\.select\('e5', 0/);
+  assert.match(surfDoc, /test-capabilities surf explore/);
+});

@@ -1,17 +1,27 @@
+---
+summary: "API reference for SurfClient browser automation integration."
+read_when:
+  - "You are automating browser interactions through surf-cli"
+  - "You need method-level details for SurfClient and flow APIs"
+type: "reference"
+---
+
 # SurfClient API
 
 > Browser automation via surf-cli.
+
+`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, while richer browser behavior is exposed programmatically through this surface.
 
 ---
 
 ## Constructor
 
 ```typescript
-const surf = new SurfClient(options?: {
-  socketPath?: string;      // Default: '/tmp/surf.sock'
-  autoScreenshot?: boolean; // Default: true
-  screenshotResize?: number;// Default: 1200
-  networkCapture?: boolean; // Default: true
+const surf = new SurfClient({
+  socketPath: '/tmp/surf.sock',
+  autoScreenshot: true,
+  screenshotResize: 1200,
+  networkCapture: true,
 });
 ```
 
@@ -25,6 +35,8 @@ const surf = new SurfClient(options?: {
 await surf.goto('https://myapp.com');
 ```
 
+If navigation succeeds but the follow-up auto-screenshot fails, the action still succeeds and the screenshot failure is surfaced in the returned `error` field.
+
 ### `back()` / `forward()`
 
 ```typescript
@@ -36,38 +48,33 @@ await surf.forward();
 
 ```typescript
 await surf.reload();
-await surf.reload(true); // Hard reload
+await surf.reload(true);
 ```
 
 ---
 
-## Reading Pages
+## Reading pages
 
 ### `read(options?)`
 
-Get accessibility tree with element refs.
-
 ```typescript
 const snapshot = await surf.read({
-  depth: 3,    // Limit tree depth
-  compact: true, // Remove empty elements
+  depth: 3,
+  compact: true,
 });
 
-// snapshot.url, snapshot.title, snapshot.elements[]
-// elements[i] = { ref: 'e5', role: 'button', name: 'Submit', text: 'Click me' }
+// snapshot.url
+// snapshot.title
+// snapshot.elements
 ```
 
 ### `pageText()`
-
-Get raw text content.
 
 ```typescript
 const text = await surf.pageText();
 ```
 
 ### `pageState()`
-
-Get page state.
 
 ```typescript
 const state = await surf.pageState();
@@ -81,9 +88,9 @@ const state = await surf.pageState();
 ### `click(ref | selector | x, y)`
 
 ```typescript
-await surf.click('e5');              // By ref
-await surf.click('#login-btn');      // By selector
-await surf.click(100, 200);          // By coordinates
+await surf.click('e5');
+await surf.click('#login-btn');
+await surf.click(100, 200);
 ```
 
 ### `type(text, options?)`
@@ -92,7 +99,7 @@ await surf.click(100, 200);          // By coordinates
 await surf.type('hello');
 await surf.type('hello', { ref: 'e12' });
 await surf.type('hello', { selector: 'input[name=email]' });
-await surf.type('hello', { submit: true }); // Press Enter after
+await surf.type('hello', { submit: true });
 ```
 
 ### `press(key)`
@@ -116,12 +123,12 @@ await surf.scroll('up');
 ```typescript
 await surf.select('e5', 'US');
 await surf.select('e5', 'United States', { byLabel: true });
-await surf.select('e5', 0, { byIndex: true });
+await surf.select('e5', '0', { byIndex: true });
 ```
 
 ---
 
-## Semantic Locators
+## Semantic locators
 
 Preferred over CSS selectors.
 
@@ -131,7 +138,6 @@ Preferred over CSS selectors.
 await surf.locateByRole('button', { name: 'Submit' });
 await surf.locateByRole('button', { name: 'Submit', action: 'click' });
 await surf.locateByRole('textbox', { action: 'fill', value: 'hello' });
-await surf.locateByRole('link', { all: true }); // List all
 ```
 
 ### `locateByText(text, options?)`
@@ -156,9 +162,9 @@ await surf.locateByLabel('Email', { action: 'fill', value: 'test@example.com' })
 ```typescript
 await surf.screenshot();
 await surf.screenshot({ output: '/tmp/shot.png' });
-await surf.screenshot({ full: true });         // Full resolution
-await surf.screenshot({ annotate: true });     // With element labels
-await surf.screenshot({ fullpage: true });     // Entire page
+await surf.screenshot({ full: true });
+await surf.screenshot({ annotate: true });
+await surf.screenshot({ fullpage: true });
 ```
 
 ---
@@ -169,7 +175,6 @@ await surf.screenshot({ fullpage: true });     // Entire page
 
 ```typescript
 const tabs = await surf.listTabs();
-// [{ id: 123, title: 'Page', url: 'https://...' }]
 ```
 
 ### `newTab(url)`
@@ -182,7 +187,7 @@ const { tabId, windowId } = await surf.newTab('https://example.com');
 
 ```typescript
 await surf.switchTab(123);
-await surf.switchTab('dashboard'); // By name
+await surf.switchTab('dashboard');
 ```
 
 ### `closeTab(id)`
@@ -227,7 +232,6 @@ const requests = await surf.getNetwork({
   status: '4xx,5xx',
   since: '5m',
 });
-// [{ id: 'r_001', method: 'GET', url: '...', status: 200, duration: 45 }]
 ```
 
 ### `getNetworkRequest(id)`
@@ -250,7 +254,7 @@ await surf.clearNetwork();
 
 ---
 
-## AI Queries (No API Keys!)
+## AI queries (no API keys)
 
 Uses your browser login.
 
@@ -330,27 +334,24 @@ await surf.wait({ url: '/dashboard' });
 
 ---
 
-## JavaScript Execution
+## JavaScript execution
 
 ### `evaluate<T>(code)`
 
 ```typescript
-const title = await surf.evaluate<string>('return document.title');
-const count = await surf.evaluate<number>(
-  'return document.querySelectorAll(".item").length'
-);
+const title = await surf.evaluate<string>('JSON.stringify(document.title)');
+const count = await surf.evaluate<number>('JSON.stringify(document.querySelectorAll(".item").length)');
 ```
 
 ---
 
-## Device Emulation
+## Device emulation
 
 ### `emulateDevice(device)`
 
 ```typescript
 await surf.emulateDevice('iPhone 14');
-await surf.emulateDevice('Pixel 7');
-await surf.emulateDevice('reset');
+await surf.resetDevice();
 ```
 
 ### `emulateViewport(width, height, scale?)`
@@ -386,18 +387,16 @@ await surf.switchToMain();
 
 ---
 
-## Console & Cookies
+## Console and cookies
 
 ### `getConsole()`
 
 ```typescript
 const logs = await surf.getConsole();
-// [{ type: 'error', message: '...' }]
 ```
 
 ### `getCookies()`
 
 ```typescript
 const cookies = await surf.getCookies();
-// [{ name: 'session', value: '...', domain: '...' }]
 ```
