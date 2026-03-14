@@ -129,6 +129,14 @@ export class QuantumSimulator {
 
     // Collapse the wave function
     const collapsedFindings = this.collapseWaveform();
+    const edgeCases = this.uniqueDiscoveries(
+      this.discoveries.filter((discovery) => discovery.type === "edge_case"),
+    );
+    const rareBugs = this.uniqueDiscoveries(
+      this.discoveries.filter(
+        (discovery) => discovery.type === "bug" && discovery.probability < 0.01,
+      ),
+    );
 
     // Calculate coverage
     const coverage = this.calculateCoverage();
@@ -137,8 +145,8 @@ export class QuantumSimulator {
       branchesSimulated,
       uniquePaths: this.pathSet.size,
       collapsedFindings,
-      edgeCases: this.discoveries.filter((d) => d.type === "edge_case"),
-      rareBugs: this.discoveries.filter((d) => d.type === "bug" && d.probability < 0.01),
+      edgeCases,
+      rareBugs,
       coverage,
       duration: Date.now() - startTime,
     };
@@ -316,18 +324,26 @@ export class QuantumSimulator {
   private analyzeForDiscoveries(branch: QuantumBranch): Discovery[] {
     const discoveries: Discovery[] = [];
     const state = branch.state;
+    const latestAction = branch.path[branch.path.length - 1];
 
     // Check for error patterns
     if (state.errors.length > 0) {
       const latestError = state.errors[state.errors.length - 1];
-      discoveries.push({
-        type: "bug",
-        severity: latestError.includes("critical") ? "critical" : "high",
-        description: `Error detected: ${latestError}`,
-        reproduction: [...branch.path],
-        probability: this.calculateProbability(branch),
-        evidence: state.errors,
-      });
+      const description = `Error detected: ${latestError}`;
+      const alreadyRecorded = branch.discoveries.some(
+        (discovery) => discovery.type === "bug" && discovery.description === description,
+      );
+
+      if (!alreadyRecorded) {
+        discoveries.push({
+          type: "bug",
+          severity: latestError.includes("critical") ? "critical" : "high",
+          description,
+          reproduction: [...branch.path],
+          probability: this.calculateProbability(branch),
+          evidence: state.errors,
+        });
+      }
     }
 
     // Check for performance issues
@@ -340,6 +356,45 @@ export class QuantumSimulator {
         probability: this.calculateProbability(branch),
         evidence: [`avg latency: ${state.network.avgLatency}ms`],
       });
+    }
+
+    if (
+      latestAction?.type === "type" &&
+      !/^(input|textarea|select)(?:[.#[].*)?$/.test(latestAction.target)
+    ) {
+      const description = `Input targeted a non-form element: ${latestAction.target}`;
+      const alreadyRecorded = branch.discoveries.some(
+        (discovery) => discovery.type === "edge_case" && discovery.description === description,
+      );
+
+      if (!alreadyRecorded) {
+        discoveries.push({
+          type: "edge_case",
+          severity: "medium",
+          description,
+          reproduction: [...branch.path],
+          probability: this.calculateProbability(branch),
+          evidence: [latestAction.target, latestAction.type],
+        });
+      }
+    }
+
+    if (latestAction?.type === "navigate" && !/^https?:\/\//.test(latestAction.target)) {
+      const description = `Navigation targeted a non-URL surface: ${latestAction.target}`;
+      const alreadyRecorded = branch.discoveries.some(
+        (discovery) => discovery.type === "edge_case" && discovery.description === description,
+      );
+
+      if (!alreadyRecorded) {
+        discoveries.push({
+          type: "edge_case",
+          severity: "medium",
+          description,
+          reproduction: [...branch.path],
+          probability: this.calculateProbability(branch),
+          evidence: [latestAction.target],
+        });
+      }
     }
 
     // Check for rare paths
@@ -383,6 +438,25 @@ export class QuantumSimulator {
 
   private pathToKey(path: QuantumAction[]): string {
     return path.map((a) => `${a.type}:${a.target}`).join(">");
+  }
+
+  private discoveryKey(discovery: Discovery): string {
+    return `${discovery.type}:${discovery.severity}:${discovery.description}`;
+  }
+
+  private uniqueDiscoveries(discoveries: Discovery[]): Discovery[] {
+    const unique: Discovery[] = [];
+    const seen = new Set<string>();
+
+    for (const discovery of discoveries) {
+      const key = this.discoveryKey(discovery);
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(discovery);
+      }
+    }
+
+    return unique;
   }
 
   private collapseWaveform(): Discovery[] {

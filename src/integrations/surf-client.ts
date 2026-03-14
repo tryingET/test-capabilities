@@ -51,6 +51,26 @@ export interface NetworkRequest {
   response?: unknown;
 }
 
+function assertSupportedSurfConfig(config: SurfConfig): void {
+  const unsupported: string[] = [];
+
+  if (config.socketPath !== undefined) {
+    unsupported.push("socketPath");
+  }
+  if (config.networkCapture !== undefined) {
+    unsupported.push("networkCapture");
+  }
+  if (config.networkPath !== undefined) {
+    unsupported.push("networkPath");
+  }
+
+  if (unsupported.length > 0) {
+    throw new Error(
+      `Unsupported SurfClient config option(s): ${unsupported.join(", ")}. Outside the current capability contract. Use only autoScreenshot and screenshotResize until the remaining config is wired to real surf runtime behavior.`,
+    );
+  }
+}
+
 // ============================================
 // SURF CLIENT
 // ============================================
@@ -59,11 +79,11 @@ export class SurfClient {
   private config: SurfConfig;
 
   constructor(config: SurfConfig = {}) {
+    assertSupportedSurfConfig(config);
+
     this.config = {
-      socketPath: "/tmp/surf.sock",
       autoScreenshot: true,
       screenshotResize: 1200,
-      networkCapture: true,
       ...config,
     };
   }
@@ -285,6 +305,9 @@ export class SurfClient {
     if (options.full) args.push("--full");
     if (options.annotate) args.push("--annotate");
     if (options.fullpage) args.push("--fullpage");
+    if (!options.full && this.config.screenshotResize) {
+      args.push("--max-size", String(this.config.screenshotResize));
+    }
 
     return this.run("screenshot", args);
   }

@@ -202,7 +202,11 @@ const SurfExploreOperationInputSchema = z
   });
 
 const QuantumOperationInputSchema = z.object({
-  target: z.string().optional().default("https://example.com"),
+  target: z
+    .string()
+    .url("Quantum target must be a valid URL.")
+    .optional()
+    .default("https://example.com"),
   branches: z.string().optional().default("100"),
   collapse: z.boolean().optional().default(false),
 });
@@ -576,9 +580,7 @@ async function runHealOperation(
   }
 
   if (!normalized.dryRun) {
-    for (const proposal of proposals) {
-      await healer.applyProposal(proposal);
-    }
+    await healer.applyProposals(proposals);
   }
 
   return {

@@ -70,6 +70,28 @@ test("TestFileHealer.analyzeFile handles locator selectors with nested quotes", 
   }
 });
 
+test("TestFileHealer.analyzeFile ignores ordinary fill payload literals", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('pw', async () => { await page.locator('#old-password').fill('old-password'); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file);
+
+    assert.deepEqual(
+      proposals.map((proposal) => proposal.oldSelector),
+      ["#old-password"],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.applyProposal uses recorded column to rewrite the intended selector", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");

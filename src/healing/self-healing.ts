@@ -64,6 +64,38 @@ function stripLegacySelectorPrefix(selector: string): string | undefined {
   return undefined;
 }
 
+const SELECTOR_EXTRACTION_PATTERNS = [
+  /getByTestId\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g,
+  /locator\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g,
+  /\.click\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*(?:,|\))/g,
+  /\.fill\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1\s*,/g,
+] as const;
+
+interface ExtractedSelectorCandidate {
+  selector: string;
+  index: number;
+}
+
+function extractSelectorCandidates(content: string): ExtractedSelectorCandidate[] {
+  const candidates: ExtractedSelectorCandidate[] = [];
+
+  for (const pattern of SELECTOR_EXTRACTION_PATTERNS) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null = pattern.exec(content);
+
+    while (match !== null) {
+      const selector = match[2];
+      const selectorIndexInMatch = match[0].indexOf(selector);
+      const index = selectorIndexInMatch >= 0 ? match.index + selectorIndexInMatch : match.index;
+
+      candidates.push({ selector, index });
+      match = pattern.exec(content);
+    }
+  }
+
+  return candidates.sort((left, right) => left.index - right.index);
+}
+
 export class SelfHealingEngine {
   private strategies: HealingStrategy[] = [];
 
@@ -263,32 +295,22 @@ export class TestFileHealer {
     const content = await this.readFile(filePath);
     const proposals: HealingProposal[] = [];
 
-    // Extract selectors from test file
-    const selectorPattern =
-      /(?:getByRole|getByTestId|getByText|locator|click|fill)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
-    let match: RegExpExecArray | null = selectorPattern.exec(content);
-
-    while (match !== null) {
-      const selector = match[2];
-      const isValid = await this.validateSelector(selector);
+    for (const candidate of extractSelectorCandidates(content)) {
+      const isValid = await this.validateSelector(candidate.selector);
 
       if (!isValid) {
         const healingResult = await this.engine.heal({
-          originalSelector: selector,
-          action: this.inferAction(content, match.index),
-          description: this.inferDescription(content, match.index),
+          originalSelector: candidate.selector,
+          action: this.inferAction(content, candidate.index),
+          description: this.inferDescription(content, candidate.index),
         });
 
         if (healingResult.success && healingResult.newSelector) {
-          const selectorIndexInMatch = match[0].indexOf(selector);
-          const selectorIndex =
-            selectorIndexInMatch >= 0 ? match.index + selectorIndexInMatch : match.index;
-
           proposals.push({
             file: filePath,
-            line: this.getLineNumber(content, selectorIndex),
-            column: this.getColumnNumber(content, selectorIndex),
-            oldSelector: selector,
+            line: this.getLineNumber(content, candidate.index),
+            column: this.getColumnNumber(content, candidate.index),
+            oldSelector: candidate.selector,
             newSelector: healingResult.newSelector,
             confidence: healingResult.confidence,
             strategy: healingResult.strategy,
@@ -296,7 +318,6 @@ export class TestFileHealer {
           });
         }
       }
-      match = selectorPattern.exec(content);
     }
 
     return proposals;
@@ -304,44 +325,104 @@ export class TestFileHealer {
 
   async applyProposal(proposal: HealingProposal): Promise<void> {
     const content = await this.readFile(proposal.file);
+    const updated = this.applyProposalsToContent(content, [proposal]);
+    await this.writeFile(proposal.file, updated);
+  }
+
+  async applyProposals(proposals: HealingProposal[]): Promise<void> {
+    if (proposals.length === 0) {
+      return;
+    }
+
+    const proposalsByFile = new Map<string, HealingProposal[]>();
+    for (const proposal of proposals) {
+      const existing = proposalsByFile.get(proposal.file) ?? [];
+      existing.push(proposal);
+      proposalsByFile.set(proposal.file, existing);
+    }
+
+    const originals = new Map<string, string>();
+    const updates = new Map<string, string>();
+
+    for (const [file, fileProposals] of proposalsByFile) {
+      const content = await this.readFile(file);
+      originals.set(file, content);
+      updates.set(file, this.applyProposalsToContent(content, fileProposals));
+    }
+
+    const writtenFiles: string[] = [];
+
+    try {
+      for (const [file, updated] of updates) {
+        await this.writeFile(file, updated);
+        writtenFiles.push(file);
+      }
+    } catch (error) {
+      await Promise.all(
+        writtenFiles.map(async (file) => {
+          const original = originals.get(file);
+          if (original !== undefined) {
+            await this.writeFile(file, original);
+          }
+        }),
+      );
+      throw error;
+    }
+  }
+
+  private applyProposalsToContent(content: string, proposals: HealingProposal[]): string {
     const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
     const hasTrailingNewline = content.endsWith("\n");
     const trimmedContent = hasTrailingNewline
       ? content.slice(0, content.endsWith("\r\n") ? -2 : -1)
       : content;
     const lines = trimmedContent.length > 0 ? trimmedContent.split(/\r?\n/) : [""];
-    const lineIndex = proposal.line - 1;
 
-    if (lineIndex < 0 || lineIndex >= lines.length) {
-      throw new Error(`Healing proposal line out of range: ${proposal.file}:${proposal.line}`);
-    }
-
-    const targetLine = lines[lineIndex];
-    const targetColumn = proposal.column
-      ? proposal.column - 1
-      : targetLine.indexOf(proposal.oldSelector);
-
-    if (targetColumn < 0) {
-      throw new Error(
-        `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}'.`,
+    const orderedProposals = [...proposals].sort((left, right) => {
+      const leftColumn = left.column ?? -1;
+      const rightColumn = right.column ?? -1;
+      return (
+        right.line - left.line ||
+        rightColumn - leftColumn ||
+        right.oldSelector.length - left.oldSelector.length
       );
+    });
+
+    for (const proposal of orderedProposals) {
+      const lineIndex = proposal.line - 1;
+
+      if (lineIndex < 0 || lineIndex >= lines.length) {
+        throw new Error(`Healing proposal line out of range: ${proposal.file}:${proposal.line}`);
+      }
+
+      const targetLine = lines[lineIndex];
+      const targetColumn = proposal.column
+        ? proposal.column - 1
+        : targetLine.indexOf(proposal.oldSelector);
+
+      if (targetColumn < 0) {
+        throw new Error(
+          `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}'.`,
+        );
+      }
+
+      if (
+        targetLine.slice(targetColumn, targetColumn + proposal.oldSelector.length) !==
+        proposal.oldSelector
+      ) {
+        throw new Error(
+          `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}${proposal.column ? `:${proposal.column}` : ""}. Expected '${proposal.oldSelector}'.`,
+        );
+      }
+
+      lines[lineIndex] =
+        targetLine.slice(0, targetColumn) +
+        proposal.newSelector +
+        targetLine.slice(targetColumn + proposal.oldSelector.length);
     }
 
-    if (
-      targetLine.slice(targetColumn, targetColumn + proposal.oldSelector.length) !==
-      proposal.oldSelector
-    ) {
-      throw new Error(
-        `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}${proposal.column ? `:${proposal.column}` : ""}. Expected '${proposal.oldSelector}'.`,
-      );
-    }
-
-    lines[lineIndex] =
-      targetLine.slice(0, targetColumn) +
-      proposal.newSelector +
-      targetLine.slice(targetColumn + proposal.oldSelector.length);
     const updated = lines.join(lineEnding);
-    await this.writeFile(proposal.file, hasTrailingNewline ? `${updated}${lineEnding}` : updated);
+    return hasTrailingNewline ? `${updated}${lineEnding}` : updated;
   }
 
   private async readFile(path: string): Promise<string> {

@@ -71,6 +71,13 @@ test("CLI quantum command rejects invalid branch counts", () => {
   assert.match(`${result.stdout}\n${result.stderr}`, /Invalid value for --branches: 0/);
 });
 
+test("CLI quantum command rejects invalid targets", () => {
+  const result = runCli(["quantum", "--target", "not-a-url", "--branches", "1"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Quantum target must be a valid URL/);
+});
+
 test("CLI heal command fails closed when the target directory is missing", () => {
   const result = runCli(["heal", "--dir", "/tmp/definitely-missing-heal-dir"]);
 

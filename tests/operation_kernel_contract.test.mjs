@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -122,6 +122,13 @@ test("executeCliOperation rejects invalid quantum branch counts", async () => {
   );
 });
 
+test("executeCliOperation rejects invalid quantum targets", async () => {
+  await assert.rejects(
+    async () => executeCliOperation({ command: "quantum" }, { target: "not-a-url", branches: "1" }),
+    /Quantum target must be a valid URL/,
+  );
+});
+
 test("executeCliOperation fails closed when the heal directory is missing", async () => {
   await assert.rejects(
     async () =>
@@ -148,6 +155,29 @@ test("executeCliOperation heal ignores generated and dependency directories", as
     assert.equal(result.proposals.length, 0);
   } finally {
     chmodSync(unreadableFile, 0o644);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal applies multiple same-line proposals in one pass", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-atomic-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('multi', async () => { await page.locator('#old-login'); await page.locator('#deprecated-submit'); });\n",
+    "utf8",
+  );
+
+  try {
+    const result = await executeCliOperation({ command: "heal" }, { dir, dryRun: false });
+    const updated = readFileSync(file, "utf8");
+
+    assert.equal(result.appliedCount, 2);
+    assert.match(updated, /locator\('#login'\)/);
+    assert.match(updated, /locator\('#submit'\)/);
+    assert.doesNotMatch(updated, /#old-login/);
+    assert.doesNotMatch(updated, /#deprecated-submit/);
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });

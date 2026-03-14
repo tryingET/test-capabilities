@@ -69,6 +69,37 @@ test("QuantumSimulator significance mode surfaces high-severity latency findings
   );
 });
 
+test("QuantumSimulator surfaces non-empty edge-case findings for real edge heuristics", async () => {
+  const simulator = new QuantumSimulator({
+    branches: 1,
+    maxDepth: 20,
+    seed: 42,
+    collapseStrategy: "coverage",
+  });
+
+  const result = await simulator.simulate(createInitialState());
+
+  assert.equal(result.edgeCases.length > 0, true);
+  assert.equal(
+    result.edgeCases.every((finding) => finding.type === "edge_case"),
+    true,
+  );
+});
+
+test("QuantumSimulator rare bug output is deduplicated by semantic finding", async () => {
+  const simulator = new QuantumSimulator({
+    branches: 1,
+    maxDepth: 20,
+    seed: 42,
+    collapseStrategy: "coverage",
+  });
+
+  const result = await simulator.simulate(createInitialState());
+  const descriptions = result.rareBugs.map((finding) => finding.description);
+
+  assert.equal(new Set(descriptions).size, descriptions.length);
+});
+
 test("QuantumSimulator reports only branches that actually entered simulation", async () => {
   const simulator = new QuantumSimulator({
     branches: 5,

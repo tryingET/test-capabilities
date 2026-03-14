@@ -140,6 +140,34 @@ printf '%s\n' "$cmd" "$@"
   }
 });
 
+test(
+  "SurfClient applies screenshotResize to screenshot commands",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurf('printf "%s\\n" "$@"');
+    const previousPath = process.env.PATH;
+    process.env.PATH = fake.env.PATH;
+
+    try {
+      const client = new SurfClient({ autoScreenshot: false, screenshotResize: 777 });
+      const result = await client.screenshot();
+
+      assert.equal(result.success, true);
+      assert.equal(result.message, "screenshot\n--max-size\n777");
+    } finally {
+      process.env.PATH = previousPath;
+      fake.cleanup();
+    }
+  },
+);
+
+test("SurfClient rejects unsupported config knobs instead of silently ignoring them", () => {
+  assert.throws(
+    () => new SurfClient({ socketPath: "/tmp/custom.sock" }),
+    /Unsupported SurfClient config option\(s\): socketPath/,
+  );
+});
+
 test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: false }, async () => {
   const fake = withFakeSurf('echo "simulated failure" >&2\nexit 1');
   const previousPath = process.env.PATH;
