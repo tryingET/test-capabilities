@@ -55,6 +55,9 @@ interface HealingResult {
 }
 ```
 
+A result is only considered `success: true` when the engine reaches the current verification threshold (`confidence >= 0.7`).
+Heuristic strategies that are not backed by a real verification path now fail closed instead of inventing pseudo-selectors, and they surface `metadata.requiresReview: true` so speculative ideas are not mislabeled as verified healing.
+
 ### Example
 
 ```typescript

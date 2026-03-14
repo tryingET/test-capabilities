@@ -209,13 +209,21 @@ interface Finding {
 ### `CoverageReport`
 
 ```typescript
+type CoverageDimension = 'userFlows' | 'apiEndpoints' | 'edgeCases';
+
 interface CoverageReport {
   userFlows: number;
   apiEndpoints: number;
   edgeCases: number;
   overall: number;
+  measuredDimensions: CoverageDimension[];
+  unmeasuredDimensions: CoverageDimension[];
 }
 ```
+
+Runtime note:
+- `overall` is computed from the dimensions that were actually measured in the run
+- `unmeasuredDimensions` keeps missing denominators explicit instead of silently folding them into the percentage
 
 ---
 
@@ -247,6 +255,10 @@ interface PredictionInput {
   avgTimeBetweenFailures: number;
 }
 ```
+
+Runtime note:
+- the prediction library validates the full numeric shape at runtime
+- missing, `NaN`, or non-finite fields fail closed instead of producing synthetic confidence
 
 ### `Prediction`
 
@@ -353,6 +365,10 @@ interface HealingProposal {
   requiresReview: boolean;
 }
 ```
+
+Runtime note:
+- low-confidence healing candidates can surface a `newSelector` from `SelfHealingEngine.heal(...)`
+- they are not treated as successful healing unless they cross the verification threshold, and CLI/file-healing paths keep them out of the auto-apply success path
 
 ### `HealOperationResultEnvelope`
 

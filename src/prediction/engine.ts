@@ -65,6 +65,40 @@ export interface TrainingData {
   };
 }
 
+const PREDICTION_INPUT_FIELDS = [
+  "errorRate",
+  "responseTimeP95",
+  "cpuUsage",
+  "memoryUsage",
+  "diskUsage",
+  "timeSinceDeployment",
+  "hourOfDay",
+  "dayOfWeek",
+  "sessionDepthAvg",
+  "rageClickRate",
+  "abandonmentRate",
+  "bounceRate",
+  "filesChanged",
+  "linesAdded",
+  "linesDeleted",
+  "testCoverageDelta",
+  "recentFailures",
+  "avgTimeBetweenFailures",
+] as const satisfies readonly (keyof PredictionInput)[];
+
+function validatePredictionInput(input: PredictionInput): void {
+  const invalidFields = PREDICTION_INPUT_FIELDS.filter((field) => {
+    const value = input[field];
+    return typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value);
+  });
+
+  if (invalidFields.length > 0) {
+    throw new Error(
+      `Prediction input is incomplete or invalid. Provide finite numeric values for: ${invalidFields.join(", ")}.`,
+    );
+  }
+}
+
 // ============================================
 // GRADIENT BOOSTING PREDICTOR (Simplified)
 // ============================================
@@ -91,6 +125,7 @@ export class GradientBoostingPredictor implements PredictionModel {
   };
 
   async predict(input: PredictionInput): Promise<Prediction[]> {
+    validatePredictionInput(input);
     const predictions: Prediction[] = [];
 
     for (const [component, weights] of Object.entries(this.weights)) {
@@ -114,10 +149,9 @@ export class GradientBoostingPredictor implements PredictionModel {
     return predictions.sort((a, b) => b.probability - a.probability);
   }
 
-  async train(data: TrainingData[]): Promise<void> {
-    // In a real implementation, this would train the model
-    // For now, we just update weights based on patterns
-    console.log(`Training on ${data.length} samples...`);
+  async train(_data: TrainingData[]): Promise<void> {
+    // The shipped predictor is a fixed-weight placeholder model. Training is a deliberate no-op
+    // until a real persisted model update path exists.
   }
 
   private getMetricValue(input: PredictionInput, feature: string): number {
@@ -167,11 +201,11 @@ export class GradientBoostingPredictor implements PredictionModel {
   }
 
   private calculateConfidence(input: PredictionInput, _component: string): number {
-    // Confidence based on data completeness and historical accuracy
+    // Confidence is grounded in the fixed runtime schema rather than whatever keys the caller happened to provide.
     const completeness =
-      Object.values(input).filter((v) => v !== undefined && v !== null).length /
-      Object.keys(input).length;
-    return 0.7 + completeness * 0.25;
+      PREDICTION_INPUT_FIELDS.filter((field) => Number.isFinite(input[field])).length /
+      PREDICTION_INPUT_FIELDS.length;
+    return 0.35 + completeness * 0.55;
   }
 
   private identifyTrigger(input: PredictionInput, weights: Record<string, number>): string {
@@ -282,14 +316,16 @@ export class PredictionEngine {
   }
 
   async analyze(currentMetrics: PredictionInput): Promise<Prediction[]> {
+    validatePredictionInput(currentMetrics);
+
     // Get predictions from model
     const predictions = await this.model.predict(currentMetrics);
+    const enrichedPredictions = predictions.map((prediction) => this.enrichWithHistory(prediction));
 
-    // Store for tracking accuracy
-    this.recentPredictions = predictions;
+    // Store the same enriched predictions that callers receive.
+    this.recentPredictions = enrichedPredictions;
 
-    // Enrich with historical context
-    return predictions.map((p) => this.enrichWithHistory(p));
+    return enrichedPredictions;
   }
 
   async addTrainingData(data: TrainingData): Promise<void> {
@@ -319,7 +355,7 @@ export class PredictionEngine {
   }
 
   getTopRisks(n: number = 5): Prediction[] {
-    return this.recentPredictions.sort((a, b) => b.riskScore - a.riskScore).slice(0, n);
+    return [...this.recentPredictions].sort((a, b) => b.riskScore - a.riskScore).slice(0, n);
   }
 
   getPredictionsByComponent(component: string): Prediction[] {

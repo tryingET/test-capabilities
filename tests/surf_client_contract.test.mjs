@@ -33,12 +33,36 @@ test(
     try {
       const client = new SurfClient({ autoScreenshot: false });
       const gotoResult = await client.goto("https://example.com");
+      const clickResult = await client.click("button.login");
       const typeResult = await client.type("hello world", { ref: "e1", submit: true });
 
       assert.equal(gotoResult.success, true);
       assert.equal(gotoResult.message, "go\nhttps://example.com");
+      assert.equal(clickResult.success, true);
+      assert.equal(clickResult.message, "click\n--selector\nbutton.login");
       assert.equal(typeResult.success, true);
       assert.equal(typeResult.message, "type\nhello world\n--ref\ne1\n--submit");
+    } finally {
+      process.env.PATH = previousPath;
+      fake.cleanup();
+    }
+  },
+);
+
+test(
+  "SurfClient routes XPath selectors through the explicit selector channel",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurf('printf "%s\\n" "$@"');
+    const previousPath = process.env.PATH;
+    process.env.PATH = fake.env.PATH;
+
+    try {
+      const client = new SurfClient({ autoScreenshot: false });
+      const result = await client.click("//button[@type='submit']");
+
+      assert.equal(result.success, true);
+      assert.equal(result.message, "click\n--selector\n//button[@type='submit']");
     } finally {
       process.env.PATH = previousPath;
       fake.cleanup();

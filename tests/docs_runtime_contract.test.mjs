@@ -26,7 +26,8 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
-  assert.match(gettingStartedDoc, /overall=33%/);
+  assert.match(gettingStartedDoc, /user=unmeasured api=unmeasured edge=100% overall=100%/);
+  assert.match(gettingStartedDoc, /Coverage gaps: userFlows, apiEndpoints/);
 });
 
 test("config docs show the strict fail-closed surface instead of legacy top-level sections", () => {

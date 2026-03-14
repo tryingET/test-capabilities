@@ -633,7 +633,7 @@ fi
 
 ```json
 {
-  "test-capabilities_version": "2.0.0",
+  "test-capabilities_version": "0.1.0",
   "timestamp": "2026-02-22T20:00:00Z",
   "target": "https://myapp.com",
   "summary": {

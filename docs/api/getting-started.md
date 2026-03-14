@@ -70,14 +70,15 @@ test-capabilities test --quick --config test-capabilities.yaml
 Expected shape of output:
 
 ```text
-Autonomous Testing Framework v2.0.0
+Autonomous Testing Framework v0.1.0
 Testing complete (pass).
 Health:  pass
 Findings: 0
-Coverage: user=0% api=0% edge=100% overall=33%
+Coverage: user=unmeasured api=unmeasured edge=100% overall=100%
+Coverage gaps: userFlows, apiEndpoints
 ```
 
-`overall` is the simple average of `user`, `api`, and `edge`, so unmeasured dimensions still count as `0` instead of inflating the summary.
+`overall` is now computed from the dimensions the current run actually measured, while `Coverage gaps` makes the missing dimensions explicit instead of silently folding them into the percentage.
 
 ---
 

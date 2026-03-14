@@ -71,6 +71,10 @@ function assertSupportedSurfConfig(config: SurfConfig): void {
   }
 }
 
+function isSurfElementRef(value: string): boolean {
+  return /^e\d+$/.test(value);
+}
+
 // ============================================
 // SURF CLIENT
 // ============================================
@@ -195,17 +199,9 @@ export class SurfClient {
     let args: string[];
 
     if (typeof refOrSelectorOrX === "string") {
-      if (refOrSelectorOrX.startsWith("e")) {
-        args = [refOrSelectorOrX];
-      } else if (
-        refOrSelectorOrX.startsWith(".") ||
-        refOrSelectorOrX.startsWith("#") ||
-        refOrSelectorOrX.startsWith("[")
-      ) {
-        args = ["--selector", refOrSelectorOrX];
-      } else {
-        args = [refOrSelectorOrX];
-      }
+      args = isSurfElementRef(refOrSelectorOrX)
+        ? [refOrSelectorOrX]
+        : ["--selector", refOrSelectorOrX];
     } else {
       args = [String(refOrSelectorOrX), String(y)];
     }
@@ -321,12 +317,12 @@ export class SurfClient {
   // ============================================
 
   async listTabs(): Promise<Array<{ id: number; title: string; url: string }>> {
-    const result = await this.run("tab.list", [], true);
+    const result = await this.run("tab.list", []);
     return this.parseTabList(result);
   }
 
   async newTab(url: string): Promise<{ tabId: number; windowId: number }> {
-    const result = await this.run("tab.new", [url], true);
+    const result = await this.run("tab.new", [url]);
     return JSON.parse(result.message || "{}");
   }
 
@@ -339,12 +335,12 @@ export class SurfClient {
   }
 
   async newWindow(url: string): Promise<{ windowId: number; tabId: number }> {
-    const result = await this.run("window.new", [url], true);
+    const result = await this.run("window.new", [url]);
     return JSON.parse(result.message || "{}");
   }
 
   async listWindows(): Promise<Array<{ id: number; tabs: number[] }>> {
-    const result = await this.run("window.list", [], true);
+    const result = await this.run("window.list", []);
     return JSON.parse(result.message || "[]");
   }
 
@@ -372,12 +368,12 @@ export class SurfClient {
     if (options.status) args.push("--status", options.status);
     if (options.since) args.push("--since", options.since);
 
-    const result = await this.run("network", args, true);
+    const result = await this.run("network", args);
     return this.parseNetworkLog(result.message || "");
   }
 
   async getNetworkRequest(id: string): Promise<NetworkRequest | null> {
-    const result = await this.run("network.get", [id], true);
+    const result = await this.run("network.get", [id]);
     return JSON.parse(result.message || "null");
   }
 
@@ -391,7 +387,7 @@ export class SurfClient {
   }
 
   async getNetworkStats(): Promise<{ requests: number; size: string }> {
-    const result = await this.run("network.stats", [], true);
+    const result = await this.run("network.stats", []);
     return JSON.parse(result.message || '{"requests":0,"size":"0"}');
   }
 
@@ -512,7 +508,7 @@ export class SurfClient {
   // ============================================
 
   async evaluate<T>(code: string): Promise<T> {
-    const result = await this.run("js", [code], true);
+    const result = await this.run("js", [code]);
     return JSON.parse(result.message || "null");
   }
 
@@ -521,7 +517,7 @@ export class SurfClient {
   // ============================================
 
   async getConsole(): Promise<Array<{ type: string; message: string }>> {
-    const result = await this.run("console", [], true);
+    const result = await this.run("console", []);
     return JSON.parse(result.message || "[]");
   }
 
@@ -530,7 +526,7 @@ export class SurfClient {
   // ============================================
 
   async getCookies(): Promise<Array<{ name: string; value: string; domain: string }>> {
-    const result = await this.run("cookie.list", [], true);
+    const result = await this.run("cookie.list", []);
     return JSON.parse(result.message || "[]");
   }
 
@@ -539,7 +535,7 @@ export class SurfClient {
   // ============================================
 
   async listFrames(): Promise<Array<{ index: number; name?: string; selector?: string }>> {
-    const result = await this.run("frame.list", [], true);
+    const result = await this.run("frame.list", []);
     return JSON.parse(result.message || "[]");
   }
 
@@ -582,11 +578,7 @@ export class SurfClient {
     }
   }
 
-  private async run(
-    command: string,
-    args: string[] = [],
-    _json: boolean = false,
-  ): Promise<SurfActionResult> {
+  private async run(command: string, args: string[] = []): Promise<SurfActionResult> {
     return new Promise((resolve, reject) => {
       const proc = spawn("surf", [command, ...args], {
         stdio: ["ignore", "pipe", "pipe"],

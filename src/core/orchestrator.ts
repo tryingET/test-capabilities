@@ -4,6 +4,7 @@
  */
 
 import { spawn } from "node:child_process";
+import process from "node:process";
 import { z } from "zod";
 import { QuantumTestRunner } from "../quantum/simulator.js";
 import { validateCapabilityContract } from "./capabilities.js";
@@ -141,11 +142,15 @@ export interface TestResult {
   quantumInsights?: QuantumInsights;
 }
 
+export type CoverageDimension = "userFlows" | "apiEndpoints" | "edgeCases";
+
 export interface CoverageReport {
   userFlows: number;
   apiEndpoints: number;
   edgeCases: number;
   overall: number;
+  measuredDimensions: CoverageDimension[];
+  unmeasuredDimensions: CoverageDimension[];
 }
 
 export interface Prediction {
@@ -274,6 +279,8 @@ function parseCommandLine(commandLine: string): { command: string; args: string[
   return { command, args };
 }
 
+const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
+
 export class TestCapabilitiesOrchestrator {
   private config: TestCapabilitiesConfig;
   private agents: Map<string, TestAgent> = new Map();
@@ -296,9 +303,11 @@ export class TestCapabilitiesOrchestrator {
       }
 
       switch (agentConfig.type) {
-        case "cli-tester":
-          this.agents.set(name, new CliTesterAgent(name));
+        case "cli-tester": {
+          const timeoutMs = parseDurationToMs(agentConfig.duration, DEFAULT_CLI_TESTER_TIMEOUT_MS);
+          this.agents.set(name, new CliTesterAgent(name, timeoutMs));
           break;
+        }
         default:
           throw new Error(
             `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'cli-tester' is currently backed by the orchestrator runtime.`,
@@ -468,20 +477,35 @@ export class TestCapabilitiesOrchestrator {
       return Math.round(sum / values.length);
     };
 
-    const userFlowsValues = collect((result) => result.coverage.userFlows);
-    const apiEndpointValues = collect((result) => result.coverage.apiEndpoints);
-    const edgeCaseValues = collect((result) => result.coverage.edgeCases);
+    const dimensionValues = {
+      userFlows: collect((result) => result.coverage.userFlows),
+      apiEndpoints: collect((result) => result.coverage.apiEndpoints),
+      edgeCases: collect((result) => result.coverage.edgeCases),
+    } as const satisfies Record<CoverageDimension, number[]>;
 
-    const userFlows = average(userFlowsValues);
-    const apiEndpoints = average(apiEndpointValues);
-    const edgeCases = average(edgeCaseValues);
-    const overall = average([userFlows, apiEndpoints, edgeCases]);
+    const userFlows = average(dimensionValues.userFlows);
+    const apiEndpoints = average(dimensionValues.apiEndpoints);
+    const edgeCases = average(dimensionValues.edgeCases);
+    const measuredDimensions = Object.entries(dimensionValues)
+      .filter(([, values]) => values.length > 0)
+      .map(([dimension]) => dimension as CoverageDimension);
+    const unmeasuredDimensions = (Object.keys(dimensionValues) as CoverageDimension[]).filter(
+      (dimension) => !measuredDimensions.includes(dimension),
+    );
+    const coverageByDimension: Record<CoverageDimension, number> = {
+      userFlows,
+      apiEndpoints,
+      edgeCases,
+    };
+    const overall = average(measuredDimensions.map((dimension) => coverageByDimension[dimension]));
 
     return {
       userFlows,
       apiEndpoints,
       edgeCases,
       overall,
+      measuredDimensions,
+      unmeasuredDimensions,
     };
   }
 }
@@ -501,9 +525,11 @@ interface TestAgent {
 
 class CliTesterAgent implements TestAgent {
   private readonly agentName: string;
+  private readonly timeoutMs: number;
 
-  constructor(agentName: string) {
+  constructor(agentName: string, timeoutMs: number = DEFAULT_CLI_TESTER_TIMEOUT_MS) {
     this.agentName = agentName;
+    this.timeoutMs = timeoutMs;
   }
 
   async execute(targets: Target): Promise<AgentResult> {
@@ -534,7 +560,7 @@ class CliTesterAgent implements TestAgent {
       const result = await this.runCommand(
         parsedCommand.command,
         [...parsedCommand.args, "--help"],
-        10_000,
+        this.timeoutMs,
       );
       if (result.timedOut || result.code !== 0) {
         return {
@@ -547,7 +573,7 @@ class CliTesterAgent implements TestAgent {
               description: `CLI smoke command failed: ${commandDisplay}`,
               evidence: [
                 result.timedOut
-                  ? `timed out after 10000ms${result.signal ? ` (${result.signal})` : ""}`
+                  ? `timed out after ${this.timeoutMs}ms${result.signal ? ` (${result.signal})` : ""}`
                   : result.stderr || result.stdout || `exit code ${result.code}`,
               ],
               recommendation: `Ensure '${targets.cli}' is executable and '--help' exits successfully.`,
@@ -595,15 +621,39 @@ class CliTesterAgent implements TestAgent {
     return new Promise((resolve, reject) => {
       const proc = spawn(command, args, {
         shell: false,
+        detached: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
       });
+
+      const killProcessTree = (signal: NodeJS.Signals): void => {
+        try {
+          if (process.platform !== "win32" && typeof proc.pid === "number") {
+            process.kill(-proc.pid, signal);
+            return;
+          }
+
+          proc.kill(signal);
+        } catch (error) {
+          if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") {
+            throw error;
+          }
+        }
+      };
 
       let stdout = "";
       let stderr = "";
       let timedOut = false;
+      let closed = false;
+      const forceKillGraceMs = 1_000;
+      let forceKillTimer: NodeJS.Timeout | undefined;
       const timer = setTimeout(() => {
         timedOut = true;
-        proc.kill("SIGTERM");
+        killProcessTree("SIGTERM");
+        forceKillTimer = setTimeout(() => {
+          if (!closed) {
+            killProcessTree("SIGKILL");
+          }
+        }, forceKillGraceMs);
       }, timeoutMs);
 
       proc.stdout.on("data", (data) => {
@@ -614,7 +664,11 @@ class CliTesterAgent implements TestAgent {
       });
 
       proc.on("close", (code, signal) => {
+        closed = true;
         clearTimeout(timer);
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+        }
         resolve({
           code,
           signal,
@@ -625,7 +679,11 @@ class CliTesterAgent implements TestAgent {
       });
 
       proc.on("error", (error) => {
+        closed = true;
         clearTimeout(timer);
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+        }
         reject(error);
       });
     });

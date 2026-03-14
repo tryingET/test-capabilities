@@ -60,6 +60,49 @@ test("cli agent fails closed when the configured command does not exist", async 
   );
 });
 
+test(
+  "cli agent escalates timed-out commands to SIGKILL when they ignore SIGTERM",
+  { timeout: 5000 },
+  async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-timeout-"));
+    const scriptPath = path.join(tempDir, "ignore-term.sh");
+    writeFileSync(scriptPath, "#!/bin/sh\ntrap '' TERM\nsleep 30\n", { mode: 0o755 });
+
+    try {
+      const startedAt = Date.now();
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Timed Out CLI Target",
+        targets: { cli: scriptPath },
+        agents: {
+          cli: {
+            enabled: true,
+            type: "cli-tester",
+            intensity: "normal",
+            duration: "50ms",
+          },
+        },
+      }).run();
+      const elapsed = Date.now() - startedAt;
+
+      assert.equal(result.passed, false);
+      assert.equal(elapsed < 3000, true);
+      assert.equal(
+        result.findings.some((finding) =>
+          finding.evidence.some((evidence) => /timed out after 50ms/.test(evidence)),
+        ),
+        true,
+      );
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  },
+);
+
 test("cli agent supports quoted commands whose executable path contains spaces", async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities cli target "));
   const scriptPath = path.join(tempDir, "fake cli.sh");
@@ -83,7 +126,9 @@ test("cli agent supports quoted commands whose executable path contains spaces",
     assert.equal(result.coverage.userFlows, 0);
     assert.equal(result.coverage.apiEndpoints, 0);
     assert.equal(result.coverage.edgeCases, 100);
-    assert.equal(result.coverage.overall, 33);
+    assert.equal(result.coverage.overall, 100);
+    assert.deepEqual(result.coverage.measuredDimensions, ["edgeCases"]);
+    assert.deepEqual(result.coverage.unmeasuredDimensions, ["userFlows", "apiEndpoints"]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

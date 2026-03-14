@@ -31,11 +31,18 @@ function showBanner() {
 }
 
 function printSuiteSummary(summary) {
+  const formatCoverageDimension = (label, value) =>
+    summary.coverage.unmeasuredDimensions.includes(label) ? "unmeasured" : `${value}%`;
+
   console.log(`Health:  ${summary.health === "pass" ? chalk.green("pass") : chalk.red("fail")}`);
   console.log(`Findings: ${summary.findings}`);
   console.log(
-    `Coverage: user=${summary.coverage.userFlows}% api=${summary.coverage.apiEndpoints}% edge=${summary.coverage.edgeCases}% overall=${summary.coverage.overall}%`,
+    `Coverage: user=${formatCoverageDimension("userFlows", summary.coverage.userFlows)} api=${formatCoverageDimension("apiEndpoints", summary.coverage.apiEndpoints)} edge=${formatCoverageDimension("edgeCases", summary.coverage.edgeCases)} overall=${summary.coverage.overall}%`,
   );
+
+  if (summary.coverage.unmeasuredDimensions.length > 0) {
+    console.log(`Coverage gaps: ${summary.coverage.unmeasuredDimensions.join(", ")}`);
+  }
 
   if (summary.predictions > 0) {
     console.log(`Predictions: ${summary.predictions}`);

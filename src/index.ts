@@ -45,6 +45,7 @@ export {
 } from "./core/operations.js";
 export type {
   AgentConfig,
+  CoverageDimension,
   CoverageReport,
   Finding,
   FindingType,
@@ -105,12 +106,17 @@ export type {
 // Quantum
 export { QuantumSimulator, QuantumTestRunner } from "./quantum/simulator.js";
 
-// Version
-export const VERSION = "2.0.0";
-
+import { readFileSync } from "node:fs";
 import type { TestCapabilitiesConfig } from "./core/orchestrator.js";
 // Convenience factory
 import { TestCapabilitiesOrchestrator } from "./core/orchestrator.js";
+
+const packageJson = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
+// Version
+export const VERSION = packageJson.version;
 
 export function createTestCapabilities(
   config: TestCapabilitiesConfig,

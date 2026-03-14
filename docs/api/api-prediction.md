@@ -49,6 +49,9 @@ const predictions = await engine.analyze({
 });
 ```
 
+The prediction runtime now validates the **full numeric `PredictionInput` shape**.
+If any metric is missing, `NaN`, or non-finite, the library fails closed instead of inventing confidence from a partial payload.
+
 ### Prediction shape
 
 ```typescript
@@ -84,6 +87,8 @@ for (const prediction of predictions) {
 ```typescript
 const topRisks = engine.getTopRisks(5);
 ```
+
+The utility getters now read from the same enriched predictions returned by `analyze(...)`, so history-adjusted confidence does not drift between the direct return value and later lookups.
 
 ### `getPredictionsByComponent(component)`
 

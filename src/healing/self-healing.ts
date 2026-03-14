@@ -191,14 +191,16 @@ export class SelfHealingEngine {
       priority: 40,
       execute: async (ctx) => {
         if (ctx.screenshot && ctx.description) {
-          // Would integrate with vision AI (GPT-4V, Claude Vision, etc.)
-          // For now, return a simulated result
+          // A real vision backend is not wired into this runtime yet, so fail closed instead of
+          // inventing a pseudo-selector that looks actionable.
           return {
-            success: true,
-            newSelector: `// AI-detected: ${ctx.description}`,
+            success: false,
             confidence: 0.65,
             strategy: "vision-ai",
-            metadata: { requiresReview: true },
+            metadata: {
+              requiresReview: true,
+              reason: `Vision-based healing candidate requires an external model for '${ctx.description}'.`,
+            },
           };
         }
         return { success: false, confidence: 0, strategy: "vision-ai" };
@@ -239,13 +241,16 @@ export class SelfHealingEngine {
       priority: 60,
       execute: async (ctx) => {
         if (ctx.lastKnownGood?.position) {
-          // Would search for elements near the last known position
+          // A position-only hint is not enough to synthesize a trustworthy selector in this runtime.
           return {
-            success: true,
-            newSelector: `// Nearby element search placeholder`,
+            success: false,
             confidence: 0.5,
             strategy: "nearby-search",
-            metadata: { requiresReview: true },
+            metadata: {
+              requiresReview: true,
+              reason:
+                "Nearby-search requires a real DOM/vision lookup before it can emit selectors.",
+            },
           };
         }
         return { success: false, confidence: 0, strategy: "nearby-search" };
@@ -270,11 +275,22 @@ export class SelfHealingEngine {
       }
     }
 
-    // Return best attempt even if below threshold
-    const best = attempts.reduce(
-      (best, curr) => (curr.confidence > best.confidence ? curr : best),
+    const best = attempts.reduce<HealingResult>(
+      (currentBest, current) =>
+        current.confidence > currentBest.confidence ? current : currentBest,
       { success: false, confidence: 0, strategy: "none" },
     );
+
+    if (best.newSelector) {
+      return {
+        ...best,
+        success: false,
+        metadata: {
+          ...best.metadata,
+          requiresReview: true,
+        },
+      };
+    }
 
     return best;
   }
@@ -436,8 +452,8 @@ export class TestFileHealer {
   }
 
   private async validateSelector(selector: string): Promise<boolean> {
-    // Would run actual validation against the application
-    // For now, simulate based on heuristics
+    // The shipped file-healing path uses a conservative local heuristic: selectors with known stale
+    // prefixes are treated as invalid so they can be proposed for normalization.
     return !selector.includes("old-") && !selector.includes("deprecated-");
   }
 

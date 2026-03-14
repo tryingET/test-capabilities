@@ -3,7 +3,22 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { TestFileHealer } from "../src/healing/self-healing.ts";
+import { SelfHealingEngine, TestFileHealer } from "../src/healing/self-healing.ts";
+
+test("SelfHealingEngine keeps low-confidence AI candidates out of the success path", async () => {
+  const healer = new SelfHealingEngine();
+  const result = await healer.heal({
+    originalSelector: "mystery-selector",
+    action: "click",
+    description: "submit button",
+    screenshot: Buffer.from("fake"),
+  });
+
+  assert.equal(result.success, false);
+  assert.equal(result.newSelector, undefined);
+  assert.equal(result.metadata?.requiresReview, true);
+  assert.match(result.metadata?.reason ?? "", /requires an external model/);
+});
 
 test("TestFileHealer.analyzeFile proposes normalized replacements for legacy getByTestId values", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));

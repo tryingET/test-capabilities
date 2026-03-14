@@ -191,5 +191,5 @@ interface TestResult {
 
 ```typescript
 import { VERSION } from 'test-capabilities';
-console.log(VERSION); // '2.0.0'
+console.log(VERSION); // '0.1.0'
 ```

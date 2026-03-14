@@ -91,8 +91,12 @@ const state = await surf.pageState();
 ```typescript
 await surf.click('e5');
 await surf.click('#login-btn');
+await surf.click('button.login');
+await surf.click("//button[@type='submit']");
 await surf.click(100, 200);
 ```
+
+Any string that is **not** a surf element ref like `e5` is now routed through surf's explicit `--selector` channel so generic CSS selectors and XPath-style selectors are not misclassified as positional click arguments.
 
 ### `type(text, options?)`
 

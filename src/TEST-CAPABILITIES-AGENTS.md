@@ -87,7 +87,8 @@ The supported CLI currently prints a human-readable summary, for example:
 ```text
 Health:  pass
 Findings: 0
-Coverage: user=0% api=0% edge=100% overall=33%
+Coverage: user=unmeasured api=unmeasured edge=100% overall=100%
+Coverage gaps: userFlows, apiEndpoints
 ```
 
 ### Library API
@@ -126,4 +127,4 @@ test-capabilities heal --dir <path> [--dry-run]
 
 ---
 
-*Version: 2.0.0*
+*Version: 0.1.0*

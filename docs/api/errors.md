@@ -145,6 +145,22 @@ Unsupported SurfClient config option(s): socketPath. Outside the current capabil
 
 ---
 
+### Prediction input invalid
+
+```text
+Prediction input is incomplete or invalid. Provide finite numeric values for: ...
+```
+
+**Cause**
+- A library caller passed a partial metrics object
+- one or more fields were `NaN`, `Infinity`, or otherwise non-finite
+
+**Fix**
+- Provide the full `PredictionInput` shape with finite numeric values for every field
+- If you only have partial telemetry, model that upstream before calling `PredictionEngine.analyze(...)`
+
+---
+
 ### Heal directory missing
 
 ```text

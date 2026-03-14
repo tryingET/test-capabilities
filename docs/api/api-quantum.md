@@ -124,7 +124,8 @@ for (const bug of result.rareBugs) {
 //    Severity: high
 ```
 
-`edgeCases` is backed by concrete heuristics (for example non-form input targets or non-URL navigation targets) rather than a permanently empty placeholder array.
+`edgeCases` is backed by concrete heuristics (for example non-form input targets) rather than a permanently empty placeholder array.
+Navigation targets are now derived as valid URLs, so the simulator no longer fabricates its own non-URL navigation failures and then reports them as discoveries.
 `rareBugs` is deduplicated by semantic finding description so repeat observations do not inflate the count.
 
 ---

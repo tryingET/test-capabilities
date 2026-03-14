@@ -260,11 +260,69 @@ export class QuantumSimulator {
   }
 
   private chooseTarget(state: QuantumState, actionType: string, random: () => number): string {
-    const candidates =
-      actionType === "click" ? state.elements.filter((e) => !e.includes("static")) : state.elements;
+    switch (actionType) {
+      case "click": {
+        const clickTargets = state.elements.filter((element) => !element.includes("static"));
+        if (clickTargets.length === 0) {
+          return "body";
+        }
+        return clickTargets[Math.floor(random() * clickTargets.length)];
+      }
+      case "navigate": {
+        const navigationTargets = this.deriveNavigationTargets(state);
+        return navigationTargets[Math.floor(random() * navigationTargets.length)] ?? state.url;
+      }
+      default:
+        if (state.elements.length === 0) {
+          return "body";
+        }
+        return state.elements[Math.floor(random() * state.elements.length)];
+    }
+  }
 
-    if (candidates.length === 0) return "body";
-    return candidates[Math.floor(random() * candidates.length)];
+  private deriveNavigationTargets(state: QuantumState): string[] {
+    const candidates = new Set<string>();
+
+    if (/^https?:\/\//.test(state.url)) {
+      candidates.add(state.url);
+    }
+
+    let baseUrl: URL | undefined;
+    try {
+      baseUrl = new URL(state.url);
+    } catch {
+      baseUrl = undefined;
+    }
+
+    for (const element of state.elements) {
+      if (/^https?:\/\//.test(element)) {
+        candidates.add(element);
+        continue;
+      }
+
+      if (!baseUrl) {
+        continue;
+      }
+
+      if (element.startsWith("/")) {
+        candidates.add(new URL(element, baseUrl).toString());
+        continue;
+      }
+
+      if (element.startsWith("a.")) {
+        const slug = element
+          .slice(2)
+          .trim()
+          .replace(/[^a-zA-Z0-9_-]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+        if (slug.length > 0) {
+          candidates.add(new URL(`/${slug}`, baseUrl).toString());
+        }
+      }
+    }
+
+    return [...candidates];
   }
 
   private generateRandomInput(random: () => number): string {
@@ -427,9 +485,12 @@ export class QuantumSimulator {
       return true;
     }
 
-    // Terminate on navigation loops
-    const recentUrls = branch.path.slice(-10).map((a) => a.target);
-    if (recentUrls.length === 10 && new Set(recentUrls).size < 3) {
+    // Terminate only on repeated navigation loops, not on repeated clicks/types against the same element.
+    const recentNavigations = branch.path
+      .filter((action) => action.type === "navigate")
+      .slice(-10)
+      .map((action) => action.target);
+    if (recentNavigations.length === 10 && new Set(recentNavigations).size < 3) {
       return true;
     }
 
