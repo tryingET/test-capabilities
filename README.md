@@ -1,3 +1,11 @@
+---
+summary: "Project overview and operator guide for test-capabilities."
+read_when:
+  - "You are onboarding to test-capabilities"
+  - "You need commands, structure, or current repo scope"
+type: "reference"
+---
+
 # test-capabilities
 
 Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, and autonomous quality assurance tooling.
@@ -30,6 +38,33 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
 | [docs/api/](docs/api/) | TEST-CAPABILITIES API reference docs |
 
+## Capability Contract
+
+The runtime is now fail-closed.
+If a config section, agent, command, or flag is not wired to a real implementation path, the CLI errors instead of pretending success.
+
+### Implemented today
+
+| Surface | Status | Notes |
+|---------|--------|-------|
+| `test` command | Implemented | Supports `--config`, `--target`, `--quick` |
+| `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
+| `quantum` command | Implemented | Uses the shared simulator path |
+| `surf explore` | Implemented | Runs the real surf CLI if available |
+| `heal` command | Implemented | Heuristic selector repair workflow |
+| finding correlation | Implemented | Cross-finding synthesis inside the orchestrator |
+
+### Explicitly unsupported for now
+
+These surfaces fail clearly when enabled or invoked:
+
+- orchestrator agents: `bombadil`, `surf`, `api-fuzzer`
+- orchestrator intelligence flags: `self_healing`, `prediction`, `collective`
+- `chaos` execution
+- CLI commands: `predict`, `visualize`, `report`
+- `test` flags: `--autonomous`, `--self-heal`, `--predict`, `--fail-threshold`, `--upload-artifacts`, `--report`
+- surf actions: `flow`, `assert`, `compare`, `replay`
+
 ## Commands
 
 ```bash
@@ -37,19 +72,25 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 npm run check          # Full CI check (lint + test)
 npm run lint           # Lint check
 npm run fix            # Auto-fix lint issues
+npm run consumer:smoke # Packed-artifact consumer contract smoke
+npm run release:check  # Release preflight (quality + packed-artifact verification)
 
 # Build
 npm run build          # TypeScript build
 
 # TEST-CAPABILITIES CLI
 npm run test-capabilities          # Run TEST-CAPABILITIES CLI
+node ./bin/test-capabilities test --config ./test-capabilities.yaml
+node ./bin/test-capabilities quantum --target https://example.com
+node ./bin/test-capabilities surf explore --url https://example.com
+node ./bin/test-capabilities heal --dir ./tests --dry-run
 
 # Testing
-npm test               # Run tests
+npm test                  # Run tests
 npm run test:ci-targeted  # CI-targeted smoke tests
 
 # Docs discovery
-npm run docs:list      # List relevant docs for a task
+npm run docs:list            # List relevant docs for a task
 npm run docs:list:workspace  # Workspace-wide doc scan
 ```
 

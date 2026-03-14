@@ -1,235 +1,200 @@
+---
+summary: "Reference for the test-capabilities.yaml configuration contract."
+read_when:
+  - "You are authoring or validating a TEST-CAPABILITIES config file"
+  - "You need field-level configuration examples and expectations"
+type: "reference"
+---
+
 # Configuration
 
-> Full test-capabilities.yaml reference.
+> Exact configuration contract for the current fail-closed runtime.
+
+The parser is strict:
+- unknown top-level keys are rejected
+- unknown nested keys in supported sections are rejected
+- alias forms such as `self_healing`, `collapse_strategy`, and `max_depth` are normalized
 
 ---
 
-## Minimal Config
+## Minimal supported config
 
 ```yaml
 version: '2.0'
-name: 'My App'
+name: 'CLI Smoke Suite'
 
 targets:
-  web: 'https://myapp.com'
+  cli: 'node'
+
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
+
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false
 ```
 
+This succeeds because the current orchestrator supports:
+- the `cli-tester` agent
+- correlation enabled
+- quantum disabled or explicitly configured against `targets.web`
+- chaos disabled
+
 ---
 
-## Full Config
+## Supported top-level keys
+
+| Key | Required | Notes |
+|-----|----------|-------|
+| `version` | yes | Must be `"2.0"` |
+| `name` | yes | Human-readable suite name |
+| `targets` | yes | `web`, `api`, and/or `cli` |
+| `agents` | no | At least one enabled supported agent is still required by runtime |
+| `intelligence` | no | Only `correlation: true` is currently supported |
+| `quantum` | no | Supported when `targets.web` is present |
+| `chaos` | no | Must remain disabled for now |
+
+Rejected top-level keys in the current runtime include:
+- `healing`
+- `reporting`
+- `alerts`
+- `performance`
+- `accessibility`
+- `security`
+- `execution`
+- `env`
+- `hooks`
+
+---
+
+## `targets`
 
 ```yaml
-version: '2.0'
-name: 'My App Testing Suite'
-
-# ===========================================
-# TARGETS
-# ===========================================
 targets:
-  web: 'https://myapp.com'
-  api: 'https://api.myapp.com'
-  cli: './bin/myapp'
+  web: 'https://example.com'
+  api: 'https://api.example.com'
+  cli: 'node'
+```
 
-# ===========================================
-# AGENTS
-# ===========================================
+| Field | Type | Notes |
+|-------|------|-------|
+| `web` | URL string | Required when `quantum.enabled: true` |
+| `api` | URL string | Parsed but not currently used by the supported orchestrator path |
+| `cli` | string | Required when `cli-tester` is enabled |
+
+---
+
+## `agents`
+
+Schema-supported types:
+- `bombadil`
+- `surf`
+- `api-fuzzer`
+- `cli-tester`
+
+Runtime-supported type:
+- `cli-tester`
+
+Example:
+
+```yaml
 agents:
-  # Property-based fuzzing
-  explorer:
-    enabled: true
-    type: bombadil
-    intensity: aggressive      # gentle | normal | aggressive
-    duration: 10m
-    focus:                     # Components to focus on
-      - auth
-      - checkout
-
-  # Browser navigation
-  navigator:
-    enabled: true
-    type: surf
-    flows_dir: ./flows
-    ai_validation: true
-    visual_regression: true
-    baseline_dir: ./baselines
-
-  # API fuzzing
-  api:
-    enabled: true
-    type: api-fuzzer
-    schema: ./openapi.yaml
-    mutations:
-      - missing_fields
-      - type_confusion
-      - injection
-    auth_test: true
-
-  # CLI testing
   cli:
-    enabled: false
+    enabled: true
     type: cli-tester
-    commands_dir: ./commands
+    intensity: normal
+```
 
-# ===========================================
-# INTELLIGENCE
-# ===========================================
+Supported fields:
+
+| Field | Type |
+|-------|------|
+| `type` | `bombadil | surf | api-fuzzer | cli-tester` |
+| `enabled` | boolean |
+| `intensity` | `gentle | normal | aggressive` |
+| `duration` | string |
+| `focus` | string[] |
+
+If an enabled agent uses `bombadil`, `surf`, or `api-fuzzer`, runtime validation fails clearly.
+
+---
+
+## `intelligence`
+
+```yaml
 intelligence:
-  self_healing: true
-  healing_strategies:
-    - testid_fallback
-    - role_fallback
-    - text_search
-    - vision_ai
-  healing_confidence_threshold: 0.7
-
-  prediction: true
-  prediction_model: gradient_boost
-  prediction_horizon: 24h
-
+  self_healing: false
+  prediction: false
   correlation: true
-  correlation_sources:
-    - web
-    - api
-    - network
+  collective: false
+```
 
-  collective: false           # Opt-in data sharing
+Alias mapping:
+- `self_healing` → `selfHealing`
 
-# ===========================================
-# QUANTUM
-# ===========================================
+Supported current runtime state:
+- `correlation: true`
+- `selfHealing: false`
+- `prediction: false`
+- `collective: false`
+
+If `selfHealing`, `prediction`, or `collective` are enabled, runtime validation fails clearly.
+
+---
+
+## `quantum`
+
+```yaml
 quantum:
   enabled: true
-  branches: 1000
-  collapse_strategy: significance  # significance | diversity | coverage
+  branches: 100
+  collapse_strategy: significance
   max_depth: 20
-  timeout: 300s
-
-# ===========================================
-# CHAOS
-# ===========================================
-chaos:
-  enabled: true
-  experiments:
-    - network.latency: [50, 200, 500, 1000]
-    - network.packet_loss: [0, 0.01, 0.05]
-    - system.cpu_pressure: [50, 80, 100]
-    - application.error_injection: [400, 500, 503]
-
-# ===========================================
-# REPORTING
-# ===========================================
-reporting:
-  formats:
-    - json
-    - html
-    - markdown
-  output: ./reports
-  include_artifacts:
-    - screenshots
-    - traces
-    - network_logs
-
-  upload:
-    enabled: false
-    destination: s3://bucket/reports
-    retention: 30d
-
-# ===========================================
-# ALERTS
-# ===========================================
-alerts:
-  enabled: true
-  channels:
-    - type: slack
-      webhook: ${SLACK_WEBHOOK}
-      severity: [high, critical]
-    - type: email
-      recipients: [team@example.com]
-      severity: [critical]
-
-# ===========================================
-# EXECUTION
-# ===========================================
-execution:
-  parallel: true
-  max_workers: 4
-  timeout_per_test: 60s
-  retry_count: 2
-  fail_fast: false
-
-# ===========================================
-# ENVIRONMENT
-# ===========================================
-env:
-  TEST_USER: ${TEST_USER}
-  TEST_PASS: ${TEST_PASS}
-  API_KEY: ${API_KEY}
+  timeout: 30s
 ```
 
----
+Alias mapping:
+- `collapse_strategy` → `collapseStrategy`
+- `max_depth` → `maxDepth`
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TEST-CAPABILITIES_CONFIG` | `./test-capabilities.yaml` | Config file path |
-| `TEST-CAPABILITIES_REPORT_DIR` | `./reports` | Report output |
-| `TEST-CAPABILITIES_PARALLEL` | `4` | Max parallel workers |
-| `TEST-CAPABILITIES_TIMEOUT` | `60000` | Default timeout (ms) |
-| `SURF_SOCKET_PATH` | `/tmp/surf.sock` | Surf socket |
-| `SURF_NETWORK_PATH` | `/tmp/surf` | Network logs |
-| `CHROME_PATH` | auto | Chrome binary path |
+| Field | Type | Notes |
+|-------|------|-------|
+| `enabled` | boolean | Requires `targets.web` |
+| `branches` | positive integer | Number of branches |
+| `collapse_strategy` / `collapseStrategy` | `significance | diversity | coverage` | Collapse behavior |
+| `max_depth` / `maxDepth` | positive integer | Maximum branch depth |
+| `timeout` | positive number or duration string | Supports `ms`, `s`, `m` |
 
 ---
 
-## Agent Types
-
-| Type | Description |
-|------|-------------|
-| `bombadil` | Property-based web fuzzing |
-| `surf` | Browser navigation |
-| `api-fuzzer` | REST/GraphQL testing |
-| `cli-tester` | Command-line testing |
-
----
-
-## Intensity Levels
-
-| Level | Actions/Min | Description |
-|-------|-------------|-------------|
-| `gentle` | ~10 | Conservative, fewer actions |
-| `normal` | ~30 | Balanced |
-| `aggressive` | ~100 | Maximum exploration |
-
----
-
-## Collapse Strategies
-
-| Strategy | Description |
-|----------|-------------|
-| `significance` | Only high/critical findings |
-| `diversity` | One finding per type |
-| `coverage` | Maximize path coverage |
-
----
-
-## Secrets Management
-
-Use environment variables for sensitive data:
+## `chaos`
 
 ```yaml
-env:
-  DATABASE_URL: ${DB_URL}           # From env
-  API_KEY: ${API_KEY:-default}      # With default
-  SECRET: ${SECRET:?required}       # Required, error if missing
+chaos:
+  enabled: false
 ```
 
-Run with:
+Schema shape:
 
-```bash
-export DB_URL="postgres://..."
-export API_KEY="sk-..."
-export SECRET="..."
-
-test-capabilities test --config test-capabilities.yaml
+```yaml
+chaos:
+  enabled: false
+  experiments: []
 ```
+
+Current runtime rule:
+- `chaos.enabled` must be `false`
+- `chaos.experiments` must be absent or empty
+
+Any enabled chaos configuration fails clearly because there is no capability-backed chaos execution path yet.

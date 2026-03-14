@@ -1,6 +1,16 @@
+---
+summary: "Deep conceptual framework and architecture guide for TEST-CAPABILITIES."
+read_when:
+  - "You need the high-level design and philosophy of the framework"
+  - "You are aligning new implementation work with the intended architecture"
+type: "reference"
+---
+
 # TEST-CAPABILITIES: Autonomous Testing Framework
 
 > **The Future of AI-Driven Testing** — Self-evolving, multimodal, quantum-inspired test orchestration.
+
+> **Runtime contract note:** this document mixes current implementation and forward-looking architecture. For exact current behavior, use `README.md` and `docs/api/*`. Today the fail-closed runtime supports the `cli-tester` orchestrator agent, `correlation`, `quantum`, `heal`, and `surf explore`. Other agents, autonomous flags, prediction wiring, self-healing orchestration, chaos execution, and extra surf actions remain roadmap surfaces unless explicitly documented as implemented elsewhere.
 
 ---
 
@@ -59,13 +69,33 @@
 ## ⚡ Quick Start
 
 ```bash
-# Install everything
-npm install -g surf-cli agent-browser
-curl -sL https://github.com/antithesishq/bombadil/releases/latest/download/bombadil -o bombadil
-chmod +x bombadil
+# Install dependencies for the current runtime
+npm install
+npm run build
 
-# Run autonomous testing
-test-capabilities test --target https://your-app.com --autonomous
+# Run the supported orchestrator path
+cat > test-capabilities.yaml <<'YAML'
+version: '2.0'
+name: 'CLI Smoke'
+targets:
+  cli: 'node'
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+quantum:
+  enabled: false
+chaos:
+  enabled: false
+YAML
+
+test-capabilities test --quick --config ./test-capabilities.yaml
 ```
 
 ---
@@ -125,22 +155,14 @@ prediction:
 ### Surf-CLI Integration Commands
 
 ```bash
-# TEST-CAPABILITIES extends surf-cli with superpowers
-
-# Smart exploration (AI decides what to test)
+# Currently implemented through the CLI wrapper
 test-capabilities surf explore --url https://myapp.com --depth 5
 
-# Multi-step flows with validation
-test-capabilities surf flow login-checkout --record --validate
-
-# AI-powered assertions
-test-capabilities surf assert "page should show welcome message after login"
-
-# Visual regression with AI diff
-test-capabilities surf compare --baseline ./baselines/ --ai-diff
-
-# Network replay for debugging
-test-capabilities surf replay ./captured-session.json
+# Roadmap / not yet implemented through the fail-closed CLI wrapper:
+# test-capabilities surf flow login-checkout --record --validate
+# test-capabilities surf assert "page should show welcome message after login"
+# test-capabilities surf compare --baseline ./baselines/ --ai-diff
+# test-capabilities surf replay ./captured-session.json
 ```
 
 ---
@@ -559,15 +581,11 @@ test-capabilities vr --output ./test-vr-experience
 
 ## 🎯 Usage Examples
 
-### Example 1: Full Autonomous Test Suite
+### Example 1: Supported current-runtime suite
 
 ```bash
-# One command to rule them all
-test-capabilities test --target https://myapp.com \
-  --autonomous \
-  --self-heal \
-  --predict \
-  --report ./reports/$(date +%Y%m%d)
+# One command that maps to the current capability-backed orchestrator path
+test-capabilities test --config ./test-capabilities.yaml --quick --target node
 ```
 
 ### Example 2: CI/CD Integration
@@ -587,10 +605,9 @@ jobs:
       - name: Run TEST-CAPABILITIES
         run: |
           test-capabilities test \
-            --target ${{ secrets.APP_URL }} \
+            --target node \
             --config ./test-capabilities.yaml \
-            --fail-threshold high \
-            --upload-artifacts
+            --quick
 ```
 
 ### Example 3: Pre-commit Hook

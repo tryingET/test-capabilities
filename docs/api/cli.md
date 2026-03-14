@@ -1,161 +1,144 @@
+---
+summary: "Command reference for the TEST-CAPABILITIES CLI."
+read_when:
+  - "You need exact CLI commands, flags, or subcommand behavior"
+  - "You are mapping a user request onto the CLI surface"
+type: "reference"
+---
+
 # CLI Reference
 
-> All TEST-CAPABILITIES commands and options.
+> Exact runtime contract for the current CLI.
+
+The CLI is **fail-closed**:
+- supported surfaces execute
+- unsupported surfaces error clearly
+- missing config or unsupported flags do not silently degrade into placeholder behavior
 
 ---
 
-## test-capabilities test
+## Implemented commands
 
-Run the full test suite.
+### `test-capabilities test`
+
+Run the capability-backed orchestrator path.
 
 ```bash
 test-capabilities test [options]
 ```
 
+Supported options:
+
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--target <url>` | Target URL or path | Required |
-| `--config <file>` | Configuration file | `test-capabilities.yaml` |
-| `--quick` | Fast sanity check | `false` |
-| `--autonomous` | Full autonomous mode | `false` |
-| `--self-heal` | Enable self-healing | `false` |
-| `--predict` | Run failure prediction | `false` |
-| `--fail-threshold <level>` | Fail threshold | `high` |
-| `--report <dir>` | Report output directory | `./reports` |
+| `--config <file>` | Path to `test-capabilities.yaml` | `test-capabilities.yaml` |
+| `--target <url-or-path>` | Override one target. URLs map to `targets.web`; non-URLs map to `targets.cli`. | none |
+| `--quick` | Disable quantum and prediction overlays for a deterministic smoke run | `false` |
+
+Accepted but currently unsupported options:
+
+| Option | Current behavior |
+|--------|------------------|
+| `--autonomous` | Fails with an unsupported-option error |
+| `--self-heal` | Fails with an unsupported-option error |
+| `--predict` | Fails with an unsupported-option error |
+| `--fail-threshold <level>` | Fails with an unsupported-option error |
+| `--upload-artifacts` | Fails with an unsupported-option error |
+| `--report <dir>` | Fails with an unsupported-option error |
 
 ---
 
-## test-capabilities surf
+### `test-capabilities surf explore`
 
-Browser testing with surf-cli integration.
+Run the real surf CLI through the supported `explore` action.
 
 ```bash
-test-capabilities surf <action> [options]
+test-capabilities surf explore --url https://example.com
 ```
-
-| Action | Description |
-|--------|-------------|
-| `explore` | Explore site structure |
-| `flow <name>` | Run a predefined flow |
-| `assert <statement>` | AI-powered assertion |
-| `compare` | Visual regression comparison |
-| `replay <file>` | Replay captured session |
 
 Options:
 
 | Option | Description |
 |--------|-------------|
 | `--url <url>` | Target URL |
-| `--depth <n>` | Exploration depth |
-| `--record` | Record the session |
-| `--validate` | Run AI validation |
-| `--baseline <dir>` | Baseline for comparison |
-| `--ai-diff` | Use AI for visual diff |
+| `--depth <n>` | Accepted by the wrapper for compatibility; current implementation opens the URL |
+| `--record` | Accepted by the wrapper; no extra runtime behavior yet |
+| `--validate` | Accepted by the wrapper; no extra runtime behavior yet |
+| `--baseline <dir>` | Accepted by the wrapper; no extra runtime behavior yet |
+| `--ai-diff` | Accepted by the wrapper; no extra runtime behavior yet |
+
+Unsupported surf actions:
+- `flow`
+- `assert`
+- `compare`
+- `replay`
+
+These actions fail clearly instead of emitting placeholder output.
 
 ---
 
-## test-capabilities predict
+### `test-capabilities quantum`
 
-Run ML-powered failure prediction.
+Run the shared quantum simulator.
 
 ```bash
-test-capabilities predict [options]
+test-capabilities quantum --target https://example.com --branches 100 --collapse
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--target <url>` | Target URL | Required |
-| `--history <dir>` | Historical data directory | `./reports` |
-| `--horizon <hours>` | Prediction horizon | `24` |
+| `--target <url>` | Target URL for the simulator | `https://example.com` |
+| `--branches <n>` | Number of branches to simulate | `100` |
+| `--collapse` | Use `significance` collapse instead of `coverage` | `false` |
 
 ---
 
-## test-capabilities quantum
+### `test-capabilities heal`
 
-Run quantum test simulation.
+Run the selector-healing workflow.
 
 ```bash
-test-capabilities quantum [options]
+test-capabilities heal --dir ./tests --dry-run
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--target <url>` | Target URL | Required |
-| `--branches <n>` | Parallel universes | `100` |
-| `--collapse` | Collapse to significant findings | `true` |
-| `--strategy <s>` | Collapse strategy | `significance` |
+| `--dir <path>` | Directory to scan for test files | `./tests` |
+| `--dry-run` | Show proposals without applying them | `false` |
 
 ---
 
-## test-capabilities heal
+## Registered but unsupported commands
 
-Analyze and fix broken tests.
+These commands are present so the CLI can fail clearly and consistently:
 
-```bash
-test-capabilities heal [options]
-```
+- `test-capabilities predict`
+- `test-capabilities visualize`
+- `test-capabilities report`
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--dir <path>` | Tests directory | `./tests` |
-| `--dry-run` | Show fixes without applying | `false` |
-| `--confidence <n>` | Minimum confidence threshold | `0.7` |
+Current behavior:
+- exit non-zero
+- print an explicit unsupported-command error
 
 ---
 
-## test-capabilities report
+## Exit behavior
 
-Generate test reports.
-
-```bash
-test-capabilities report [options]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--input <dir>` | Input data directory | `./reports` |
-| `--output <dir>` | Output directory | `./reports` |
-| `--format <f>` | Formats (comma-separated) | `html,json` |
-| `--upload` | Upload to configured destination | `false` |
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Supported command completed successfully |
+| `1` | Configuration error, unsupported surface, or runtime failure |
 
 ---
 
-## test-capabilities visualize
+## Runtime capability summary
 
-Generate interactive visualization.
-
-```bash
-test-capabilities visualize [options]
-```
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--output <file>` | Output HTML file | `test-capabilities-viz.html` |
-| `--real-time` | Enable real-time updates | `false` |
-| `--port <n>` | Dashboard port | `3001` |
-
----
-
-## Global Options
-
-Available for all commands:
-
-| Option | Description |
-|--------|-------------|
-| `--json` | Output as JSON |
-| `--no-color` | Disable colored output |
-| `-v, --verbose` | Verbose output |
-| `-q, --quiet` | Suppress output |
-| `-h, --help` | Show help |
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `TEST-CAPABILITIES_CONFIG` | Config file path | `./test-capabilities.yaml` |
-| `TEST-CAPABILITIES_REPORT_DIR` | Report directory | `./reports` |
-| `TEST-CAPABILITIES_PARALLEL` | Max parallel workers | `4` |
-| `TEST-CAPABILITIES_TIMEOUT` | Default timeout (ms) | `60000` |
-| `SURF_SOCKET_PATH` | Surf socket path | `/tmp/surf.sock` |
+| Surface | Status |
+|---------|--------|
+| `test` | implemented |
+| `surf explore` | implemented |
+| `quantum` | implemented |
+| `heal` | implemented |
+| `predict` | unsupported |
+| `visualize` | unsupported |
+| `report` | unsupported |

@@ -1,96 +1,129 @@
+---
+summary: "Quick-start guide for installing and running TEST-CAPABILITIES."
+read_when:
+  - "You are starting from zero with this framework"
+  - "You need the shortest path to a working first run"
+type: "guide"
+---
+
 # Getting Started
 
-> From zero to autonomous testing in 5 minutes.
+> Shortest path to a real successful run on the current fail-closed runtime.
 
 ---
 
 ## Prerequisites
 
-- Node.js 18+
-- Chrome/Chromium (for browser testing)
+- Node.js 22+
+- A CLI command or executable you can safely run with `--help`
+- Optional: `surf` installed if you want to use `test-capabilities surf explore`
 
 ---
 
 ## Installation
 
 ```bash
-# Core framework
-npm install -g @test-capabilities/testing-framework
-
-# Surf-CLI integration (recommended for browser testing)
-npm install -g surf-cli
-surf install <extension-id>  # After loading extension in Chrome
-
-# Bombadil for fuzzing (optional)
-curl -sL https://github.com/antithesishq/bombadil/releases/latest/download/bombadil -o bombadil
-chmod +x bombadil
+npm install
+npm run build
 ```
+
+Or install the package globally / as a dependency in your own project.
 
 ---
 
-## Your First Test
-
-```bash
-# Quick sanity check
-test-capabilities test --quick --target https://your-app.com
-
-# Full autonomous test
-test-capabilities test --target https://your-app.com --autonomous
-```
-
-Output:
-
-```
-🚀 TEST-CAPABILITIES v2.0.0
-
-Testing: https://your-app.com
-
-✓ Explorer: 34 actions, 0 violations
-✓ Navigator: 3 flows passed
-✓ Coverage: 89%
-
-Health Score: 94
-
-📊 Report saved to ./reports/2026-02-22/
-```
-
----
-
-## Configuration
+## Your first successful run
 
 Create `test-capabilities.yaml`:
 
 ```yaml
 version: '2.0'
-name: 'My App'
+name: 'First Run'
 
 targets:
-  web: 'https://myapp.com'
+  cli: 'node'
 
 agents:
-  explorer:
-    type: bombadil
-    intensity: aggressive
-    
-  navigator:
-    type: surf
-    ai_validation: true
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
 
 intelligence:
-  self_healing: true
-  prediction: true
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false
 ```
 
-Run with config:
+Run it:
 
 ```bash
-test-capabilities test --config test-capabilities.yaml
+test-capabilities test --quick --config test-capabilities.yaml
+```
+
+Expected shape of output:
+
+```text
+Autonomous Testing Framework v2.0.0
+Testing complete (passed).
+Health:  pass
+Findings: 0
+Coverage: user=0% api=0% edge=100% overall=100%
 ```
 
 ---
 
-## Next Steps
+## Browser exploration
 
-- [Examples](examples.md) - Common use cases
-- [CLI Reference](cli.md) - All commands and options
-- [API Reference](api-reference.md) - Programmatic usage
+If `surf` is installed and on `PATH`:
+
+```bash
+test-capabilities surf explore --url https://example.com
+```
+
+Only `explore` is currently supported through the CLI wrapper.
+
+---
+
+## Quantum simulation
+
+```bash
+test-capabilities quantum --target https://example.com --branches 100 --collapse
+```
+
+Use this when you want direct simulator output instead of the orchestrator CLI-smoke path.
+
+---
+
+## What is implemented today
+
+### Implemented
+- `test` with `--config`, `--target`, `--quick`
+- `cli-tester` orchestrator agent
+- correlation enabled in config
+- `quantum` command
+- `heal` command
+- `surf explore`
+
+### Unsupported and fail-closed
+- orchestrator agents: `bombadil`, `surf`, `api-fuzzer`
+- orchestrator intelligence: `self-healing`, `prediction`, `collective`
+- chaos execution
+- CLI commands: `predict`, `visualize`, `report`
+- `test` flags: `--autonomous`, `--self-heal`, `--predict`, `--fail-threshold`, `--upload-artifacts`, `--report`
+- surf actions: `flow`, `assert`, `compare`, `replay`
+
+---
+
+## Next steps
+
+- [CLI Reference](cli.md)
+- [Configuration](config.md)
+- [Examples](examples.md)
+- [Patterns](patterns.md)

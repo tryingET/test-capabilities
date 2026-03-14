@@ -1,159 +1,164 @@
+---
+summary: "Example-driven guide for common TEST-CAPABILITIES usage patterns."
+read_when:
+  - "You want concrete examples before implementing against the framework"
+  - "You need copy-adaptable usage patterns for common tasks"
+type: "reference"
+---
+
 # Examples
 
-> Common TEST-CAPABILITIES usage patterns.
+> Runtime-accurate examples for the current supported surface.
 
 ---
 
-## Example 1: Quick Smoke Test
-
-```bash
-test-capabilities test --quick --target https://myapp.com
-```
-
-Use for: Pre-commit hooks, quick validation.
-
----
-
-## Example 2: Full Autonomous Suite
-
-```bash
-test-capabilities test --target https://myapp.com \
-  --autonomous \
-  --self-heal \
-  --predict \
-  --report ./reports
-```
-
-Use for: Nightly runs, release validation.
-
----
-
-## Example 3: Browser Flow Testing
-
-```typescript
-import { SurfClient, SurfFlowBuilder } from '@test-capabilities/testing-framework';
-
-const surf = new SurfClient();
-
-const flow = new SurfFlowBuilder(surf)
-  .goto('https://myapp.com/login')
-  .type('e5', 'test@example.com')
-  .type('e6', 'password')
-  .click('e7', 'Submit')
-  .waitForElement('[data-testid="dashboard"]')
-  .screenshot();
-
-const result = await flow.execute();
-console.log('Passed:', result.success);
-```
-
----
-
-## Example 4: Self-Healing
-
-```typescript
-import { SelfHealingEngine } from '@test-capabilities/testing-framework';
-
-const healer = new SelfHealingEngine();
-
-const result = await healer.heal({
-  originalSelector: '#old-login-btn',
-  action: 'click',
-  description: 'Login button',
-  lastKnownGood: { role: 'button', text: 'Sign In' },
-});
-
-// result.newSelector = 'role=button[name="Sign In"]'
-// result.confidence = 0.85
-```
-
----
-
-## Example 5: Failure Prediction
-
-```typescript
-import { PredictionEngine } from '@test-capabilities/testing-framework';
-
-const engine = new PredictionEngine();
-
-const predictions = await engine.analyze({
-  errorRate: 0.05,
-  responseTimeP95: 1200,
-  rageClickRate: 0.08,
-  // ... more metrics
-});
-
-// predictions[0] = {
-//   component: 'checkout',
-//   probability: 0.34,
-//   trigger: 'high traffic',
-//   preventiveAction: 'Add rate limiting'
-// }
-```
-
----
-
-## Example 6: Quantum Edge Case Discovery
-
-```typescript
-import { QuantumTestRunner } from '@test-capabilities/testing-framework';
-
-const runner = new QuantumTestRunner({
-  branches: 1000,
-  collapseStrategy: 'significance',
-});
-
-const result = await runner.run('https://myapp.com');
-
-console.log('Rare bugs:', result.rareBugs);
-// [{ description: 'Race condition in cart', probability: '0.3%' }]
-```
-
----
-
-## Example 7: AI-Powered Analysis (No API Keys)
-
-```typescript
-import { SurfClient } from '@test-capabilities/testing-framework';
-
-const surf = new SurfClient();
-await surf.goto('https://myapp.com');
-
-// Uses your browser login - no API keys needed!
-const analysis = await surf.queryChatGPT('Analyze UX issues', { 
-  withPage: true 
-});
-
-const summary = await surf.queryGemini('Summarize this page');
-```
-
----
-
-## Example 8: CI/CD Integration
+## Example 1: CLI smoke through the orchestrator
 
 ```yaml
-# .github/workflows/test-capabilities.yml
-name: TEST-CAPABILITIES Testing
+# test-capabilities.yaml
+version: '2.0'
+name: 'CLI Smoke'
 
-on: [push, pull_request]
+targets:
+  cli: 'node'
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install TEST-CAPABILITIES
-        run: npm install -g @test-capabilities/testing-framework
-      
-      - name: Run Tests
-        run: test-capabilities test --target ${{ secrets.APP_URL }} --fail-threshold high
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
+
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false
+```
+
+```bash
+test-capabilities test --quick --config test-capabilities.yaml
 ```
 
 ---
 
-## More Resources
+## Example 2: Programmatic orchestrator usage
 
-- [API Reference](api-reference.md)
-- [Patterns](patterns.md)
-- [Configuration](config.md)
+```typescript
+import { createTestCapabilities } from 'test-capabilities';
+
+const suite = createTestCapabilities({
+  version: '2.0',
+  name: 'Programmatic CLI Smoke',
+  targets: { cli: 'node' },
+  agents: {
+    cli: {
+      enabled: true,
+      type: 'cli-tester',
+      intensity: 'normal',
+    },
+  },
+  intelligence: {
+    selfHealing: false,
+    prediction: false,
+    correlation: true,
+    collective: false,
+  },
+  quantum: { enabled: false },
+  chaos: { enabled: false },
+});
+
+const result = await suite.run();
+console.log(result.passed, result.coverage);
+```
+
+---
+
+## Example 3: surf exploration
+
+```bash
+test-capabilities surf explore --url https://example.com
+```
+
+---
+
+## Example 4: selector healing as a library workflow
+
+```typescript
+import { TestFileHealer } from 'test-capabilities';
+
+const healer = new TestFileHealer();
+const proposals = await healer.analyzeFile('./tests/login.spec.ts');
+
+for (const proposal of proposals) {
+  console.log(`${proposal.file}:${proposal.line}`);
+  console.log(`- ${proposal.oldSelector}`);
+  console.log(`+ ${proposal.newSelector}`);
+}
+```
+
+---
+
+## Example 5: prediction engine as a direct library API
+
+> The prediction engine exists as a library surface, but it is not currently wired into the supported orchestrator CLI path.
+
+```typescript
+import { PredictionEngine } from 'test-capabilities';
+
+const engine = new PredictionEngine();
+const predictions = await engine.analyze({
+  errorRate: 0.02,
+  responseTimeP95: 600,
+  cpuUsage: 0.3,
+  memoryUsage: 0.4,
+  diskUsage: 0.2,
+  timeSinceDeployment: 3,
+  hourOfDay: 10,
+  dayOfWeek: 2,
+  sessionDepthAvg: 4,
+  rageClickRate: 0.02,
+  abandonmentRate: 0.03,
+  bounceRate: 0.1,
+  filesChanged: 2,
+  linesAdded: 30,
+  linesDeleted: 10,
+  testCoverageDelta: 0.01,
+  recentFailures: 0,
+  avgTimeBetweenFailures: 48,
+});
+
+console.log(predictions[0]);
+```
+
+---
+
+## Example 6: quantum simulation
+
+```typescript
+import { QuantumTestRunner } from 'test-capabilities';
+
+const runner = new QuantumTestRunner({
+  branches: 200,
+  collapseStrategy: 'significance',
+  seed: 42,
+});
+
+const result = await runner.run('https://example.com');
+console.log(result.collapsedFindings.length);
+```
+
+---
+
+## Example 7: packaged consumer smoke
+
+```bash
+npm run consumer:smoke
+```
+
+Use this to verify the packed artifact still exposes a working consumer contract.

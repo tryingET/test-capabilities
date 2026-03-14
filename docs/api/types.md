@@ -1,15 +1,25 @@
+---
+summary: "Type reference for the core TypeScript surface of TEST-CAPABILITIES."
+read_when:
+  - "You need the canonical TypeScript shapes for config, results, and APIs"
+  - "You are aligning code with the documented type surface"
+type: "reference"
+---
+
 # Type Definitions
 
-> Complete TypeScript types.
+> Runtime-accurate summary of the exported TypeScript surface.
+
+Where schema support and runtime support differ, this document calls that out explicitly.
 
 ---
 
-## Core Types
+## Core config types
 
-### NexusConfig
+### `TestCapabilitiesConfig` / `NexusConfig`
 
 ```typescript
-interface NexusConfig {
+interface TestCapabilitiesConfig {
   version: '2.0';
   name: string;
   targets: Target;
@@ -17,22 +27,20 @@ interface NexusConfig {
   intelligence?: IntelligenceConfig;
   quantum?: QuantumConfig;
   chaos?: ChaosConfig;
-  reporting?: ReportingConfig;
-  execution?: ExecutionConfig;
 }
 ```
 
-### Target
+### `Target`
 
 ```typescript
 interface Target {
-  web?: string;   // URL
-  api?: string;   // URL
-  cli?: string;   // Path
+  web?: string; // URL
+  api?: string; // URL
+  cli?: string; // command or path
 }
 ```
 
-### AgentConfig
+### `AgentConfig`
 
 ```typescript
 interface AgentConfig {
@@ -44,11 +52,60 @@ interface AgentConfig {
 }
 ```
 
+Schema note:
+- all four `type` values are valid at parse time
+
+Runtime capability note:
+- only `cli-tester` is currently supported by the fail-closed orchestrator path
+
+### `IntelligenceConfig`
+
+```typescript
+interface IntelligenceConfig {
+  selfHealing?: boolean;
+  prediction?: boolean;
+  correlation?: boolean;
+  collective?: boolean;
+}
+```
+
+Runtime capability note:
+- `correlation` may be enabled
+- `selfHealing`, `prediction`, and `collective` must currently remain `false` or omitted for the orchestrator path
+
+### `QuantumConfig`
+
+```typescript
+interface QuantumConfig {
+  enabled?: boolean;
+  branches?: number;
+  collapseStrategy?: 'significance' | 'diversity' | 'coverage';
+  maxDepth?: number;
+  timeout?: number | string;
+}
+```
+
+Alias support in config parsing:
+- `collapse_strategy` → `collapseStrategy`
+- `max_depth` → `maxDepth`
+
+### `ChaosConfig`
+
+```typescript
+interface ChaosConfig {
+  enabled: boolean;
+  experiments?: unknown[];
+}
+```
+
+Runtime capability note:
+- chaos must currently stay disabled in the orchestrator path
+
 ---
 
-## Result Types
+## Result types
 
-### TestResult
+### `TestResult`
 
 ```typescript
 interface TestResult {
@@ -61,18 +118,18 @@ interface TestResult {
 }
 ```
 
-### Finding
+### `Finding`
 
 ```typescript
-type FindingType = 
-  | 'bug' 
-  | 'performance' 
-  | 'security' 
-  | 'accessibility' 
-  | 'ux' 
-  | 'api_contract' 
-  | 'race_condition' 
-  | 'memory_leak' 
+type FindingType =
+  | 'bug'
+  | 'performance'
+  | 'security'
+  | 'accessibility'
+  | 'ux'
+  | 'api_contract'
+  | 'race_condition'
+  | 'memory_leak'
   | 'visual_regression';
 
 type Severity = 'low' | 'medium' | 'high' | 'critical';
@@ -89,87 +146,68 @@ interface Finding {
 }
 ```
 
-### CoverageReport
+### `CoverageReport`
 
 ```typescript
 interface CoverageReport {
-  userFlows: number;      // 0-100
-  apiEndpoints: number;   // 0-100
-  edgeCases: number;      // 0-100
-  overall: number;        // 0-100
+  userFlows: number;
+  apiEndpoints: number;
+  edgeCases: number;
+  overall: number;
 }
 ```
 
 ---
 
-## Prediction Types
+## Prediction types
 
-### PredictionInput
+> The prediction engine is exported as a library surface even though orchestrator prediction is currently fail-closed.
+
+### `PredictionInput`
 
 ```typescript
 interface PredictionInput {
-  // System metrics
-  errorRate: number;        // 0-1
-  responseTimeP95: number;  // ms
-  cpuUsage: number;         // 0-1
-  memoryUsage: number;      // 0-1
-  diskUsage: number;        // 0-1
-
-  // Temporal
-  timeSinceDeployment: number;  // hours
-  hourOfDay: number;            // 0-23
-  dayOfWeek: number;            // 0-6
-
-  // User behavior
+  errorRate: number;
+  responseTimeP95: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+  timeSinceDeployment: number;
+  hourOfDay: number;
+  dayOfWeek: number;
   sessionDepthAvg: number;
-  rageClickRate: number;    // 0-1
-  abandonmentRate: number;  // 0-1
-  bounceRate: number;       // 0-1
-
-  // Code metrics
+  rageClickRate: number;
+  abandonmentRate: number;
+  bounceRate: number;
   filesChanged: number;
   linesAdded: number;
   linesDeleted: number;
-  testCoverageDelta: number;  // -1 to 1
-
-  // Historical
+  testCoverageDelta: number;
   recentFailures: number;
-  avgTimeBetweenFailures: number;  // hours
+  avgTimeBetweenFailures: number;
 }
 ```
 
-### Prediction
+### `Prediction`
 
 ```typescript
 interface Prediction {
   component: string;
-  probability: number;     // 0-1
-  confidence: number;      // 0-1
+  probability: number;
+  confidence: number;
   trigger: string;
   preventiveAction: string;
   timeHorizon: string;
   relatedMetrics: string[];
-  riskScore: number;       // 0-1
+  riskScore: number;
 }
 ```
 
 ---
 
-## Quantum Types
+## Quantum types
 
-### QuantumConfig
-
-```typescript
-interface QuantumConfig {
-  branches: number;
-  collapseStrategy: 'significance' | 'diversity' | 'coverage';
-  maxDepth: number;
-  timeout: number;
-  seed?: number;
-}
-```
-
-### QuantumResult
+### `QuantumResult`
 
 ```typescript
 interface QuantumResult {
@@ -177,18 +215,18 @@ interface QuantumResult {
   uniquePaths: number;
   collapsedFindings: Discovery[];
   edgeCases: Discovery[];
-  rareBugs: RareBug[];
+  rareBugs: Discovery[];
   coverage: QuantumCoverage;
   duration: number;
 }
 ```
 
-### Discovery
+### `Discovery`
 
 ```typescript
 interface Discovery {
   type: 'bug' | 'edge_case' | 'rare_path' | 'performance_issue' | 'ux_issue';
-  severity: Severity;
+  severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
   reproduction: QuantumAction[];
   probability: number;
@@ -196,7 +234,7 @@ interface Discovery {
 }
 ```
 
-### QuantumAction
+### `QuantumAction`
 
 ```typescript
 interface QuantumAction {
@@ -207,22 +245,11 @@ interface QuantumAction {
 }
 ```
 
-### RareBug
-
-```typescript
-interface RareBug {
-  description: string;
-  probability: string;  // e.g., '0.3%'
-  impact: 'low' | 'medium' | 'high' | 'critical';
-  reproduction?: string;
-}
-```
-
 ---
 
-## Healing Types
+## Healing types
 
-### HealingContext
+### `HealingContext`
 
 ```typescript
 interface HealingContext {
@@ -234,33 +261,7 @@ interface HealingContext {
 }
 ```
 
-### HealingResult
-
-```typescript
-interface HealingResult {
-  success: boolean;
-  newSelector?: string;
-  confidence: number;  // 0-1
-  strategy: string;
-  metadata?: Record<string, unknown>;
-}
-```
-
-### ElementSnapshot
-
-```typescript
-interface ElementSnapshot {
-  selector: string;
-  role?: string;
-  text?: string;
-  label?: string;
-  ariaLabel?: string;
-  position?: { x: number; y: number };
-  attributes: Record<string, string>;
-}
-```
-
-### HealingProposal
+### `HealingProposal`
 
 ```typescript
 interface HealingProposal {
@@ -276,22 +277,9 @@ interface HealingProposal {
 
 ---
 
-## Surf Types
+## Surf types
 
-### SurfElement
-
-```typescript
-interface SurfElement {
-  ref: string;       // e.g., 'e5'
-  role?: string;
-  name?: string;
-  text?: string;
-  level?: number;
-  selector?: string;
-}
-```
-
-### SurfSnapshot
+### `SurfSnapshot`
 
 ```typescript
 interface SurfSnapshot {
@@ -302,7 +290,7 @@ interface SurfSnapshot {
 }
 ```
 
-### NetworkRequest
+### `NetworkRequest`
 
 ```typescript
 interface NetworkRequest {
@@ -314,56 +302,5 @@ interface NetworkRequest {
   duration: number;
   request?: unknown;
   response?: unknown;
-}
-```
-
----
-
-## Utility Types
-
-### IntelligenceConfig
-
-```typescript
-interface IntelligenceConfig {
-  selfHealing?: boolean;
-  prediction?: boolean;
-  correlation?: boolean;
-  collective?: boolean;
-}
-```
-
-### ChaosConfig
-
-```typescript
-interface ChaosConfig {
-  enabled: boolean;
-  experiments: Record<string, number[]>;
-}
-```
-
-### ReportingConfig
-
-```typescript
-interface ReportingConfig {
-  formats: ('json' | 'html' | 'markdown')[];
-  output: string;
-  includeArtifacts: string[];
-  upload?: {
-    enabled: boolean;
-    destination: string;
-    retention: string;
-  };
-}
-```
-
-### ExecutionConfig
-
-```typescript
-interface ExecutionConfig {
-  parallel: boolean;
-  maxWorkers: number;
-  timeoutPerTest: string;
-  retryCount: number;
-  failFast: boolean;
 }
 ```
