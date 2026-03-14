@@ -1,0 +1,192 @@
+export type CapabilityStatus = "implemented" | "unsupported";
+
+export const CAPABILITY_MATRIX = {
+  orchestrator: {
+    agents: {
+      bombadil: "unsupported",
+      surf: "unsupported",
+      "api-fuzzer": "unsupported",
+      "cli-tester": "implemented",
+    },
+    intelligence: {
+      selfHealing: "unsupported",
+      prediction: "unsupported",
+      correlation: "implemented",
+      collective: "unsupported",
+    },
+    quantum: "implemented",
+    chaos: "unsupported",
+  },
+  cli: {
+    commands: {
+      test: "implemented",
+      surf: "implemented",
+      heal: "implemented",
+      quantum: "implemented",
+      predict: "unsupported",
+      visualize: "unsupported",
+      report: "unsupported",
+    },
+    testOptions: {
+      target: "implemented",
+      config: "implemented",
+      quick: "implemented",
+      autonomous: "unsupported",
+      selfHeal: "unsupported",
+      predict: "unsupported",
+      failThreshold: "unsupported",
+      uploadArtifacts: "unsupported",
+      report: "unsupported",
+    },
+    surfActions: {
+      explore: "implemented",
+      flow: "unsupported",
+      assert: "unsupported",
+      compare: "unsupported",
+      replay: "unsupported",
+    },
+  },
+} as const;
+
+type AgentType = keyof typeof CAPABILITY_MATRIX.orchestrator.agents;
+type IntelligenceKey = keyof typeof CAPABILITY_MATRIX.orchestrator.intelligence;
+type TestOptionKey = keyof typeof CAPABILITY_MATRIX.cli.testOptions;
+type SurfAction = keyof typeof CAPABILITY_MATRIX.cli.surfActions;
+
+interface RuntimeAgentConfig {
+  type: AgentType;
+  enabled?: boolean;
+}
+
+interface RuntimeIntelligenceConfig {
+  selfHealing?: boolean;
+  prediction?: boolean;
+  correlation?: boolean;
+  collective?: boolean;
+}
+
+interface RuntimeQuantumConfig {
+  enabled?: boolean;
+}
+
+interface RuntimeChaosConfig {
+  enabled?: boolean;
+  experiments?: unknown[];
+}
+
+interface RuntimeTargets {
+  cli?: string;
+  web?: string;
+}
+
+interface RuntimeConfigLike {
+  agents?: Record<string, RuntimeAgentConfig>;
+  intelligence?: RuntimeIntelligenceConfig;
+  quantum?: RuntimeQuantumConfig;
+  chaos?: RuntimeChaosConfig;
+  targets?: RuntimeTargets;
+}
+
+function renderUnsupported(category: string, values: string[], guidance: string): Error {
+  return new Error(
+    `Unsupported ${category}: ${values.join(", ")}. Outside the current capability contract. ${guidance}`,
+  );
+}
+
+export function validateCapabilityContract(config: RuntimeConfigLike): void {
+  const enabledAgents = Object.entries(config.agents ?? {}).filter(
+    ([, agent]) => agent.enabled !== false,
+  );
+
+  if (enabledAgents.length === 0) {
+    throw new Error(
+      "At least one enabled agent is required. The current orchestrator capability contract supports the 'cli-tester' agent.",
+    );
+  }
+
+  const unsupportedAgents = enabledAgents
+    .filter(([, agent]) => CAPABILITY_MATRIX.orchestrator.agents[agent.type] !== "implemented")
+    .map(([name, agent]) => `${name}:${agent.type}`);
+
+  if (unsupportedAgents.length > 0) {
+    throw renderUnsupported(
+      "agent type(s)",
+      unsupportedAgents,
+      "Disable them or switch to the supported 'cli-tester' orchestrator path.",
+    );
+  }
+
+  const unsupportedIntelligence = Object.entries(config.intelligence ?? {})
+    .filter(
+      ([key, enabled]) =>
+        enabled === true &&
+        CAPABILITY_MATRIX.orchestrator.intelligence[key as IntelligenceKey] !== "implemented",
+    )
+    .map(([key]) => key);
+
+  if (unsupportedIntelligence.length > 0) {
+    throw renderUnsupported(
+      "intelligence capability/capabilities",
+      unsupportedIntelligence,
+      "Set them to false or omit them until they are wired to a real runtime implementation.",
+    );
+  }
+
+  const chaosEnabled =
+    config.chaos?.enabled === true || (config.chaos?.experiments?.length ?? 0) > 0;
+  if (chaosEnabled) {
+    throw renderUnsupported(
+      "config section(s)",
+      ["chaos"],
+      "Remove chaos settings until a real chaos execution path exists.",
+    );
+  }
+
+  const needsCli = enabledAgents.some(([, agent]) => agent.type === "cli-tester");
+  if (needsCli && !config.targets?.cli) {
+    throw new Error(
+      "The enabled 'cli-tester' agent requires targets.cli to be configured with an executable command or path.",
+    );
+  }
+
+  if (config.quantum?.enabled === true && !config.targets?.web) {
+    throw new Error("Quantum simulation requires targets.web so the simulator has a URL to model.");
+  }
+}
+
+export function assertSupportedTestOptions(options: Partial<Record<TestOptionKey, unknown>>): void {
+  const unsupported = Object.entries(CAPABILITY_MATRIX.cli.testOptions)
+    .filter(([key, status]) => status !== "implemented" && Boolean(options[key as TestOptionKey]))
+    .map(([key]) => `--${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`);
+
+  if (unsupported.length > 0) {
+    throw renderUnsupported(
+      "option(s) for 'test'",
+      unsupported,
+      "Use only --config, --target, and --quick until the remaining paths are implemented.",
+    );
+  }
+}
+
+export function assertSupportedCliCommand(
+  command: keyof typeof CAPABILITY_MATRIX.cli.commands,
+): void {
+  if (CAPABILITY_MATRIX.cli.commands[command] !== "implemented") {
+    throw renderUnsupported(
+      "CLI command(s)",
+      [command],
+      "This command currently has no capability-backed implementation.",
+    );
+  }
+}
+
+export function assertSupportedSurfAction(action: string): asserts action is SurfAction {
+  const status = CAPABILITY_MATRIX.cli.surfActions[action as SurfAction];
+  if (status !== "implemented") {
+    throw renderUnsupported(
+      "surf action(s)",
+      [action],
+      "Only 'explore' is currently backed by a real surf execution path.",
+    );
+  }
+}

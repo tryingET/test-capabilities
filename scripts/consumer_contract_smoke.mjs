@@ -1,0 +1,170 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const repoRoot = process.cwd();
+const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-consumer-"));
+let tarballPath;
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...options,
+  });
+
+  if (result.status !== 0) {
+    const renderedCommand = [command, ...args].join(" ");
+    const details = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    throw new Error(`${renderedCommand} failed\n${details}`.trim());
+  }
+
+  return result;
+}
+
+try {
+  const packResult = run("npm", ["pack", "--json"]);
+  const packOutput = JSON.parse(packResult.stdout);
+  const tarballName = packOutput[0]?.filename;
+
+  assert.equal(typeof tarballName, "string", "npm pack did not return a tarball filename");
+  tarballPath = path.join(repoRoot, tarballName);
+  assert.ok(existsSync(tarballPath), `tarball missing: ${tarballPath}`);
+
+  run("npm", ["init", "-y"], { cwd: tempDir });
+  run("npm", ["install", tarballPath], { cwd: tempDir });
+
+  const installedConfig = path.join(
+    tempDir,
+    "node_modules",
+    "test-capabilities",
+    "test-capabilities.yaml",
+  );
+  assert.ok(existsSync(installedConfig), `installed config missing: ${installedConfig}`);
+
+  const binPath = path.join(
+    tempDir,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "test-capabilities.cmd" : "test-capabilities",
+  );
+  assert.ok(existsSync(binPath), `installed CLI missing: ${binPath}`);
+
+  const smokeConfig = path.join(tempDir, "consumer-smoke.yaml");
+  writeFileSync(
+    smokeConfig,
+    [
+      "version: '2.0'",
+      "name: 'Consumer CLI Smoke'",
+      "targets:",
+      `  cli: '${binPath.replace(/\\/g, "/")}'`,
+      "agents:",
+      "  cli:",
+      "    enabled: true",
+      "    type: cli-tester",
+      "    intensity: normal",
+      "intelligence:",
+      "  self_healing: false",
+      "  prediction: false",
+      "  correlation: true",
+      "  collective: false",
+      "quantum:",
+      "  enabled: false",
+      "chaos:",
+      "  enabled: false",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  run(binPath, ["--help"], { cwd: tempDir });
+  run(binPath, ["test", "--quick", "--config", smokeConfig], {
+    cwd: tempDir,
+  });
+
+  const smokeProgram = `
+    import assert from "node:assert/strict";
+    import fs from "node:fs";
+    import yaml from "js-yaml";
+    import {
+      VERSION,
+      NexusOrchestrator,
+      TestCapabilitiesConfigSchema,
+      createNexus,
+      createTestCapabilities,
+    } from "test-capabilities";
+
+    const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
+    const sampleConfig = yaml.load(fs.readFileSync(sampleConfigPath, "utf8"));
+    const parsedSample = TestCapabilitiesConfigSchema.parse(sampleConfig);
+    assert.equal(parsedSample.version, "2.0");
+
+    const effectiveConfig = {
+      version: "2.0",
+      name: "Consumer Contract Smoke",
+      targets: { cli: process.execPath },
+      agents: {
+        cli: {
+          enabled: true,
+          type: "cli-tester",
+          intensity: "normal",
+        },
+      },
+      intelligence: {
+        selfHealing: false,
+        prediction: false,
+        correlation: true,
+        collective: false,
+      },
+      quantum: {
+        enabled: false,
+        branches: 10,
+        collapseStrategy: "significance",
+        maxDepth: 5,
+      },
+      chaos: {
+        enabled: false,
+      },
+    };
+
+    assert.equal(createNexus, createTestCapabilities);
+    assert.equal(typeof NexusOrchestrator, "function");
+
+    const first = await createTestCapabilities(effectiveConfig).run();
+    const second = await createNexus(effectiveConfig).run();
+
+    assert.equal(first.passed, true);
+    assert.equal(first.coverage.overall > 0, true);
+
+    assert.deepEqual(
+      {
+        passed: first.passed,
+        findings: first.findings,
+        coverage: first.coverage,
+        predictions: first.predictions,
+        quantumInsights: first.quantumInsights,
+      },
+      {
+        passed: second.passed,
+        findings: second.findings,
+        coverage: second.coverage,
+        predictions: second.predictions,
+        quantumInsights: second.quantumInsights,
+      },
+    );
+
+    console.log(JSON.stringify({ version: VERSION, coverage: first.coverage }, null, 2));
+  `;
+
+  run("node", ["--input-type=module", "-e", smokeProgram], { cwd: tempDir });
+
+  console.log("consumer-contract: ok");
+} finally {
+  rmSync(tempDir, { recursive: true, force: true });
+  if (tarballPath && existsSync(tarballPath)) {
+    unlinkSync(tarballPath);
+  }
+}

@@ -106,12 +106,24 @@ export class QuantumSimulator {
 
   async simulate(initialState: QuantumState): Promise<QuantumResult> {
     const startTime = Date.now();
+    const deadline = startTime + this.config.timeout;
+
+    this.branches = [];
+    this.discoveries = [];
+    this.pathSet = new Set();
 
     // Initialize parallel universes
     this.initializeBranches(initialState);
 
-    // Simulate each branch
-    await Promise.all(this.branches.map((b) => this.simulateBranch(b)));
+    // Simulate each branch deterministically
+    for (const branch of this.branches) {
+      if (Date.now() >= deadline) {
+        branch.terminated = true;
+        branch.terminationReason = "timeout";
+        break;
+      }
+      await this.simulateBranch(branch, deadline);
+    }
 
     // Collapse the wave function
     const collapsedFindings = this.collapseWaveform();
@@ -137,25 +149,30 @@ export class QuantumSimulator {
         id: randomUUID(),
         seed: baseSeed + i,
         path: [],
-        state: { ...initialState },
+        state: this.cloneState(initialState),
         discoveries: [],
         terminated: false,
       });
     }
   }
 
-  private async simulateBranch(branch: QuantumBranch): Promise<void> {
+  private async simulateBranch(branch: QuantumBranch, deadline: number): Promise<void> {
     const random = this.seededRandom(branch.seed);
 
     for (let depth = 0; depth < this.config.maxDepth; depth++) {
       if (branch.terminated) break;
+      if (Date.now() >= deadline) {
+        branch.terminated = true;
+        branch.terminationReason = "timeout";
+        break;
+      }
 
       // Choose action based on quantum probability
-      const action = this.chooseAction(branch, random);
+      const action = this.chooseAction(branch, random, depth);
       branch.path.push(action);
 
       // Simulate action
-      const newState = await this.applyAction(branch.state, action);
+      const newState = await this.applyAction(branch.state, action, random);
       branch.state = newState;
 
       // Check for discoveries
@@ -183,7 +200,27 @@ export class QuantumSimulator {
     };
   }
 
-  private chooseAction(branch: QuantumBranch, random: () => number): QuantumAction {
+  private cloneState(state: QuantumState): QuantumState {
+    return {
+      ...state,
+      elements: [...state.elements],
+      forms: [...state.forms],
+      errors: [...state.errors],
+      network: {
+        ...state.network,
+        slowRequests: [...state.network.slowRequests],
+      },
+      performance: {
+        ...state.performance,
+      },
+    };
+  }
+
+  private chooseAction(
+    branch: QuantumBranch,
+    random: () => number,
+    stepIndex: number,
+  ): QuantumAction {
     const actionTypes: QuantumAction["type"][] = ["click", "type", "scroll", "navigate", "wait"];
     const weights = [0.4, 0.3, 0.1, 0.1, 0.1]; // Click and type are most common
 
@@ -208,7 +245,7 @@ export class QuantumSimulator {
       type: selectedType as QuantumAction["type"],
       target,
       value,
-      timestamp: Date.now(),
+      timestamp: stepIndex,
     };
   }
 
@@ -238,14 +275,18 @@ export class QuantumSimulator {
     }
   }
 
-  private async applyAction(state: QuantumState, action: QuantumAction): Promise<QuantumState> {
+  private async applyAction(
+    state: QuantumState,
+    action: QuantumAction,
+    random: () => number,
+  ): Promise<QuantumState> {
     // Simulate state transition
-    const newState = { ...state };
+    const newState = this.cloneState(state);
 
     switch (action.type) {
       case "click":
         // Simulate potential navigation or state change
-        newState.network.requestCount += Math.floor(Math.random() * 5);
+        newState.network.requestCount += Math.floor(random() * 5);
         break;
       case "type":
         // Form input
@@ -254,14 +295,16 @@ export class QuantumSimulator {
         newState.url = action.target;
         newState.network.requestCount += 1;
         break;
-      case "scroll":
+      case "scroll": {
         // Maybe reveal new elements
-        newState.elements = [...newState.elements, `new-element-${Date.now()}`];
+        const generatedElement = `new-element-${action.timestamp}-${newState.elements.length}`;
+        newState.elements = [...newState.elements, generatedElement];
         break;
+      }
     }
 
     // Simulate occasional errors
-    if (Math.random() < 0.02) {
+    if (random() < 0.02) {
       newState.errors.push(`Simulated error on ${action.type}`);
     }
 
@@ -274,10 +317,11 @@ export class QuantumSimulator {
 
     // Check for error patterns
     if (state.errors.length > 0) {
+      const latestError = state.errors[state.errors.length - 1];
       discoveries.push({
         type: "bug",
-        severity: "medium",
-        description: `Error detected: ${state.errors[state.errors.length - 1]}`,
+        severity: latestError.includes("critical") ? "critical" : "high",
+        description: `Error detected: ${latestError}`,
         reproduction: [...branch.path],
         probability: this.calculateProbability(branch),
         evidence: state.errors,
@@ -288,7 +332,7 @@ export class QuantumSimulator {
     if (state.network.avgLatency > 1000) {
       discoveries.push({
         type: "performance_issue",
-        severity: "medium",
+        severity: state.network.avgLatency > 2000 ? "critical" : "high",
         description: "High network latency detected",
         reproduction: [...branch.path],
         probability: this.calculateProbability(branch),

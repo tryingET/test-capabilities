@@ -4,16 +4,34 @@
   "description": "Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, autonomous quality assurance",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
     "tc": "./bin/test-capabilities",
     "test-capabilities": "./bin/test-capabilities"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "docs/",
+    "flows/",
+    "policy/",
+    "prompts/",
+    "README.md",
+    "test-capabilities.yaml"
+  ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.json",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",
@@ -21,6 +39,9 @@
     "quality:pre-push": "bash ./scripts/quality-gate.sh pre-push",
     "quality:ci": "bash ./scripts/quality-gate.sh ci",
     "check": "npm run quality:ci",
+    "consumer:smoke": "node ./scripts/consumer_contract_smoke.mjs",
+    "release:check": "npm run check && npm run release:check:quick",
+    "release:check:quick": "npm run consumer:smoke",
     "test": "node --test tests/*.test.mjs",
     "test:ci-targeted": "node ./scripts/run_ci_targeted_tests.mjs",
     "test:runtime": "RUN_CONVEX_RUNTIME_TESTS=1 node --test tests/convex_runtime_contract_enforcement.test.mjs",
@@ -30,7 +51,8 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "tech-stack": "bash ./scripts/tech-stack.sh",
-    "test-capabilities": "node bin/test-capabilities"
+    "test-capabilities": "npm run build --silent && node ./bin/test-capabilities",
+    "prepack": "npm run build"
   },
   "keywords": [
     "testing",
@@ -53,7 +75,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.0.0",
     "@types/figlet": "^1.5.8",
     "typescript": "^5.3.0",
     "vitest": "^1.2.0"

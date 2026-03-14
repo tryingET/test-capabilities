@@ -120,17 +120,41 @@ export class GradientBoostingPredictor implements PredictionModel {
     console.log(`Training on ${data.length} samples...`);
   }
 
+  private getMetricValue(input: PredictionInput, feature: string): number {
+    const value = input[feature as keyof PredictionInput];
+    return typeof value === "number" ? value : 0;
+  }
+
+  private normalizeFeature(feature: string, value: number): number {
+    switch (feature) {
+      case "errorRate":
+      case "abandonmentRate":
+      case "rageClickRate":
+      case "bounceRate":
+      case "cpuUsage":
+      case "memoryUsage":
+      case "diskUsage":
+        return Math.max(0, Math.min(1, value));
+      case "responseTimeP95":
+        return Math.max(0, Math.min(1, (value - 200) / 1800));
+      case "recentFailures":
+        return Math.max(0, Math.min(1, value / 10));
+      default:
+        return Math.max(0, Math.min(1, value));
+    }
+  }
+
   private calculateScore(input: PredictionInput, weights: Record<string, number>): number {
     let score = 0;
     let totalWeight = 0;
 
     for (const [feature, weight] of Object.entries(weights)) {
-      const value = (input as Record<string, number>)[feature] || 0;
+      const value = this.normalizeFeature(feature, this.getMetricValue(input, feature));
       score += value * weight;
       totalWeight += weight;
     }
 
-    return Math.min(1, score / totalWeight);
+    return totalWeight === 0 ? 0 : Math.min(1, score / totalWeight);
   }
 
   private calculateRiskScore(input: PredictionInput, _component: string): number {
@@ -153,8 +177,8 @@ export class GradientBoostingPredictor implements PredictionModel {
   private identifyTrigger(input: PredictionInput, weights: Record<string, number>): string {
     const sortedFeatures = Object.entries(weights).sort((a, b) => b[1] - a[1]);
 
-    const topFeature = sortedFeatures[0][0];
-    const value = (input as Record<string, number>)[topFeature] || 0;
+    const topFeature = sortedFeatures[0]?.[0] ?? "errorRate";
+    const value = this.getMetricValue(input, topFeature);
 
     return this.featureToTrigger(topFeature, value);
   }
@@ -216,13 +240,30 @@ export class GradientBoostingPredictor implements PredictionModel {
     return "1-7 days";
   }
 
+  private formatMetric(feature: string, value: number): string {
+    switch (feature) {
+      case "responseTimeP95":
+        return `${Math.round(value)}ms`;
+      case "recentFailures":
+      case "filesChanged":
+      case "linesAdded":
+      case "linesDeleted":
+        return String(Math.round(value));
+      case "timeSinceDeployment":
+      case "avgTimeBetweenFailures":
+        return `${value.toFixed(1)}h`;
+      default:
+        return `${(value * 100).toFixed(1)}%`;
+    }
+  }
+
   private getRelatedMetrics(input: PredictionInput, weights: Record<string, number>): string[] {
     return Object.entries(weights)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([feature]) => {
-        const value = (input as Record<string, number>)[feature];
-        return `${feature}: ${(value * 100).toFixed(1)}%`;
+        const value = this.getMetricValue(input, feature);
+        return `${feature}: ${this.formatMetric(feature, value)}`;
       });
   }
 }
@@ -295,47 +336,71 @@ export class PredictionEngine {
 // ============================================
 
 export class PredictionCollector {
-  async collectMetrics(_source: string): Promise<PredictionInput> {
-    // Collect metrics from various sources
-    // In production, this would connect to APM tools, logs, etc.
+  private seededRandomFromString(seedText: string): () => number {
+    let seed = 0;
 
-    return {
-      // System metrics (simulated)
-      errorRate: Math.random() * 0.1,
-      responseTimeP95: 500 + Math.random() * 2000,
-      cpuUsage: Math.random(),
-      memoryUsage: Math.random() * 0.8,
-      diskUsage: Math.random() * 0.7,
+    for (const char of seedText) {
+      seed = (seed * 31 + char.charCodeAt(0)) >>> 0;
+    }
 
-      // Temporal
-      timeSinceDeployment: Math.random() * 72, // hours
-      hourOfDay: new Date().getHours(),
-      dayOfWeek: new Date().getDay(),
+    if (seed === 0) {
+      seed = 1;
+    }
 
-      // User behavior (simulated)
-      sessionDepthAvg: 3 + Math.random() * 5,
-      rageClickRate: Math.random() * 0.2,
-      abandonmentRate: Math.random() * 0.4,
-      bounceRate: Math.random() * 0.5,
-
-      // Code metrics
-      filesChanged: Math.floor(Math.random() * 50),
-      linesAdded: Math.floor(Math.random() * 500),
-      linesDeleted: Math.floor(Math.random() * 300),
-      testCoverageDelta: (Math.random() - 0.5) * 0.1,
-
-      // Historical
-      recentFailures: Math.floor(Math.random() * 10),
-      avgTimeBetweenFailures: Math.random() * 24, // hours
+    return () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0xffffffff;
     };
   }
 
-  async startCollection(interval: number = 60000): Promise<void> {
+  async collectMetrics(source: string): Promise<PredictionInput> {
+    // Collect metrics from various sources.
+    // Until a real collector is wired in, keep placeholder values deterministic.
+    const random = this.seededRandomFromString(source || "auto");
+    const hourOfDay = Math.floor(random() * 24);
+    const dayOfWeek = Math.floor(random() * 7);
+
+    return {
+      // System metrics (deterministic placeholder values)
+      errorRate: random() * 0.1,
+      responseTimeP95: 500 + random() * 2000,
+      cpuUsage: random(),
+      memoryUsage: random() * 0.8,
+      diskUsage: random() * 0.7,
+
+      // Temporal
+      timeSinceDeployment: random() * 72,
+      hourOfDay,
+      dayOfWeek,
+
+      // User behavior (deterministic placeholder values)
+      sessionDepthAvg: 3 + random() * 5,
+      rageClickRate: random() * 0.2,
+      abandonmentRate: random() * 0.4,
+      bounceRate: random() * 0.5,
+
+      // Code metrics
+      filesChanged: Math.floor(random() * 50),
+      linesAdded: Math.floor(random() * 500),
+      linesDeleted: Math.floor(random() * 300),
+      testCoverageDelta: random() * 0.1 - 0.05,
+
+      // Historical
+      recentFailures: Math.floor(random() * 10),
+      avgTimeBetweenFailures: random() * 24,
+    };
+  }
+
+  async startCollection(interval: number = 60000): Promise<() => void> {
     // Start periodic metric collection
-    setInterval(async () => {
-      const _metrics = await this.collectMetrics("auto");
+    const handle = setInterval(async () => {
+      await this.collectMetrics("auto");
       // Store or process metrics
     }, interval);
+
+    return () => {
+      clearInterval(handle);
+    };
   }
 }
 

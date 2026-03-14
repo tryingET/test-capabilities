@@ -2,467 +2,444 @@
 
 /**
  * TEST-CAPABILITIES - Autonomous Testing Framework
- * The most advanced AI-driven testing system ever created.
  */
 
-const { program } = require('commander');
-const chalk = require('chalk');
-const figlet = require('figlet');
-const ora = require('ora');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import chalk from "chalk";
+import { Command } from "commander";
+import figlet from "figlet";
+import yaml from "js-yaml";
+import ora from "ora";
+import {
+  QuantumTestRunner,
+  TestCapabilitiesConfigSchema,
+  TestCapabilitiesOrchestrator,
+  TestFileHealer,
+  VERSION,
+} from "../dist/index.js";
+import {
+  assertSupportedCliCommand,
+  assertSupportedSurfAction,
+  assertSupportedTestOptions,
+} from "../dist/core/capabilities.js";
 
-// ASCII Art Banner
-const showBanner = () => {
-  console.log(chalk.cyan(figlet.textSync('TEST-CAPABILITIES', { 
-    font: 'ANSI Shadow',
-    horizontalLayout: 'fitted'
-  })));
-  console.log(chalk.dim('  Autonomous Testing Framework v2.0.0'));
+const program = new Command();
+
+function showBanner() {
+  console.log(
+    chalk.cyan(
+      figlet.textSync("TEST-CAPABILITIES", {
+        font: "ANSI Shadow",
+        horizontalLayout: "fitted",
+      }),
+    ),
+  );
+  console.log(chalk.dim(`  Autonomous Testing Framework v${VERSION}`));
   console.log();
-};
+}
 
-program
-  .name('test-capabilities')
-  .description('The Future of AI-Driven Testing')
-  .version('2.0.0');
+function isUrl(value) {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-// ============================================
-// TEST-CAPABILITIES TEST COMMAND
-// ============================================
-program.command('test')
-  .description('Run autonomous testing suite')
-  .option('-t, --target <url>', 'Target URL or path')
-  .option('-c, --config <file>', 'Configuration file', 'test-capabilities.yaml')
-  .option('-a, --autonomous', 'Enable full autonomous mode')
-  .option('--self-heal', 'Enable self-healing tests')
-  .option('--predict', 'Enable failure prediction')
-  .option('--quick', 'Quick sanity check mode')
-  .option('--fail-threshold <level>', 'Fail threshold (low|medium|high|critical)', 'high')
-  .option('--upload-artifacts', 'Upload artifacts to cloud')
-  .option('--report <dir>', 'Report output directory', './reports')
-  .action(async (options) => {
-    showBanner();
-    const spinner = ora('Initializing TEST-CAPABILITIES testing engine...').start();
-    
-    try {
-      // Check for surf-cli
-      const surfAvailable = await checkCommand('surf');
-      if (!surfAvailable) {
-        spinner.warn('surf-cli not found. Some features will be limited.');
-        console.log(chalk.yellow('Install: npm install -g surf-cli'));
-      }
-      
-      // Check for bombadil
-      const bombadilAvailable = fs.existsSync('./bombadil') || await checkCommand('bombadil');
-      if (!bombadilAvailable) {
-        spinner.warn('bombadil not found. Property-based fuzzing disabled.');
-      }
-      
-      spinner.text = 'Loading configuration...';
-      
-      // Load config
-      const config = loadConfig(options.config);
-      
-      if (options.quick) {
-        spinner.text = 'Running quick sanity check...';
-        await runQuickTest(options.target);
-      } else if (options.autonomous) {
-        spinner.text = '🚀 Engaging autonomous testing mode...';
-        await runAutonomousTest(options);
-      } else {
-        spinner.text = 'Running standard test suite...';
-        await runStandardTest(options);
-      }
-      
-      spinner.succeed('Testing complete!');
-      
-    } catch (error) {
-      spinner.fail('Testing failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
+function applyTargetOverride(config, target) {
+  if (!target) {
+    return config;
+  }
 
-// ============================================
-// TEST-CAPABILITIES SURF COMMAND - surf-cli integration
-// ============================================
-program.command('surf')
-  .description('Advanced browser testing with surf-cli')
-  .argument('<action>', 'Action: explore | flow | assert | compare | replay')
-  .option('-u, --url <url>', 'Target URL')
-  .option('--depth <n>', 'Exploration depth', '3')
-  .option('--record', 'Record the session')
-  .option('--validate', 'Run AI validation')
-  .option('--baseline <dir>', 'Baseline directory for comparison')
-  .option('--ai-diff', 'Use AI for visual diff')
-  .option('-f, --file <path>', 'Session file to replay')
-  .action(async (action, options) => {
-    showBanner();
-    const spinner = ora(`Executing surf ${action}...`).start();
-    
-    try {
-      switch (action) {
-        case 'explore':
-          await surfExplore(options.url, parseInt(options.depth));
-          break;
-        case 'flow':
-          await surfFlow(options.url, options.record, options.validate);
-          break;
-        case 'assert':
-          await surfAssert(options.url, options.args);
-          break;
-        case 'compare':
-          await surfCompare(options.baseline, options.aiDiff);
-          break;
-        case 'replay':
-          await surfReplay(options.file);
-          break;
-        default:
-          throw new Error(`Unknown action: ${action}`);
-      }
-      
-      spinner.succeed(`Surf ${action} complete!`);
-    } catch (error) {
-      spinner.fail(`Surf ${action} failed!`);
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
+  const targets = { ...(config.targets ?? {}) };
+  if (isUrl(target)) {
+    targets.web = target;
+  } else {
+    targets.cli = target;
+  }
 
-// ============================================
-// TEST-CAPABILITIES PREDICT COMMAND
-// ============================================
-program.command('predict')
-  .description('Predict potential failures using ML')
-  .option('-t, --target <url>', 'Target URL')
-  .option('--history <dir>', 'Historical test data directory')
-  .option('--horizon <hours>', 'Prediction horizon in hours', '24')
-  .action(async (options) => {
-    showBanner();
-    const spinner = ora('Training prediction model...').start();
-    
-    try {
-      const predictions = await runPrediction(options);
-      
-      spinner.succeed('Prediction analysis complete!');
-      
-      console.log('\n' + chalk.bold('📊 Failure Predictions:'));
-      console.log(chalk.dim('─'.repeat(50)));
-      
-      predictions.forEach(p => {
-        const icon = p.probability > 0.7 ? '🔴' : p.probability > 0.4 ? '🟡' : '🟢';
-        console.log(`${icon} ${p.component.padEnd(20)} ${(p.probability * 100).toFixed(1)}% - ${p.trigger}`);
-        if (p.preventiveAction) {
-          console.log(chalk.dim(`   → ${p.preventiveAction}`));
-        }
-      });
-      
-    } catch (error) {
-      spinner.fail('Prediction failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
+  return {
+    ...config,
+    targets,
+  };
+}
 
-// ============================================
-// TEST-CAPABILITIES QUANTUM COMMAND
-// ============================================
-program.command('quantum')
-  .description('Run quantum test simulation')
-  .option('-t, --target <url>', 'Target URL')
-  .option('-b, --branches <n>', 'Number of parallel universes', '100')
-  .option('--collapse', 'Collapse results to significant findings')
-  .action(async (options) => {
-    showBanner();
-    
-    console.log(chalk.magenta('🌌 Initiating Quantum Test Simulation...'));
-    console.log(chalk.dim(`   Simulating ${options.branches} parallel universes\n`));
-    
-    const spinner = ora('Collapsing wave function...').start();
-    
-    try {
-      const results = await runQuantumSimulation(options);
-      
-      spinner.succeed('Quantum simulation complete!');
-      
-      console.log('\n' + chalk.bold('🔬 Quantum Findings:'));
-      console.log(chalk.dim('─'.repeat(50)));
-      console.log(`Universes Simulated:  ${results.universesSimulated}`);
-      console.log(`Unique Paths:         ${results.uniquePaths}`);
-      console.log(`Edge Cases Found:     ${chalk.yellow(results.edgeCases.length)}`);
-      
-      if (results.rareBugs.length > 0) {
-        console.log('\n' + chalk.bold('⚠️  Rare Bugs Discovered:'));
-        results.rareBugs.forEach((bug, i) => {
-          console.log(`   ${i + 1}. ${bug.description}`);
-          console.log(chalk.dim(`      Probability: ${bug.probability} | Impact: ${bug.impact}`));
-        });
-      }
-      
-    } catch (error) {
-      spinner.fail('Quantum simulation failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
-
-// ============================================
-// TEST-CAPABILITIES HEAL COMMAND
-// ============================================
-program.command('heal')
-  .description('Analyze and fix broken tests')
-  .option('-d, --dir <path>', 'Tests directory', './tests')
-  .option('--dry-run', 'Show what would be fixed')
-  .action(async (options) => {
-    showBanner();
-    const spinner = ora('Analyzing broken tests...').start();
-    
-    try {
-      const fixes = await analyzeBrokenTests(options.dir);
-      
-      if (fixes.length === 0) {
-        spinner.succeed('All tests are healthy!');
-        return;
-      }
-      
-      spinner.text = `Found ${fixes.length} issues to fix...`;
-      
-      if (options.dryRun) {
-        spinner.stop();
-        console.log('\n' + chalk.bold('🔧 Proposed Fixes:'));
-        console.log(chalk.dim('─'.repeat(50)));
-        fixes.forEach((fix, i) => {
-          console.log(`\n${i + 1}. ${fix.file}`);
-          console.log(chalk.red(`   - ${fix.oldSelector}`));
-          console.log(chalk.green(`   + ${fix.newSelector}`));
-          console.log(chalk.dim(`   Confidence: ${(fix.confidence * 100).toFixed(0)}%`));
-        });
-      } else {
-        await applyFixes(fixes);
-        spinner.succeed(`Fixed ${fixes.length} tests!`);
-      }
-      
-    } catch (error) {
-      spinner.fail('Healing failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
-
-// ============================================
-// TEST-CAPABILITIES VISUALIZE COMMAND
-// ============================================
-program.command('visualize')
-  .description('Generate interactive test visualization')
-  .option('-o, --output <file>', 'Output HTML file', 'test-capabilities-viz.html')
-  .option('--real-time', 'Enable real-time updates')
-  .option('--port <n>', 'Port for real-time dashboard', '3001')
-  .action(async (options) => {
-    showBanner();
-    const spinner = ora('Generating visualization...').start();
-    
-    try {
-      const viz = await generateVisualization(options);
-      
-      spinner.succeed(`Visualization generated: ${options.output}`);
-      
-      if (options.realTime) {
-        console.log(chalk.dim(`\n📡 Dashboard running at http://localhost:${options.port}`));
-        // Keep process alive for real-time updates
-      }
-      
-    } catch (error) {
-      spinner.fail('Visualization failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
-
-// ============================================
-// TEST-CAPABILITIES REPORT COMMAND
-// ============================================
-program.command('report')
-  .description('Generate comprehensive test report')
-  .option('-i, --input <dir>', 'Input data directory', './reports')
-  .option('-o, --output <dir>', 'Output directory', './reports')
-  .option('-f, --format <formats>', 'Formats (json,html,md)', 'html,json')
-  .option('--upload', 'Upload to configured destination')
-  .action(async (options) => {
-    showBanner();
-    const spinner = ora('Generating report...').start();
-    
-    try {
-      const report = await generateReport(options);
-      
-      spinner.succeed('Report generated!');
-      
-      console.log('\n' + chalk.bold('📋 Report Summary:'));
-      console.log(chalk.dim('─'.repeat(50)));
-      console.log(`Health Score: ${report.healthScore}/100`);
-      console.log(`Tests Passed: ${report.passed}/${report.total}`);
-      console.log(`Bugs Found:   ${report.bugs.length}`);
-      console.log(`Coverage:     ${report.coverage}%`);
-      
-    } catch (error) {
-      spinner.fail('Report generation failed!');
-      console.error(chalk.red(error.message));
-      process.exit(1);
-    }
-  });
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-function checkCommand(cmd) {
-  return new Promise((resolve) => {
-    const proc = spawn('which', [cmd], { stdio: 'ignore' });
-    proc.on('close', (code) => resolve(code === 0));
-  });
+function applyQuickMode(config) {
+  return {
+    ...config,
+    intelligence: {
+      ...(config.intelligence ?? {}),
+      prediction: false,
+    },
+    quantum: {
+      ...(config.quantum ?? {}),
+      enabled: false,
+    },
+  };
 }
 
 function loadConfig(file) {
   const configPath = path.resolve(file);
+
   if (!fs.existsSync(configPath)) {
-    return { version: '2.0', targets: {}, agents: {} };
+    throw new Error(`Config file not found: ${configPath}`);
   }
-  
-  const content = fs.readFileSync(configPath, 'utf8');
-  // Simple YAML parsing (would use js-yaml in production)
-  return { path: configPath, raw: content };
+
+  const raw = yaml.load(fs.readFileSync(configPath, "utf8")) ?? {};
+  return TestCapabilitiesConfigSchema.parse(raw);
 }
 
-async function runQuickTest(target) {
-  console.log(chalk.dim('\n⚡ Quick Test Mode'));
-  console.log(chalk.dim(`   Target: ${target || 'auto-detect'}\n`));
-  
-  // Simulate quick test
-  await sleep(1000);
-  return { passed: true };
+async function runSuite(config) {
+  const orchestrator = new TestCapabilitiesOrchestrator(config);
+  return orchestrator.run();
 }
 
-async function runAutonomousTest(options) {
-  console.log(chalk.dim('\n🤖 Autonomous Mode Engaged'));
-  console.log(chalk.dim(`   Self-healing: ${options.selfHeal ? 'ON' : 'OFF'}`));
-  console.log(chalk.dim(`   Prediction:   ${options.predict ? 'ON' : 'OFF'}`));
-  console.log(chalk.dim(`   Target:       ${options.target || 'config'}\n`));
-  
-  // Simulate autonomous testing
-  const phases = [
-    'Crawling application structure...',
-    'Inferring user intents...',
-    'Generating test cases...',
-    'Executing exploratory tests...',
-    'Running property-based fuzzing...',
-    'Analyzing network patterns...',
-    'Correlating cross-domain findings...',
-    'Training prediction model...',
-    'Generating insights...'
-  ];
-  
-  for (const phase of phases) {
-    await sleep(500);
-    console.log(chalk.dim(`   ✓ ${phase}`));
+function printSuiteSummary(result) {
+  console.log(`Health:  ${result.passed ? chalk.green("pass") : chalk.red("fail")}`);
+  console.log(`Findings: ${result.findings.length}`);
+  console.log(
+    `Coverage: user=${result.coverage.userFlows}% api=${result.coverage.apiEndpoints}% edge=${result.coverage.edgeCases}% overall=${result.coverage.overall}%`,
+  );
+
+  if (result.predictions?.length) {
+    console.log(`Predictions: ${result.predictions.length}`);
+  }
+
+  if (result.quantumInsights) {
+    console.log(`Quantum universes: ${result.quantumInsights.universesSimulated}`);
   }
 }
 
-async function runStandardTest(options) {
-  console.log(chalk.dim('\n📋 Standard Test Suite'));
-  console.log(chalk.dim(`   Config: ${options.config}`));
-  console.log(chalk.dim(`   Target: ${options.target || 'from config'}\n`));
-  
-  await sleep(1000);
+function exitWithError(error, spinner, message) {
+  if (spinner) {
+    spinner.fail(message);
+  }
+
+  const rendered = error instanceof Error ? error.message : String(error);
+  console.error(chalk.red(rendered));
+  process.exit(1);
 }
 
-async function surfExplore(url, depth) {
-  console.log(chalk.dim(`\n🕷️  Exploring ${url} (depth: ${depth})\n`));
-  
-  // Execute surf commands
-  const surfProc = spawn('surf', ['go', url], { stdio: 'inherit' });
-  await new Promise(r => surfProc.on('close', r));
+async function runSurfCommand(args, { inherit = true } = {}) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("surf", args, {
+      stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    if (!inherit) {
+      proc.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+      proc.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+    }
+
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve({ code, stdout, stderr });
+        return;
+      }
+
+      reject(new Error(stderr.trim() || stdout.trim() || `surf exited with code ${code}`));
+    });
+
+    proc.on("error", (error) => {
+      reject(new Error(`Failed to run surf: ${error.message}`));
+    });
+  });
 }
 
-async function surfFlow(url, record, validate) {
-  console.log(chalk.dim(`\n🌊 Running flow test on ${url}\n`));
+function collectFiles(rootDir) {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+
+  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(rootDir, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...collectFiles(fullPath));
+      continue;
+    }
+
+    if (/\.(c|m)?[jt]sx?$/.test(entry.name)) {
+      files.push(fullPath);
+    }
+  }
+
+  return files.sort();
 }
 
-async function surfAssert(url, assertion) {
-  console.log(chalk.dim(`\n✓ Running assertion on ${url}\n`));
-}
+program.name("test-capabilities").description("The Future of AI-Driven Testing").version(VERSION);
 
-async function surfCompare(baseline, aiDiff) {
-  console.log(chalk.dim(`\n🖼️  Comparing against ${baseline}\n`));
-}
+program
+  .command("test")
+  .description("Run autonomous testing suite")
+  .option("-t, --target <url>", "Target URL or path")
+  .option("-c, --config <file>", "Configuration file", "test-capabilities.yaml")
+  .option("-a, --autonomous", "Enable full autonomous mode")
+  .option("--self-heal", "Enable self-healing tests")
+  .option("--predict", "Enable failure prediction")
+  .option("--quick", "Quick sanity check mode")
+  .option("--fail-threshold <level>", "Fail threshold (low|medium|high|critical)")
+  .option("--upload-artifacts", "Upload artifacts to cloud")
+  .option("--report <dir>", "Report output directory")
+  .action(async (options) => {
+    showBanner();
+    const spinner = ora("Initializing TEST-CAPABILITIES testing engine...").start();
 
-async function surfReplay(file) {
-  console.log(chalk.dim(`\n⏪ Replaying session from ${file}\n`));
-}
+    try {
+      assertSupportedCliCommand("test");
+      assertSupportedTestOptions(options);
 
-async function runPrediction(options) {
-  await sleep(1500);
-  
-  // Simulated predictions
-  return [
-    { component: 'checkout', probability: 0.12, trigger: 'high traffic', preventiveAction: 'Add rate limiting' },
-    { component: 'search', probability: 0.34, trigger: 'complex queries', preventiveAction: 'Add query timeout' },
-    { component: 'auth', probability: 0.05, trigger: 'token expiry', preventiveAction: 'Refresh token proactively' },
-  ];
-}
+      spinner.text = "Loading configuration...";
+      let config = loadConfig(options.config);
+      config = applyTargetOverride(config, options.target);
 
-async function runQuantumSimulation(options) {
-  const branches = parseInt(options.branches);
-  await sleep(2000);
-  
-  return {
-    universesSimulated: branches,
-    uniquePaths: Math.floor(branches * 0.85),
-    edgeCases: [
-      { type: 'race_condition', location: 'cart' },
-      { type: 'timing', location: 'checkout' },
-    ],
-    rareBugs: [
-      { description: 'Race condition in cart update', probability: '0.3%', impact: 'high' },
-    ],
-  };
-}
+      if (options.selfHeal) {
+        config = {
+          ...config,
+          intelligence: {
+            ...(config.intelligence ?? {}),
+            selfHealing: true,
+          },
+        };
+      }
 
-async function analyzeBrokenTests(dir) {
-  await sleep(1000);
-  
-  // Simulated broken tests
-  return [
-    { file: 'login.spec.ts', oldSelector: '#old-login-btn', newSelector: '[data-testid="login"]', confidence: 0.95 },
-  ];
-}
+      if (options.predict) {
+        config = {
+          ...config,
+          intelligence: {
+            ...(config.intelligence ?? {}),
+            prediction: true,
+          },
+        };
+      }
 
-async function applyFixes(fixes) {
-  await sleep(500);
-}
+      if (options.quick) {
+        spinner.text = "Running quick deterministic smoke...";
+        config = applyQuickMode(config);
+      } else if (options.autonomous) {
+        spinner.text = "Executing autonomous suite...";
+      } else {
+        spinner.text = "Executing standard suite...";
+      }
 
-async function generateVisualization(options) {
-  await sleep(1000);
-  return { path: options.output };
-}
+      const result = await runSuite(config);
+      spinner.succeed(`Testing complete (${result.passed ? "passed" : "failed"}).`);
+      printSuiteSummary(result);
 
-async function generateReport(options) {
-  await sleep(1000);
-  
-  return {
-    healthScore: 94,
-    passed: 47,
-    total: 50,
-    bugs: [
-      { severity: 'medium', description: 'Form validation message delayed' }
-    ],
-    coverage: 89,
-  };
-}
+      if (!result.passed) {
+        process.exit(1);
+      }
+    } catch (error) {
+      exitWithError(error, spinner, "Testing failed!");
+    }
+  });
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+program
+  .command("surf")
+  .description("Advanced browser testing with surf-cli")
+  .argument("<action>", "Action: explore | flow | assert | compare | replay")
+  .option("-u, --url <url>", "Target URL")
+  .option("--depth <n>", "Exploration depth", "3")
+  .option("--record", "Record the session")
+  .option("--validate", "Run AI validation")
+  .option("--baseline <dir>", "Baseline directory for comparison")
+  .option("--ai-diff", "Use AI for visual diff")
+  .option("-f, --file <path>", "Session file to replay")
+  .action(async (action, options) => {
+    showBanner();
+    const spinner = ora(`Executing surf ${action}...`).start();
 
-// Run the CLI
-program.parse();
+    try {
+      assertSupportedCliCommand("surf");
+      assertSupportedSurfAction(action);
+
+      switch (action) {
+        case "explore":
+          spinner.text = `Exploring ${options.url ?? "about:blank"}...`;
+          await runSurfCommand(["go", options.url ?? "about:blank"]);
+          break;
+        case "flow":
+          spinner.text = `Running flow on ${options.url ?? "about:blank"}...`;
+          await runSurfCommand(["go", options.url ?? "about:blank"]);
+          if (options.record) {
+            console.log(chalk.dim("Recording requested; rely on surf session tooling for capture."));
+          }
+          if (options.validate) {
+            console.log(chalk.dim("Validation requested; review resulting surf transcript."));
+          }
+          break;
+        case "assert":
+          spinner.text = `Opening ${options.url ?? "about:blank"} for manual assertion review...`;
+          await runSurfCommand(["go", options.url ?? "about:blank"]);
+          break;
+        case "compare":
+          spinner.text = `Preparing visual comparison against ${options.baseline ?? "./baselines"}...`;
+          console.log(chalk.dim(`AI diff: ${options.aiDiff ? "enabled" : "disabled"}`));
+          break;
+        case "replay":
+          spinner.text = `Replaying session ${options.file ?? "(missing --file)"}...`;
+          if (!options.file) {
+            throw new Error("replay requires --file");
+          }
+          console.log(chalk.dim(`Replay file: ${options.file}`));
+          break;
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+
+      spinner.succeed(`Surf ${action} complete.`);
+    } catch (error) {
+      exitWithError(error, spinner, `Surf ${action} failed!`);
+    }
+  });
+
+program
+  .command("predict")
+  .description("Predict potential failures using ML")
+  .option("-t, --target <url>", "Target URL")
+  .option("--history <dir>", "Historical test data directory")
+  .option("--horizon <hours>", "Prediction horizon in hours", "24")
+  .action(async () => {
+    showBanner();
+    const spinner = ora("Checking prediction capability...").start();
+
+    try {
+      assertSupportedCliCommand("predict");
+      spinner.succeed("Prediction capability is available.");
+    } catch (error) {
+      exitWithError(error, spinner, "Prediction is unavailable.");
+    }
+  });
+
+program
+  .command("quantum")
+  .description("Run quantum test simulation")
+  .option("-t, --target <url>", "Target URL")
+  .option("-b, --branches <n>", "Number of parallel universes", "100")
+  .option("--collapse", "Collapse results to significant findings")
+  .action(async (options) => {
+    showBanner();
+    const spinner = ora("Initiating quantum simulation...").start();
+
+    try {
+      assertSupportedCliCommand("quantum");
+
+      const runner = new QuantumTestRunner({
+        branches: Number(options.branches),
+        collapseStrategy: options.collapse ? "significance" : "coverage",
+        seed: 42,
+      });
+      const results = await runner.run(options.target ?? "https://example.com");
+
+      spinner.succeed("Quantum simulation complete.");
+      console.log(`Universes Simulated: ${results.branchesSimulated}`);
+      console.log(`Unique Paths:        ${results.uniquePaths}`);
+      console.log(`Edge Cases:          ${results.edgeCases.length}`);
+      console.log(`Rare Bugs:           ${results.rareBugs.length}`);
+    } catch (error) {
+      exitWithError(error, spinner, "Quantum simulation failed!");
+    }
+  });
+
+program
+  .command("heal")
+  .description("Analyze and fix broken tests")
+  .option("-d, --dir <path>", "Tests directory", "./tests")
+  .option("--dry-run", "Show what would be fixed")
+  .action(async (options) => {
+    showBanner();
+    const spinner = ora("Analyzing broken tests...").start();
+
+    try {
+      assertSupportedCliCommand("heal");
+
+      const healer = new TestFileHealer();
+      const files = collectFiles(path.resolve(options.dir));
+      const proposals = [];
+
+      for (const file of files) {
+        const fileProposals = await healer.analyzeFile(file);
+        proposals.push(...fileProposals);
+      }
+
+      if (proposals.length === 0) {
+        spinner.succeed("No healing proposals found.");
+        return;
+      }
+
+      if (options.dryRun) {
+        spinner.stop();
+        console.log(chalk.bold("Proposed fixes:"));
+        for (const proposal of proposals) {
+          console.log(`${proposal.file}:${proposal.line}`);
+          console.log(chalk.red(`  - ${proposal.oldSelector}`));
+          console.log(chalk.green(`  + ${proposal.newSelector}`));
+          console.log(chalk.dim(`    confidence=${proposal.confidence}`));
+        }
+        return;
+      }
+
+      for (const proposal of proposals) {
+        await healer.applyProposal(proposal);
+      }
+
+      spinner.succeed(`Applied ${proposals.length} healing proposal(s).`);
+    } catch (error) {
+      exitWithError(error, spinner, "Healing failed!");
+    }
+  });
+
+program
+  .command("visualize")
+  .description("Generate interactive test visualization")
+  .option("-o, --output <file>", "Output HTML file", "test-capabilities-viz.html")
+  .option("--real-time", "Enable real-time updates")
+  .option("--port <n>", "Port for real-time dashboard", "3001")
+  .action(async () => {
+    showBanner();
+    const spinner = ora("Checking visualization capability...").start();
+
+    try {
+      assertSupportedCliCommand("visualize");
+      spinner.succeed("Visualization capability is available.");
+    } catch (error) {
+      exitWithError(error, spinner, "Visualization is unavailable.");
+    }
+  });
+
+program
+  .command("report")
+  .description("Generate comprehensive test report")
+  .option("-i, --input <dir>", "Input data directory", "./reports")
+  .option("-o, --output <dir>", "Output directory", "./reports")
+  .option("-f, --format <formats>", "Formats (json,html,md)", "html,json")
+  .option("--upload", "Upload to configured destination")
+  .action(async () => {
+    showBanner();
+    const spinner = ora("Checking report capability...").start();
+
+    try {
+      assertSupportedCliCommand("report");
+      spinner.succeed("Report capability is available.");
+    } catch (error) {
+      exitWithError(error, spinner, "Report generation is unavailable.");
+    }
+  });
+
+program.parseAsync(process.argv).catch((error) => {
+  exitWithError(error, null, "Command failed!");
+});

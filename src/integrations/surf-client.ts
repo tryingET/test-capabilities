@@ -73,11 +73,8 @@ export class SurfClient {
   // ============================================
 
   async goto(url: string): Promise<SurfActionResult> {
-    const result = await this.run("go", [`"${url}"`]);
-    if (this.config.autoScreenshot) {
-      await this.screenshot();
-    }
-    return result;
+    const result = await this.run("go", [url]);
+    return this.attachScreenshotIfEnabled(result);
   }
 
   async back(): Promise<SurfActionResult> {
@@ -131,21 +128,23 @@ export class SurfClient {
     let url = "";
     let title = "";
 
-    // Parse accessibility tree
-    for (const line of lines) {
+    for (const [index, line] of lines.entries()) {
       const trimmed = line.trim();
 
-      // Extract URL and title from first line
       if (trimmed.startsWith("✓")) {
-        const match = trimmed.match(/✓\s+(.+?)\s+\n?\s*(https?:\/\/\S+)?/);
-        if (match) {
-          title = match[1];
-          url = match[2] || "";
+        title = trimmed.replace(/^✓\s*/, "").trim();
+        const nextLine = lines[index + 1]?.trim();
+        if (nextLine?.startsWith("http://") || nextLine?.startsWith("https://")) {
+          url = nextLine;
         }
         continue;
       }
 
-      // Parse elements with refs
+      if (!url && (trimmed.startsWith("http://") || trimmed.startsWith("https://"))) {
+        url = trimmed;
+        continue;
+      }
+
       const refMatch = trimmed.match(/\[ref=(e\d+)\]/);
       if (refMatch) {
         const ref = refMatch[1];
@@ -192,48 +191,36 @@ export class SurfClient {
     }
 
     const result = await this.run("click", args);
-    if (this.config.autoScreenshot) {
-      await this.screenshot();
-    }
-    return result;
+    return this.attachScreenshotIfEnabled(result);
   }
 
   async type(
     text: string,
     options: { ref?: string; selector?: string; submit?: boolean } = {},
   ): Promise<SurfActionResult> {
-    const args: string[] = [`"${text}"`];
+    const args: string[] = [text];
     if (options.ref) args.push("--ref", options.ref);
     if (options.selector) args.push("--selector", options.selector);
     if (options.submit) args.push("--submit");
 
     const result = await this.run("type", args);
-    if (this.config.autoScreenshot) {
-      await this.screenshot();
-    }
-    return result;
+    return this.attachScreenshotIfEnabled(result);
   }
 
   async press(key: string): Promise<SurfActionResult> {
     const result = await this.run("key", [key]);
-    if (this.config.autoScreenshot) {
-      await this.screenshot();
-    }
-    return result;
+    return this.attachScreenshotIfEnabled(result);
   }
 
   async scroll(
     direction: "up" | "down" | "left" | "right",
     pixels?: number,
   ): Promise<SurfActionResult> {
-    const args = [direction];
+    const args: string[] = [direction];
     if (pixels) args.push(String(pixels));
 
     const result = await this.run(`scroll.${direction}`, args);
-    if (this.config.autoScreenshot) {
-      await this.screenshot();
-    }
-    return result;
+    return this.attachScreenshotIfEnabled(result);
   }
 
   async select(
@@ -241,7 +228,7 @@ export class SurfClient {
     value: string,
     options: { byLabel?: boolean; byIndex?: boolean } = {},
   ): Promise<SurfActionResult> {
-    const args: string[] = [ref, `"${value}"`];
+    const args: string[] = [ref, value];
     if (options.byLabel) args.push("--by", "label");
     if (options.byIndex) args.push("--by", "index");
 
@@ -257,9 +244,9 @@ export class SurfClient {
     options: { name?: string; action?: "click" | "fill"; value?: string } = {},
   ): Promise<SurfActionResult> {
     const args: string[] = [role];
-    if (options.name) args.push("--name", `"${options.name}"`);
+    if (options.name) args.push("--name", options.name);
     if (options.action) args.push("--action", options.action);
-    if (options.value) args.push("--value", `"${options.value}"`);
+    if (options.value) args.push("--value", options.value);
 
     return this.run("locate.role", args);
   }
@@ -268,7 +255,7 @@ export class SurfClient {
     text: string,
     options: { exact?: boolean; action?: "click" } = {},
   ): Promise<SurfActionResult> {
-    const args: string[] = [`"${text}"`];
+    const args: string[] = [text];
     if (options.exact) args.push("--exact");
     if (options.action) args.push("--action", options.action);
 
@@ -279,9 +266,9 @@ export class SurfClient {
     label: string,
     options: { action?: "fill"; value?: string } = {},
   ): Promise<SurfActionResult> {
-    const args: string[] = [`"${label}"`];
+    const args: string[] = [label];
     if (options.action) args.push("--action", options.action);
-    if (options.value) args.push("--value", `"${options.value}"`);
+    if (options.value) args.push("--value", options.value);
 
     return this.run("locate.label", args);
   }
@@ -316,7 +303,7 @@ export class SurfClient {
   }
 
   async newTab(url: string): Promise<{ tabId: number; windowId: number }> {
-    const result = await this.run("tab.new", [`"${url}"`], true);
+    const result = await this.run("tab.new", [url], true);
     return JSON.parse(result.message || "{}");
   }
 
@@ -329,7 +316,7 @@ export class SurfClient {
   }
 
   async newWindow(url: string): Promise<{ windowId: number; tabId: number }> {
-    const result = await this.run("window.new", [`"${url}"`], true);
+    const result = await this.run("window.new", [url], true);
     return JSON.parse(result.message || "{}");
   }
 
@@ -393,7 +380,7 @@ export class SurfClient {
     prompt: string,
     options: { withPage?: boolean; model?: string } = {},
   ): Promise<string> {
-    const args: string[] = [`"${prompt}"`];
+    const args: string[] = [prompt];
     if (options.withPage) args.push("--with-page");
     if (options.model) args.push("--model", options.model);
 
@@ -405,7 +392,7 @@ export class SurfClient {
     prompt: string,
     options: { withPage?: boolean; model?: string; generateImage?: string } = {},
   ): Promise<string> {
-    const args: string[] = [`"${prompt}"`];
+    const args: string[] = [prompt];
     if (options.withPage) args.push("--with-page");
     if (options.model) args.push("--model", options.model);
     if (options.generateImage) args.push("--generate-image", options.generateImage);
@@ -418,7 +405,7 @@ export class SurfClient {
     prompt: string,
     options: { withPage?: boolean; mode?: "search" | "research" } = {},
   ): Promise<string> {
-    const args: string[] = [`"${prompt}"`];
+    const args: string[] = [prompt];
     if (options.withPage) args.push("--with-page");
     if (options.mode) args.push("--mode", options.mode);
 
@@ -430,7 +417,7 @@ export class SurfClient {
     prompt: string,
     options: { withPage?: boolean; deepSearch?: boolean; model?: string } = {},
   ): Promise<string> {
-    const args: string[] = [`"${prompt}"`];
+    const args: string[] = [prompt];
     if (options.withPage) args.push("--with-page");
     if (options.deepSearch) args.push("--deep-search");
     if (options.model) args.push("--model", options.model);
@@ -445,7 +432,7 @@ export class SurfClient {
 
   async workflow(steps: string[]): Promise<SurfActionResult> {
     const workflow = steps.join(" | ");
-    return this.run("do", [`'${workflow}'`]);
+    return this.run("do", [workflow]);
   }
 
   async workflowFromFile(
@@ -454,7 +441,7 @@ export class SurfClient {
   ): Promise<SurfActionResult> {
     const cmdArgs = ["--file", file];
     for (const [key, value] of Object.entries(args)) {
-      cmdArgs.push(`--${key}`, `"${value}"`);
+      cmdArgs.push(`--${key}`, value);
     }
     return this.run("do", cmdArgs);
   }
@@ -502,7 +489,7 @@ export class SurfClient {
   // ============================================
 
   async evaluate<T>(code: string): Promise<T> {
-    const result = await this.run("js", [`"${code}"`], true);
+    const result = await this.run("js", [code], true);
     return JSON.parse(result.message || "null");
   }
 
@@ -553,6 +540,25 @@ export class SurfClient {
   // LOW-LEVEL EXECUTION
   // ============================================
 
+  private async attachScreenshotIfEnabled(result: SurfActionResult): Promise<SurfActionResult> {
+    if (!this.config.autoScreenshot) {
+      return result;
+    }
+
+    try {
+      const screenshot = await this.screenshot();
+      return {
+        ...result,
+        screenshot: screenshot.screenshot ?? result.screenshot,
+      };
+    } catch (error) {
+      return {
+        ...result,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   private async run(
     command: string,
     args: string[] = [],
@@ -580,13 +586,10 @@ export class SurfClient {
             message: stdout.trim(),
             screenshot: this.extractScreenshotPath(stdout),
           });
-        } else {
-          resolve({
-            success: false,
-            error: stderr || stdout,
-            message: stdout.trim(),
-          });
+          return;
         }
+
+        reject(new Error((stderr || stdout).trim() || `surf ${command} exited with code ${code}`));
       });
 
       proc.on("error", (err) => {

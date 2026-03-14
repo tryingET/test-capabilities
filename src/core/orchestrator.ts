@@ -3,52 +3,106 @@
  * The brain that coordinates all testing agents
  */
 
+import { spawn } from "node:child_process";
 import { z } from "zod";
+import { QuantumTestRunner } from "../quantum/simulator.js";
+import { validateCapabilityContract } from "./capabilities.js";
 
 // ============================================
 // TYPES & SCHEMAS
 // ============================================
 
-export const TargetSchema = z.object({
-  web: z.string().url().optional(),
-  api: z.string().url().optional(),
-  cli: z.string().optional(),
-});
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-export const AgentConfigSchema = z.object({
-  type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester"]),
-  enabled: z.boolean().default(true),
-  intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
-  duration: z.string().optional(),
-  focus: z.array(z.string()).optional(),
-});
+function withAliases(
+  value: unknown,
+  aliases: Record<string, string>,
+): Record<string, unknown> | unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
 
-export const TestCapabilitiesConfigSchema = z.object({
-  version: z.literal("2.0"),
-  name: z.string(),
-  targets: TargetSchema,
-  agents: z.record(z.string(), AgentConfigSchema).optional(),
-  intelligence: z
+  const normalized: Record<string, unknown> = { ...value };
+
+  for (const [fromKey, toKey] of Object.entries(aliases)) {
+    if (fromKey in normalized && !(toKey in normalized)) {
+      normalized[toKey] = normalized[fromKey];
+    }
+    if (fromKey !== toKey && fromKey in normalized) {
+      delete normalized[fromKey];
+    }
+  }
+
+  return normalized;
+}
+
+export const TargetSchema = z
+  .object({
+    web: z.string().url().optional(),
+    api: z.string().url().optional(),
+    cli: z.string().optional(),
+  })
+  .strict();
+
+export const AgentConfigSchema = z
+  .object({
+    type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester"]),
+    enabled: z.boolean().default(true),
+    intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
+    duration: z.string().optional(),
+    focus: z.array(z.string()).optional(),
+  })
+  .strict();
+
+const IntelligenceSchema = z.preprocess(
+  (value) => withAliases(value, { self_healing: "selfHealing" }),
+  z
     .object({
-      selfHealing: z.boolean().default(true),
-      prediction: z.boolean().default(true),
+      selfHealing: z.boolean().default(false),
+      prediction: z.boolean().default(false),
       correlation: z.boolean().default(true),
       collective: z.boolean().default(false),
     })
-    .optional(),
-  quantum: z
+    .strict(),
+);
+
+const QuantumSchema = z.preprocess(
+  (value) =>
+    withAliases(value, {
+      collapse_strategy: "collapseStrategy",
+      max_depth: "maxDepth",
+    }),
+  z
     .object({
       enabled: z.boolean().default(false),
-      branches: z.number().default(100),
+      branches: z.number().int().positive().default(100),
+      collapseStrategy: z.enum(["significance", "diversity", "coverage"]).default("significance"),
+      maxDepth: z.number().int().positive().default(20),
+      timeout: z.union([z.number().positive(), z.string().min(1)]).optional(),
     })
-    .optional(),
-  chaos: z
-    .object({
-      enabled: z.boolean().default(false),
-      experiments: z.array(z.string()).optional(),
-    })
-    .optional(),
-});
+    .strict(),
+);
+
+const ChaosSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    experiments: z.array(z.unknown()).optional(),
+  })
+  .strict();
+
+export const TestCapabilitiesConfigSchema = z
+  .object({
+    version: z.literal("2.0"),
+    name: z.string(),
+    targets: TargetSchema,
+    agents: z.record(z.string(), AgentConfigSchema).optional(),
+    intelligence: IntelligenceSchema.optional(),
+    quantum: QuantumSchema.optional(),
+    chaos: ChaosSchema.optional(),
+  })
+  .strict();
 
 export type TestCapabilitiesConfig = z.infer<typeof TestCapabilitiesConfigSchema>;
 export type Target = z.infer<typeof TargetSchema>;
@@ -128,106 +182,200 @@ export interface RareBug {
 // ORCHESTRATOR CLASS
 // ============================================
 
+function parseDurationToMs(value: number | string | undefined, fallback: number): number {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim();
+  const match = normalized.match(/^(\d+(?:\.\d+)?)(ms|s|m)?$/i);
+  if (!match) {
+    throw new Error(`Unsupported duration format: ${value}`);
+  }
+
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? "ms").toLowerCase();
+  switch (unit) {
+    case "ms":
+      return amount;
+    case "s":
+      return amount * 1000;
+    case "m":
+      return amount * 60_000;
+    default:
+      return fallback;
+  }
+}
+
+function parseCommandLine(commandLine: string): { command: string; args: string[] } {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (const char of commandLine) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (quote) {
+    throw new Error(`Unterminated quote in command: ${commandLine}`);
+  }
+
+  if (escaping) {
+    current += "\\";
+  }
+
+  if (current.length > 0) {
+    tokens.push(current);
+  }
+
+  const [command, ...args] = tokens;
+  if (!command) {
+    throw new Error("CLI target command is empty.");
+  }
+
+  return { command, args };
+}
+
 export class TestCapabilitiesOrchestrator {
   private config: TestCapabilitiesConfig;
   private agents: Map<string, TestAgent> = new Map();
-  private findings: Finding[] = [];
   private predictions: Prediction[] = [];
 
   constructor(config: TestCapabilitiesConfig) {
     this.config = TestCapabilitiesConfigSchema.parse(config);
+    validateCapabilityContract(this.config);
     this.initializeAgents();
   }
 
   private initializeAgents(): void {
-    if (!this.config.agents) return;
+    if (!this.config.agents) {
+      return;
+    }
 
     for (const [name, agentConfig] of Object.entries(this.config.agents)) {
-      if (!agentConfig.enabled) continue;
+      if (!agentConfig.enabled) {
+        continue;
+      }
 
       switch (agentConfig.type) {
-        case "bombadil":
-          this.agents.set(name, new BombadilAgent(agentConfig));
-          break;
-        case "surf":
-          this.agents.set(name, new SurfAgent(agentConfig));
-          break;
-        case "api-fuzzer":
-          this.agents.set(name, new ApiFuzzerAgent(agentConfig));
-          break;
         case "cli-tester":
-          this.agents.set(name, new CliTesterAgent(agentConfig));
+          this.agents.set(name, new CliTesterAgent(name));
           break;
+        default:
+          throw new Error(
+            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'cli-tester' is currently backed by the orchestrator runtime.`,
+          );
       }
     }
   }
 
   async run(): Promise<TestResult> {
+    if (this.agents.size === 0) {
+      throw new Error(
+        "No enabled agents were initialized. Refine the config so at least one supported agent can run.",
+      );
+    }
+
     const startTime = Date.now();
 
-    // Phase 1: Run all agents in parallel
     const agentResults = await Promise.all(
       Array.from(this.agents.values()).map((agent) => agent.execute(this.config.targets)),
     );
 
-    // Phase 2: Correlate findings across agents
     const correlatedFindings = this.correlateFindings(agentResults.flatMap((r) => r.findings));
 
-    // Phase 3: Run prediction if enabled
     if (this.config.intelligence?.prediction) {
       this.predictions = await this.runPrediction(correlatedFindings);
     }
 
-    // Phase 4: Run quantum simulation if enabled
     let quantumInsights: QuantumInsights | undefined;
     if (this.config.quantum?.enabled) {
       quantumInsights = await this.runQuantumSimulation();
     }
 
     const duration = Date.now() - startTime;
-    const healthScore = this.calculateHealthScore(correlatedFindings);
+    const coverage = this.calculateCoverage(agentResults);
+    const blockingFindings = correlatedFindings.some(
+      (finding) => finding.severity === "high" || finding.severity === "critical",
+    );
 
     return {
-      passed: healthScore >= 70,
+      passed: !blockingFindings && coverage.overall > 0,
       duration,
       findings: correlatedFindings,
-      coverage: this.calculateCoverage(agentResults),
+      coverage,
       predictions: this.predictions,
       quantumInsights,
     };
   }
 
   private correlateFindings(findings: Finding[]): Finding[] {
-    // Cross-domain correlation logic
     const correlations: Finding[] = [];
-
-    // Group by component
     const byComponent = new Map<string, Finding[]>();
-    for (const f of findings) {
-      const existing = byComponent.get(f.component) || [];
-      existing.push(f);
-      byComponent.set(f.component, existing);
+
+    for (const finding of findings) {
+      const existing = byComponent.get(finding.component) || [];
+      existing.push(finding);
+      byComponent.set(finding.component, existing);
     }
 
-    // Find related issues across agents
     for (const [component, componentFindings] of byComponent) {
-      if (componentFindings.length > 1) {
-        // Check for API + UI correlation
-        const apiFinding = componentFindings.find((f) => f.type === "api_contract");
-        const uiFinding = componentFindings.find((f) => f.type === "bug");
+      if (componentFindings.length <= 1) {
+        continue;
+      }
 
-        if (apiFinding && uiFinding) {
-          correlations.push({
-            id: `corr-${component}`,
-            type: "bug",
-            severity: "high",
-            component,
-            description: `Cross-domain issue: API validation differs from UI handling`,
-            evidence: [apiFinding.description, uiFinding.description],
-            recommendation: `Align API and UI validation for ${component}`,
-            timestamp: new Date(),
-          });
-        }
+      const apiFinding = componentFindings.find((finding) => finding.type === "api_contract");
+      const uiFinding = componentFindings.find((finding) => finding.type === "bug");
+
+      if (apiFinding && uiFinding) {
+        correlations.push({
+          id: `corr-${component}`,
+          type: "bug",
+          severity: "high",
+          component,
+          description: "Cross-domain issue: API validation differs from UI handling",
+          evidence: [apiFinding.description, uiFinding.description],
+          recommendation: `Align API and UI validation for ${component}`,
+          timestamp: new Date(),
+        });
       }
     }
 
@@ -235,57 +383,111 @@ export class TestCapabilitiesOrchestrator {
   }
 
   private async runPrediction(findings: Finding[]): Promise<Prediction[]> {
-    // ML-based prediction logic (would integrate with actual ML model)
-    const predictions: Prediction[] = [];
+    const probabilityBySeverity: Record<Severity, number> = {
+      critical: 0.92,
+      high: 0.75,
+      medium: 0.45,
+      low: 0.2,
+    };
+    const confidenceBySeverity: Record<Severity, number> = {
+      critical: 0.9,
+      high: 0.8,
+      medium: 0.7,
+      low: 0.6,
+    };
+    const horizonBySeverity: Record<Severity, string> = {
+      critical: "< 1 hour",
+      high: "24h",
+      medium: "1-7 days",
+      low: "1-7 days",
+    };
 
-    for (const finding of findings) {
-      if (finding.severity === "high" || finding.severity === "critical") {
-        predictions.push({
-          component: finding.component,
-          probability: 0.6 + Math.random() * 0.3,
-          trigger: `Based on finding: ${finding.type}`,
-          preventiveAction: finding.recommendation,
-          confidence: 0.75,
-          horizon: "24h",
-        });
-      }
-    }
-
-    return predictions;
+    return findings
+      .filter((finding) => finding.severity === "high" || finding.severity === "critical")
+      .map((finding) => ({
+        component: finding.component,
+        probability: probabilityBySeverity[finding.severity],
+        trigger: `Based on finding: ${finding.type}`,
+        preventiveAction: finding.recommendation,
+        confidence: confidenceBySeverity[finding.severity],
+        horizon: horizonBySeverity[finding.severity],
+      }));
   }
 
   private async runQuantumSimulation(): Promise<QuantumInsights> {
-    const branches = this.config.quantum?.branches || 100;
+    if (!this.config.targets.web) {
+      throw new Error("Quantum simulation requires targets.web.");
+    }
 
-    // Simulate parallel universe testing
+    const branches = this.config.quantum?.branches ?? 100;
+    const collapseStrategy = this.config.quantum?.collapseStrategy ?? "significance";
+    const maxDepth = this.config.quantum?.maxDepth ?? 20;
+    const timeout = parseDurationToMs(this.config.quantum?.timeout, 60_000);
+
+    const runner = new QuantumTestRunner({
+      branches,
+      collapseStrategy,
+      maxDepth,
+      timeout,
+      seed: 42,
+    });
+    const result = await runner.run(this.config.targets.web);
+
     return {
-      universesSimulated: branches,
-      uniquePaths: Math.floor(branches * 0.85),
-      edgeCasesFound: [],
-      rareBugs: [],
-      collapseStrategy: "significance",
+      universesSimulated: result.branchesSimulated,
+      uniquePaths: result.uniquePaths,
+      edgeCasesFound: result.edgeCases.map((edgeCase) => ({
+        type: edgeCase.type,
+        location: edgeCase.evidence[0] ?? this.config.targets.web ?? "unknown",
+        reproduction: edgeCase.reproduction
+          .map((step) => `${step.type}:${step.target}`)
+          .join(" > "),
+      })),
+      rareBugs: result.rareBugs.map((bug) => ({
+        description: bug.description,
+        probability: bug.probability.toFixed(6),
+        impact: bug.severity,
+        reproduction: bug.reproduction.map((step) => `${step.type}:${step.target}`).join(" > "),
+      })),
+      collapseStrategy,
     };
   }
 
-  private calculateHealthScore(findings: Finding[]): number {
-    const weights = {
-      critical: 25,
-      high: 15,
-      medium: 5,
-      low: 1,
+  private calculateCoverage(results: AgentResult[]): CoverageReport {
+    const collect = (selector: (result: AgentResult) => number | undefined): number[] =>
+      results
+        .map(selector)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+    const average = (values: number[]): number => {
+      if (values.length === 0) {
+        return 0;
+      }
+
+      const sum = values.reduce((total, value) => total + value, 0);
+      return Math.round(sum / values.length);
     };
 
-    const deductions = findings.reduce((sum, f) => sum + (weights[f.severity] || 0), 0);
+    const userFlowsValues = collect((result) => result.coverage.userFlows);
+    const apiEndpointValues = collect((result) => result.coverage.apiEndpoints);
+    const edgeCaseValues = collect((result) => result.coverage.edgeCases);
 
-    return Math.max(0, 100 - deductions);
-  }
+    const userFlows = average(userFlowsValues);
+    const apiEndpoints = average(apiEndpointValues);
+    const edgeCases = average(edgeCaseValues);
+    const overall = average(
+      [
+        ...[userFlowsValues.length > 0 ? userFlows : undefined],
+        ...[apiEndpointValues.length > 0 ? apiEndpoints : undefined],
+        ...[edgeCaseValues.length > 0 ? edgeCases : undefined],
+      ].filter((value): value is number => typeof value === "number"),
+    );
 
-  private calculateCoverage(_results: AgentResult[]): CoverageReport {
     return {
-      userFlows: 85 + Math.floor(Math.random() * 10),
-      apiEndpoints: 95 + Math.floor(Math.random() * 5),
-      edgeCases: 60 + Math.floor(Math.random() * 20),
-      overall: 80 + Math.floor(Math.random() * 15),
+      userFlows,
+      apiEndpoints,
+      edgeCases,
+      overall,
     };
   }
 }
@@ -303,43 +505,136 @@ interface TestAgent {
   execute(targets: Target): Promise<AgentResult>;
 }
 
-class BombadilAgent implements TestAgent {
-  async execute(_targets: Target): Promise<AgentResult> {
-    // Bombadil property-based fuzzing
-    return {
-      findings: [],
-      coverage: { userFlows: 90 },
-    };
-  }
-}
-
-class SurfAgent implements TestAgent {
-  async execute(_targets: Target): Promise<AgentResult> {
-    // surf-cli browser automation
-    return {
-      findings: [],
-      coverage: { userFlows: 85 },
-    };
-  }
-}
-
-class ApiFuzzerAgent implements TestAgent {
-  async execute(_targets: Target): Promise<AgentResult> {
-    // API fuzzing
-    return {
-      findings: [],
-      coverage: { apiEndpoints: 100 },
-    };
-  }
-}
-
 class CliTesterAgent implements TestAgent {
-  async execute(_targets: Target): Promise<AgentResult> {
-    // CLI testing
-    return {
-      findings: [],
-      coverage: {},
-    };
+  private readonly agentName: string;
+
+  constructor(agentName: string) {
+    this.agentName = agentName;
+  }
+
+  async execute(targets: Target): Promise<AgentResult> {
+    if (!targets.cli) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-missing-cli-target`,
+            type: "bug",
+            severity: "critical",
+            component: "cli",
+            description: "CLI target is missing for the cli-tester agent",
+            evidence: ["targets.cli was not configured"],
+            recommendation:
+              "Set targets.cli to an executable command or path before running the suite.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { edgeCases: 0 },
+      };
+    }
+
+    let commandDisplay = `${targets.cli} --help`;
+
+    try {
+      const parsedCommand = parseCommandLine(targets.cli);
+      commandDisplay = [parsedCommand.command, ...parsedCommand.args, "--help"].join(" ");
+      const result = await this.runCommand(
+        parsedCommand.command,
+        [...parsedCommand.args, "--help"],
+        10_000,
+      );
+      if (result.timedOut || result.code !== 0) {
+        return {
+          findings: [
+            {
+              id: `${this.agentName}-help-failed`,
+              type: "bug",
+              severity: "critical",
+              component: "cli",
+              description: `CLI smoke command failed: ${commandDisplay}`,
+              evidence: [
+                result.timedOut
+                  ? `timed out after 10000ms${result.signal ? ` (${result.signal})` : ""}`
+                  : result.stderr || result.stdout || `exit code ${result.code}`,
+              ],
+              recommendation: `Ensure '${targets.cli}' is executable and '--help' exits successfully.`,
+              timestamp: new Date(),
+            },
+          ],
+          coverage: { edgeCases: 0 },
+        };
+      }
+
+      return {
+        findings: [],
+        coverage: { edgeCases: 100 },
+      };
+    } catch (error) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-spawn-failed`,
+            type: "bug",
+            severity: "critical",
+            component: "cli",
+            description: `CLI smoke command could not be executed: ${commandDisplay}`,
+            evidence: [error instanceof Error ? error.message : String(error)],
+            recommendation: `Ensure '${targets.cli}' exists and is executable in the current environment.`,
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { edgeCases: 0 },
+      };
+    }
+  }
+
+  private async runCommand(
+    command: string,
+    args: string[],
+    timeoutMs: number,
+  ): Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+  }> {
+    return new Promise((resolve, reject) => {
+      const proc = spawn(command, args, {
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        proc.kill("SIGTERM");
+      }, timeoutMs);
+
+      proc.stdout.on("data", (data) => {
+        stdout += String(data);
+      });
+      proc.stderr.on("data", (data) => {
+        stderr += String(data);
+      });
+
+      proc.on("close", (code, signal) => {
+        clearTimeout(timer);
+        resolve({
+          code,
+          signal,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          timedOut,
+        });
+      });
+
+      proc.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
   }
 }
 
