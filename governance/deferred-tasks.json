@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-03-13",
+  "owner": "@project-owners",
+  "project_name": "test-capabilities",
+  "note": "Temporary holding area for deferred work until AK gains first-class task deferral semantics. governance/work-items.json remains the AK compatibility projection.",
+  "items": [
+    {
+      "id": "DEF-0001",
+      "text": "Add a fast-check-backed property test lane and cover config/schema invariants plus core selection/orchestration invariants.",
+      "owner": "@project-owners",
+      "trigger": "Before expanding autonomous test-generation and healing behavior further.",
+      "deadline": "2026-03-20",
+      "blast_radius": "Property-testing claims remain mostly documentary, so invariant regressions can slip through unnoticed."
+    },
+    {
+      "id": "DEF-0002",
+      "text": "Add executable behavior tests for critical operator and CLI flows using a BDD harness (for example @cucumber/cucumber) and keep scenarios mapped to docs/examples.",
+      "owner": "@project-owners",
+      "trigger": "Before relying on TEST-CAPABILITIES examples and prompts as stable operator workflows.",
+      "deadline": "2026-03-20",
+      "blast_radius": "Behavior expectations stay implicit in docs only, increasing drift between narrative examples and shipped behavior."
+    },
+    {
+      "id": "DEF-0003",
+      "text": "Finish the publish/release contract: emit dist artifacts, align package entrypoints/exports with built output, and keep npm pack contents intentionally minimal.",
+      "owner": "@project-owners",
+      "trigger": "Before any non-private distribution or external consumption commitment.",
+      "deadline": "2026-03-27",
+      "blast_radius": "Release preflight can pass while the package remains source-first and not truly consumer-ready."
+    }
+  ]
+}

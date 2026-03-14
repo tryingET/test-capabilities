@@ -1,13 +1,53 @@
 {
   "schema_version": 1,
-  "updated_at": "",
+  "updated_at": "2026-03-13",
   "owner": "@project-owners",
   "project_name": "test-capabilities",
   "milestones": [
     {
       "id": "M1",
-      "title": "Initial Setup",
-      "issues": []
+      "title": "DB Task Projection",
+      "issues": [
+        {
+          "id": "AK-TASK-0057",
+          "title": "Consolidate next-session handoff into next_session_prompt.md and route task authority to AK",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Consolidate next-session handoff into next_session_prompt.md and route task authority to AK (task #57)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-13"
+        },
+        {
+          "id": "AK-TASK-0059",
+          "title": "Cut over governance/work-items.json to DB-exported compatibility projection",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Cut over governance/work-items.json to DB-exported compatibility projection (task #59)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-13"
+        },
+        {
+          "id": "AK-TASK-0060",
+          "title": "Add missing docs front matter/read_when metadata so strict docs validation passes",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add missing docs front matter/read_when metadata so strict docs validation passes (task #60)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-13"
+        }
+      ]
     }
   ]
 }

@@ -2,7 +2,8 @@ package workitems
 
 // Work-items schema for L2 (project-level) planning.
 // Scope: single repository.
-// Operational status: non-operational (planning artifact only).
+// Operational status: compatibility projection artifact.
+// Canonical queue for this repo is society.v2.db (tasks table via `ak task ...`).
 
 #State: "triage" | "queued" | "doing" | "review" | "done"
 

@@ -1,3 +1,11 @@
+---
+summary: "Repo operating contract for test-capabilities."
+read_when:
+  - "You start work in this repo and need guardrails and default read order"
+  - "You are deciding how to operate safely within test-capabilities"
+type: "reference"
+---
+
 # AGENTS.md — test-capabilities
 
 ## Intent
@@ -8,6 +16,7 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 - Never push to `main`; MRs only.
 - Treat `docs/_core/**` as immutable.
 - Run `./scripts/install-hooks.sh` after cloning/scaffolding to enforce local pre-commit/pre-push CI gates.
+- During AK cutover, treat `governance/work-items.json` as compatibility projection only; keep temporary deferred backlog in `governance/deferred-tasks.json` until AK supports first-class deferrals.
 
 ## Shared tooling
 - Docs discovery/scoping: `./scripts/docs-list.sh --task "<task>" --top 8`

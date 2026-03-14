@@ -1,60 +1,95 @@
 ---
-summary: "Single-file session handoff to avoid stale status/next-steps docs."
+summary: "Stable bootstrap for test-capabilities sessions: use AK as task authority, keep this file lightweight, and do not split handoff across multiple files."
 read_when:
   - "At the start of every work session"
-  - "When resuming after a pause"
+  - "When resuming work in test-capabilities and you need the stable handoff/bootstrap contract"
 ---
 
 # Next Session Prompt
 
-## SESSION TRIGGER (AUTO-START)
-Reading this file is authorization to begin immediately.
-Do not ask for permission to start.
+## SESSION TRIGGER
+Reading this file means start immediately.
+Do not ask for permission to begin.
 
-## ANTI-STALE RULES (HARD)
+## AUTHORITATIVE ORDER
+Use these in this order:
+
+1. **AK DB** — canonical task queue / active work state for this repo
+2. **This file** — stable bootstrap + repo-specific guardrails only
+3. **Canonical repo docs** — README, vision, org/system context, API/framework docs
+4. **`governance/work-items.json`** — compatibility projection only, not the source of truth
+
+Do **not** treat this file as a live status database.
+Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple files again.
+
+## STABLE CONTEXT
+- Repo: `/home/tryinget/ai-society/softwareco/owned/test-capabilities`
+- Intent: testing capability repo for TEST-CAPABILITIES framework, guides, prompts, and integrations
+- This repo is **not** the FCOS proving-lane control surface.
+- Role split:
+  - product/testing capability repo: `softwareco/owned/test-capabilities`
+  - dedicated canary/proving lane repo: `softwareco/owned/fcos-proving-lane`
+- Current stack baseline: Node 22 + npm + TypeScript (`pi-ts` lane)
+- Canonical current-work authority is AK.
+- `governance/work-items.json` is the exported compatibility projection.
+- First-class deferred task semantics are **not** implemented in AK yet; do not invent new repo-local queue shapes while waiting for that slice.
+
+## DURABLE GUARDRAILS
 - Keep this file short and current.
-- Keep only the active handoff window (not a history log).
-- Move finished session narrative to `diary/`.
-- Crystallize durable patterns in `docs/learnings/` and decisions in `docs/decisions/`.
-- Track deferred work in `governance/work-items.json` (not in ad-hoc TODO notes).
+- Keep only one handoff file: `next_session_prompt.md`.
+- Do not mirror queryable runtime/task state in prose when AK/CLI can answer it directly.
+- Do not extend `governance/work-items.json` with custom deferred-task structures.
+- Temporary deferred backlog lives in `governance/deferred-tasks.json` until AK gains first-class deferral support.
+- Until AK gains explicit deferral support, use AK for **current actionable tasks** only.
+- If AK shows no current ready slice for this repo, choose one parked item from `governance/deferred-tasks.json`, promote it into AK as a fresh current task, and work it immediately rather than extending local sidecar semantics.
+- Keep FCOS proving-lane evidence isolated to `fcos-proving-lane`.
+- Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
 
-## SOURCE-OF-TRUTH MAP
-- Repo operating contract: `AGENTS.md`
-- Mission and goals: `docs/project/`
-- Active/deferred work contract: `governance/work-items.json`
-- Prior decisions: `docs/decisions/`
-- Crystallized learnings: `docs/learnings/`
-- Raw session capture: `diary/`
-
-## SESSION PREFLIGHT (FILL BEFORE EXECUTION)
-- Objective (one sentence):
-- Constraints (hard limits):
-- Assumptions (max 3):
-- Blockers (none or list):
-
-## READ-FIRST ALLOWLIST (STARTUP BUDGET)
+## DEFAULT READ PATH FOR NEXT SESSION
 1. `AGENTS.md`
 2. `README.md`
-3. `governance/work-items.json`
-4. `docs/project/mission.md`
-5. `docs/project/tactical_goals.md`
-6. Most recent `diary/YYYY-MM-DD--type-scope-summary.md`
+3. `docs/project/vision.md`
+4. `docs/org_context/org-summary.md`
+5. `docs/system4d/container.md`
+6. `docs/system4d/fog.md`
+7. Relevant implementation/docs for the chosen slice
 
-## EXECUTION MODE (ONE SESSION = ONE SLICE)
-1. Pick one highest-leverage actionable slice from `governance/work-items.json`.
-2. Implement end-to-end on a branch.
-3. Validate:
-   - `./scripts/ci/smoke.sh`
-   - `./scripts/ci/full.sh` (when CI/policy/ontology/contracts changed)
-4. Update source-of-truth artifacts before commit.
+If planning needs the parked backlog, also read `governance/deferred-tasks.json`.
 
-## SESSION CHECKPOINT (UPDATE BEFORE /commit)
-- Slice executed:
-- Outcome:
-- Files changed:
-- Validation commands + results:
-- Deferred tasks updated in `governance/work-items.json`:
-- Next-session starting point:
+If a future session needs narrative capture, create a repo-local `diary/YYYY-MM-DD--type-scope-summary.md` and then keep only the latest pointer here.
 
-## END-OF-SESSION
-Run `/commit` and ensure this file reflects the real checkpoint for the next operator/agent.
+## NEXT-SESSION START COMMANDS
+```bash
+cd /home/tryinget/ai-society/softwareco/owned/test-capabilities
+git status --short
+npm run check
+npm run release:check
+
+# Canonical task authority lives in AK
+cd /home/tryinget/ai-society/softwareco/owned/agent-kernel
+source ./.ak-env-v2
+./scripts/ak-v2.sh task list -F json | rg -C 3 '/home/tryinget/ai-society/softwareco/owned/test-capabilities|test-capabilities'
+
+# If nothing current is ready, inspect parked backlog before creating a fresh AK task
+cd /home/tryinget/ai-society/softwareco/owned/test-capabilities
+uv run python -m json.tool governance/deferred-tasks.json
+```
+
+## PROJECTION / COMPATIBILITY COMMANDS
+Use only when you intentionally need the legacy compatibility artifact refreshed:
+
+```bash
+cd /home/tryinget/ai-society/softwareco/owned/agent-kernel
+source ./.ak-env-v2
+./scripts/ak-v2.sh work-items export \
+  --repo /home/tryinget/ai-society/softwareco/owned/test-capabilities \
+  --path /home/tryinget/ai-society/softwareco/owned/test-capabilities/governance/work-items.json
+```
+
+## SESSION-END RULE
+When ending a future session:
+
+1. update this file only if the stable bootstrap or next-entry pointers changed
+2. keep AK as the authority for current task state
+3. keep `governance/work-items.json` as the exported compatibility projection
+4. keep parked future work in `governance/deferred-tasks.json` until AK grows first-class deferral support
