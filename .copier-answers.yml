@@ -8,7 +8,7 @@ enable_release_pack: false
 enable_software_pack: false
 enable_vouch_gate: false
 kernel_ontology_ref: <gitlab:org/ontology-kernel@v0.1.0>
-language: python
+language: typescript
 location: owned
 org_owner_handle: '@org-owners'
 project_owner_handle: '@project-owners'

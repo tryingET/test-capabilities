@@ -26,7 +26,7 @@ read_when:
 
 | Constraint | Value |
 |------------|-------|
-| Node version | >= 20 |
+| Node version | >= 22 |
 | Module type | ESM only |
 | Quality gate | Biome + Node test runner |
 | Privacy | Local-first correlation, opt-in collective |

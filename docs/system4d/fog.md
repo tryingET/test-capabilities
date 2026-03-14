@@ -17,7 +17,7 @@ read_when:
 
 ## Assumptions
 
-1. **Node 20+ is available** — No support for older runtimes
+1. **Node 22+ is available** — No support for older runtimes
 2. **Users have LLM API access** — Core features require Claude/GPT-4
 3. **Browser automation works** — Requires Chrome/Chromium installed
 4. **Local-first is acceptable** — Some features work offline

@@ -1,15 +1,23 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
-function ensureNode20() {
+function ensureNode22() {
   const major = Number(process.versions.node.split(".")[0]);
-  if (!Number.isFinite(major) || major < 20) {
-    throw new Error(`Node >=20 is required, found ${process.version}`);
+  if (!Number.isFinite(major) || major < 22) {
+    throw new Error(`Node >=22 is required, found ${process.version}`);
   }
 }
 
-function collectMjsFiles(rootDir) {
+function shouldSyntaxCheck(fullPath) {
+  return fullPath.endsWith(".mjs") || fullPath.endsWith(".js");
+}
+
+function collectSyntaxFiles(rootDir) {
+  if (!existsSync(rootDir)) {
+    return [];
+  }
+
   const files = [];
 
   function walk(currentDir) {
@@ -22,14 +30,14 @@ function collectMjsFiles(rootDir) {
         continue;
       }
 
-      if (fullPath.endsWith(".mjs")) {
+      if (shouldSyntaxCheck(fullPath)) {
         files.push(fullPath);
       }
     }
   }
 
   walk(rootDir);
-  return files.sort();
+  return files;
 }
 
 function syntaxCheck(filePath) {
@@ -43,20 +51,22 @@ function syntaxCheck(filePath) {
 }
 
 function main() {
-  ensureNode20();
+  ensureNode22();
 
-  const scanRoots = ["src", "scripts", "tests"];
-  const mjsFiles = scanRoots.flatMap((root) => collectMjsFiles(root));
+  const scanRoots = ["scripts", "tests"];
+  const syntaxFiles = scanRoots.flatMap((root) => collectSyntaxFiles(root));
+  const explicitFiles = ["bin/test-capabilities"].filter((filePath) => existsSync(filePath));
+  const files = [...new Set([...syntaxFiles, ...explicitFiles])].sort();
 
-  if (mjsFiles.length === 0) {
-    throw new Error("No .mjs files found under src/, scripts/, tests/");
+  if (files.length === 0) {
+    throw new Error("No syntax-checkable files found under scripts/, tests/, or bin/");
   }
 
-  for (const filePath of mjsFiles) {
+  for (const filePath of files) {
     syntaxCheck(filePath);
   }
 
-  process.stdout.write(`ok: lint (${mjsFiles.length} files)\n`);
+  process.stdout.write(`ok: lint (${files.length} files)\n`);
 }
 
 main();

@@ -12,6 +12,7 @@ tmp/
 out/
 
 # Generated artifacts
+dist/
 ontology/*.generated.*
 ontology/dist/
 

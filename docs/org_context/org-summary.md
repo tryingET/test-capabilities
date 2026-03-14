@@ -14,7 +14,7 @@ read_when:
 
 ## Tech Stack
 
-- **Runtime:** Node.js 20+ (ESM)
+- **Runtime:** Node.js 22+ (ESM)
 - **Language:** TypeScript
 - **Quality:** Biome (lint/format), Node test runner
 - **Testing tools:** Bombadil (property-based), agent-browser (browser automation)
