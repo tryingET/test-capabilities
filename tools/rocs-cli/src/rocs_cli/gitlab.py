@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -139,15 +140,39 @@ def _write_cache_marker(dest: Path, project_path: str, ref: str) -> None:
     )
 
 
-def gitlab_cache_dest(project_path: str, ref: str) -> Path:
+def _encode_cache_component(value: str) -> str:
+    raw = value.encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=") or "_"
+
+
+def _legacy_gitlab_cache_dest(project_path: str, ref: str) -> Path:
     safe_project = project_path.replace("/", "__")
     safe_ref = ref.replace("/", "__")
     return cache_dir() / "gitlab" / safe_project / safe_ref
 
 
+def _gitlab_cache_dest_candidates(project_path: str, ref: str) -> list[Path]:
+    primary = cache_dir() / "gitlab" / _encode_cache_component(project_path) / _encode_cache_component(ref)
+    legacy = _legacy_gitlab_cache_dest(project_path, ref)
+    out = [primary]
+    if legacy != primary:
+        out.append(legacy)
+    return out
+
+
+def gitlab_cache_dest(project_path: str, ref: str) -> Path:
+    return _gitlab_cache_dest_candidates(project_path, ref)[0]
+
+
+def gitlab_cache_complete_dest(project_path: str, ref: str) -> Path | None:
+    for dest in _gitlab_cache_dest_candidates(project_path, ref):
+        if dest.exists() and _cache_is_complete(dest, project_path, ref):
+            return dest
+    return None
+
+
 def gitlab_cache_is_complete(project_path: str, ref: str) -> bool:
-    dest = gitlab_cache_dest(project_path, ref)
-    return dest.exists() and _cache_is_complete(dest, project_path, ref)
+    return gitlab_cache_complete_dest(project_path, ref) is not None
 
 
 def _validate_tar_member_name(name: str) -> PurePosixPath:
@@ -279,8 +304,9 @@ def fetch_repo_archive(project_path: str, ref: str, *, base_url: str, headers: d
 
     lock_path = _cache_lock_path(dest)
     with _exclusive_lock(lock_path):
-        if dest.exists() and _cache_is_complete(dest, project_path, ref):
-            return dest
+        complete_dest = gitlab_cache_complete_dest(project_path, ref)
+        if complete_dest is not None:
+            return complete_dest
         if dest.exists():
             shutil.rmtree(dest, ignore_errors=True)
 

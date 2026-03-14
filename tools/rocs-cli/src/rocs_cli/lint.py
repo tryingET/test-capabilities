@@ -49,7 +49,7 @@ def lint_docs(concepts: dict[str, OntDoc], relations: dict[str, OntDoc], *, stri
                 findings.append(Finding(rule_id="LINT010", severity="warn", message="missing '## Definition' section", path=str(cdoc.path), layer=cdoc.layer_name))
         if "LINT011" not in ignore:
             body = cdoc.body or ""
-            if re.search(r"(?m)^#+\\s*$", body):
+            if re.search(r"(?m)^#+\s*$", body):
                 findings.append(Finding(rule_id="LINT011", severity="warn", message="empty markdown heading", path=str(cdoc.path), layer=cdoc.layer_name))
         if strict_placeholders and "LINT012" not in ignore:
             body = cdoc.body or ""
@@ -73,7 +73,7 @@ def lint_docs(concepts: dict[str, OntDoc], relations: dict[str, OntDoc], *, stri
                 findings.append(Finding(rule_id="LINT110", severity="warn", message="missing '## Definition' section", path=str(rdoc.path), layer=rdoc.layer_name))
         if "LINT111" not in ignore:
             body = rdoc.body or ""
-            if re.search(r"(?m)^#+\\s*$", body):
+            if re.search(r"(?m)^#+\s*$", body):
                 findings.append(Finding(rule_id="LINT111", severity="warn", message="empty markdown heading", path=str(rdoc.path), layer=rdoc.layer_name))
         if strict_placeholders and "LINT112" not in ignore:
             body = rdoc.body or ""

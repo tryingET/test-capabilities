@@ -11,7 +11,7 @@ import re
 
 
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
-GITLAB_REF_RE = re.compile(r"^<gitlab:([^@>]+)@([^>]+)>$")
+REF_LOCATOR_RE = re.compile(r"^<(repo|gitlab):([^@>]+)@([^>]+)>$")
 
 _ALLOWED_CONCEPT_KEYS = {
     "id",
@@ -96,7 +96,7 @@ def validate_manifest_placeholders(repo_root: Path, strict_placeholders: bool) -
     findings: list[Finding] = []
     for m in PLACEHOLDER_RE.finditer(text):
         token = m.group(0)
-        if GITLAB_REF_RE.match(token):
+        if REF_LOCATOR_RE.match(token):
             continue
         findings.append(
             Finding(
@@ -114,9 +114,12 @@ def validate_reference_schema(
     *,
     strict_placeholders: bool,
     validate_deps: bool,
+    concepts: dict | None = None,
+    relations: dict | None = None,
 ) -> tuple[list[Finding], dict]:
     findings: list[Finding] = []
-    concepts, relations = collect_docs(layers)
+    if concepts is None or relations is None:
+        concepts, relations = collect_docs(layers)
 
     def add_doc_finding(ignore: set[str], finding: Finding) -> None:
         if finding.rule_id in ignore:

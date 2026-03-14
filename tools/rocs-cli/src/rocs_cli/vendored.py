@@ -37,9 +37,12 @@ def validate_vendor_source_layout(repo_root: Path) -> tuple[Path, Path, Path]:
 def validate_vendor_target(*, repo_root: Path, target: Path) -> None:
     resolved_repo_root = repo_root.resolve()
     resolved_target = target.resolve()
+    resolved_source_pkg = (resolved_repo_root / "src" / "rocs_cli").resolve()
 
     if resolved_target == resolved_repo_root:
         raise ValueError("refusing to vendor into source repo root")
+    if resolved_target == resolved_source_pkg or resolved_target.is_relative_to(resolved_source_pkg):
+        raise ValueError(f"refusing to vendor into source package tree: {resolved_target}")
     if resolved_target.exists() and not resolved_target.is_dir():
         raise ValueError(f"target exists and is not a directory: {resolved_target}")
 

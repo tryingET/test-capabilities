@@ -10,15 +10,27 @@ from typing import cast
 from rich.console import Console
 
 from rocs_cli import __version__
+from rocs_cli.authority import (
+    authority_receipt_payload,
+    can_write_authority_receipt,
+    effective_workspace_ref_mode,
+    write_authority_receipt,
+)
 from rocs_cli.cache import cache_dir, clear_cache, list_cache_entries, prune_cache
 from rocs_cli.graph import build_edges, collapse_nodes, compute_layout, write_graph
 from rocs_cli.id_index import build_id_index
 from rocs_cli.inverses import check_inverses
-from rocs_cli.layers import dist_dir, parse_gitlab_ref, repo_root as _repo_root, resolve_layers
+from rocs_cli.layers import (
+    dist_dir,
+    parse_ref_locator,
+    repo_root as _repo_root,
+    resolve_layers,
+    resolve_ref_repo_root,
+)
 from rocs_cli.lint import lint_docs
-from rocs_cli.model import collect_docs
 from rocs_cli.normalize import normalize_tree
 from rocs_cli.pack import build_pack, pack_config_from_profile
+from rocs_cli.repo_view import RepoView, load_repo_view
 from rocs_cli.rules import Finding, RULES
 from rocs_cli.errors import RocsCliError
 from rocs_cli.rulesets import behavior_for_ruleset, effective_ruleset
@@ -35,17 +47,6 @@ from rocs_cli.vendored import verify_vendored_hashes
 console = Console()
 
 _DEFAULT_ENV_REL = Path("holdingco/governance-kernel/.env")
-
-
-def _filter_layers(layers, *, only: str | None, layer: str | None):
-    out = layers
-    if only:
-        if only not in ("path", "ref"):
-            raise SystemExit("--only must be path|ref")
-        out = [layer_spec for layer_spec in out if layer_spec.kind == only]
-    if layer:
-        out = [layer_spec for layer_spec in out if layer_spec.name == layer]
-    return out
 
 
 def _discover_default_env_file(*, repo_root: Path | None) -> Path | None:
@@ -74,6 +75,75 @@ def _maybe_load_env_file(env_file: str | None, *, repo_root: Path | None) -> Non
     from rocs_cli.gitlab import load_env_file
 
     load_env_file(p)
+
+
+def _load_view(args: argparse.Namespace, *, load_docs: bool = True, repo: str | Path | None = None) -> RepoView:
+    repo_root = _repo_root(str(repo if repo is not None else args.repo))
+    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo_root)
+    return load_repo_view(
+        repo_root,
+        profile=getattr(args, "profile", None),
+        resolve_refs=bool(getattr(args, "resolve_refs", False)),
+        workspace_root=getattr(args, "workspace_root", None),
+        workspace_ref_mode=getattr(args, "workspace_ref_mode", None),
+        only=getattr(args, "only", None),
+        layer=getattr(args, "layer", None),
+        load_docs=load_docs,
+    )
+
+
+def _schema_validation_result(
+    view: RepoView,
+    *,
+    strict_placeholders: bool,
+    validate_deps: bool,
+) -> tuple[list[Finding], dict]:
+    findings: list[Finding] = []
+    findings.extend(validate_manifest_placeholders(view.repo, strict_placeholders=strict_placeholders))
+    findings.extend(validate_layers_exist(view.layers))
+    schema_findings, _meta2 = validate_reference_schema(
+        view.layers,
+        strict_placeholders=strict_placeholders,
+        validate_deps=validate_deps,
+        concepts=view.concepts,
+        relations=view.relations,
+    )
+    findings.extend(schema_findings)
+
+    budget = None
+    profile_def = view.meta.get("profile_def") or {}
+    if isinstance(profile_def, dict) and profile_def.get("budget") is not None:
+        budget_raw = profile_def.get("budget")
+        if isinstance(budget_raw, (int, str)):
+            try:
+                budget = int(budget_raw)
+            except Exception:
+                findings.append(
+                    Finding(
+                        rule_id="BUD001",
+                        severity="error",
+                        message=f"invalid profile budget (expected int): {budget_raw!r}",
+                    )
+                )
+        else:
+            findings.append(
+                Finding(
+                    rule_id="BUD001",
+                    severity="error",
+                    message=f"invalid profile budget (expected int): {budget_raw!r}",
+                )
+            )
+    ok_budget, budget_payload = enforce_budget(view.concepts, view.relations, budget=budget)
+    if not ok_budget:
+        findings.append(
+            Finding(
+                rule_id="BUD010",
+                severity="error",
+                message=f"budget exceeded: units={budget_payload['units']} budget={budget_payload['budget']}",
+            )
+        )
+
+    return findings, budget_payload
 
 
 def _findings_to_json(findings: list[Finding]) -> list[dict]:
@@ -119,6 +189,42 @@ def _write_resolve_artifact(repo: Path, *, layers, profile: str | None) -> Path:
     out = dist / "resolve.json"
     out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", "utf-8")
     return out
+
+
+def _write_authority_receipt_if_possible(
+    repo: Path,
+    *,
+    command: str,
+    ok: bool,
+    profile: str | None,
+    resolve_refs_requested: bool,
+    workspace_ref_mode: str,
+    layers,
+    result: dict | None = None,
+    error: RocsCliError | None = None,
+) -> dict[str, Path] | None:
+    if not can_write_authority_receipt(repo):
+        return None
+    payload = authority_receipt_payload(
+        repo,
+        command=command,
+        ok=ok,
+        profile=profile,
+        resolve_refs_requested=resolve_refs_requested,
+        workspace_ref_mode=workspace_ref_mode,
+        layers=list(layers),
+        result=result,
+        error=error,
+    )
+    return write_authority_receipt(repo, payload)
+
+
+def _finding_summary(findings: list[Finding]) -> dict[str, int]:
+    return {
+        "finding_count": len(findings),
+        "error_count": sum(1 for f in findings if f.severity == "error"),
+        "warning_count": sum(1 for f in findings if f.severity == "warn"),
+    }
 
 
 def cmd_version(_args: argparse.Namespace) -> int:
@@ -171,22 +277,12 @@ def cmd_explain(args: argparse.Namespace) -> int:
 
 
 def cmd_resolve(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    profile_name = meta.get("profile") if isinstance(meta, dict) and isinstance(meta.get("profile"), str) else None
-    resolution_notes = meta.get("resolution_notes") if isinstance(meta, dict) else None
+    view = _load_view(args, load_docs=False)
+    repo = view.repo
+    profile_name = view.meta.get("profile") if isinstance(view.meta, dict) and isinstance(view.meta.get("profile"), str) else None
+    resolution_notes = view.meta.get("resolution_notes") if isinstance(view.meta, dict) else None
     layer_entries: list[dict[str, object]] = []
-    for layer_spec in layers:
+    for layer_spec in view.layers:
         entry: dict[str, object] = {
             "name": layer_spec.name,
             "origin": layer_spec.origin,
@@ -203,7 +299,7 @@ def cmd_resolve(args: argparse.Namespace) -> int:
 
     payload: dict[str, object] = {"repo": str(repo), "profile": profile_name, "layers": layer_entries}
     if args.write_dist:
-        _write_resolve_artifact(repo, layers=layers, profile=profile_name)
+        _write_resolve_artifact(repo, layers=view.layers, profile=profile_name)
     if args.json:
         console.print_json(json.dumps(payload))
     else:
@@ -231,23 +327,12 @@ def cmd_resolve(args: argparse.Namespace) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    concepts, relations = collect_docs(layers)
-    profile_name = meta.get("profile") if isinstance(meta, dict) and isinstance(meta.get("profile"), str) else None
-    resolution_notes = meta.get("resolution_notes") if isinstance(meta, dict) else None
+    view = _load_view(args)
+    repo = view.repo
+    profile_name = view.meta.get("profile") if isinstance(view.meta, dict) and isinstance(view.meta.get("profile"), str) else None
+    resolution_notes = view.meta.get("resolution_notes") if isinstance(view.meta, dict) else None
     layer_entries: list[dict[str, object]] = []
-    for layer_spec in layers:
+    for layer_spec in view.layers:
         entry: dict[str, object] = {
             "name": layer_spec.name,
             "origin": layer_spec.origin,
@@ -265,12 +350,12 @@ def cmd_summary(args: argparse.Namespace) -> int:
         "repo": str(repo),
         "profile": profile_name,
         "layers": layer_entries,
-        "counts": {"concepts": len(concepts), "relations": len(relations)},
+        "counts": {"concepts": len(view.concepts), "relations": len(view.relations)},
     }
     if not args.json:
         console.print(f"repo: {repo}")
         console.print(f"profile: {profile_name}")
-        console.print(f"counts: concepts={len(concepts)} relations={len(relations)}")
+        console.print(f"counts: concepts={len(view.concepts)} relations={len(view.relations)}")
         for layer_entry in layer_entries:
             name = str(layer_entry.get("name") or "")
             origin = str(layer_entry.get("origin") or "")
@@ -296,72 +381,63 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
+    ws_mode = effective_workspace_ref_mode(getattr(args, "workspace_ref_mode", None))
     findings: list[Finding] = []
     findings.extend(validate_repo_structure(repo))
     if findings:
+        _write_authority_receipt_if_possible(
+            repo,
+            command="validate",
+            ok=False,
+            profile=getattr(args, "profile", None),
+            resolve_refs_requested=bool(args.resolve_refs),
+            workspace_ref_mode=ws_mode,
+            layers=[],
+            result=_finding_summary(findings),
+        )
         if args.json:
             console.print_json(json.dumps({"ok": False, "findings": _findings_to_json(findings), "budget": {"budget": None, "units": None}}))
         else:
             console.print("[red]rocs validate: FAIL[/red]")
             _print_findings(findings)
         return 1
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    profile_def = meta.get("profile_def") if isinstance(meta, dict) else None
+    try:
+        view = _load_view(args)
+    except RocsCliError as e:
+        _write_authority_receipt_if_possible(
+            repo,
+            command="validate",
+            ok=False,
+            profile=getattr(args, "profile", None),
+            resolve_refs_requested=bool(args.resolve_refs),
+            workspace_ref_mode=ws_mode,
+            layers=[],
+            error=e,
+        )
+        raise
+    profile_name = view.meta.get("profile") if isinstance(view.meta, dict) and isinstance(view.meta.get("profile"), str) else None
+    profile_def = view.meta.get("profile_def") if isinstance(view.meta, dict) else None
     ruleset_name = effective_ruleset(cli_ruleset=getattr(args, "ruleset", None), profile_def=profile_def)
     ruleset_behavior = behavior_for_ruleset(ruleset_name)
     strict_placeholders = bool(args.strict_placeholders or ruleset_behavior.strict_placeholders)
 
-    findings.extend(validate_manifest_placeholders(repo, strict_placeholders=strict_placeholders))
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    findings.extend(validate_layers_exist(layers))
-    schema_findings, _meta2 = validate_reference_schema(
-        layers, strict_placeholders=strict_placeholders, validate_deps=args.validate_deps
+    findings, budget_payload = _schema_validation_result(
+        view,
+        strict_placeholders=strict_placeholders,
+        validate_deps=bool(args.validate_deps),
     )
-    findings.extend(schema_findings)
 
-    concepts, relations = collect_docs(layers)
-    budget = None
-    profile_def = meta.get("profile_def") or {}
-    if isinstance(profile_def, dict) and profile_def.get("budget") is not None:
-        budget_raw = profile_def.get("budget")
-        if isinstance(budget_raw, (int, str)):
-            try:
-                budget = int(budget_raw)
-            except Exception:
-                findings.append(
-                    Finding(
-                        rule_id="BUD001",
-                        severity="error",
-                        message=f"invalid profile budget (expected int): {budget_raw!r}",
-                    )
-                )
-        else:
-            findings.append(
-                Finding(
-                    rule_id="BUD001",
-                    severity="error",
-                    message=f"invalid profile budget (expected int): {budget_raw!r}",
-                )
-            )
-    ok_budget, budget_payload = enforce_budget(concepts, relations, budget=budget)
-    if not ok_budget:
-        findings.append(
-            Finding(
-                rule_id="BUD010",
-                severity="error",
-                message=f"budget exceeded: units={budget_payload['units']} budget={budget_payload['budget']}",
-            )
-        )
-
+    ok = not findings
+    _write_authority_receipt_if_possible(
+        repo,
+        command="validate",
+        ok=ok,
+        profile=profile_name,
+        resolve_refs_requested=bool(args.resolve_refs),
+        workspace_ref_mode=ws_mode,
+        layers=view.layers,
+        result=_finding_summary(findings),
+    )
     if findings:
         if args.json:
             console.print_json(json.dumps({"ok": False, "findings": _findings_to_json(findings), "budget": budget_payload}))
@@ -379,41 +455,87 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_build(args: argparse.Namespace) -> int:
     repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
+    ws_mode = effective_workspace_ref_mode(getattr(args, "workspace_ref_mode", None))
     dist = dist_dir(repo)
     if args.clean and dist.exists():
         shutil.rmtree(dist)
     dist.mkdir(parents=True, exist_ok=True)
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
+    try:
+        view = _load_view(args)
+    except RocsCliError as e:
+        _write_authority_receipt_if_possible(
+            repo,
+            command="build",
+            ok=False,
+            profile=getattr(args, "profile", None),
+            resolve_refs_requested=bool(args.resolve_refs),
+            workspace_ref_mode=ws_mode,
+            layers=[],
+            error=e,
+        )
+        raise
+    profile_name = view.meta.get("profile") if isinstance(view.meta, dict) and isinstance(view.meta.get("profile"), str) else None
+    profile_def = view.meta.get("profile_def") if isinstance(view.meta, dict) else None
+    ruleset_name = effective_ruleset(cli_ruleset=None, profile_def=profile_def)
+    strict_placeholders = behavior_for_ruleset(ruleset_name).strict_placeholders
+    findings, _budget_payload = _schema_validation_result(
+        view,
+        strict_placeholders=strict_placeholders,
+        validate_deps=False,
     )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    concepts, relations = collect_docs(layers)
-    profile_name = meta.get("profile") if isinstance(meta, dict) and isinstance(meta.get("profile"), str) else None
-    resolve_out = _write_resolve_artifact(repo, layers=layers, profile=profile_name)
+    if findings:
+        _write_authority_receipt_if_possible(
+            repo,
+            command="build",
+            ok=False,
+            profile=profile_name,
+            resolve_refs_requested=bool(args.resolve_refs),
+            workspace_ref_mode=ws_mode,
+            layers=view.layers,
+            result=_finding_summary(findings),
+        )
+        if args.json:
+            console.print_json(json.dumps({"ok": False, "findings": _findings_to_json(findings)}))
+        else:
+            console.print("[red]rocs build: FAIL[/red]")
+            _print_findings(findings)
+        return 1
+
+    resolve_out = _write_resolve_artifact(repo, layers=view.layers, profile=profile_name)
     payload = {
         "schema_version": 1,
         "version": __version__,
         "repo": str(repo),
         "profile": profile_name,
-        "layers": [{"name": layer_spec.name, "origin": layer_spec.origin} for layer_spec in layers],
-        "counts": {"concepts": len(concepts), "relations": len(relations)},
-        "concept_ids": sorted(concepts.keys()),
-        "relation_ids": sorted(relations.keys()),
+        "layers": [{"name": layer_spec.name, "origin": layer_spec.origin} for layer_spec in view.layers],
+        "counts": {"concepts": len(view.concepts), "relations": len(view.relations)},
+        "concept_ids": sorted(view.concepts.keys()),
+        "relation_ids": sorted(view.relations.keys()),
     }
     summary_out = dist / "summary.json"
     summary_out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", "utf-8")
     id_index_out = dist / "id_index.json"
     id_index_out.write_text(
-        json.dumps(build_id_index(concepts=concepts, relations=relations), indent=2, sort_keys=True) + "\n", "utf-8"
+        json.dumps(build_id_index(concepts=view.concepts, relations=view.relations), indent=2, sort_keys=True) + "\n", "utf-8"
+    )
+    authority_receipt_out = _write_authority_receipt_if_possible(
+        repo,
+        command="build",
+        ok=True,
+        profile=profile_name,
+        resolve_refs_requested=bool(args.resolve_refs),
+        workspace_ref_mode=ws_mode,
+        layers=view.layers,
     )
     if args.json:
+        files = {
+            "resolve": str(resolve_out),
+            "summary": str(summary_out),
+            "id_index": str(id_index_out),
+        }
+        if authority_receipt_out is not None:
+            files["authority_receipt"] = str(authority_receipt_out["aggregate"])
+            files["authority_receipt_command"] = str(authority_receipt_out["command"])
         console.print_json(
             json.dumps(
                 {
@@ -421,11 +543,7 @@ def cmd_build(args: argparse.Namespace) -> int:
                     "profile": profile_name,
                     "dist": {
                         "dir": str(dist),
-                        "files": {
-                            "resolve": str(resolve_out),
-                            "summary": str(summary_out),
-                            "id_index": str(id_index_out),
-                        },
+                        "files": files,
                     },
                     "counts": payload.get("counts"),
                 }
@@ -434,25 +552,16 @@ def cmd_build(args: argparse.Namespace) -> int:
     else:
         console.print(f"[green]wrote[/green] {summary_out}")
         console.print(f"[green]wrote[/green] {id_index_out}")
+        if authority_receipt_out is not None:
+            console.print(f"[green]wrote[/green] {authority_receipt_out['aggregate']}")
+            console.print(f"[green]wrote[/green] {authority_receipt_out['command']}")
     return 0
 
 
 def cmd_pack(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    concepts, relations = collect_docs(layers)
+    view = _load_view(args)
     cid = args.ont_id
-    doc = concepts.get(cid) or relations.get(cid)
+    doc = view.concepts.get(cid) or view.relations.get(cid)
     if not doc:
         raise RocsCliError(kind="not_found", message=f"unknown ont_id: {cid}", exit_code=2, details={"ont_id": cid})
 
@@ -461,7 +570,7 @@ def cmd_pack(args: argparse.Namespace) -> int:
         rel_types = {x.strip() for x in args.rel_types.split(",") if x.strip()}
 
     cfg = pack_config_from_profile(
-        profile_def=meta.get("profile_def") if isinstance(meta, dict) else None,
+        profile_def=view.meta.get("profile_def") if isinstance(view.meta, dict) else None,
         overrides={
             "max_depth": args.depth,
             "rel_types": rel_types,
@@ -471,13 +580,13 @@ def cmd_pack(args: argparse.Namespace) -> int:
         },
     )
 
-    packed, pack_meta = build_pack(concepts=concepts, relations=relations, root_id=cid, config=cfg)
+    packed, pack_meta = build_pack(concepts=view.concepts, relations=view.relations, root_id=cid, config=cfg)
     if args.json:
         console.print_json(
             json.dumps(
                 {
-                    "repo": str(repo),
-                    "profile": meta.get("profile"),
+                    "repo": str(view.repo),
+                    "profile": view.meta.get("profile"),
                     "pack": pack_meta,
                     "docs": [{"ont_id": d.ont_id, "kind": d.kind, "path": d.path} for d in packed],
                 }
@@ -496,26 +605,14 @@ def cmd_pack(args: argparse.Namespace) -> int:
 
 
 def cmd_lint(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    concepts, relations = collect_docs(layers)
-    profile_def = meta.get("profile_def") if isinstance(meta, dict) else None
+    view = _load_view(args)
+    profile_def = view.meta.get("profile_def") if isinstance(view.meta, dict) else None
     ruleset_name = effective_ruleset(cli_ruleset=getattr(args, "ruleset", None), profile_def=profile_def)
     ruleset_behavior = behavior_for_ruleset(ruleset_name)
     strict_placeholders = bool(args.strict_placeholders or ruleset_behavior.strict_placeholders)
     fail_on_warn = bool(args.fail_on_warn or ruleset_behavior.fail_on_warn)
 
-    findings = lint_docs(concepts, relations, strict_placeholders=strict_placeholders)
+    findings = lint_docs(view.concepts, view.relations, strict_placeholders=strict_placeholders)
     rule_filter: set[str] | None = None
     if args.rules and args.rules != "all":
         rule_filter = {x.strip() for x in args.rules.split(",") if x.strip()}
@@ -538,20 +635,8 @@ def cmd_lint(args: argparse.Namespace) -> int:
 
 
 def cmd_check_inverses(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, _meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    _concepts, relations = collect_docs(layers)
-    findings = check_inverses(relations, fix=args.fix)
+    view = _load_view(args)
+    findings = check_inverses(view.relations, fix=args.fix)
     if args.json:
         console.print_json(json.dumps({"findings": _findings_to_json(findings)}))
     else:
@@ -566,26 +651,14 @@ def cmd_check_inverses(args: argparse.Namespace) -> int:
 
 
 def cmd_graph(args: argparse.Namespace) -> int:
-    repo = _repo_root(args.repo)
-    _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
-    layers, _meta = resolve_layers(
-        repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    layers = _filter_layers(layers, only=args.only, layer=args.layer)
-    concepts, _relations = collect_docs(layers)
+    view = _load_view(args)
     rel_filter: set[str] | None = None
     if args.scope == "taxonomy":
         rel_filter = {"is_a"}
     if args.relation:
         rel_filter = {args.relation}
-    edges = build_edges(concepts, rel_filter=rel_filter)
-    nodes = sorted(concepts.keys())
+    edges = build_edges(view.concepts, rel_filter=rel_filter)
+    nodes = sorted(view.concepts.keys())
     if args.collapse_prefix:
         nodes, edges = collapse_nodes(nodes, edges, prefixes=args.collapse_prefix.split(","))
     layout = compute_layout(nodes, edges, layout=args.layout)
@@ -593,13 +666,13 @@ def cmd_graph(args: argparse.Namespace) -> int:
         out = Path(args.out)
     else:
         if args.json:
-            out = dist_dir(repo) / "graph.json"
+            out = dist_dir(view.repo) / "graph.json"
         elif args.format == "dot":
-            out = dist_dir(repo) / "graph.dot"
+            out = dist_dir(view.repo) / "graph.dot"
         elif args.format == "excalidraw-cli-json":
-            out = dist_dir(repo) / "graph.excalidraw-cli.json"
+            out = dist_dir(view.repo) / "graph.excalidraw-cli.json"
         else:
-            out = dist_dir(repo) / "graph.excalidraw.json"
+            out = dist_dir(view.repo) / "graph.excalidraw.json"
     direction = "LR" if args.layout == "dag" else "TB"
     fmt = "json" if args.json else args.format
     write_graph(out, fmt=fmt, nodes=nodes, edges=edges, layout=layout, direction=direction)
@@ -656,8 +729,6 @@ def cmd_normalize(args: argparse.Namespace) -> int:
         only="path",
         layer=args.layer,
     )
-    # normalize never touches ref layers
-    layers = _filter_layers(layers, only="path", layer=args.layer)
     changed_paths: list[str] = []
     for layer_spec in layers:
         for c in normalize_tree(layer_spec.src_root, apply=args.apply):
@@ -690,45 +761,28 @@ def cmd_diff(args: argparse.Namespace) -> int:
     _maybe_load_env_file(getattr(args, "env_file", None), repo_root=repo)
     baseline = args.baseline.strip()
     if not args.resolve_refs:
-        raise SystemExit("rocs diff requires --resolve-refs to fetch a <gitlab:...@...> baseline (offline-first default)")
-    parsed = parse_gitlab_ref(baseline)
+        raise SystemExit(
+            "rocs diff requires --resolve-refs to resolve a <repo:...@...> or legacy <gitlab:...@...> baseline"
+        )
+    parsed = parse_ref_locator(baseline)
     if parsed is None:
-        raise SystemExit("--baseline must be a <gitlab:...@...> locator for now")
-    # Treat baseline as repo archive root; then diff its resolved view against current.
-    from rocs_cli.gitlab import fetch_repo_archive, gitlab_base_url, gitlab_headers
+        raise SystemExit("--baseline must be a <repo:...@...> or legacy <gitlab:...@...> locator for now")
 
-    project_path, ref = parsed
-    base_repo = fetch_repo_archive(project_path, ref, base_url=gitlab_base_url(), headers=gitlab_headers())
-
-    cur_layers, cur_meta = resolve_layers(
-        repo,
-        profile=args.profile,
+    base_repo, _base_source, _base_notes = resolve_ref_repo_root(
+        baseline,
         resolve_refs=args.resolve_refs,
         workspace_root=args.workspace_root,
         workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
     )
-    base_layers, base_meta = resolve_layers(
-        base_repo,
-        profile=args.profile,
-        resolve_refs=args.resolve_refs,
-        workspace_root=args.workspace_root,
-        workspace_ref_mode=args.workspace_ref_mode,
-        only=args.only,
-        layer=args.layer,
-    )
-    cur_layers = _filter_layers(cur_layers, only=args.only, layer=args.layer)
-    base_layers = _filter_layers(base_layers, only=args.only, layer=args.layer)
 
-    cur_concepts, cur_relations = collect_docs(cur_layers)
-    base_concepts, base_relations = collect_docs(base_layers)
+    cur_view = _load_view(args)
+    base_view = _load_view(args, repo=base_repo)
 
-    cur_edges = {f"{e.src}|{e.rel}|{e.dst}" for e in build_edges(cur_concepts, rel_filter=None)}
-    base_edges = {f"{e.src}|{e.rel}|{e.dst}" for e in build_edges(base_concepts, rel_filter=None)}
+    cur_edges = {f"{e.src}|{e.rel}|{e.dst}" for e in build_edges(cur_view.concepts, rel_filter=None)}
+    base_edges = {f"{e.src}|{e.rel}|{e.dst}" for e in build_edges(base_view.concepts, rel_filter=None)}
 
-    removed_concepts, added_concepts = _diff_sets(set(base_concepts.keys()), set(cur_concepts.keys()))
-    removed_relations, added_relations = _diff_sets(set(base_relations.keys()), set(cur_relations.keys()))
+    removed_concepts, added_concepts = _diff_sets(set(base_view.concepts.keys()), set(cur_view.concepts.keys()))
+    removed_relations, added_relations = _diff_sets(set(base_view.relations.keys()), set(cur_view.relations.keys()))
     removed_edges, added_edges = _diff_sets(base_edges, cur_edges)
 
     breaking = {
@@ -741,7 +795,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
         "schema_version": 1,
         "version": __version__,
         "repo": str(repo),
-        "profile": cur_meta.get("profile") if isinstance(cur_meta, dict) and isinstance(cur_meta.get("profile"), str) else None,
+        "profile": cur_view.meta.get("profile") if isinstance(cur_view.meta, dict) and isinstance(cur_view.meta.get("profile"), str) else None,
         "baseline": baseline,
         "baseline_repo": str(base_repo),
         "diff": {
@@ -783,7 +837,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_resolve_common = argparse.ArgumentParser(add_help=False)
     p_resolve_common.add_argument(
         "--workspace-root",
-        help="workspace root used to satisfy <gitlab:...@ref> from local clones (or ROCS_WORKSPACE_ROOT)",
+        help="workspace root used to satisfy <repo:...@ref> refs locally (and legacy <gitlab:...@ref> locators) (or ROCS_WORKSPACE_ROOT)",
     )
     p_resolve_common.add_argument(
         "--workspace-ref-mode",
@@ -818,8 +872,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("resolve", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--json", action="store_true", help="emit JSON output")
@@ -829,8 +887,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summary", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--json", action="store_true", help="emit JSON output")
@@ -841,8 +903,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--strict-placeholders", action="store_true", help="fail if any <...> placeholders exist")
     p.add_argument("--ruleset", choices=["dev", "strict"], help="ruleset defaults (or rocs.profiles.<name>.ruleset)")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument(
@@ -855,10 +921,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("diff", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
-    p.add_argument("--baseline", required=True, help="baseline <gitlab:...@ref> to diff against")
+    p.add_argument("--baseline", required=True, help="baseline <repo:...@ref> (or legacy <gitlab:...@ref>) to diff against")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--json", action="store_true", help="emit JSON diff")
@@ -867,8 +937,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("lint", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--strict-placeholders", action="store_true", help="treat placeholders in bodies as lint warnings")
@@ -881,8 +955,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check-inverses", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--fix", action="store_true", help="apply safe fixes to local/path layer relation docs")
@@ -892,8 +970,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("graph", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--scope", choices=["all", "taxonomy"], default="all")
@@ -908,8 +990,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("build", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--clean", action="store_true", help="remove ontology/dist before building")
@@ -920,8 +1006,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("ont_id")
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--only", help="filter layers: path|ref")
     p.add_argument("--layer", help="filter a specific layer name")
     p.add_argument("--depth", type=int, help="relation expansion depth (default: profile pack.max_depth or 0)")
@@ -951,8 +1041,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("normalize", parents=[p_resolve_common])
     p.add_argument("--repo", default=".", help="repo root path")
     p.add_argument("--profile", help="manifest profile name (defaults to rocs.profiles.default)")
-    p.add_argument("--resolve-refs", action="store_true", help="allow fetching <gitlab:...> layers into cache")
-    p.add_argument("--env-file", help="dotenv file to load into environment (for GitLab base url/token)")
+    p.add_argument(
+        "--resolve-refs",
+        action="store_true",
+        help="resolve <repo:...@...> refs locally and allow legacy <gitlab:...> fetches when needed",
+    )
+    p.add_argument("--env-file", help="dotenv file to load into environment (for local config and legacy GitLab auth)")
     p.add_argument("--layer", help="only normalize a specific layer name (path layers only)")
     p.add_argument("--apply", action="store_true", help="apply changes (default: check only)")
     p.set_defaults(fn=cmd_normalize)

@@ -19,7 +19,10 @@ def split_frontmatter(text: str) -> tuple[dict | None, str]:
 
 def load_frontmatter(path: Path) -> tuple[dict, str]:
     text = path.read_text("utf-8")
-    fm, body = split_frontmatter(text)
+    try:
+        fm, body = split_frontmatter(text)
+    except yaml.YAMLError as e:
+        raise ValueError(f"invalid front matter YAML: {path}: {e}") from e
     if fm is None:
         raise ValueError(f"missing front matter: {path}")
     return fm, body

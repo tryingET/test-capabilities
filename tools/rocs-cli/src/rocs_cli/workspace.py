@@ -89,7 +89,12 @@ def _origin_project_path(repo_root: Path) -> str | None:
     return _project_path_from_remote_url(url or "")
 
 
-def pick_workspace_repo_root(workspace_root: Path, project_path: str) -> Path | None:
+def pick_workspace_repo_root(
+    workspace_root: Path,
+    project_path: str,
+    *,
+    require_origin_match: bool = True,
+) -> Path | None:
     existing = [p for p in workspace_repo_candidates(workspace_root, project_path) if p.exists() and p.is_dir()]
     if not existing:
         return None
@@ -101,6 +106,12 @@ def pick_workspace_repo_root(workspace_root: Path, project_path: str) -> Path | 
         git_repos.append(repo)
 
     if not git_repos:
+        return None
+
+    if not require_origin_match:
+        for candidate in workspace_repo_candidates(workspace_root, project_path):
+            if candidate in git_repos:
+                return candidate
         return None
 
     matching: list[Path] = []
