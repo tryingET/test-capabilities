@@ -91,11 +91,45 @@ node ./bin/test-capabilities heal --dir ./tests --dry-run
 # Testing
 npm test                  # Run tests
 npm run test:ci-targeted  # CI-targeted smoke tests
+npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
 
 # Docs discovery
 npm run docs:list            # List relevant docs for a task
 npm run docs:list:workspace  # Workspace-wide doc scan
 ```
+
+## Capability drill
+
+To exercise the shipped capabilities against deterministic local fixtures, run:
+
+```bash
+npm run capability:drill
+```
+
+What it checks today:
+- `test` succeeds on a real CLI smoke target and rejects inert URL overrides in quick mode
+- `quantum` succeeds on an explicit local URL and fails closed when `--target` is missing
+- `heal` proposes selector fixes without rewriting payload literals or custom-helper strings
+- `surf explore` runs through the shipped wrapper path and rejects invalid URLs
+- library drills for orchestrator correlation and prediction input validation
+
+Surf modes:
+
+```bash
+# Auto-detect: use real surf if installed, otherwise a deterministic shim
+npm run capability:drill
+
+# Force the deterministic shim path
+bash ./scripts/capability-drill.sh --surf-mode shim
+
+# Require a real surf install on PATH
+bash ./scripts/capability-drill.sh --surf-mode real
+
+# Emit machine-readable JSON for automation
+bash ./scripts/capability-drill.sh --json --surf-mode shim --skip-build
+```
+
+The JSON mode returns a structured summary with `ok`, `surfMode`, `summary`, and per-check status entries so CI or agent tooling can consume the drill result without scraping terminal text.
 
 ## Structure
 

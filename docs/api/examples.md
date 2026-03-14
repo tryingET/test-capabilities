@@ -181,3 +181,25 @@ npm run consumer:smoke
 ```
 
 Use this to verify the packed artifact still exposes a working consumer contract.
+
+---
+
+## Example 9: repo-local capability drill
+
+```bash
+npm run capability:drill
+```
+
+This repo-local harness exercises the currently shipped capabilities against deterministic local fixtures.
+By default it auto-detects `surf`: if `surf` is on `PATH`, the drill uses the real command; otherwise it installs a temporary shim so the wrapper path can still be verified.
+
+```bash
+# Force the deterministic surf shim
+bash ./scripts/capability-drill.sh --surf-mode shim
+
+# Require a real surf install
+bash ./scripts/capability-drill.sh --surf-mode real
+
+# Emit machine-readable JSON for CI / agent consumers
+bash ./scripts/capability-drill.sh --json --surf-mode shim --skip-build
+```

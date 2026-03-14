@@ -19,5 +19,7 @@ test("baseline: node22 + required scripts are present", () => {
   assert.equal(typeof pkg.scripts?.["consumer:smoke"], "string");
   assert.equal(typeof pkg.scripts?.["release:check"], "string");
   assert.equal(typeof pkg.scripts?.["release:check:quick"], "string");
+  assert.equal(typeof pkg.scripts?.["capability:drill"], "string");
+  assert.equal(typeof pkg.scripts?.["capability:passport"], "string");
   assert.equal(typeof pkg.scripts?.prepack, "string");
 });

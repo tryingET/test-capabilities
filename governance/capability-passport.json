@@ -1,0 +1,367 @@
+{
+  "schema_version": 1,
+  "kind": "capability_passport_projection",
+  "repo_name": "test-capabilities",
+  "package_version": "0.1.0",
+  "projection_note": "Informational capability projection for this repo. Useful now, but not authoritative task or product state. Candidate future AK model.",
+  "support_state_vocabulary": ["supported", "unsupported", "parked", "library_only"],
+  "verification_state_vocabulary": ["verified", "contract_only", "present_only", "unverified"],
+  "capabilities": [
+    {
+      "id": "agent:api-fuzzer",
+      "name": "api-fuzzer orchestrator agent",
+      "surface_kind": "orchestrator-agent",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/orchestrator_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "agent:bombadil",
+      "name": "bombadil orchestrator agent",
+      "surface_kind": "orchestrator-agent",
+      "presence_state": "present",
+      "support_state": "parked",
+      "verification_state": "present_only",
+      "evidence": {
+        "files": ["external/bombadil"],
+        "tests": ["tests/orchestrator_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
+      "activation_requirements": [
+        "Add a core-owned Bombadil execution path instead of depending on the vendored binary ad hoc.",
+        "Introduce fail-closed input validation plus structured result envelopes for Bombadil-backed runs.",
+        "Add adversarial runtime fixtures, docs, and release checks before promoting the agent to supported.",
+        "Only then flip support_state from parked to supported in the capability passport and runtime matrix."
+      ],
+      "notes": "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
+    },
+    {
+      "id": "agent:cli-tester",
+      "name": "cli-tester orchestrator agent",
+      "surface_kind": "orchestrator-agent",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/orchestrator_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "agent:surf",
+      "name": "surf orchestrator agent",
+      "surface_kind": "orchestrator-agent",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/orchestrator_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:heal",
+      "name": "heal command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/healing_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:predict",
+      "name": "predict command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/cli_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:quantum",
+      "name": "quantum command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/cli_fail_closed_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/quantum_simulator_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:report",
+      "name": "report command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/cli_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:surf",
+      "name": "surf command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/cli_fail_closed_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:test",
+      "name": "test command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/cli_fail_closed_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "cli:visualize",
+      "name": "visualize command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/cli_fail_closed_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:executeCliOperation",
+      "name": "executeCliOperation",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:PredictionEngine",
+      "name": "PredictionEngine",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/prediction_collector_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:QuantumSimulator",
+      "name": "QuantumSimulator",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/quantum_simulator_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:SelfHealingEngine",
+      "name": "SelfHealingEngine",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/healing_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:SurfClient",
+      "name": "SurfClient",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/surf_client_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "library:TestFileHealer",
+      "name": "TestFileHealer",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/healing_contract.test.mjs", "tests/capability_drill_contract.test.mjs"],
+        "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "surf-action:assert",
+      "name": "surf assert",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "surf-action:compare",
+      "name": "surf compare",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "surf-action:explore",
+      "name": "surf explore",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/surf_client_contract.test.mjs",
+          "tests/capability_drill_contract.test.mjs"
+        ],
+        "commands": ["npm run capability:drill -- --surf-mode shim --skip-build"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "surf-action:flow",
+      "name": "surf flow",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "surf-action:replay",
+      "name": "surf replay",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
+      "id": "tool:bombadil-binary",
+      "name": "Vendored Bombadil binary",
+      "surface_kind": "vendored-tool",
+      "presence_state": "present",
+      "support_state": "parked",
+      "verification_state": "present_only",
+      "evidence": {
+        "files": ["external/bombadil"],
+        "commands": ["file external/bombadil"]
+      },
+      "attach_points": ["external/bombadil", "README.md", "next_session_prompt.md"],
+      "activation_requirements": [
+        "Reintroduce Bombadil through a supported runtime path before treating the vendored binary as a user-facing capability."
+      ],
+      "notes": "Presence in the repo does not imply runtime support; this entry exists to make that distinction explicit."
+    }
+  ]
+}

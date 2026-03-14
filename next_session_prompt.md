@@ -45,6 +45,7 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 - Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
 - Operation-kernel refactor trigger: if `src/core/operations.ts` grows beyond the current 4 shipped verbs or gains a second adapter surface beyond the CLI, split it into route manifest vs executor modules before adding more behavior.
 - Healer refactor trigger: if `src/healing/self-healing.ts` gains more selector grammars or another mutation mode, split selector extraction / proposal synthesis / transactional apply into separate modules before extending it again.
+- Bombadil is currently a **parked** capability: binary vendored at `external/bombadil`, runtime agent still unsupported. Use `governance/capability-passport.json` as the current projection when resuming Bombadil work.
 
 ## DEFAULT READ PATH FOR NEXT SESSION
 1. `AGENTS.md`
@@ -56,6 +57,21 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 7. Relevant implementation/docs for the chosen slice
 
 If a future session needs narrative capture, create a repo-local `diary/YYYY-MM-DD--type-scope-summary.md` and then keep only the latest pointer here.
+
+## BOMBADIL OPTION-C POINTER
+When resuming Bombadil reintroduction, treat it as **Option C: proper reintroduction through the core runtime**, not as an ad-hoc binary call.
+Start from:
+1. `governance/capability-passport.json`
+2. `external/bombadil`
+3. `src/core/capabilities.ts`
+4. `src/core/orchestrator.ts`
+5. `src/core/operations.ts`
+6. current fail-closed tests/docs
+
+Acceptance for that future slice:
+- Bombadil gets a core-owned execution path
+- capability contract flips only after runtime, docs, adversarial fixtures, and release checks are real
+- repo state clearly distinguishes vendored presence from supported runtime behavior
 
 ## NEXT-SESSION START COMMANDS
 ```bash

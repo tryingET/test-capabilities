@@ -1,0 +1,335 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const outputPath = path.join(repoRoot, "governance", "capability-passport.json");
+const stdoutMode = process.argv.includes("--stdout");
+
+let capabilityMatrix;
+try {
+  ({ CAPABILITY_MATRIX: capabilityMatrix } = await import("../dist/core/capabilities.js"));
+} catch (error) {
+  throw new Error(
+    `Capability passport generation requires built runtime artifacts. Run 'npm run build' first. ${error instanceof Error ? error.message : String(error)}`,
+  );
+}
+
+const packageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+const bombadilBinaryPath = path.join(repoRoot, "external", "bombadil");
+const bombadilPresent = existsSync(bombadilBinaryPath);
+
+function capabilityEntry({
+  id,
+  name,
+  surfaceKind,
+  presenceState,
+  supportState,
+  verificationState,
+  evidence = {},
+  attachPoints = [],
+  activationRequirements = [],
+  notes,
+}) {
+  return {
+    id,
+    name,
+    surface_kind: surfaceKind,
+    presence_state: presenceState,
+    support_state: supportState,
+    verification_state: verificationState,
+    evidence,
+    attach_points: attachPoints,
+    activation_requirements: activationRequirements,
+    ...(notes ? { notes } : {}),
+  };
+}
+
+const commandEvidence = {
+  test: {
+    tests: [
+      "tests/cli_fail_closed_contract.test.mjs",
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/capability_drill_contract.test.mjs",
+    ],
+    commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+  },
+  surf: {
+    tests: [
+      "tests/cli_fail_closed_contract.test.mjs",
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/capability_drill_contract.test.mjs",
+    ],
+    commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+  },
+  heal: {
+    tests: [
+      "tests/healing_contract.test.mjs",
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/capability_drill_contract.test.mjs",
+    ],
+    commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+  },
+  quantum: {
+    tests: [
+      "tests/cli_fail_closed_contract.test.mjs",
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/quantum_simulator_contract.test.mjs",
+      "tests/capability_drill_contract.test.mjs",
+    ],
+    commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+  },
+  predict: {
+    tests: ["tests/cli_fail_closed_contract.test.mjs"],
+    commands: ["npm test"],
+  },
+  visualize: {
+    tests: ["tests/cli_fail_closed_contract.test.mjs"],
+    commands: ["npm test"],
+  },
+  report: {
+    tests: ["tests/cli_fail_closed_contract.test.mjs"],
+    commands: ["npm test"],
+  },
+};
+
+const actionEvidence = {
+  explore: {
+    tests: [
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/surf_client_contract.test.mjs",
+      "tests/capability_drill_contract.test.mjs",
+    ],
+    commands: ["npm run capability:drill -- --surf-mode shim --skip-build"],
+  },
+  flow: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
+  assert: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
+  compare: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
+  replay: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
+};
+
+const capabilities = [];
+
+for (const [command, status] of Object.entries(capabilityMatrix.cli.commands)) {
+  capabilities.push(
+    capabilityEntry({
+      id: `cli:${command}`,
+      name: `${command} command`,
+      surfaceKind: "cli-command",
+      presenceState: "present",
+      supportState: status === "implemented" ? "supported" : "unsupported",
+      verificationState: status === "implemented" ? "verified" : "contract_only",
+      evidence: commandEvidence[command],
+      attachPoints: ["src/core/operations.ts", "src/core/capabilities.ts"],
+    }),
+  );
+}
+
+for (const [action, status] of Object.entries(capabilityMatrix.cli.surfActions)) {
+  capabilities.push(
+    capabilityEntry({
+      id: `surf-action:${action}`,
+      name: `surf ${action}`,
+      surfaceKind: "cli-subcommand",
+      presenceState: "present",
+      supportState: status === "implemented" ? "supported" : "unsupported",
+      verificationState: status === "implemented" ? "verified" : "contract_only",
+      evidence: actionEvidence[action],
+      attachPoints: ["src/core/operations.ts", "src/core/capabilities.ts"],
+    }),
+  );
+}
+
+for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agents)) {
+  const bombadilAgent = agent === "bombadil";
+  capabilities.push(
+    capabilityEntry({
+      id: `agent:${agent}`,
+      name: `${agent} orchestrator agent`,
+      surfaceKind: "orchestrator-agent",
+      presenceState: bombadilAgent && bombadilPresent ? "present" : "present",
+      supportState:
+        status === "implemented"
+          ? "supported"
+          : bombadilAgent && bombadilPresent
+            ? "parked"
+            : "unsupported",
+      verificationState:
+        status === "implemented"
+          ? "verified"
+          : bombadilAgent && bombadilPresent
+            ? "present_only"
+            : "contract_only",
+      evidence:
+        status === "implemented"
+          ? {
+              tests: ["tests/orchestrator_fail_closed_contract.test.mjs"],
+              commands: ["npm test"],
+            }
+          : bombadilAgent && bombadilPresent
+            ? {
+                files: ["external/bombadil"],
+                tests: ["tests/orchestrator_fail_closed_contract.test.mjs"],
+                commands: ["npm test"],
+              }
+            : {
+                tests: ["tests/orchestrator_fail_closed_contract.test.mjs"],
+                commands: ["npm test"],
+              },
+      attachPoints: ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
+      activationRequirements:
+        bombadilAgent && bombadilPresent
+          ? [
+              "Add a core-owned Bombadil execution path instead of depending on the vendored binary ad hoc.",
+              "Introduce fail-closed input validation plus structured result envelopes for Bombadil-backed runs.",
+              "Add adversarial runtime fixtures, docs, and release checks before promoting the agent to supported.",
+              "Only then flip support_state from parked to supported in the capability passport and runtime matrix.",
+            ]
+          : [],
+      notes:
+        bombadilAgent && bombadilPresent
+          ? "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
+          : undefined,
+    }),
+  );
+}
+
+capabilities.push(
+  capabilityEntry({
+    id: "tool:bombadil-binary",
+    name: "Vendored Bombadil binary",
+    surfaceKind: "vendored-tool",
+    presenceState: bombadilPresent ? "present" : "absent",
+    supportState: bombadilPresent ? "parked" : "unsupported",
+    verificationState: bombadilPresent ? "present_only" : "unverified",
+    evidence: bombadilPresent
+      ? {
+          files: ["external/bombadil"],
+          commands: ["file external/bombadil"],
+        }
+      : {},
+    attachPoints: ["external/bombadil", "README.md", "next_session_prompt.md"],
+    activationRequirements: bombadilPresent
+      ? [
+          "Reintroduce Bombadil through a supported runtime path before treating the vendored binary as a user-facing capability.",
+        ]
+      : [],
+    notes: bombadilPresent
+      ? "Presence in the repo does not imply runtime support; this entry exists to make that distinction explicit."
+      : "Bombadil binary is not currently vendored in this checkout.",
+  }),
+);
+
+const libraryCapabilities = [
+  {
+    id: "library:executeCliOperation",
+    name: "executeCliOperation",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/operation_kernel_contract.test.mjs"],
+      commands: ["npm test"],
+    },
+  },
+  {
+    id: "library:SurfClient",
+    name: "SurfClient",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/surf_client_contract.test.mjs"],
+      commands: ["npm test"],
+    },
+  },
+  {
+    id: "library:QuantumSimulator",
+    name: "QuantumSimulator",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/quantum_simulator_contract.test.mjs"],
+      commands: ["npm test"],
+    },
+  },
+  {
+    id: "library:PredictionEngine",
+    name: "PredictionEngine",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: [
+        "tests/prediction_collector_contract.test.mjs",
+        "tests/capability_drill_contract.test.mjs",
+      ],
+      commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+    },
+  },
+  {
+    id: "library:SelfHealingEngine",
+    name: "SelfHealingEngine",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/healing_contract.test.mjs"],
+      commands: ["npm test"],
+    },
+  },
+  {
+    id: "library:TestFileHealer",
+    name: "TestFileHealer",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/healing_contract.test.mjs", "tests/capability_drill_contract.test.mjs"],
+      commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
+    },
+  },
+];
+
+for (const libraryCapability of libraryCapabilities) {
+  capabilities.push(
+    capabilityEntry({
+      ...libraryCapability,
+      presenceState: "present",
+      supportState: "library_only",
+      attachPoints: ["src/index.ts"],
+    }),
+  );
+}
+
+const passport = {
+  schema_version: 1,
+  kind: "capability_passport_projection",
+  repo_name: packageJson.name,
+  package_version: packageJson.version,
+  projection_note:
+    "Informational capability projection for this repo. Useful now, but not authoritative task or product state. Candidate future AK model.",
+  support_state_vocabulary: ["supported", "unsupported", "parked", "library_only"],
+  verification_state_vocabulary: ["verified", "contract_only", "present_only", "unverified"],
+  capabilities: capabilities.sort((left, right) => left.id.localeCompare(right.id)),
+};
+
+const serialized = `${JSON.stringify(passport, null, 2)}\n`;
+
+if (stdoutMode) {
+  process.stdout.write(serialized);
+} else {
+  writeFileSync(outputPath, serialized, "utf8");
+
+  const biomePath = path.join(repoRoot, "node_modules", ".bin", "biome");
+  if (existsSync(biomePath)) {
+    const formatted = spawnSync(biomePath, ["format", "--write", outputPath], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    if (formatted.status !== 0) {
+      throw new Error(
+        `Biome formatting failed for capability passport: ${formatted.stderr || formatted.stdout}`,
+      );
+    }
+  }
+
+  process.stdout.write(`${outputPath}\n`);
+}

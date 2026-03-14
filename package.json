@@ -51,6 +51,8 @@
     "docs:list:workspace": "bash ./scripts/docs-list.sh --workspace --discover",
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "tech-stack": "bash ./scripts/tech-stack.sh",
+    "capability:drill": "bash ./scripts/capability-drill.sh",
+    "capability:passport": "npm run build --silent && node ./scripts/generate-capability-passport.mjs",
     "test-capabilities": "npm run build --silent && node ./bin/test-capabilities",
     "prepack": "npm run build"
   },

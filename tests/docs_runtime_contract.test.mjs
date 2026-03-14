@@ -110,6 +110,18 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 
+test("examples docs include the repo-local capability drill", () => {
+  const examplesDoc = load("docs/api/examples.md");
+  const readmeDoc = load("README.md");
+
+  assert.match(examplesDoc, /npm run capability:drill/);
+  assert.match(examplesDoc, /--surf-mode shim/);
+  assert.match(examplesDoc, /--surf-mode real/);
+  assert.match(examplesDoc, /--json --surf-mode shim --skip-build/);
+  assert.match(readmeDoc, /--json --surf-mode shim --skip-build/);
+  assert.match(readmeDoc, /structured summary with `ok`, `surfMode`, `summary`/);
+});
+
 test("surf API docs avoid unsupported examples and mark file workflows as library passthrough", () => {
   const surfDoc = load("docs/api/api-surf.md");
 

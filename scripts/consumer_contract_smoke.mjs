@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-consumer-"));
+const localTempRoot = path.join(repoRoot, ".tmp");
+mkdirSync(localTempRoot, { recursive: true });
+const tempDir = mkdtempSync(path.join(localTempRoot, "test-capabilities-consumer-"));
 let tarballPath;
 
 function run(command, args, options = {}) {
