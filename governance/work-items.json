@@ -58,7 +58,9 @@
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": ["deferred"],
+          "labels": [
+            "deferred"
+          ],
           "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0001\n- review_at: 2026-03-20T09:00:00Z"
         },
         {
@@ -72,7 +74,9 @@
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": ["deferred"],
+          "labels": [
+            "deferred"
+          ],
           "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0002\n- review_at: 2026-03-20T09:00:00Z"
         },
         {
@@ -86,8 +90,23 @@
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": ["deferred"],
+          "labels": [
+            "deferred"
+          ],
           "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0003\n- review_at: 2026-03-27T09:00:00Z"
+        },
+        {
+          "id": "AK-TASK-0098",
+          "title": "Fix ci/full ROCS launcher defaults so local full CI works with vendored rocs-cli",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Fix ci/full ROCS launcher defaults so local full CI works with vendored rocs-cli (task #98)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-03-14"
         }
       ]
     }
