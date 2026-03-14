@@ -319,6 +319,9 @@ await surf.workflowFromFile('./flows/login.json', {
 });
 ```
 
+This is a **library-level passthrough** to surf's file-driven workflow support.
+Unlike the shipped TEST-CAPABILITIES operation kernel, the workflow file shape is not yet a core-owned, schema-validated contract in this repo.
+
 ---
 
 ## Waiting

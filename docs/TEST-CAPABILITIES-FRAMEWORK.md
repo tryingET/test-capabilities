@@ -10,7 +10,7 @@ type: "reference"
 
 > **The Future of AI-Driven Testing** — Self-evolving, multimodal, quantum-inspired test orchestration.
 
-> **Runtime contract note:** this document mixes current implementation and forward-looking architecture. For exact current behavior, use `README.md` and `docs/api/*`. Today the fail-closed runtime supports the `cli-tester` orchestrator agent, `correlation`, `quantum`, `heal`, and `surf explore`. Other agents, autonomous flags, prediction wiring, self-healing orchestration, chaos execution, and extra surf actions remain roadmap surfaces unless explicitly documented as implemented elsewhere.
+> **Runtime contract note:** this document mixes current implementation and forward-looking architecture. For exact current behavior, use `README.md` and `docs/api/*`. Today the fail-closed runtime supports the `cli-tester` orchestrator agent, `correlation`, `quantum`, `heal`, and `surf explore`. Those shipped verbs now route through an explicit operation kernel in `src/core/operations.ts`. Other agents, autonomous flags, prediction wiring, self-healing orchestration, chaos execution, and extra surf actions remain roadmap surfaces unless explicitly documented as implemented elsewhere.
 
 ---
 

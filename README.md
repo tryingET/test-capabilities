@@ -22,7 +22,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 
 | Path | Description |
 |------|-------------|
-| `src/` | TEST-CAPABILITIES testing framework (orchestrator, self-healing, quantum simulator, prediction engine) |
+| `src/` | TEST-CAPABILITIES testing framework (operation kernel, orchestrator, self-healing, quantum simulator, prediction engine) |
 | `bin/test-capabilities` | TEST-CAPABILITIES CLI |
 | `external/bombadil` | Bombadil property-based testing binary |
 | `prompts/` | LLM testing prompts (cli-tester, web-tester, api-tester) |
@@ -42,6 +42,9 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 
 The runtime is now fail-closed.
 If a config section, agent, command, or flag is not wired to a real implementation path, the CLI errors instead of pretending success.
+
+The shipped CLI verbs now run through a typed **operation kernel** in `src/core/operations.ts`.
+That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
 
 ### Implemented today
 

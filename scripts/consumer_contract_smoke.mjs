@@ -90,11 +90,14 @@ try {
     import fs from "node:fs";
     import yaml from "js-yaml";
     import {
+      CLI_OPERATION_REGISTRY,
+      CLI_ROUTE_MANIFEST,
       VERSION,
       NexusOrchestrator,
       TestCapabilitiesConfigSchema,
       createNexus,
       createTestCapabilities,
+      executeCliOperation,
     } from "test-capabilities";
 
     const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
@@ -132,12 +135,27 @@ try {
 
     assert.equal(createNexus, createTestCapabilities);
     assert.equal(typeof NexusOrchestrator, "function");
+    assert.equal(CLI_OPERATION_REGISTRY.test.id, "test");
+    assert.equal(
+      CLI_ROUTE_MANIFEST.some((entry) => entry.command === "surf" && entry.action === "explore"),
+      true,
+    );
 
     const first = await createTestCapabilities(effectiveConfig).run();
     const second = await createNexus(effectiveConfig).run();
+    const kernelResult = await executeCliOperation(
+      { command: "test" },
+      {
+        config: "./consumer-smoke.yaml",
+        target: process.execPath,
+        quick: true,
+      },
+    );
 
     assert.equal(first.passed, true);
     assert.equal(first.coverage.overall > 0, true);
+    assert.equal(kernelResult.operationId, "test");
+    assert.equal(kernelResult.summary.health, "pass");
 
     assert.deepEqual(
       {

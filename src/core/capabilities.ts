@@ -1,3 +1,8 @@
+import { getCliCommandStatus, getSurfActionStatus, TEST_OPTION_SUPPORT } from "./operations.js";
+import { renderUnsupported } from "./runtime-contract.js";
+
+export { assertSupportedTestOptions } from "./operations.js";
+
 export type CapabilityStatus = "implemented" | "unsupported";
 
 export const CAPABILITY_MATRIX = {
@@ -19,38 +24,28 @@ export const CAPABILITY_MATRIX = {
   },
   cli: {
     commands: {
-      test: "implemented",
-      surf: "implemented",
-      heal: "implemented",
-      quantum: "implemented",
-      predict: "unsupported",
-      visualize: "unsupported",
-      report: "unsupported",
+      test: getCliCommandStatus("test") ?? "unsupported",
+      surf: getCliCommandStatus("surf") ?? "unsupported",
+      heal: getCliCommandStatus("heal") ?? "unsupported",
+      quantum: getCliCommandStatus("quantum") ?? "unsupported",
+      predict: getCliCommandStatus("predict") ?? "unsupported",
+      visualize: getCliCommandStatus("visualize") ?? "unsupported",
+      report: getCliCommandStatus("report") ?? "unsupported",
     },
-    testOptions: {
-      target: "implemented",
-      config: "implemented",
-      quick: "implemented",
-      autonomous: "unsupported",
-      selfHeal: "unsupported",
-      predict: "unsupported",
-      failThreshold: "unsupported",
-      uploadArtifacts: "unsupported",
-      report: "unsupported",
-    },
+    testOptions: TEST_OPTION_SUPPORT,
     surfActions: {
-      explore: "implemented",
-      flow: "unsupported",
-      assert: "unsupported",
-      compare: "unsupported",
-      replay: "unsupported",
+      explore: getSurfActionStatus("explore") ?? "unsupported",
+      flow: getSurfActionStatus("flow") ?? "unsupported",
+      assert: getSurfActionStatus("assert") ?? "unsupported",
+      compare: getSurfActionStatus("compare") ?? "unsupported",
+      replay: getSurfActionStatus("replay") ?? "unsupported",
     },
   },
 } as const;
 
 type AgentType = keyof typeof CAPABILITY_MATRIX.orchestrator.agents;
 type IntelligenceKey = keyof typeof CAPABILITY_MATRIX.orchestrator.intelligence;
-type TestOptionKey = keyof typeof CAPABILITY_MATRIX.cli.testOptions;
+type CliCommand = keyof typeof CAPABILITY_MATRIX.cli.commands;
 type SurfAction = keyof typeof CAPABILITY_MATRIX.cli.surfActions;
 
 interface RuntimeAgentConfig {
@@ -85,12 +80,6 @@ interface RuntimeConfigLike {
   quantum?: RuntimeQuantumConfig;
   chaos?: RuntimeChaosConfig;
   targets?: RuntimeTargets;
-}
-
-function renderUnsupported(category: string, values: string[], guidance: string): Error {
-  return new Error(
-    `Unsupported ${category}: ${values.join(", ")}. Outside the current capability contract. ${guidance}`,
-  );
 }
 
 export function validateCapabilityContract(config: RuntimeConfigLike): void {
@@ -154,23 +143,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
   }
 }
 
-export function assertSupportedTestOptions(options: Partial<Record<TestOptionKey, unknown>>): void {
-  const unsupported = Object.entries(CAPABILITY_MATRIX.cli.testOptions)
-    .filter(([key, status]) => status !== "implemented" && Boolean(options[key as TestOptionKey]))
-    .map(([key]) => `--${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`);
-
-  if (unsupported.length > 0) {
-    throw renderUnsupported(
-      "option(s) for 'test'",
-      unsupported,
-      "Use only --config, --target, and --quick until the remaining paths are implemented.",
-    );
-  }
-}
-
-export function assertSupportedCliCommand(
-  command: keyof typeof CAPABILITY_MATRIX.cli.commands,
-): void {
+export function assertSupportedCliCommand(command: CliCommand): void {
   if (CAPABILITY_MATRIX.cli.commands[command] !== "implemented") {
     throw renderUnsupported(
       "CLI command(s)",

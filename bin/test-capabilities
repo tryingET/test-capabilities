@@ -4,27 +4,16 @@
  * TEST-CAPABILITIES - Autonomous Testing Framework
  */
 
-import { spawn } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 import process from "node:process";
 import chalk from "chalk";
 import { Command } from "commander";
 import figlet from "figlet";
-import yaml from "js-yaml";
 import ora from "ora";
 import {
-  QuantumTestRunner,
-  TestCapabilitiesConfigSchema,
-  TestCapabilitiesOrchestrator,
-  TestFileHealer,
   VERSION,
-} from "../dist/index.js";
-import {
   assertSupportedCliCommand,
-  assertSupportedSurfAction,
-  assertSupportedTestOptions,
-} from "../dist/core/capabilities.js";
+  executeCliOperation,
+} from "../dist/index.js";
 
 const program = new Command();
 
@@ -41,76 +30,19 @@ function showBanner() {
   console.log();
 }
 
-function isUrl(value) {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function applyTargetOverride(config, target) {
-  if (!target) {
-    return config;
-  }
-
-  const targets = { ...(config.targets ?? {}) };
-  if (isUrl(target)) {
-    targets.web = target;
-  } else {
-    targets.cli = target;
-  }
-
-  return {
-    ...config,
-    targets,
-  };
-}
-
-function applyQuickMode(config) {
-  return {
-    ...config,
-    intelligence: {
-      ...(config.intelligence ?? {}),
-      prediction: false,
-    },
-    quantum: {
-      ...(config.quantum ?? {}),
-      enabled: false,
-    },
-  };
-}
-
-function loadConfig(file) {
-  const configPath = path.resolve(file);
-
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`Config file not found: ${configPath}`);
-  }
-
-  const raw = yaml.load(fs.readFileSync(configPath, "utf8")) ?? {};
-  return TestCapabilitiesConfigSchema.parse(raw);
-}
-
-async function runSuite(config) {
-  const orchestrator = new TestCapabilitiesOrchestrator(config);
-  return orchestrator.run();
-}
-
-function printSuiteSummary(result) {
-  console.log(`Health:  ${result.passed ? chalk.green("pass") : chalk.red("fail")}`);
-  console.log(`Findings: ${result.findings.length}`);
+function printSuiteSummary(summary) {
+  console.log(`Health:  ${summary.health === "pass" ? chalk.green("pass") : chalk.red("fail")}`);
+  console.log(`Findings: ${summary.findings}`);
   console.log(
-    `Coverage: user=${result.coverage.userFlows}% api=${result.coverage.apiEndpoints}% edge=${result.coverage.edgeCases}% overall=${result.coverage.overall}%`,
+    `Coverage: user=${summary.coverage.userFlows}% api=${summary.coverage.apiEndpoints}% edge=${summary.coverage.edgeCases}% overall=${summary.coverage.overall}%`,
   );
 
-  if (result.predictions?.length) {
-    console.log(`Predictions: ${result.predictions.length}`);
+  if (summary.predictions > 0) {
+    console.log(`Predictions: ${summary.predictions}`);
   }
 
-  if (result.quantumInsights) {
-    console.log(`Quantum universes: ${result.quantumInsights.universesSimulated}`);
+  if (summary.quantumUniverses) {
+    console.log(`Quantum universes: ${summary.quantumUniverses}`);
   }
 }
 
@@ -122,63 +54,6 @@ function exitWithError(error, spinner, message) {
   const rendered = error instanceof Error ? error.message : String(error);
   console.error(chalk.red(rendered));
   process.exit(1);
-}
-
-async function runSurfCommand(args, { inherit = true } = {}) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("surf", args, {
-      stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    if (!inherit) {
-      proc.stdout.on("data", (chunk) => {
-        stdout += String(chunk);
-      });
-      proc.stderr.on("data", (chunk) => {
-        stderr += String(chunk);
-      });
-    }
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        resolve({ code, stdout, stderr });
-        return;
-      }
-
-      reject(new Error(stderr.trim() || stdout.trim() || `surf exited with code ${code}`));
-    });
-
-    proc.on("error", (error) => {
-      reject(new Error(`Failed to run surf: ${error.message}`));
-    });
-  });
-}
-
-function collectFiles(rootDir) {
-  if (!fs.existsSync(rootDir)) {
-    return [];
-  }
-
-  const entries = fs.readdirSync(rootDir, { withFileTypes: true });
-  const files = [];
-
-  for (const entry of entries) {
-    const fullPath = path.join(rootDir, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(...collectFiles(fullPath));
-      continue;
-    }
-
-    if (/\.(c|m)?[jt]sx?$/.test(entry.name)) {
-      files.push(fullPath);
-    }
-  }
-
-  return files.sort();
 }
 
 program.name("test-capabilities").description("The Future of AI-Driven Testing").version(VERSION);
@@ -197,50 +72,19 @@ program
   .option("--report <dir>", "Report output directory")
   .action(async (options) => {
     showBanner();
-    const spinner = ora("Initializing TEST-CAPABILITIES testing engine...").start();
+    const spinner = ora("Initializing TEST-CAPABILITIES operation kernel...").start();
 
     try {
       assertSupportedCliCommand("test");
-      assertSupportedTestOptions(options);
+      spinner.text = options.quick
+        ? "Executing registered test operation (quick)..."
+        : "Executing registered test operation...";
 
-      spinner.text = "Loading configuration...";
-      let config = loadConfig(options.config);
-      config = applyTargetOverride(config, options.target);
+      const output = await executeCliOperation({ command: "test" }, options);
+      spinner.succeed(`Testing complete (${output.summary.health}).`);
+      printSuiteSummary(output.summary);
 
-      if (options.selfHeal) {
-        config = {
-          ...config,
-          intelligence: {
-            ...(config.intelligence ?? {}),
-            selfHealing: true,
-          },
-        };
-      }
-
-      if (options.predict) {
-        config = {
-          ...config,
-          intelligence: {
-            ...(config.intelligence ?? {}),
-            prediction: true,
-          },
-        };
-      }
-
-      if (options.quick) {
-        spinner.text = "Running quick deterministic smoke...";
-        config = applyQuickMode(config);
-      } else if (options.autonomous) {
-        spinner.text = "Executing autonomous suite...";
-      } else {
-        spinner.text = "Executing standard suite...";
-      }
-
-      const result = await runSuite(config);
-      spinner.succeed(`Testing complete (${result.passed ? "passed" : "failed"}).`);
-      printSuiteSummary(result);
-
-      if (!result.passed) {
+      if (output.summary.health !== "pass") {
         process.exit(1);
       }
     } catch (error) {
@@ -261,47 +105,19 @@ program
   .option("-f, --file <path>", "Session file to replay")
   .action(async (action, options) => {
     showBanner();
-    const spinner = ora(`Executing surf ${action}...`).start();
+    const spinner = ora(`Resolving surf ${action} through the operation kernel...`).start();
 
     try {
       assertSupportedCliCommand("surf");
-      assertSupportedSurfAction(action);
-
-      switch (action) {
-        case "explore":
-          spinner.text = `Exploring ${options.url ?? "about:blank"}...`;
-          await runSurfCommand(["go", options.url ?? "about:blank"]);
-          break;
-        case "flow":
-          spinner.text = `Running flow on ${options.url ?? "about:blank"}...`;
-          await runSurfCommand(["go", options.url ?? "about:blank"]);
-          if (options.record) {
-            console.log(chalk.dim("Recording requested; rely on surf session tooling for capture."));
-          }
-          if (options.validate) {
-            console.log(chalk.dim("Validation requested; review resulting surf transcript."));
-          }
-          break;
-        case "assert":
-          spinner.text = `Opening ${options.url ?? "about:blank"} for manual assertion review...`;
-          await runSurfCommand(["go", options.url ?? "about:blank"]);
-          break;
-        case "compare":
-          spinner.text = `Preparing visual comparison against ${options.baseline ?? "./baselines"}...`;
-          console.log(chalk.dim(`AI diff: ${options.aiDiff ? "enabled" : "disabled"}`));
-          break;
-        case "replay":
-          spinner.text = `Replaying session ${options.file ?? "(missing --file)"}...`;
-          if (!options.file) {
-            throw new Error("replay requires --file");
-          }
-          console.log(chalk.dim(`Replay file: ${options.file}`));
-          break;
-        default:
-          throw new Error(`Unknown action: ${action}`);
-      }
+      const output = await executeCliOperation({ command: "surf", action }, options);
 
       spinner.succeed(`Surf ${action} complete.`);
+      if (output.result.stdout) {
+        console.log(output.result.stdout);
+      }
+      if (output.result.stderr) {
+        console.error(output.result.stderr);
+      }
     } catch (error) {
       exitWithError(error, spinner, `Surf ${action} failed!`);
     }
@@ -333,23 +149,17 @@ program
   .option("--collapse", "Collapse results to significant findings")
   .action(async (options) => {
     showBanner();
-    const spinner = ora("Initiating quantum simulation...").start();
+    const spinner = ora("Executing registered quantum operation...").start();
 
     try {
       assertSupportedCliCommand("quantum");
-
-      const runner = new QuantumTestRunner({
-        branches: Number(options.branches),
-        collapseStrategy: options.collapse ? "significance" : "coverage",
-        seed: 42,
-      });
-      const results = await runner.run(options.target ?? "https://example.com");
+      const output = await executeCliOperation({ command: "quantum" }, options);
 
       spinner.succeed("Quantum simulation complete.");
-      console.log(`Universes Simulated: ${results.branchesSimulated}`);
-      console.log(`Unique Paths:        ${results.uniquePaths}`);
-      console.log(`Edge Cases:          ${results.edgeCases.length}`);
-      console.log(`Rare Bugs:           ${results.rareBugs.length}`);
+      console.log(`Universes Simulated: ${output.result.branchesSimulated}`);
+      console.log(`Unique Paths:        ${output.result.uniquePaths}`);
+      console.log(`Edge Cases:          ${output.result.edgeCases.length}`);
+      console.log(`Rare Bugs:           ${output.result.rareBugs.length}`);
     } catch (error) {
       exitWithError(error, spinner, "Quantum simulation failed!");
     }
@@ -362,29 +172,21 @@ program
   .option("--dry-run", "Show what would be fixed")
   .action(async (options) => {
     showBanner();
-    const spinner = ora("Analyzing broken tests...").start();
+    const spinner = ora("Executing registered healing operation...").start();
 
     try {
       assertSupportedCliCommand("heal");
+      const output = await executeCliOperation({ command: "heal" }, options);
 
-      const healer = new TestFileHealer();
-      const files = collectFiles(path.resolve(options.dir));
-      const proposals = [];
-
-      for (const file of files) {
-        const fileProposals = await healer.analyzeFile(file);
-        proposals.push(...fileProposals);
-      }
-
-      if (proposals.length === 0) {
+      if (output.proposals.length === 0) {
         spinner.succeed("No healing proposals found.");
         return;
       }
 
-      if (options.dryRun) {
+      if (output.input.dryRun) {
         spinner.stop();
         console.log(chalk.bold("Proposed fixes:"));
-        for (const proposal of proposals) {
+        for (const proposal of output.proposals) {
           console.log(`${proposal.file}:${proposal.line}`);
           console.log(chalk.red(`  - ${proposal.oldSelector}`));
           console.log(chalk.green(`  + ${proposal.newSelector}`));
@@ -393,11 +195,7 @@ program
         return;
       }
 
-      for (const proposal of proposals) {
-        await healer.applyProposal(proposal);
-      }
-
-      spinner.succeed(`Applied ${proposals.length} healing proposal(s).`);
+      spinner.succeed(`Applied ${output.appliedCount} healing proposal(s).`);
     } catch (error) {
       exitWithError(error, spinner, "Healing failed!");
     }

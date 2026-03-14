@@ -12,7 +12,26 @@ type: "reference"
 
 ---
 
-## Example 1: CLI smoke through the orchestrator
+## Example 1: operation-kernel dispatch
+
+```typescript
+import { executeCliOperation } from 'test-capabilities';
+
+const output = await executeCliOperation(
+  { command: 'test' },
+  {
+    config: './test-capabilities.yaml',
+    target: 'node',
+    quick: true,
+  },
+);
+
+console.log(output.operationId, output.summary.health);
+```
+
+---
+
+## Example 2: CLI smoke through the orchestrator
 
 ```yaml
 # test-capabilities.yaml
@@ -47,7 +66,7 @@ test-capabilities test --quick --config test-capabilities.yaml
 
 ---
 
-## Example 2: Programmatic orchestrator usage
+## Example 3: Programmatic orchestrator usage
 
 ```typescript
 import { createTestCapabilities } from 'test-capabilities';
@@ -79,7 +98,7 @@ console.log(result.passed, result.coverage);
 
 ---
 
-## Example 3: surf exploration
+## Example 4: surf exploration
 
 ```bash
 test-capabilities surf explore --url https://example.com
@@ -87,7 +106,7 @@ test-capabilities surf explore --url https://example.com
 
 ---
 
-## Example 4: selector healing as a library workflow
+## Example 5: selector healing as a library workflow
 
 ```typescript
 import { TestFileHealer } from 'test-capabilities';
@@ -104,7 +123,7 @@ for (const proposal of proposals) {
 
 ---
 
-## Example 5: prediction engine as a direct library API
+## Example 6: prediction engine as a direct library API
 
 > The prediction engine exists as a library surface, but it is not currently wired into the supported orchestrator CLI path.
 
@@ -138,7 +157,7 @@ console.log(predictions[0]);
 
 ---
 
-## Example 6: quantum simulation
+## Example 7: quantum simulation
 
 ```typescript
 import { QuantumTestRunner } from 'test-capabilities';
@@ -155,7 +174,7 @@ console.log(result.collapsedFindings.length);
 
 ---
 
-## Example 7: packaged consumer smoke
+## Example 8: packaged consumer smoke
 
 ```bash
 npm run consumer:smoke

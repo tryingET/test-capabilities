@@ -23,6 +23,8 @@ TEST-CAPABILITIES is a testing framework and library suite spanning:
 
 The key rule for the shipped CLI/runtime is: **unsupported surfaces fail clearly instead of pretending success**.
 
+The shipped verbs are now owned by an explicit **operation kernel** (`CLI_OPERATION_REGISTRY` + `executeCliOperation(...)`) so the CLI wrapper is only an adapter.
+
 ---
 
 ## Quick start
@@ -57,6 +59,7 @@ From a packaged consumer install, use the same `test-capabilities` command surfa
 - extra surf actions beyond `explore`
 
 ### Library APIs available directly
+- `CLI_OPERATION_REGISTRY` / `executeCliOperation`
 - `PredictionEngine`
 - `SelfHealingEngine`
 - `QuantumSimulator`
@@ -107,13 +110,15 @@ Unsupported commands fail clearly instead of emitting placeholder output.
 
 ```text
 CLI/runtime contract
-├── test                → capability-backed orchestrator path
-├── surf explore        → surf wrapper
-├── quantum             → simulator path
-├── heal                → selector-healing workflow
-└── unsupported command → explicit error
+├── operation kernel
+│   ├── test          → capability-backed orchestrator path
+│   ├── surf explore  → surf wrapper executor
+│   ├── quantum       → simulator path
+│   └── heal          → selector-healing workflow
+└── unsupported route → explicit error
 
 Library surface
+├── CLI_OPERATION_REGISTRY / executeCliOperation
 ├── SurfClient
 ├── SelfHealingEngine
 ├── PredictionEngine

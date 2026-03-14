@@ -10,6 +10,7 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   const cliDoc = load("docs/api/cli.md");
 
   assert.match(cliDoc, /Runtime capability summary/);
+  assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.doesNotMatch(cliDoc, /Run ML-powered failure prediction/);
@@ -58,18 +59,21 @@ test("prediction API docs describe the library surface instead of a supported CL
   assert.match(predictionDoc, /const stop = await collector\.startCollection\(60000\)/);
 });
 
-test("api reference shows a capability-backed orchestrator example", () => {
+test("api reference shows the operation kernel and a capability-backed orchestrator example", () => {
   const apiReferenceDoc = load("docs/api/api-reference.md");
 
+  assert.match(apiReferenceDoc, /executeCliOperation/);
+  assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 
-test("surf API docs avoid unsupported examples", () => {
+test("surf API docs avoid unsupported examples and mark file workflows as library passthrough", () => {
   const surfDoc = load("docs/api/api-surf.md");
 
   assert.doesNotMatch(surfDoc, /\{ all: true \}/);
   assert.doesNotMatch(surfDoc, /await surf\.select\('e5', 0/);
   assert.match(surfDoc, /test-capabilities surf explore/);
+  assert.match(surfDoc, /library-level passthrough/i);
 });

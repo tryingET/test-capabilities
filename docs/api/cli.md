@@ -15,6 +15,36 @@ The CLI is **fail-closed**:
 - unsupported surfaces error clearly
 - missing config or unsupported flags do not silently degrade into placeholder behavior
 
+The shipped verbs are owned by a typed **operation registry** (`CLI_OPERATION_REGISTRY`).
+The `bin/test-capabilities` wrapper is now a thin adapter over that kernel: it parses flags, dispatches through `executeCliOperation(...)`, and renders the structured result.
+
+---
+
+## Operation kernel
+
+Programmatic dispatch is available through the exported operation kernel:
+
+```typescript
+import { CLI_OPERATION_REGISTRY, executeCliOperation } from 'test-capabilities';
+
+console.log(Object.keys(CLI_OPERATION_REGISTRY));
+
+const result = await executeCliOperation(
+  { command: 'test' },
+  {
+    config: './test-capabilities.yaml',
+    target: 'node',
+    quick: true,
+  },
+);
+```
+
+This registry currently owns the shipped verbs:
+- `test`
+- `surf explore`
+- `quantum`
+- `heal`
+
 ---
 
 ## Implemented commands
@@ -132,6 +162,8 @@ Current behavior:
 ---
 
 ## Runtime capability summary
+
+These route statuses are mirrored by the exported operation registry / route manifest so docs, CLI dispatch, and contract tests share one source of truth.
 
 | Surface | Status |
 |---------|--------|

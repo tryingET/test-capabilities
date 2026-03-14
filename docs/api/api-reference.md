@@ -28,9 +28,12 @@ npm install test-capabilities
 import {
   // Runtime helpers
   CAPABILITY_MATRIX,
+  CLI_OPERATION_REGISTRY,
+  CLI_ROUTE_MANIFEST,
   assertSupportedCliCommand,
   createNexus,
   createTestCapabilities,
+  executeCliOperation,
   validateCapabilityContract,
 
   // Orchestrator
@@ -70,6 +73,8 @@ import {
 
 | What you want | Use this |
 |---------------|----------|
+| Dispatch a shipped CLI verb through the shared operation kernel | `executeCliOperation(route, input)` |
+| Inspect the shipped CLI/kernel surface | `CLI_OPERATION_REGISTRY` / `CLI_ROUTE_MANIFEST` |
 | Run the supported orchestrator path | `createNexus(config).run()` |
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
 | Browser control | `new SurfClient()` |
@@ -87,6 +92,30 @@ import {
 - **[Prediction](api-prediction.md)** - Prediction library APIs
 - **[Quantum](api-quantum.md)** - Parallel universe simulation
 - **[Types](types.md)** - Full type definitions
+
+---
+
+## `executeCliOperation(route, input)`
+
+Dispatch a shipped verb through the same typed kernel the CLI wrapper uses.
+
+```typescript
+import { executeCliOperation } from 'test-capabilities';
+
+const output = await executeCliOperation(
+  { command: 'test' },
+  {
+    config: './test-capabilities.yaml',
+    target: 'node',
+    quick: true,
+  },
+);
+
+console.log(output.operationId); // 'test'
+console.log(output.summary.health);
+```
+
+Use this when you want the fail-closed shipped command surface without shelling out to `bin/test-capabilities`.
 
 ---
 

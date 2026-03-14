@@ -11,6 +11,38 @@ export {
   validateCapabilityContract,
 } from "./core/capabilities.js";
 export type {
+  CliCommand,
+  CliOperationResult,
+  CliRoute,
+  CliRouteManifestEntry,
+  HealOperationInput,
+  HealOperationResultEnvelope,
+  OperationId,
+  OperationStatus,
+  QuantumOperationInput,
+  QuantumOperationResultEnvelope,
+  SurfAction,
+  SurfExploreOperationInput,
+  SurfExploreOperationResultEnvelope,
+  TestOperationInput,
+  TestOperationResultEnvelope,
+  TestOperationSummary,
+} from "./core/operations.js";
+// Core
+export {
+  CLI_OPERATION_REGISTRY,
+  CLI_ROUTE_MANIFEST,
+  executeCliOperation,
+  executeHealOperation,
+  executeQuantumOperation,
+  executeSurfExploreOperation,
+  executeTestOperation,
+  getCliCommandStatus,
+  getSurfActionStatus,
+  resolveCliRoute,
+  TEST_OPTION_SUPPORT,
+} from "./core/operations.js";
+export type {
   AgentConfig,
   CoverageReport,
   Finding,
@@ -23,7 +55,6 @@ export type {
   TestCapabilitiesConfig as NexusConfig,
   TestResult,
 } from "./core/orchestrator.js";
-// Core
 export {
   AgentConfigSchema,
   TargetSchema,

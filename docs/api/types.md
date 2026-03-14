@@ -14,6 +14,47 @@ Where schema support and runtime support differ, this document calls that out ex
 
 ---
 
+## Operation-kernel types
+
+### `CliRoute`
+
+```typescript
+type CliRoute =
+  | { command: 'test' }
+  | { command: 'surf'; action: 'explore' | 'flow' | 'assert' | 'compare' | 'replay' }
+  | { command: 'predict' }
+  | { command: 'quantum' }
+  | { command: 'heal' }
+  | { command: 'visualize' }
+  | { command: 'report' };
+```
+
+### `CliRouteManifestEntry`
+
+```typescript
+interface CliRouteManifestEntry {
+  command: CliCommand;
+  action?: SurfAction;
+  status: 'implemented' | 'unsupported';
+  operationId?: 'test' | 'surf.explore' | 'quantum' | 'heal';
+  description: string;
+}
+```
+
+### `CliOperationResult`
+
+```typescript
+type CliOperationResult =
+  | TestOperationResultEnvelope
+  | SurfExploreOperationResultEnvelope
+  | QuantumOperationResultEnvelope
+  | HealOperationResultEnvelope;
+```
+
+These shapes back the exported `CLI_OPERATION_REGISTRY`, `CLI_ROUTE_MANIFEST`, and `executeCliOperation(...)` kernel.
+
+---
+
 ## Core config types
 
 ### `TestCapabilitiesConfig` / `NexusConfig`
@@ -115,6 +156,25 @@ interface TestResult {
   coverage: CoverageReport;
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
+}
+```
+
+### `TestOperationResultEnvelope`
+
+```typescript
+interface TestOperationResultEnvelope {
+  operationId: 'test';
+  mode: 'quick' | 'standard';
+  input: TestOperationInput;
+  effectiveConfig: TestCapabilitiesConfig;
+  summary: {
+    health: 'pass' | 'fail';
+    findings: number;
+    coverage: CoverageReport;
+    predictions: number;
+    quantumUniverses?: number;
+  };
+  result: TestResult;
 }
 ```
 
@@ -221,6 +281,20 @@ interface QuantumResult {
 }
 ```
 
+### `QuantumOperationResultEnvelope`
+
+```typescript
+interface QuantumOperationResultEnvelope {
+  operationId: 'quantum';
+  input: {
+    target: string;
+    branches: string;
+    collapse: boolean;
+  };
+  result: QuantumResult;
+}
+```
+
 ### `Discovery`
 
 ```typescript
@@ -275,6 +349,20 @@ interface HealingProposal {
 }
 ```
 
+### `HealOperationResultEnvelope`
+
+```typescript
+interface HealOperationResultEnvelope {
+  operationId: 'heal';
+  input: {
+    dir: string;
+    dryRun: boolean;
+  };
+  proposals: HealingProposal[];
+  appliedCount: number;
+}
+```
+
 ---
 
 ## Surf types
@@ -302,5 +390,29 @@ interface NetworkRequest {
   duration: number;
   request?: unknown;
   response?: unknown;
+}
+```
+
+### `SurfExploreOperationResultEnvelope`
+
+```typescript
+interface SurfExploreOperationResultEnvelope {
+  operationId: 'surf.explore';
+  input: {
+    url: string;
+    depth?: string;
+    record?: boolean;
+    validate?: boolean;
+    baseline?: string;
+    aiDiff?: boolean;
+    file?: string;
+  };
+  result: {
+    command: 'surf';
+    args: string[];
+    stdout: string;
+    stderr: string;
+    code: number;
+  };
 }
 ```

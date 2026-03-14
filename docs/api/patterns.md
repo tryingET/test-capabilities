@@ -12,6 +12,27 @@ type: "reference"
 
 ---
 
+## Pattern: operation-kernel dispatch
+
+```typescript
+import { executeCliOperation } from 'test-capabilities';
+
+const output = await executeCliOperation(
+  { command: 'test' },
+  {
+    config: './test-capabilities.yaml',
+    target: 'node',
+    quick: true,
+  },
+);
+
+console.log(output.summary.health);
+```
+
+Use this when you want the shipped fail-closed command surface from TypeScript without shelling out to the CLI binary.
+
+---
+
 ## Pattern: Capability-backed CLI smoke
 
 ```typescript

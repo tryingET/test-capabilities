@@ -19,6 +19,8 @@ TEST-CAPABILITIES exposes a mix of:
 - **library surfaces** that can be used directly from TypeScript
 - **unsupported CLI placeholders** that fail clearly instead of pretending success
 
+The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATION_REGISTRY` + `executeCliOperation(...)`).
+
 ### Supported CLI/runtime surfaces
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
 - `test-capabilities surf explore --url <url>`
@@ -87,7 +89,7 @@ Coverage: user=0% api=0% edge=100% overall=100%
 
 ### Library API
 
-Programmatic usage returns a `TestResult` object; see `../docs/api/api-reference.md` and `../docs/api/types.md`.
+Programmatic usage returns either a `TestResult` (via the orchestrator) or a typed operation-kernel envelope (via `executeCliOperation(...)`); see `../docs/api/api-reference.md` and `../docs/api/types.md`.
 
 ---
 
