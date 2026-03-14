@@ -1,4 +1,9 @@
-import { getCliCommandStatus, getSurfActionStatus, TEST_OPTION_SUPPORT } from "./operations.js";
+import {
+  getCliCommandStatus,
+  getSurfActionStatus,
+  SURF_EXPLORE_OPTION_SUPPORT,
+  TEST_OPTION_SUPPORT,
+} from "./operations.js";
 import { renderUnsupported } from "./runtime-contract.js";
 
 export { assertSupportedTestOptions } from "./operations.js";
@@ -33,6 +38,7 @@ export const CAPABILITY_MATRIX = {
       report: getCliCommandStatus("report") ?? "unsupported",
     },
     testOptions: TEST_OPTION_SUPPORT,
+    surfExploreOptions: SURF_EXPLORE_OPTION_SUPPORT,
     surfActions: {
       explore: getSurfActionStatus("explore") ?? "unsupported",
       flow: getSurfActionStatus("flow") ?? "unsupported",

@@ -95,14 +95,17 @@ program
 program
   .command("surf")
   .description("Advanced browser testing with surf-cli")
-  .argument("<action>", "Action: explore | flow | assert | compare | replay")
+  .argument("<action>", "Action: explore (implemented) | flow | assert | compare | replay")
   .option("-u, --url <url>", "Target URL")
-  .option("--depth <n>", "Exploration depth", "3")
-  .option("--record", "Record the session")
-  .option("--validate", "Run AI validation")
-  .option("--baseline <dir>", "Baseline directory for comparison")
-  .option("--ai-diff", "Use AI for visual diff")
-  .option("-f, --file <path>", "Session file to replay")
+  .option("--depth <n>", "Reserved surf explore flag; currently fails until implemented")
+  .option("--record", "Reserved surf explore flag; currently fails until implemented")
+  .option("--validate", "Reserved surf explore flag; currently fails until implemented")
+  .option(
+    "--baseline <dir>",
+    "Reserved surf explore flag; currently fails until implemented",
+  )
+  .option("--ai-diff", "Reserved surf explore flag; currently fails until implemented")
+  .option("-f, --file <path>", "Reserved surf flag; currently fails until implemented")
   .action(async (action, options) => {
     showBanner();
     const spinner = ora(`Resolving surf ${action} through the operation kernel...`).start();
@@ -145,7 +148,7 @@ program
   .command("quantum")
   .description("Run quantum test simulation")
   .option("-t, --target <url>", "Target URL")
-  .option("-b, --branches <n>", "Number of parallel universes", "100")
+  .option("-b, --branches <n>", "Positive integer branch count", "100")
   .option("--collapse", "Collapse results to significant findings")
   .action(async (options) => {
     showBanner();

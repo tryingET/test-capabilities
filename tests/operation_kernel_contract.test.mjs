@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -15,6 +15,7 @@ const { CAPABILITY_MATRIX } = await import("../dist/core/capabilities.js");
 const {
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
+  SURF_EXPLORE_OPTION_SUPPORT,
   TEST_OPTION_SUPPORT,
   executeCliOperation,
   resolveCliRoute,
@@ -46,6 +47,7 @@ test("operation kernel registry and capability matrix stay aligned", () => {
 
   assert.deepEqual(implementedOperationIds, registryOperationIds);
   assert.deepEqual(CAPABILITY_MATRIX.cli.testOptions, TEST_OPTION_SUPPORT);
+  assert.deepEqual(CAPABILITY_MATRIX.cli.surfExploreOptions, SURF_EXPLORE_OPTION_SUPPORT);
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
   assert.equal(
     resolveCliRoute({ command: "surf", action: "explore" })?.operationId,
@@ -92,14 +94,78 @@ test("executeCliOperation routes surf explore through the typed operation kernel
   }
 });
 
-test("executeCliOperation fails clearly for registered but unsupported routes", async () => {
+test("executeCliOperation rejects surf explore flags that are not wired to runtime behavior", async () => {
+  await assert.rejects(
+    async () =>
+      executeCliOperation(
+        { command: "surf", action: "explore" },
+        { url: "https://example.com", record: true },
+      ),
+    /Unsupported option\(s\) for 'surf explore': --record/,
+  );
+});
+
+test("executeCliOperation rejects invalid quantum branch counts", async () => {
+  await assert.rejects(
+    async () =>
+      executeCliOperation({ command: "quantum" }, { target: "https://example.com", branches: "0" }),
+    /Invalid value for --branches: 0/,
+  );
+});
+
+test("executeCliOperation fails closed when the heal directory is missing", async () => {
+  await assert.rejects(
+    async () =>
+      executeCliOperation({ command: "heal" }, { dir: "/tmp/definitely-missing-heal-dir" }),
+    /Heal directory not found:/,
+  );
+});
+
+test("executeCliOperation heal ignores generated and dependency directories", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-scan-"));
+  const srcDir = path.join(dir, "src");
+  const ignoredDir = path.join(dir, "node_modules");
+  mkdirSync(srcDir, { recursive: true });
+  mkdirSync(ignoredDir, { recursive: true });
+  writeFileSync(path.join(srcDir, "sample.test.ts"), "export const ok = true;\n", "utf8");
+
+  const unreadableFile = path.join(ignoredDir, "ignored.test.ts");
+  writeFileSync(unreadableFile, "export const ignored = true;\n", { mode: 0o000 });
+  chmodSync(unreadableFile, 0o000);
+
+  try {
+    const result = await executeCliOperation({ command: "heal" }, { dir, dryRun: true });
+
+    assert.equal(result.proposals.length, 0);
+  } finally {
+    chmodSync(unreadableFile, 0o644);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation fails clearly for unsupported or unknown routes", async () => {
   await assert.rejects(
     async () => executeCliOperation({ command: "surf", action: "flow" }, {}),
     /Unsupported surf action\(s\): flow/,
   );
 
   await assert.rejects(
+    async () => executeCliOperation({ command: "surf", action: "typo" }, {}),
+    /Unsupported surf action\(s\): typo/,
+  );
+
+  await assert.rejects(
+    async () => executeCliOperation({ command: "surf" }, {}),
+    /Unsupported surf action\(s\): \(missing action\)/,
+  );
+
+  await assert.rejects(
     async () => executeCliOperation({ command: "predict" }, {}),
     /Unsupported CLI command\(s\): predict/,
+  );
+
+  await assert.rejects(
+    async () => executeCliOperation({ command: "typo" }, {}),
+    /Unsupported CLI command\(s\): typo/,
   );
 });

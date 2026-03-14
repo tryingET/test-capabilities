@@ -68,3 +68,17 @@ test("QuantumSimulator significance mode surfaces high-severity latency findings
     true,
   );
 });
+
+test("QuantumSimulator reports only branches that actually entered simulation", async () => {
+  const simulator = new QuantumSimulator({
+    branches: 5,
+    maxDepth: 1,
+    timeout: 0,
+    seed: 42,
+  });
+
+  const result = await simulator.simulate(createInitialState());
+
+  assert.equal(result.branchesSimulated, 0);
+  assert.equal(result.uniquePaths, 0);
+});

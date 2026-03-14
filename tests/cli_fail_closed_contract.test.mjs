@@ -35,6 +35,37 @@ test("CLI test command rejects unsupported flags", () => {
   assert.match(`${result.stdout}\n${result.stderr}`, /Unsupported option\(s\) for 'test'/);
 });
 
+test("CLI surf explore rejects flags that are not wired to runtime behavior", () => {
+  const result = runCli(["surf", "explore", "--url", "https://example.com", "--record"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(
+    `${result.stdout}\n${result.stderr}`,
+    /Unsupported option\(s\) for 'surf explore': --record/,
+  );
+});
+
+test("CLI surf command rejects unknown actions with a contract error", () => {
+  const result = runCli(["surf", "typo", "--url", "https://example.com"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Unsupported surf action\(s\): typo/);
+});
+
+test("CLI quantum command rejects invalid branch counts", () => {
+  const result = runCli(["quantum", "--target", "https://example.com", "--branches", "0"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Invalid value for --branches: 0/);
+});
+
+test("CLI heal command fails closed when the target directory is missing", () => {
+  const result = runCli(["heal", "--dir", "/tmp/definitely-missing-heal-dir"]);
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Heal directory not found:/);
+});
+
 test("unsupported CLI commands fail clearly instead of emitting placeholders", () => {
   const result = runCli(["predict"]);
 

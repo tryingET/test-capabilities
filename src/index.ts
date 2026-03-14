@@ -40,6 +40,7 @@ export {
   getCliCommandStatus,
   getSurfActionStatus,
   resolveCliRoute,
+  SURF_EXPLORE_OPTION_SUPPORT,
   TEST_OPTION_SUPPORT,
 } from "./core/operations.js";
 export type {

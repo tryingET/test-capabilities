@@ -107,6 +107,7 @@ export class QuantumSimulator {
   async simulate(initialState: QuantumState): Promise<QuantumResult> {
     const startTime = Date.now();
     const deadline = startTime + this.config.timeout;
+    let branchesSimulated = 0;
 
     this.branches = [];
     this.discoveries = [];
@@ -122,6 +123,7 @@ export class QuantumSimulator {
         branch.terminationReason = "timeout";
         break;
       }
+      branchesSimulated += 1;
       await this.simulateBranch(branch, deadline);
     }
 
@@ -132,7 +134,7 @@ export class QuantumSimulator {
     const coverage = this.calculateCoverage();
 
     return {
-      branchesSimulated: this.branches.length,
+      branchesSimulated,
       uniquePaths: this.pathSet.size,
       collapsedFindings,
       edgeCases: this.discoveries.filter((d) => d.type === "edge_case"),

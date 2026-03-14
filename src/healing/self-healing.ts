@@ -247,7 +247,7 @@ export class TestFileHealer {
             newSelector: healingResult.newSelector,
             confidence: healingResult.confidence,
             strategy: healingResult.strategy,
-            requiresReview: healingResult.metadata?.requiresReview as boolean,
+            requiresReview: Boolean(healingResult.metadata?.requiresReview),
           });
         }
       }
@@ -259,8 +259,28 @@ export class TestFileHealer {
 
   async applyProposal(proposal: HealingProposal): Promise<void> {
     const content = await this.readFile(proposal.file);
-    const updated = content.replace(proposal.oldSelector, proposal.newSelector);
-    await this.writeFile(proposal.file, updated);
+    const lineEnding = content.includes("\r\n") ? "\r\n" : "\n";
+    const hasTrailingNewline = content.endsWith("\n");
+    const trimmedContent = hasTrailingNewline
+      ? content.slice(0, content.endsWith("\r\n") ? -2 : -1)
+      : content;
+    const lines = trimmedContent.length > 0 ? trimmedContent.split(/\r?\n/) : [""];
+    const lineIndex = proposal.line - 1;
+
+    if (lineIndex < 0 || lineIndex >= lines.length) {
+      throw new Error(`Healing proposal line out of range: ${proposal.file}:${proposal.line}`);
+    }
+
+    const targetLine = lines[lineIndex];
+    if (!targetLine.includes(proposal.oldSelector)) {
+      throw new Error(
+        `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}'.`,
+      );
+    }
+
+    lines[lineIndex] = targetLine.replace(proposal.oldSelector, proposal.newSelector);
+    const updated = lines.join(lineEnding);
+    await this.writeFile(proposal.file, hasTrailingNewline ? `${updated}${lineEnding}` : updated);
   }
 
   private async readFile(path: string): Promise<string> {

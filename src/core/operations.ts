@@ -114,16 +114,22 @@ export type CliOperationResult =
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
 
-interface OperationDefinition<TInput, TResult extends CliOperationResult> {
+interface OperationDefinition<
+  TParsedInput,
+  TResult extends CliOperationResult,
+  TRawInput = unknown,
+> {
   id: OperationId;
   route: Extract<CliRoute, { command: CliCommand }>;
   description: string;
-  inputSchema: z.ZodType<TInput>;
-  execute: (input: TInput) => Promise<TResult>;
+  inputSchema: z.ZodType<TParsedInput, z.ZodTypeDef, TRawInput>;
+  execute: (input: TParsedInput) => Promise<TResult>;
 }
 
 const unsupportedTestOptionGuidance =
   "Use only --config, --target, and --quick until the remaining paths are implemented.";
+const unsupportedSurfExploreOptionGuidance =
+  "Use only --url until the remaining surf explore flags are wired to real runtime behavior.";
 
 export const TEST_OPTION_SUPPORT = {
   target: "implemented",
@@ -136,6 +142,32 @@ export const TEST_OPTION_SUPPORT = {
   uploadArtifacts: "unsupported",
   report: "unsupported",
 } as const satisfies Record<string, OperationStatus>;
+
+export const SURF_EXPLORE_OPTION_SUPPORT = {
+  url: "implemented",
+  depth: "unsupported",
+  record: "unsupported",
+  validate: "unsupported",
+  baseline: "unsupported",
+  aiDiff: "unsupported",
+  file: "unsupported",
+} as const satisfies Record<string, OperationStatus>;
+
+function isProvidedOption(value: unknown): boolean {
+  return value !== undefined && value !== false;
+}
+
+function collectUnsupportedOptions<TSupport extends Record<string, OperationStatus>>(
+  support: TSupport,
+  options: Partial<Record<keyof TSupport, unknown>>,
+): string[] {
+  return Object.entries(support)
+    .filter(
+      ([key, status]) =>
+        status !== "implemented" && isProvidedOption(options[key as keyof typeof options]),
+    )
+    .map(([key]) => `--${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`);
+}
 
 const TestOperationInputSchema = z
   .object({
@@ -154,15 +186,20 @@ const TestOperationInputSchema = z
     return input;
   });
 
-const SurfExploreOperationInputSchema = z.object({
-  url: z.string().optional().default("about:blank"),
-  depth: z.string().optional().default("3"),
-  record: z.boolean().optional().default(false),
-  validate: z.boolean().optional().default(false),
-  baseline: z.string().optional(),
-  aiDiff: z.boolean().optional().default(false),
-  file: z.string().optional(),
-});
+const SurfExploreOperationInputSchema = z
+  .object({
+    url: z.string().optional().default("about:blank"),
+    depth: z.string().optional(),
+    record: z.boolean().optional().default(false),
+    validate: z.boolean().optional().default(false),
+    baseline: z.string().optional(),
+    aiDiff: z.boolean().optional().default(false),
+    file: z.string().optional(),
+  })
+  .transform((input) => {
+    assertSupportedSurfExploreOptions(input);
+    return input;
+  });
 
 const QuantumOperationInputSchema = z.object({
   target: z.string().optional().default("https://example.com"),
@@ -175,37 +212,51 @@ const HealOperationInputSchema = z.object({
   dryRun: z.boolean().optional().default(false),
 });
 
+type CliOperationInputUnion =
+  | TestOperationInput
+  | SurfExploreOperationInput
+  | QuantumOperationInput
+  | HealOperationInput;
+
+type NormalizedTestOperationInput = z.output<typeof TestOperationInputSchema>;
+type NormalizedSurfExploreOperationInput = z.output<typeof SurfExploreOperationInputSchema>;
+type NormalizedQuantumOperationInput = z.output<typeof QuantumOperationInputSchema>;
+type NormalizedHealOperationInput = z.output<typeof HealOperationInputSchema>;
+
 const TEST_OPERATION = {
   id: "test",
   route: { command: "test" },
   description: "Run the capability-backed orchestrator path",
   inputSchema: TestOperationInputSchema,
-  execute: executeTestOperation,
-} satisfies OperationDefinition<TestOperationInput, TestOperationResultEnvelope>;
+  execute: runTestOperation,
+} satisfies OperationDefinition<NormalizedTestOperationInput, TestOperationResultEnvelope>;
 
 const SURF_EXPLORE_OPERATION = {
   id: "surf.explore",
   route: { command: "surf", action: "explore" },
   description: "Run the real surf CLI through the supported explore action",
   inputSchema: SurfExploreOperationInputSchema,
-  execute: executeSurfExploreOperation,
-} satisfies OperationDefinition<SurfExploreOperationInput, SurfExploreOperationResultEnvelope>;
+  execute: runSurfExploreOperation,
+} satisfies OperationDefinition<
+  NormalizedSurfExploreOperationInput,
+  SurfExploreOperationResultEnvelope
+>;
 
 const QUANTUM_OPERATION = {
   id: "quantum",
   route: { command: "quantum" },
   description: "Run the shared quantum simulator",
   inputSchema: QuantumOperationInputSchema,
-  execute: executeQuantumOperation,
-} satisfies OperationDefinition<QuantumOperationInput, QuantumOperationResultEnvelope>;
+  execute: runQuantumOperation,
+} satisfies OperationDefinition<NormalizedQuantumOperationInput, QuantumOperationResultEnvelope>;
 
 const HEAL_OPERATION = {
   id: "heal",
   route: { command: "heal" },
   description: "Run the selector-healing workflow",
   inputSchema: HealOperationInputSchema,
-  execute: executeHealOperation,
-} satisfies OperationDefinition<HealOperationInput, HealOperationResultEnvelope>;
+  execute: runHealOperation,
+} satisfies OperationDefinition<NormalizedHealOperationInput, HealOperationResultEnvelope>;
 
 export const CLI_OPERATION_REGISTRY = {
   test: TEST_OPERATION,
@@ -306,17 +357,85 @@ export function getSurfActionStatus(action: SurfAction): OperationStatus | undef
   )?.status;
 }
 
+type RegisteredOperation = OperationDefinition<CliOperationInputUnion, CliOperationResult>;
+
+function getRegisteredOperation(operationId: OperationId): RegisteredOperation {
+  return CLI_OPERATION_REGISTRY[operationId] as RegisteredOperation;
+}
+
+function parsePositiveIntegerOption(value: string, optionName: string): number {
+  const normalized = value.trim();
+
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    throw new Error(`Invalid value for ${optionName}: ${value}. Use a positive integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid value for ${optionName}: ${value}. Use a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function getManifestEntryForExecution(route: CliRoute): CliRouteManifestEntry {
+  const routeRecord = route as Partial<Record<"command" | "action", unknown>>;
+
+  if (routeRecord.command === "surf") {
+    if (typeof routeRecord.action !== "string" || routeRecord.action.length === 0) {
+      throw renderUnsupported(
+        "surf action(s)",
+        ["(missing action)"],
+        "Specify the implemented 'explore' action.",
+      );
+    }
+
+    if (getSurfActionStatus(routeRecord.action as SurfAction) === undefined) {
+      throw renderUnsupported(
+        "surf action(s)",
+        [routeRecord.action],
+        "Only 'explore' is currently backed by a real surf execution path.",
+      );
+    }
+  }
+
+  const manifestEntry = resolveCliRoute(route);
+  if (manifestEntry) {
+    return manifestEntry;
+  }
+
+  if (typeof routeRecord.command === "string") {
+    throw renderUnsupported(
+      "CLI command(s)",
+      [routeRecord.command],
+      "This command currently has no capability-backed implementation.",
+    );
+  }
+
+  throw new Error(`Invalid CLI route payload: ${JSON.stringify(route)}`);
+}
+
 export function assertSupportedTestOptions(
   options: Partial<Record<keyof typeof TEST_OPTION_SUPPORT, unknown>>,
 ): void {
-  const unsupported = Object.entries(TEST_OPTION_SUPPORT)
-    .filter(
-      ([key, status]) => status !== "implemented" && Boolean(options[key as keyof typeof options]),
-    )
-    .map(([key]) => `--${key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)}`);
+  const unsupported = collectUnsupportedOptions(TEST_OPTION_SUPPORT, options);
 
   if (unsupported.length > 0) {
     throw renderUnsupported("option(s) for 'test'", unsupported, unsupportedTestOptionGuidance);
+  }
+}
+
+function assertSupportedSurfExploreOptions(
+  options: Partial<Record<keyof typeof SURF_EXPLORE_OPTION_SUPPORT, unknown>>,
+): void {
+  const unsupported = collectUnsupportedOptions(SURF_EXPLORE_OPTION_SUPPORT, options);
+
+  if (unsupported.length > 0) {
+    throw renderUnsupported(
+      "option(s) for 'surf explore'",
+      unsupported,
+      unsupportedSurfExploreOptionGuidance,
+    );
   }
 }
 
@@ -338,17 +457,9 @@ export async function executeCliOperation(
 ): Promise<HealOperationResultEnvelope>;
 export async function executeCliOperation(
   route: CliRoute,
-  rawInput:
-    | TestOperationInput
-    | SurfExploreOperationInput
-    | QuantumOperationInput
-    | HealOperationInput,
+  rawInput: CliOperationInputUnion,
 ): Promise<CliOperationResult> {
-  const manifestEntry = resolveCliRoute(route);
-
-  if (!manifestEntry) {
-    throw new Error(`Unregistered CLI route: ${JSON.stringify(route)}`);
-  }
+  const manifestEntry = getManifestEntryForExecution(route);
 
   if (manifestEntry.status !== "implemented" || !manifestEntry.operationId) {
     if (route.command === "surf") {
@@ -366,26 +477,14 @@ export async function executeCliOperation(
     );
   }
 
-  switch (manifestEntry.operationId) {
-    case "test":
-      return TEST_OPERATION.execute(rawInput as TestOperationInput);
-    case "surf.explore":
-      return SURF_EXPLORE_OPERATION.execute(rawInput as SurfExploreOperationInput);
-    case "quantum":
-      return QUANTUM_OPERATION.execute(rawInput as QuantumOperationInput);
-    case "heal":
-      return HEAL_OPERATION.execute(rawInput as HealOperationInput);
-    default: {
-      const unhandledOperation: never = manifestEntry.operationId;
-      throw new Error(`Unhandled operation id: ${unhandledOperation}`);
-    }
-  }
+  const operation = getRegisteredOperation(manifestEntry.operationId);
+  const normalizedInput = operation.inputSchema.parse(rawInput);
+  return operation.execute(normalizedInput);
 }
 
-export async function executeTestOperation(
-  input: TestOperationInput,
+async function runTestOperation(
+  normalized: NormalizedTestOperationInput,
 ): Promise<TestOperationResultEnvelope> {
-  const normalized = TestOperationInputSchema.parse(input);
   let config = loadConfig(normalized.config);
   config = applyTargetOverride(config, normalized.target);
 
@@ -405,10 +504,15 @@ export async function executeTestOperation(
   };
 }
 
-export async function executeSurfExploreOperation(
-  input: SurfExploreOperationInput,
+export async function executeTestOperation(
+  input: TestOperationInput,
+): Promise<TestOperationResultEnvelope> {
+  return runTestOperation(TestOperationInputSchema.parse(input));
+}
+
+async function runSurfExploreOperation(
+  normalized: NormalizedSurfExploreOperationInput,
 ): Promise<SurfExploreOperationResultEnvelope> {
-  const normalized = SurfExploreOperationInputSchema.parse(input);
   const args = ["go", normalized.url];
   const result = await runCommand("surf", args);
 
@@ -425,27 +529,41 @@ export async function executeSurfExploreOperation(
   };
 }
 
-export async function executeQuantumOperation(
-  input: QuantumOperationInput,
+export async function executeSurfExploreOperation(
+  input: SurfExploreOperationInput,
+): Promise<SurfExploreOperationResultEnvelope> {
+  return runSurfExploreOperation(SurfExploreOperationInputSchema.parse(input));
+}
+
+async function runQuantumOperation(
+  normalized: NormalizedQuantumOperationInput,
 ): Promise<QuantumOperationResultEnvelope> {
-  const normalized = QuantumOperationInputSchema.parse(input);
+  const branches = parsePositiveIntegerOption(normalized.branches, "--branches");
   const runner = new QuantumTestRunner({
-    branches: Number(normalized.branches),
+    branches,
     collapseStrategy: normalized.collapse ? "significance" : "coverage",
     seed: 42,
   });
 
   return {
     operationId: "quantum",
-    input: normalized,
+    input: {
+      ...normalized,
+      branches: String(branches),
+    },
     result: await runner.run(normalized.target),
   };
 }
 
-export async function executeHealOperation(
-  input: HealOperationInput,
+export async function executeQuantumOperation(
+  input: QuantumOperationInput,
+): Promise<QuantumOperationResultEnvelope> {
+  return runQuantumOperation(QuantumOperationInputSchema.parse(input));
+}
+
+async function runHealOperation(
+  normalized: NormalizedHealOperationInput,
 ): Promise<HealOperationResultEnvelope> {
-  const normalized = HealOperationInputSchema.parse(input);
   const healer = new TestFileHealer();
   const files = collectFiles(path.resolve(normalized.dir));
   const proposals: HealingProposal[] = [];
@@ -467,6 +585,12 @@ export async function executeHealOperation(
     proposals,
     appliedCount: normalized.dryRun ? 0 : proposals.length,
   };
+}
+
+export async function executeHealOperation(
+  input: HealOperationInput,
+): Promise<HealOperationResultEnvelope> {
+  return runHealOperation(HealOperationInputSchema.parse(input));
 }
 
 function isUrl(value: string): boolean {
@@ -578,9 +702,17 @@ function summarizeTestResult(result: TestResult): TestOperationSummary {
   };
 }
 
+const HEAL_IGNORED_DIRECTORIES = new Set([".git", "coverage", "dist", "node_modules"]);
+
 function collectFiles(rootDir: string): string[] {
   if (!fs.existsSync(rootDir)) {
-    return [];
+    throw new Error(`Heal directory not found: ${rootDir}. Use --dir with an existing directory.`);
+  }
+
+  if (!fs.statSync(rootDir).isDirectory()) {
+    throw new Error(
+      `Heal directory is not a directory: ${rootDir}. Use --dir with a directory path.`,
+    );
   }
 
   const entries = fs.readdirSync(rootDir, { withFileTypes: true });
@@ -590,6 +722,10 @@ function collectFiles(rootDir: string): string[] {
     const fullPath = path.join(rootDir, entry.name);
 
     if (entry.isDirectory()) {
+      if (HEAL_IGNORED_DIRECTORIES.has(entry.name)) {
+        continue;
+      }
+
       files.push(...collectFiles(fullPath));
       continue;
     }
