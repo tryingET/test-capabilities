@@ -15,6 +15,7 @@ out/
 dist/
 ontology/*.generated.*
 ontology/dist/
+.ts-mutate/
 
 # Python caches/build metadata (vendored tooling)
 **/__pycache__/
