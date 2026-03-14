@@ -295,6 +295,9 @@ interface QuantumOperationResultEnvelope {
 }
 ```
 
+Runtime note:
+- `branches` must parse as a positive integer or the kernel fails closed
+
 ### `Discovery`
 
 ```typescript
@@ -416,3 +419,7 @@ interface SurfExploreOperationResultEnvelope {
   };
 }
 ```
+
+Runtime note:
+- `url` is the only implemented `surf explore` option today
+- `depth`, `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path

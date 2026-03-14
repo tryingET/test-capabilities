@@ -132,6 +132,8 @@ Find broken selectors in a test file.
 const proposals = await healer.analyzeFile('./tests/login.spec.ts');
 ```
 
+When the CLI healing path scans a directory, it skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
+
 ### Proposal
 
 ```typescript
@@ -149,6 +151,7 @@ interface HealingProposal {
 ### `applyProposal(proposal)`
 
 Apply a fix to the file.
+The runtime targets the proposal's recorded line so duplicate selectors elsewhere in the file are not rewritten accidentally.
 
 ```typescript
 await healer.applyProposal(proposal);
@@ -184,12 +187,9 @@ for (const p of review) {
 ## CLI Usage
 
 ```bash
-# Analyze broken tests
+# Analyze broken tests (directory must exist)
 test-capabilities heal --dir ./tests
 
 # Dry run (show fixes without applying)
 test-capabilities heal --dir ./tests --dry-run
-
-# Set confidence threshold
-test-capabilities heal --dir ./tests --confidence 0.8
 ```

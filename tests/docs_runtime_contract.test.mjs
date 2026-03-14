@@ -13,6 +13,8 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
+  assert.match(cliDoc, /Fails with an unsupported-option error/);
+  assert.doesNotMatch(cliDoc, /Accepted by the wrapper/);
   assert.doesNotMatch(cliDoc, /Run ML-powered failure prediction/);
 });
 
@@ -57,6 +59,21 @@ test("prediction API docs describe the library surface instead of a supported CL
   assert.match(predictionDoc, /library surface/i);
   assert.doesNotMatch(predictionDoc, /test-capabilities predict --target/);
   assert.match(predictionDoc, /const stop = await collector\.startCollection\(60000\)/);
+});
+
+test("healing API docs avoid unsupported CLI flags and explain line-targeted application", () => {
+  const healingDoc = load("docs/api/api-healing.md");
+
+  assert.doesNotMatch(healingDoc, /--confidence/);
+  assert.match(healingDoc, /targets the proposal's recorded line/i);
+  assert.match(healingDoc, /skips common generated\/dependency directories/i);
+});
+
+test("quantum API docs avoid unsupported CLI flags and document branch validation", () => {
+  const quantumDoc = load("docs/api/api-quantum.md");
+
+  assert.doesNotMatch(quantumDoc, /--strategy diversity/);
+  assert.match(quantumDoc, /positive integer branch count/i);
 });
 
 test("api reference shows the operation kernel and a capability-backed orchestrator example", () => {

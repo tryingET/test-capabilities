@@ -156,7 +156,7 @@ prediction:
 
 ```bash
 # Currently implemented through the CLI wrapper
-test-capabilities surf explore --url https://myapp.com --depth 5
+test-capabilities surf explore --url https://myapp.com
 
 # Roadmap / not yet implemented through the fail-closed CLI wrapper:
 # test-capabilities surf flow login-checkout --record --validate

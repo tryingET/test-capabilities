@@ -91,11 +91,12 @@ Options:
 | Option | Description |
 |--------|-------------|
 | `--url <url>` | Target URL |
-| `--depth <n>` | Accepted by the wrapper for compatibility; current implementation opens the URL |
-| `--record` | Accepted by the wrapper; no extra runtime behavior yet |
-| `--validate` | Accepted by the wrapper; no extra runtime behavior yet |
-| `--baseline <dir>` | Accepted by the wrapper; no extra runtime behavior yet |
-| `--ai-diff` | Accepted by the wrapper; no extra runtime behavior yet |
+| `--depth <n>` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--record` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--baseline <dir>` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--ai-diff` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--file <path>` | Fails with an unsupported-option error until wired to a real runtime path |
 
 Unsupported surf actions:
 - `flow`
@@ -118,8 +119,10 @@ test-capabilities quantum --target https://example.com --branches 100 --collapse
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--target <url>` | Target URL for the simulator | `https://example.com` |
-| `--branches <n>` | Number of branches to simulate | `100` |
+| `--branches <n>` | Positive integer branch count | `100` |
 | `--collapse` | Use `significance` collapse instead of `coverage` | `false` |
+
+Invalid branch counts such as `0`, negative values, or non-numeric strings fail closed.
 
 ---
 
@@ -133,8 +136,11 @@ test-capabilities heal --dir ./tests --dry-run
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--dir <path>` | Directory to scan for test files | `./tests` |
+| `--dir <path>` | Directory to scan for test files (must exist) | `./tests` |
 | `--dry-run` | Show proposals without applying them | `false` |
+
+Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
+The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
 
 ---
 

@@ -71,6 +71,65 @@ Unsupported option(s) for 'test': --predict. Outside the current capability cont
 
 ---
 
+### Unsupported surf explore option
+
+```text
+Unsupported option(s) for 'surf explore': --record. Outside the current capability contract.
+```
+
+**Cause**
+- You passed a surf explore flag that the shipped kernel has not wired to real behavior yet
+
+**Fix**
+- Use only:
+  - `--url`
+
+---
+
+### Unsupported surf action
+
+```text
+Unsupported surf action(s): typo. Outside the current capability contract.
+```
+
+**Cause**
+- You invoked a surf action that the shipped kernel does not recognize or support
+
+**Fix**
+- Use `surf explore` for the current CLI wrapper
+- Use `SurfClient` directly if you need richer browser behavior programmatically
+
+---
+
+### Invalid quantum branch count
+
+```text
+Invalid value for --branches: 0. Use a positive integer.
+```
+
+**Cause**
+- `--branches` was `0`, negative, or non-numeric
+
+**Fix**
+- Pass a positive integer such as `1`, `100`, or `250`
+
+---
+
+### Heal directory missing
+
+```text
+Heal directory not found: /path/to/tests. Use --dir with an existing directory.
+```
+
+**Cause**
+- `--dir` points at a missing path
+
+**Fix**
+1. Create the directory first
+2. Or point `--dir` at an existing test directory
+
+---
+
 ### No enabled supported agents
 
 ```text

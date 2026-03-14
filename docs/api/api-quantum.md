@@ -184,9 +184,11 @@ test-capabilities quantum --target https://myapp.com
 # Run with 1000 branches
 test-capabilities quantum --target https://myapp.com --branches 1000
 
-# Use diversity collapse
-test-capabilities quantum --target https://myapp.com --strategy diversity
+# Fail closed on invalid branch counts
+# test-capabilities quantum --target https://myapp.com --branches 0
 ```
+
+`--branches` must be a positive integer branch count.
 
 ---
 
