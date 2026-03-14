@@ -128,6 +128,7 @@ test-capabilities quantum --target https://example.com --branches 100 --collapse
 | `--collapse` | Use `significance` collapse instead of `coverage` | `false` |
 
 Invalid branch counts such as `0`, negative values, or non-numeric strings fail closed.
+Non-URL targets also fail closed instead of being simulated as if they were valid browser URLs.
 
 ---
 
@@ -146,6 +147,7 @@ test-capabilities heal --dir ./tests --dry-run
 
 Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
 The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
+When applying fixes, the kernel validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
 
 ---
 

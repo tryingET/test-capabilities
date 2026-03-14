@@ -135,6 +135,7 @@ const proposals = await healer.analyzeFile('./tests/login.spec.ts');
 
 When the CLI healing path scans a directory, it skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
 The current heuristic path can also normalize obviously stale selector prefixes like `old-login` → `login` when the extracted selector shape is preserved.
+Selector extraction is intentionally narrowed to selector-bearing call positions (for example `locator(...)`, `getByTestId(...)`, `page.click(selector)`, or `page.fill(selector, value)`) so ordinary payload literals such as `fill('old-password')` are not rewritten as if they were selectors.
 
 ### Proposal
 
@@ -158,6 +159,15 @@ The runtime targets the proposal's recorded line and, when available, column so 
 
 ```typescript
 await healer.applyProposal(proposal);
+```
+
+### `applyProposals(proposals)`
+
+Apply a batch of proposals transactionally.
+The current runtime validates the full per-file batch against the original file content before it writes anything, which prevents same-line proposal sets from drifting into partial mutations.
+
+```typescript
+await healer.applyProposals(proposals);
 ```
 
 ### Example

@@ -296,6 +296,7 @@ interface QuantumOperationResultEnvelope {
 ```
 
 Runtime note:
+- `target` must be a valid URL or the kernel fails closed
 - `branches` must parse as a positive integer or the kernel fails closed
 
 ### `Discovery`
@@ -344,6 +345,7 @@ interface HealingContext {
 interface HealingProposal {
   file: string;
   line: number;
+  column?: number;
   oldSelector: string;
   newSelector: string;
   confidence: number;

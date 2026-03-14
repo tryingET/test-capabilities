@@ -115,6 +115,36 @@ Invalid value for --branches: 0. Use a positive integer.
 
 ---
 
+### Invalid quantum target
+
+```text
+Quantum target must be a valid URL.
+```
+
+**Cause**
+- `--target` was not a valid URL
+
+**Fix**
+- Pass a fully qualified URL such as `https://example.com`
+
+---
+
+### Unsupported SurfClient config option
+
+```text
+Unsupported SurfClient config option(s): socketPath. Outside the current capability contract.
+```
+
+**Cause**
+- You passed a `SurfClient` constructor option that the current runtime does not wire to real surf behavior
+- Currently only `autoScreenshot` and `screenshotResize` are supported
+
+**Fix**
+- Remove `socketPath`, `networkCapture`, and `networkPath`
+- Use only the supported config keys until the runtime grows a real implementation path
+
+---
+
 ### Heal directory missing
 
 ```text

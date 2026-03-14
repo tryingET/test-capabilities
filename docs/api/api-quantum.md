@@ -67,13 +67,13 @@ const result = await runner.run('https://myapp.com');
 
 ```typescript
 interface QuantumResult {
-  branchesSimulated: number;   // Universes run
-  uniquePaths: number;         // Unique paths discovered
-  collapsedFindings: Discovery[];  // Significant findings
-  edgeCases: Discovery[];      // Edge cases found
-  rareBugs: RareBug[];         // Bugs found in <1% of paths
-  coverage: QuantumCoverage;   // Coverage metrics
-  duration: number;            // Total time (ms)
+  branchesSimulated: number;      // Universes run
+  uniquePaths: number;            // Unique paths discovered
+  collapsedFindings: Discovery[]; // Significant findings
+  edgeCases: Discovery[];         // Backed edge-case findings
+  rareBugs: Discovery[];          // Deduplicated bug findings in <1% of paths
+  coverage: QuantumCoverage;      // Coverage metrics
+  duration: number;               // Total time (ms)
 }
 
 interface Discovery {
@@ -83,13 +83,6 @@ interface Discovery {
   reproduction: QuantumAction[];  // Steps to reproduce
   probability: number;            // How rare (lower = rarer)
   evidence: string[];
-}
-
-interface RareBug {
-  description: string;
-  probability: string;        // e.g., '0.3%'
-  impact: 'low' | 'medium' | 'high' | 'critical';
-  reproduction?: string;
 }
 
 interface QuantumCoverage {
@@ -119,7 +112,7 @@ console.log(`Discovered ${result.rareBugs.length} rare bugs`);
 for (const bug of result.rareBugs) {
   console.log(`\n🐛 ${bug.description}`);
   console.log(`   Probability: ${bug.probability}`);
-  console.log(`   Impact: ${bug.impact}`);
+  console.log(`   Severity: ${bug.severity}`);
 }
 
 // Simulated 1000 universes
@@ -127,9 +120,12 @@ for (const bug of result.rareBugs) {
 // Discovered 2 rare bugs
 //
 // 🐛 Race condition in cart update
-//    Probability: 0.3%
-//    Impact: high
+//    Probability: 0.003
+//    Severity: high
 ```
+
+`edgeCases` is backed by concrete heuristics (for example non-form input targets or non-URL navigation targets) rather than a permanently empty placeholder array.
+`rareBugs` is deduplicated by semantic finding description so repeat observations do not inflate the count.
 
 ---
 
@@ -186,8 +182,12 @@ test-capabilities quantum --target https://myapp.com --branches 1000
 
 # Fail closed on invalid branch counts
 # test-capabilities quantum --target https://myapp.com --branches 0
+
+# Fail closed on invalid targets
+# test-capabilities quantum --target not-a-url --branches 10
 ```
 
+`--target` must be a valid URL.
 `--branches` must be a positive integer branch count.
 
 ---

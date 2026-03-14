@@ -44,6 +44,7 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 - Keep FCOS proving-lane evidence isolated to `fcos-proving-lane`.
 - Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
 - Operation-kernel refactor trigger: if `src/core/operations.ts` grows beyond the current 4 shipped verbs or gains a second adapter surface beyond the CLI, split it into route manifest vs executor modules before adding more behavior.
+- Healer refactor trigger: if `src/healing/self-healing.ts` gains more selector grammars or another mutation mode, split selector extraction / proposal synthesis / transactional apply into separate modules before extending it again.
 
 ## DEFAULT READ PATH FOR NEXT SESSION
 1. `AGENTS.md`

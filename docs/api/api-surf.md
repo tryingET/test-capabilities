@@ -18,12 +18,13 @@ type: "reference"
 
 ```typescript
 const surf = new SurfClient({
-  socketPath: '/tmp/surf.sock',
   autoScreenshot: true,
   screenshotResize: 1200,
-  networkCapture: true,
 });
 ```
+
+Only `autoScreenshot` and `screenshotResize` are wired to the current runtime behavior.
+Passing `socketPath`, `networkCapture`, or `networkPath` now fails clearly instead of being accepted and silently ignored.
 
 ---
 
@@ -166,6 +167,8 @@ await surf.screenshot({ full: true });
 await surf.screenshot({ annotate: true });
 await surf.screenshot({ fullpage: true });
 ```
+
+When `screenshotResize` is set on the client, the wrapper passes that value through as surf's `--max-size` budget for non-`full` screenshots.
 
 ---
 

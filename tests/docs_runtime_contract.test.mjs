@@ -70,13 +70,25 @@ test("healing API docs avoid unsupported CLI flags and explain line-targeted app
   assert.doesNotMatch(healingDoc, /--confidence/);
   assert.match(healingDoc, /targets the proposal's recorded line/i);
   assert.match(healingDoc, /skips common generated\/dependency directories/i);
+  assert.match(healingDoc, /ordinary payload literals/i);
+  assert.match(healingDoc, /applyProposals/i);
 });
 
-test("quantum API docs avoid unsupported CLI flags and document branch validation", () => {
+test("quantum API docs avoid unsupported CLI flags and document target/branch validation", () => {
   const quantumDoc = load("docs/api/api-quantum.md");
 
   assert.doesNotMatch(quantumDoc, /--strategy diversity/);
   assert.match(quantumDoc, /positive integer branch count/i);
+  assert.match(quantumDoc, /must be a valid URL/i);
+  assert.doesNotMatch(quantumDoc, /bug\.impact/);
+  assert.match(quantumDoc, /Severity: \$\{bug\.severity\}/);
+});
+
+test("types docs reflect the tightened quantum and healing contracts", () => {
+  const typesDoc = load("docs/api/types.md");
+
+  assert.match(typesDoc, /target` must be a valid URL/i);
+  assert.match(typesDoc, /column\?: number;/);
 });
 
 test("api reference shows the operation kernel and a capability-backed orchestrator example", () => {
@@ -98,4 +110,12 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
   assert.doesNotMatch(surfDoc, /await surf\.select\('e5', 0/);
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
+  assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
+});
+
+test("errors docs include newly fail-closed quantum and surf config cases", () => {
+  const errorsDoc = load("docs/api/errors.md");
+
+  assert.match(errorsDoc, /Quantum target must be a valid URL/);
+  assert.match(errorsDoc, /Unsupported SurfClient config option\(s\): socketPath/);
 });
