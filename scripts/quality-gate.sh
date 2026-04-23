@@ -70,8 +70,9 @@ run_tests() {
   fi
 
   mapfile -t test_files < <(find "$ROOT_DIR/tests" -maxdepth 1 -type f -name "*.test.*" | sort)
-  if [[ "${#test_files[@]}" -eq 0 ]]; then
-    echo "tests: skipped (no test files matching tests/*.test.*)"
+  mapfile -t behavior_features < <(find "$ROOT_DIR/tests/behavior" -type f -name "*.feature" 2>/dev/null | sort)
+  if [[ "${#test_files[@]}" -eq 0 && "${#behavior_features[@]}" -eq 0 ]]; then
+    echo "tests: skipped (no node tests or behavior features found)"
     return 0
   fi
 
@@ -84,7 +85,19 @@ run_tests() {
     npm run build --silent
   fi
 
-  node --test "${test_files[@]}"
+  if [[ "${#test_files[@]}" -gt 0 ]]; then
+    node --test "${test_files[@]}"
+  else
+    echo "node tests: skipped (no test files matching tests/*.test.*)"
+  fi
+
+  if [[ "${#behavior_features[@]}" -gt 0 ]]; then
+    if [[ -f "$ROOT_DIR/package.json" ]] && command -v npm >/dev/null 2>&1; then
+      npm run test:behavior:raw --silent
+    else
+      echo "behavior tests: skipped (package.json or npm unavailable)"
+    fi
+  fi
 }
 
 run_pre_commit() {
