@@ -16,17 +16,13 @@ ROCS_PROFILE="${ROCS_PROFILE:-}"
 ROCS_CMD="${ROCS_CMD:-}"
 workspace_root="${ROCS_WORKSPACE_ROOT:-$HOME/ai-society}"
 workspace_ref_mode="${ROCS_WORKSPACE_REF_MODE:-loose}"
+core_project_default="${ROCS_CORE_PROJECT:-$workspace_root/core/rocs-cli}"
 export ROCS_AUTHORITY_AGGREGATE=1
 export ROCS_WORKSPACE_ROOT="$workspace_root"
 export ROCS_WORKSPACE_REF_MODE="$workspace_ref_mode"
 
 has_cmd() {
   command -v "$1" >/dev/null 2>&1
-}
-
-is_local_rocs_project() {
-  [[ -f "$repo_root/pyproject.toml" ]] || return 1
-  grep -q 'name = "rocs-cli"' "$repo_root/pyproject.toml"
 }
 
 common_args=(--repo "$ROCS_REPO")
@@ -40,26 +36,9 @@ run_rocs_default() {
     return
   fi
 
-  if [[ -d "$repo_root/tools/rocs-cli" ]]; then
-    if has_cmd uvx; then
-      uvx -n --from "$repo_root/tools/rocs-cli" rocs "$@"
-      return
-    fi
-    if has_cmd uv; then
-      uv tool run --from "$repo_root/tools/rocs-cli" rocs "$@"
-      return
-    fi
-  fi
-
-  if is_local_rocs_project; then
-    if has_cmd uv; then
-      uv --project "$repo_root" run rocs "$@"
-      return
-    fi
-    if has_cmd python; then
-      PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" python -m rocs_cli "$@"
-      return
-    fi
+  if [[ -d "$core_project_default" && -f "$core_project_default/pyproject.toml" ]] && has_cmd uv; then
+    uv --project "$core_project_default" run rocs "$@"
+    return
   fi
 
   if has_cmd rocs; then
@@ -67,7 +46,7 @@ run_rocs_default() {
     return
   fi
 
-  echo "error: unable to locate rocs runner; set ROCS_CMD or add scripts/rocs.sh" >&2
+  echo "error: unable to locate rocs runner; set ROCS_CMD, add scripts/rocs.sh, install uv for workspace core, or add rocs to PATH" >&2
   exit 1
 }
 

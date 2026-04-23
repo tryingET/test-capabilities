@@ -15,14 +15,14 @@ ontology:
           direction: "bi"
           protocol: "file"
           system: "ai-society/core/rocs-cli"
-          contract: "tools/rocs-cli vendored baseline + deterministic checks"
+          contract: "workspace-core/PATH ROCS resolution + deterministic checks"
       dependencies:
         - name: "bombadil"
           type: "runtime"
           note: "Property-based testing binary in external/bombadil."
         - name: "rocs-cli"
           type: "build"
-          note: "Vendored in tools/rocs-cli for FCOS capability checks."
+          note: "Resolved via scripts/rocs.sh against workspace core rocs-cli or PATH for FCOS capability checks."
       anti_goals:
         - "Becoming the FCOS proving lane or control-plane policy repo."
     compass:
