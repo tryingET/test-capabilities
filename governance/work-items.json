@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-04-01",
+  "updated_at": "2026-04-23",
   "owner": "@project-owners",
   "project_name": "test-capabilities",
   "milestones": [
@@ -50,50 +50,41 @@
         {
           "id": "AK-TASK-0072",
           "title": "Add a fast-check-backed property test lane and cover config/schema invariants plus core selection/orchestration invariants.",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "Add a fast-check-backed property test lane and cover config/schema invariants plus core selection/orchestration invariants. (task #72)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0001\n- review_at: 2026-03-20T09:00:00Z"
+          "completed_at": "2026-04-23"
         },
         {
           "id": "AK-TASK-0073",
           "title": "Add executable behavior tests for critical operator and CLI flows using a BDD harness (for example @cucumber/cucumber) and keep scenarios mapped to docs/examples.",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "Add executable behavior tests for critical operator and CLI flows using a BDD harness (for example @cucumber/cucumber) and keep scenarios mapped to docs/examples. (task #73)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0002\n- review_at: 2026-03-20T09:00:00Z"
+          "completed_at": "2026-04-23"
         },
         {
           "id": "AK-TASK-0074",
           "title": "Finish the publish/release contract: emit dist artifacts, align package entrypoints/exports with built output, and keep npm pack contents intentionally minimal.",
-          "state": "queued",
+          "state": "done",
           "tasks": [
             {
               "text": "Finish the publish/release contract: emit dist artifacts, align package entrypoints/exports with built output, and keep npm pack contents intentionally minimal. (task #74)",
-              "done": false
+              "done": true
             }
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
-          "labels": [
-            "deferred"
-          ],
-          "note": "Deferred:\n- reason: Migrated legacy parked backlog item from governance/deferred-tasks.json; keep deferred until the recorded trigger conditions are met.\n- kind: until_event\n- trigger_ref: DEF-0003\n- review_at: 2026-03-27T09:00:00Z"
+          "completed_at": "2026-04-23"
         },
         {
           "id": "AK-TASK-0098",
@@ -111,14 +102,28 @@
         {
           "id": "AK-TASK-0325",
           "title": "Remove repo-local rocs_cli GitLab baseline-resolution compatibility path",
-          "state": "doing",
+          "state": "done",
           "tasks": [
             {
               "text": "Remove repo-local rocs_cli GitLab baseline-resolution compatibility path (task #325)",
-              "done": false
+              "done": true
             }
           ],
-          "dod": "Task reaches done in society.db with evidence recorded."
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-01"
+        },
+        {
+          "id": "AK-TASK-1824",
+          "title": "Refresh governance/work-items.json compatibility projection after completing AK tasks 72-74 and 325",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Refresh governance/work-items.json compatibility projection after completing AK tasks 72-74 and 325 (task #1824)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
         }
       ]
     }
