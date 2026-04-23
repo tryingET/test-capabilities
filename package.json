@@ -20,10 +20,6 @@
   "files": [
     "bin/",
     "dist/",
-    "docs/",
-    "flows/",
-    "policy/",
-    "prompts/",
     "README.md",
     "test-capabilities.yaml"
   ],
@@ -31,7 +27,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./scripts/build.mjs",
     "fix": "bash ./scripts/quality-gate.sh fix",
     "lint": "bash ./scripts/quality-gate.sh lint",
     "typecheck": "bash ./scripts/quality-gate.sh typecheck",

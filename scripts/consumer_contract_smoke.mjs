@@ -29,9 +29,51 @@ function run(command, args, options = {}) {
 try {
   const packResult = run("npm", ["pack", "--json"]);
   const packOutput = JSON.parse(packResult.stdout);
-  const tarballName = packOutput[0]?.filename;
+  const packEntry = packOutput[0];
+  const tarballName = packEntry?.filename;
+  const packedFiles = Array.isArray(packEntry?.files)
+    ? packEntry.files.map((entry) => entry?.path).filter((value) => typeof value === "string")
+    : [];
 
   assert.equal(typeof tarballName, "string", "npm pack did not return a tarball filename");
+  assert.ok(packedFiles.includes("package.json"), "packed artifact missing package.json");
+  assert.ok(packedFiles.includes("README.md"), "packed artifact missing README.md");
+  assert.ok(
+    packedFiles.includes("bin/test-capabilities"),
+    "packed artifact missing CLI entrypoint",
+  );
+  assert.ok(packedFiles.includes("dist/index.js"), "packed artifact missing dist/index.js");
+  assert.ok(packedFiles.includes("dist/index.d.ts"), "packed artifact missing dist/index.d.ts");
+  assert.ok(
+    packedFiles.includes("test-capabilities.yaml"),
+    "packed artifact missing sample config",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.startsWith("docs/")),
+    false,
+    "packed artifact should exclude repo docs",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.startsWith("prompts/")),
+    false,
+    "packed artifact should exclude prompt authoring assets",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.startsWith("flows/")),
+    false,
+    "packed artifact should exclude repo-only flow fixtures",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.startsWith("policy/")),
+    false,
+    "packed artifact should exclude repo-only policy metadata",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.endsWith(".map")),
+    false,
+    "packed artifact should exclude JS and declaration source maps",
+  );
+
   tarballPath = path.join(repoRoot, tarballName);
   assert.ok(existsSync(tarballPath), `tarball missing: ${tarballPath}`);
 
