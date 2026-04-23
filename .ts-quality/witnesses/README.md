@@ -18,6 +18,10 @@ Current live slices:
   - operator-facing facade alias: `src/healing/collect-files.ts`
   - witness artifact: `collect-files-contract.json`
   - receipt sidecar: `collect-files-contract.receipt.json`
+- `operation.quantum.input-envelope.contract`
+  - screened test-capabilities file: `src/core/operations/quantum-operation.ts`
+  - witness artifact: `quantum-operation-contract.json`
+  - receipt sidecar: `quantum-operation-contract.receipt.json`
 - `operation.test.config-override.contract`
   - screened test-capabilities files: `src/core/operations/config-targets-core.ts`, `src/core/operations/config-quick-mode-core.ts`, `src/core/operations/config-load-core.ts`
   - operator-facing facade alias: `src/core/operations/config-overrides.ts`

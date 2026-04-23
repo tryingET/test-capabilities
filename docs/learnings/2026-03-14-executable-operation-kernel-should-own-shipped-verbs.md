@@ -15,7 +15,7 @@ This repo had already converged on a fail-closed runtime contract, but the shipp
 A fail-closed contract compounds more when the shipped verbs are owned by one executable operation kernel than when support status, parsing, execution, and docs are spread across wrappers.
 
 ## Evidence
-- `src/core/operations.ts` now owns the shipped routes, their input schemas, executors, structured outputs, and route manifest.
+- the public operation-kernel facade at `src/core/operations.ts` owns the shipped route contract, while trust-sized implementation modules under `src/core/operations/` keep that contract executable without forcing unrelated runtime helpers into one screening surface.
 - `src/core/capabilities.ts` derives CLI route support from the operation kernel instead of duplicating command/action truth.
 - `bin/test-capabilities` became a thin adapter that parses flags, dispatches through `executeCliOperation(...)`, and renders result envelopes.
 - Contract tests now assert the registry/manifest/dispatch alignment.

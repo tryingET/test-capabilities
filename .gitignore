@@ -11,6 +11,7 @@ convex/_generated/
 tmp/
 out/
 coverage/
+.pi-subagent-sessions/
 
 # Generated artifacts
 dist/

@@ -69,6 +69,33 @@ export default [
     ],
   },
   {
+    id: "operation.quantum.input-envelope.contract",
+    title: "Quantum operation stays fail-closed and envelope-shaped",
+    description:
+      "Quantum operation input parsing must reject missing or invalid targets and invalid branch counts while returning a normalized result envelope for valid requests.",
+    severity: "high",
+    selectors: ["path:src/core/operations/quantum-operation.ts", "symbol:executeQuantumOperation"],
+    requiredTestPatterns: ["tests/quantum_operation_contract.test.mjs"],
+    scenarios: [
+      {
+        id: "input-validated-and-envelope-shaped",
+        description:
+          "quantum operation inputs fail closed and valid calls return a normalized result envelope",
+        keywords: ["executeQuantumOperation returns a normalized quantum result envelope"],
+        failurePathKeywords: [
+          "Quantum simulation requires --target with a valid URL",
+          "Quantum target must be a valid URL",
+          "Invalid value for --branches: 0. Use a positive integer.",
+        ],
+        executionWitnessCommand: ["node", "--test", "tests/quantum_operation_contract.test.mjs"],
+        executionWitnessOutput: ".ts-quality/witnesses/quantum-operation-contract.json",
+        executionWitnessTestFiles: ["tests/quantum_operation_contract.test.mjs"],
+        executionWitnessTimeoutMs: 10000,
+        expected: "preserve",
+      },
+    ],
+  },
+  {
     id: "operation.test.config-override.contract",
     title: "Test config overrides stay fail-closed and intention-preserving",
     description:

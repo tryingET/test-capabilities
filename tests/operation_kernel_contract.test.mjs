@@ -14,7 +14,6 @@ const {
   TEST_OPTION_SUPPORT,
   executeCliOperation,
   executeHealOperation,
-  executeQuantumOperation,
   executeSurfExploreOperation,
   executeTestOperation,
   resolveCliRoute,
@@ -184,36 +183,6 @@ test("executeCliOperation rejects invalid surf explore targets", async () => {
     async () => executeCliOperation({ command: "surf", action: "explore" }, { url: "not-a-url" }),
     /Surf explore target must be a valid URL/,
   );
-});
-
-test("executeCliOperation rejects invalid quantum branch counts", async () => {
-  await assert.rejects(
-    async () =>
-      executeCliOperation({ command: "quantum" }, { target: "https://example.com", branches: "0" }),
-    /Invalid value for --branches: 0/,
-  );
-});
-
-test("executeCliOperation rejects invalid quantum targets", async () => {
-  await assert.rejects(
-    async () => executeCliOperation({ command: "quantum" }, { target: "not-a-url", branches: "1" }),
-    /Quantum target must be a valid URL/,
-  );
-});
-
-test("executeCliOperation requires an explicit quantum target", async () => {
-  await assert.rejects(
-    async () => executeCliOperation({ command: "quantum" }, { branches: "1" }),
-    /Quantum simulation requires --target with a valid URL/,
-  );
-});
-
-test("direct executeQuantumOperation export stays wired to the quantum runtime helper", async () => {
-  const result = await executeQuantumOperation({ target: "https://example.com", branches: "2" });
-
-  assert.equal(result.operationId, "quantum");
-  assert.equal(result.input.branches, "2");
-  assert.equal(result.result.branchesSimulated, 2);
 });
 
 test("executeCliOperation fails closed when the heal directory is missing", async () => {

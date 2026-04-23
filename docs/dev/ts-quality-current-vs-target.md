@@ -25,12 +25,15 @@ The central cross-repo catalog in `../ts-quality/` is a downstream overview, not
 | `operation.kernel.fail-closed` | `src/core/operations/dispatch-execution.ts` | `tests/operation_kernel_contract.test.mjs` | live / supported | Operator-facing aliases `src/core/operations.ts` and `dist/core/operations.js` normalize onto the implementation file so mutation pressure lands on real logic rather than a facade barrel. |
 | `operation.command-runner.error-surface` | `src/core/operations/command-runner-core.ts` | `tests/command_runner_contract.test.mjs` | live / supported | Operator-facing aliases `src/core/operations/command-runner.ts` and `dist/core/operations/command-runner.js` normalize onto the implementation file so mutation pressure lands on real logic rather than a facade barrel. |
 | `healing.collect-files.boundary` | `src/healing/collect-files-core.ts` | `tests/collect_files_contract.test.mjs` | live / supported | Operator-facing aliases `src/healing/collect-files.ts` and `dist/healing/collect-files.js` normalize onto the implementation file so mutation pressure lands on real logic rather than a facade barrel. |
+| `operation.quantum.input-envelope.contract` | `src/core/operations/quantum-operation.ts` | `tests/quantum_operation_contract.test.mjs` | live / supported | The slice screens the behavior-bearing quantum operation implementation directly and keeps witness pressure on input validation plus result-envelope shaping rather than the broader simulator layer. |
 | `operation.test.config-override.contract` | `src/core/operations/config-targets-core.ts`, `src/core/operations/config-quick-mode-core.ts`, `src/core/operations/config-load-core.ts` | `tests/config_overrides_contract.test.mjs` | live / supported | The facade alias `src/core/operations/config-overrides.ts` normalizes onto a three-file implementation cluster because the override contract is split across load, target routing, and quick-mode shaping. |
 
 ## Ready-next slices
 
 No single ready-next slice is declared right now.
-The remaining candidates are useful, but the next truthful slice depends on whether the repo wants to prioritize operation-level breadth, runtime behavior, or broader control-plane semantics next.
+This repo should pause widening until one later candidate has a clearly behavior-bearing boundary and one focused witness path that is reviewable on its own.
+Do not force another slice just to increase coverage count.
+Let the current five-slice set settle before naming another ready-next candidate.
 
 ## Candidate later slices
 
@@ -38,8 +41,7 @@ These look worthwhile, but they are less obviously the next best slice than the 
 
 | Area | Likely screened file(s) | Likely witness/evidence | Why later |
 |---|---|---|---|
-| surf explore operation | `src/core/operations/surf-explore-operation.ts` | `tests/operation_kernel_contract.test.mjs`, `tests/surf_client_contract.test.mjs` | May need a more focused witness command before becoming a clean slice. |
-| quantum operation | `src/core/operations/quantum-operation.ts` | `tests/quantum_simulator_contract.test.mjs` | Good candidate, but boundary choice between operation layer and simulator layer needs care. |
+| surf explore operation | `src/core/operations/surf-explore-operation.ts` | `tests/operation_kernel_contract.test.mjs`, `tests/surf_client_contract.test.mjs` | Intentionally paused while the surf implementation/runtime choice may still change; do not start this slice until the runtime boundary stabilizes and the witness can stay focused. |
 | heal operation | `src/core/operations/heal-operation.ts` | `tests/healing_contract.test.mjs` | Useful, but broader than the first rollout slices. |
 | config schema fail-closed | adjacent config-loading/runtime paths | `tests/config_contract.test.mjs` | Overlaps with the now-live config-override cluster until responsibilities are split more sharply. |
 | orchestrator fail-closed | orchestrator control-plane paths | `tests/orchestrator_fail_closed_contract.test.mjs` | Valuable, but broader and noisier than the current operation-kernel rollout pattern. |
