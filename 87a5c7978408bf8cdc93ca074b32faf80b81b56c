@@ -1,0 +1,22 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "87a5c7978408bf8cdc93ca074b32faf80b81b56c"
+created_at: "2026-04-23T16:20:54Z"
+intent: "Refresh the checked-in governance/work-items.json compatibility projection so it matches current AK task state after completing tasks 72-74, 325, and 1824."
+files:
+  - "governance/work-items.json"
+validation:
+  fast_gate:
+    command: "ak work-items check"
+    status: "pass"
+  full_gate:
+    command: "ak work-items check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+links:
+  task_ids:
+    - 1824
