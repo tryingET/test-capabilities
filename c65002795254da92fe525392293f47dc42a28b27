@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "c65002795254da92fe525392293f47dc42a28b27"
+created_at: "2026-04-23T15:44:53Z"
+intent: "Tighten the packaged release contract by cleaning dist before build, excluding repo-only assets and source maps from tarballs, and asserting the packed-artifact boundary in consumer smoke and targeted tests."
+files:
+  - "package.json"
+  - "tsconfig.json"
+  - "scripts/build.mjs"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "tests/ci_targeted_smoke.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run consumer:smoke"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+links:
+  task_ids:
+    - 74
