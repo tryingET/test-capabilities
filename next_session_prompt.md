@@ -45,7 +45,7 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 - Continue evolving testing product capabilities and docs here; avoid reintroducing control-plane semantics.
 - Operation-kernel refactor trigger: if `src/core/operations.ts` grows beyond the current 4 shipped verbs or gains a second adapter surface beyond the CLI, split it into route manifest vs executor modules before adding more behavior.
 - Healer refactor trigger: if `src/healing/self-healing.ts` gains more selector grammars or another mutation mode, split selector extraction / proposal synthesis / transactional apply into separate modules before extending it again.
-- Bombadil is currently a **parked** capability: binary vendored at `external/bombadil`, runtime agent still unsupported. Use `governance/capability-passport.json` as the current projection when resuming Bombadil work.
+- Bombadil is now a **supported** orchestrator capability. The runtime resolves `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`. Packed consumers still need an external binary because the tarball does not include `external/bombadil`. A source checkout only overrides the vendored fallback after it has a built `target/release|debug/bombadil`; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
 ## DEFAULT READ PATH FOR NEXT SESSION
 1. `AGENTS.md`
@@ -58,20 +58,21 @@ Do **not** recreate `NEXT_SESSION_PROMPT.md` or split handoff across multiple fi
 
 If a future session needs narrative capture, create a repo-local `diary/YYYY-MM-DD--type-scope-summary.md` and then keep only the latest pointer here.
 
-## BOMBADIL OPTION-C POINTER
-When resuming Bombadil reintroduction, treat it as **Option C: proper reintroduction through the core runtime**, not as an ad-hoc binary call.
-Start from:
+## BOMBADIL STATE POINTER
+Bombadil reintroduction is complete through the core runtime.
+When resuming Bombadil-adjacent work, start from:
 1. `governance/capability-passport.json`
-2. `external/bombadil`
-3. `src/core/capabilities.ts`
-4. `src/core/orchestrator.ts`
-5. `src/core/operations.ts`
+2. `src/core/bombadil-runtime.ts`
+3. `/home/tryinget/ai-society/softwareco/contrib/bombadil/docs/development/contributing.md`
+4. `src/core/capabilities.ts`
+5. `src/core/orchestrator.ts`
 6. current fail-closed tests/docs
 
-Acceptance for that future slice:
-- Bombadil gets a core-owned execution path
-- capability contract flips only after runtime, docs, adversarial fixtures, and release checks are real
-- repo state clearly distinguishes vendored presence from supported runtime behavior
+If a future slice revisits Bombadil, the most likely remaining work is distribution/policy follow-through rather than runtime restoration:
+- decide whether packed consumers should keep requiring an external Bombadil binary
+- only include `external/bombadil` in packed artifacts if that larger boundary is intentional
+- keep repo-local vendored presence distinct from packed-consumer expectations
+- if local contrib builds are part of the workflow, ensure `trunk` and `esbuild` (or Bombadil's Nix shell) are explicitly available before expecting `softwareco/contrib/bombadil` to override the vendored fallback
 
 ## NEXT-SESSION START COMMANDS
 ```bash

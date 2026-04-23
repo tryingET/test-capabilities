@@ -124,6 +124,32 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1825",
+          "title": "Reintroduce Bombadil through a core-owned orchestrator runtime path",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Reintroduce Bombadil through a core-owned orchestrator runtime path (task #1825)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1826",
+          "title": "Prefer local contrib Bombadil builds when available and document build prerequisites",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Prefer local contrib Bombadil builds when available and document build prerequisites (task #1826)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
         }
       ]
     }

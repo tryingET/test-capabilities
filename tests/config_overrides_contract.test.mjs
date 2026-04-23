@@ -52,10 +52,24 @@ test("assertMeaningfulTestTargetOverride fails closed only for inert URL targets
       enabled: true,
     },
   };
+  const bombadilEnabled = {
+    ...quantumDisabled,
+    targets: { ...quantumDisabled.targets, web: "https://example.com" },
+    agents: {
+      web: {
+        enabled: true,
+        type: "bombadil",
+        intensity: "normal",
+      },
+    },
+  };
 
   assert.doesNotThrow(() => assertMeaningfulTestTargetOverride(process.execPath, quantumDisabled));
   assert.doesNotThrow(() =>
     assertMeaningfulTestTargetOverride("https://example.com", quantumEnabled),
+  );
+  assert.doesNotThrow(() =>
+    assertMeaningfulTestTargetOverride("https://example.com", bombadilEnabled),
   );
   assert.throws(
     () => assertMeaningfulTestTargetOverride("https://example.com", quantumDisabled),

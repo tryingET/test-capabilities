@@ -13,7 +13,7 @@ export type CapabilityStatus = "implemented" | "unsupported";
 export const CAPABILITY_MATRIX = {
   orchestrator: {
     agents: {
-      bombadil: "unsupported",
+      bombadil: "implemented",
       surf: "unsupported",
       "api-fuzzer": "unsupported",
       "cli-tester": "implemented",
@@ -95,7 +95,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
 
   if (enabledAgents.length === 0) {
     throw new Error(
-      "At least one enabled agent is required. The current orchestrator capability contract supports the 'cli-tester' agent.",
+      "At least one enabled agent is required. The current orchestrator capability contract supports the 'bombadil' and 'cli-tester' agents.",
     );
   }
 
@@ -107,7 +107,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
     throw renderUnsupported(
       "agent type(s)",
       unsupportedAgents,
-      "Disable them or switch to the supported 'cli-tester' orchestrator path.",
+      "Disable them or switch to the supported 'bombadil' and/or 'cli-tester' orchestrator paths.",
     );
   }
 
@@ -141,6 +141,13 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
   if (needsCli && !config.targets?.cli) {
     throw new Error(
       "The enabled 'cli-tester' agent requires targets.cli to be configured with an executable command or path.",
+    );
+  }
+
+  const needsWeb = enabledAgents.some(([, agent]) => agent.type === "bombadil");
+  if (needsWeb && !config.targets?.web) {
+    throw new Error(
+      "The enabled 'bombadil' agent requires targets.web to be configured with a valid URL origin.",
     );
   }
 

@@ -171,10 +171,21 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
             : "contract_only",
       evidence:
         status === "implemented"
-          ? {
-              tests: ["tests/orchestrator_fail_closed_contract.test.mjs"],
-              commands: ["npm test"],
-            }
+          ? bombadilAgent
+            ? {
+                files: bombadilPresent ? ["external/bombadil"] : undefined,
+                tests: [
+                  "tests/orchestrator_fail_closed_contract.test.mjs",
+                  "tests/config_overrides_contract.test.mjs",
+                  "tests/cli_fail_closed_contract.test.mjs",
+                  "tests/bombadil_runtime_contract.test.mjs",
+                ],
+                commands: ["npm test"],
+              }
+            : {
+                tests: ["tests/orchestrator_fail_closed_contract.test.mjs"],
+                commands: ["npm test"],
+              }
           : bombadilAgent && bombadilPresent
             ? {
                 files: ["external/bombadil"],
@@ -187,18 +198,22 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
               },
       attachPoints: ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
       activationRequirements:
-        bombadilAgent && bombadilPresent
-          ? [
-              "Add a core-owned Bombadil execution path instead of depending on the vendored binary ad hoc.",
-              "Introduce fail-closed input validation plus structured result envelopes for Bombadil-backed runs.",
-              "Add adversarial runtime fixtures, docs, and release checks before promoting the agent to supported.",
-              "Only then flip support_state from parked to supported in the capability passport and runtime matrix.",
-            ]
-          : [],
+        status === "implemented"
+          ? []
+          : bombadilAgent && bombadilPresent
+            ? [
+                "Add a core-owned Bombadil execution path instead of depending on the vendored binary ad hoc.",
+                "Introduce fail-closed input validation plus structured result envelopes for Bombadil-backed runs.",
+                "Add adversarial runtime fixtures, docs, and release checks before promoting the agent to supported.",
+                "Only then flip support_state from parked to supported in the capability passport and runtime matrix.",
+              ]
+            : [],
       notes:
-        bombadilAgent && bombadilPresent
-          ? "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
-          : undefined,
+        status === "implemented" && bombadilAgent
+          ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built checkout from TEST_CAPABILITIES_BOMBADIL_REPO or the conventional workspace-local softwareco/contrib/bombadil, then repo-local external/bombadil, then bombadil on PATH."
+          : bombadilAgent && bombadilPresent
+            ? "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
+            : undefined,
     }),
   );
 }
@@ -220,11 +235,11 @@ capabilities.push(
     attachPoints: ["external/bombadil", "README.md", "next_session_prompt.md"],
     activationRequirements: bombadilPresent
       ? [
-          "Reintroduce Bombadil through a supported runtime path before treating the vendored binary as a user-facing capability.",
+          "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface.",
         ]
       : [],
     notes: bombadilPresent
-      ? "Presence in the repo does not imply runtime support; this entry exists to make that distinction explicit."
+      ? "Repo-local external/bombadil is one binary provider for the supported Bombadil agent in this checkout; a built softwareco/contrib/bombadil checkout can override it locally, while packed consumers still need TEST_CAPABILITIES_BOMBADIL_BIN, TEST_CAPABILITIES_BOMBADIL_REPO, or bombadil on PATH."
       : "Bombadil binary is not currently vendored in this checkout.",
   }),
 );

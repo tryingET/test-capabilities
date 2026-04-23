@@ -46,12 +46,15 @@ If a config section, agent, command, or flag is not wired to a real implementati
 
 The shipped CLI verbs now run through a typed **operation kernel** exposed at `src/core/operations.ts` and implemented in trust-sized modules under `src/core/operations/`.
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
+For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
+A contrib checkout only overrides the vendored binary once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil currently needs `trunk` and `esbuild` for local builds, or its Nix shell.
 
 ### Implemented today
 
 | Surface | Status | Notes |
 |---------|--------|-------|
-| `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets only apply when `quantum.enabled: true` and do not replace the required `targets.cli` smoke target |
+| `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
+| `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built contrib checkout, vendored repo asset, or `PATH` |
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs the real surf CLI if available |
@@ -62,7 +65,7 @@ That registry owns the supported routes, their input schemas, their executors, a
 
 These surfaces fail clearly when enabled or invoked:
 
-- orchestrator agents: `bombadil`, `surf`, `api-fuzzer`
+- orchestrator agents: `surf`, `api-fuzzer`
 - orchestrator intelligence flags: `self_healing`, `prediction`, `collective`
 - `chaos` execution
 - CLI commands: `predict`, `visualize`, `report`

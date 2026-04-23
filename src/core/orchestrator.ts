@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 import { z } from "zod";
 import { QuantumTestRunner } from "../quantum/simulator.js";
+import { runBombadil } from "./bombadil-runtime.js";
 import { validateCapabilityContract } from "./capabilities.js";
 
 // ============================================
@@ -297,6 +298,15 @@ function getHighestSeverity(findings: Finding[]): Severity {
 }
 
 const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
+const DEFAULT_BOMBADIL_DURATION_MS: Record<NonNullable<AgentConfig["intensity"]>, number> = {
+  gentle: 5_000,
+  normal: 10_000,
+  aggressive: 20_000,
+};
+
+function getBombadilBudgetMs(intensity: AgentConfig["intensity"] | undefined): number {
+  return DEFAULT_BOMBADIL_DURATION_MS[intensity ?? "normal"];
+}
 
 export class TestCapabilitiesOrchestrator {
   private config: TestCapabilitiesConfig;
@@ -320,6 +330,14 @@ export class TestCapabilitiesOrchestrator {
       }
 
       switch (agentConfig.type) {
+        case "bombadil": {
+          const durationMs = parseDurationToMs(
+            agentConfig.duration,
+            getBombadilBudgetMs(agentConfig.intensity),
+          );
+          this.agents.set(name, new BombadilAgent(name, durationMs));
+          break;
+        }
         case "cli-tester": {
           const timeoutMs = parseDurationToMs(agentConfig.duration, DEFAULT_CLI_TESTER_TIMEOUT_MS);
           this.agents.set(name, new CliTesterAgent(name, timeoutMs));
@@ -327,7 +345,7 @@ export class TestCapabilitiesOrchestrator {
         }
         default:
           throw new Error(
-            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'cli-tester' is currently backed by the orchestrator runtime.`,
+            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'bombadil' and 'cli-tester' are currently backed by the orchestrator runtime.`,
           );
       }
     }
@@ -560,6 +578,136 @@ interface AgentResult {
 
 interface TestAgent {
   execute(targets: Target): Promise<AgentResult>;
+}
+
+function summarizeBombadilEvidence(
+  evidence: Pick<
+    Awaited<ReturnType<typeof runBombadil>>,
+    | "binaryPath"
+    | "binaryProvider"
+    | "resolutionNotes"
+    | "tracePath"
+    | "usedDefaultSpecification"
+    | "stderr"
+    | "stdout"
+    | "timedOut"
+    | "durationMs"
+  >,
+): string[] {
+  const renderedEvidence: string[] = [
+    `binary: ${evidence.binaryPath}`,
+    `provider: ${evidence.binaryProvider}`,
+  ];
+
+  if (evidence.usedDefaultSpecification) {
+    renderedEvidence.push("specification: default");
+  }
+
+  if (evidence.timedOut) {
+    renderedEvidence.push(
+      `bounded run finished after ${evidence.durationMs}ms without a surfaced violation`,
+    );
+  }
+
+  if (evidence.tracePath) {
+    renderedEvidence.push(`trace: ${evidence.tracePath}`);
+  }
+
+  renderedEvidence.push(...evidence.resolutionNotes);
+
+  const diagnosticLine = [...evidence.stderr.split(/\r?\n/), ...evidence.stdout.split(/\r?\n/)]
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .find((line) =>
+      /violation|error|failed|using default specification|storing trace in|starting test/i.test(
+        line,
+      ),
+    );
+
+  if (diagnosticLine) {
+    renderedEvidence.push(diagnosticLine);
+  }
+
+  return renderedEvidence;
+}
+
+class BombadilAgent implements TestAgent {
+  private readonly agentName: string;
+  private readonly durationMs: number;
+
+  constructor(agentName: string, durationMs: number) {
+    this.agentName = agentName;
+    this.durationMs = durationMs;
+  }
+
+  async execute(targets: Target): Promise<AgentResult> {
+    if (!targets.web) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-missing-web-target`,
+            type: "bug",
+            severity: "critical",
+            component: "web",
+            description: "Web target is missing for the bombadil agent",
+            evidence: ["targets.web was not configured"],
+            recommendation:
+              "Set targets.web to a valid origin before running the Bombadil-backed orchestrator path.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { edgeCases: 0 },
+      };
+    }
+
+    const result = await runBombadil({
+      origin: targets.web,
+      durationMs: this.durationMs,
+    });
+
+    if (result.status === "completed" || result.status === "budget_exhausted") {
+      return {
+        findings: [],
+        coverage: { edgeCases: 100 },
+      };
+    }
+
+    if (result.status === "violation") {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-property-violation`,
+            type: "bug",
+            severity: "high",
+            component: "web",
+            description: `Bombadil found a property violation while exploring ${targets.web}`,
+            evidence: summarizeBombadilEvidence(result),
+            recommendation:
+              "Review the Bombadil trace and logs, then fix or tighten the violated browser behavior before relying on this target.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { edgeCases: 100 },
+      };
+    }
+
+    return {
+      findings: [
+        {
+          id: `${this.agentName}-runtime-failed`,
+          type: "bug",
+          severity: "critical",
+          component: "web",
+          description: `Bombadil runtime could not complete against ${targets.web}`,
+          evidence: summarizeBombadilEvidence(result),
+          recommendation:
+            "Ensure Bombadil is available through TEST_CAPABILITIES_BOMBADIL_BIN, a built TEST_CAPABILITIES_BOMBADIL_REPO/workspace contrib checkout, repo-local external/bombadil, or bombadil on PATH, then re-run the suite.",
+          timestamp: new Date(),
+        },
+      ],
+      coverage: { edgeCases: 0 },
+    };
+  }
 }
 
 class CliTesterAgent implements TestAgent {

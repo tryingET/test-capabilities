@@ -66,6 +66,43 @@ async function runCliSmoke(command: string) {
 
 ---
 
+## Pattern: Bombadil property exploration
+
+```typescript
+import { createNexus } from 'test-capabilities';
+
+async function runBombadilExploration(origin: string) {
+  const suite = createNexus({
+    version: '2.0',
+    name: 'Bombadil Exploration',
+    targets: { web: origin },
+    agents: {
+      web: {
+        enabled: true,
+        type: 'bombadil',
+        intensity: 'normal',
+        duration: '10s',
+      },
+    },
+    intelligence: {
+      selfHealing: false,
+      prediction: false,
+      correlation: true,
+      collective: false,
+    },
+    quantum: { enabled: false },
+    chaos: { enabled: false },
+  });
+
+  return suite.run();
+}
+```
+
+Use this when you want a supported, bounded Bombadil run through the orchestrator instead of calling the binary ad hoc. The runtime resolves `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
+If you cloned the Bombadil source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
+
+---
+
 ## Pattern: surf exploration wrapper
 
 ```bash

@@ -17,6 +17,8 @@ type: "guide"
 - Node.js 22+
 - A CLI command or executable you can safely run with `--help`
 - Optional: `surf` installed if you want to use `test-capabilities surf explore`
+- Optional: a Bombadil binary exposed through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` if you want Bombadil-backed web exploration outside this repo checkout
+- Optional for local ai-society workspace development: a built `softwareco/contrib/bombadil/target/release|debug/bombadil`; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell
 
 ---
 
@@ -108,6 +110,7 @@ Use this when you want direct simulator output instead of the orchestrator CLI-s
 
 ### Implemented
 - `test` with `--config`, `--target`, `--quick`
+- `bombadil` orchestrator agent
 - `cli-tester` orchestrator agent
 - correlation enabled in config
 - `quantum` command
@@ -115,7 +118,7 @@ Use this when you want direct simulator output instead of the orchestrator CLI-s
 - `surf explore`
 
 ### Unsupported and fail-closed
-- orchestrator agents: `bombadil`, `surf`, `api-fuzzer`
+- orchestrator agents: `surf`, `api-fuzzer`
 - orchestrator intelligence: `self-healing`, `prediction`, `collective`
 - chaos execution
 - CLI commands: `predict`, `visualize`, `report`

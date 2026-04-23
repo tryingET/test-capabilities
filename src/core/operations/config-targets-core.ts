@@ -27,7 +27,11 @@ export function applyTargetOverride(
 }
 
 function hasWebTargetConsumer(config: TestCapabilitiesConfig): boolean {
-  return config.quantum?.enabled === true;
+  const hasBombadilAgent = Object.values(config.agents ?? {}).some(
+    (agent) => agent.enabled !== false && agent.type === "bombadil",
+  );
+
+  return config.quantum?.enabled === true || hasBombadilAgent;
 }
 
 export function assertMeaningfulTestTargetOverride(
@@ -44,7 +48,7 @@ export function assertMeaningfulTestTargetOverride(
 
   if (!hasWebTargetConsumer(config)) {
     throw new Error(
-      "URL targets for 'test' require a real web-consuming runtime path. Enable quantum for this run or pass a CLI command/path target instead.",
+      "URL targets for 'test' require a real web-consuming runtime path. Enable quantum, enable the supported 'bombadil' agent, or pass a CLI command/path target instead.",
     );
   }
 }

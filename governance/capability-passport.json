@@ -26,21 +26,21 @@
       "name": "bombadil orchestrator agent",
       "surface_kind": "orchestrator-agent",
       "presence_state": "present",
-      "support_state": "parked",
-      "verification_state": "present_only",
+      "support_state": "supported",
+      "verification_state": "verified",
       "evidence": {
         "files": ["external/bombadil"],
-        "tests": ["tests/orchestrator_fail_closed_contract.test.mjs"],
+        "tests": [
+          "tests/orchestrator_fail_closed_contract.test.mjs",
+          "tests/config_overrides_contract.test.mjs",
+          "tests/cli_fail_closed_contract.test.mjs",
+          "tests/bombadil_runtime_contract.test.mjs"
+        ],
         "commands": ["npm test"]
       },
       "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
-      "activation_requirements": [
-        "Add a core-owned Bombadil execution path instead of depending on the vendored binary ad hoc.",
-        "Introduce fail-closed input validation plus structured result envelopes for Bombadil-backed runs.",
-        "Add adversarial runtime fixtures, docs, and release checks before promoting the agent to supported.",
-        "Only then flip support_state from parked to supported in the capability passport and runtime matrix."
-      ],
-      "notes": "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
+      "activation_requirements": [],
+      "notes": "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built checkout from TEST_CAPABILITIES_BOMBADIL_REPO or the conventional workspace-local softwareco/contrib/bombadil, then repo-local external/bombadil, then bombadil on PATH."
     },
     {
       "id": "agent:cli-tester",
@@ -359,9 +359,9 @@
       },
       "attach_points": ["external/bombadil", "README.md", "next_session_prompt.md"],
       "activation_requirements": [
-        "Reintroduce Bombadil through a supported runtime path before treating the vendored binary as a user-facing capability."
+        "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface."
       ],
-      "notes": "Presence in the repo does not imply runtime support; this entry exists to make that distinction explicit."
+      "notes": "Repo-local external/bombadil is one binary provider for the supported Bombadil agent in this checkout; a built softwareco/contrib/bombadil checkout can override it locally, while packed consumers still need TEST_CAPABILITIES_BOMBADIL_BIN, TEST_CAPABILITIES_BOMBADIL_REPO, or bombadil on PATH."
     }
   ]
 }

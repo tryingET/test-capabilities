@@ -1,7 +1,7 @@
 # TEST-CAPABILITIES configuration template
 # Capability-backed contract (current orchestrator support):
-# - implemented: cli-tester agent, correlation, quantum simulation
-# - unsupported when enabled: bombadil, surf, api-fuzzer, prediction, self-healing, collective, chaos
+# - implemented: bombadil + cli-tester agents, correlation, quantum simulation
+# - unsupported when enabled: surf, api-fuzzer, prediction, self-healing, collective, chaos
 
 version: '2.0'
 name: 'CLI Smoke Suite'
@@ -16,7 +16,7 @@ agents:
     type: cli-tester
     intensity: normal
 
-  # Roadmap placeholders — keep disabled until the orchestrator supports them.
+  # Unsupported roadmap placeholders — keep disabled until the orchestrator supports them.
   web:
     enabled: false
     type: surf
@@ -27,6 +27,7 @@ agents:
     type: api-fuzzer
     intensity: normal
 
+  # Supported web exploration path; enable it only when targets.web is set and Bombadil is resolvable.
   explorer:
     enabled: false
     type: bombadil

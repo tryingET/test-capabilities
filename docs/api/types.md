@@ -97,7 +97,8 @@ Schema note:
 - all four `type` values are valid at parse time
 
 Runtime capability note:
-- only `cli-tester` is currently supported by the fail-closed orchestrator path
+- `bombadil` and `cli-tester` are currently supported by the fail-closed orchestrator path
+- `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout pointed to by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH`
 
 ### `IntelligenceConfig`
 

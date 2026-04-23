@@ -10,7 +10,7 @@ function loadPassport() {
   );
 }
 
-test("capability passport projection exists and distinguishes present vs supported Bombadil state", () => {
+test("capability passport projection records supported Bombadil runtime separately from the vendored tool boundary", () => {
   const passport = loadPassport();
 
   assert.equal(passport.schema_version, 1);
@@ -21,12 +21,15 @@ test("capability passport projection exists and distinguishes present vs support
   const testCommand = passport.capabilities.find((entry) => entry.id === "cli:test");
 
   assert.equal(bombadilAgent?.presence_state, "present");
-  assert.equal(bombadilAgent?.support_state, "parked");
-  assert.equal(bombadilAgent?.verification_state, "present_only");
-  assert.equal((bombadilAgent?.activation_requirements?.length ?? 0) > 0, true);
+  assert.equal(bombadilAgent?.support_state, "supported");
+  assert.equal(bombadilAgent?.verification_state, "verified");
+  assert.equal(bombadilAgent?.notes?.includes("TEST_CAPABILITIES_BOMBADIL_BIN"), true);
+  assert.equal(bombadilAgent?.notes?.includes("TEST_CAPABILITIES_BOMBADIL_REPO"), true);
 
   assert.equal(bombadilTool?.presence_state, "present");
   assert.equal(bombadilTool?.support_state, "parked");
+  assert.equal(bombadilTool?.notes?.includes("packed consumers still need"), true);
+  assert.equal(bombadilTool?.notes?.includes("softwareco/contrib/bombadil"), true);
 
   assert.equal(testCommand?.support_state, "supported");
   assert.equal(testCommand?.verification_state, "verified");

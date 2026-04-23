@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
 
-function runCli(args) {
+function runCli(args, extraEnv = {}) {
   return spawnSync(process.execPath, [binPath, ...args], {
     encoding: "utf8",
-    env: runtimeEnv(),
+    env: runtimeEnv(extraEnv),
   });
 }
 
@@ -47,6 +50,57 @@ test("CLI test command rejects URL overrides when no supported web consumer is e
     `${result.stdout}\n${result.stderr}`,
     /URL targets for 'test' require a real web-consuming runtime path/,
   );
+});
+
+test("CLI test command accepts URL overrides when bombadil is the supported web consumer", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-bombadil-"));
+  const fakeBombadil = path.join(tempDir, "bombadil");
+  const configPath = path.join(tempDir, "bombadil-config.yaml");
+
+  writeFileSync(
+    fakeBombadil,
+    "#!/bin/sh\necho 'using default specification' >&2\necho 'storing trace in /tmp/fake-bombadil-trace' >&2\ntrap '' TERM\nsleep 30\n",
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    configPath,
+    [
+      "version: '2.0'",
+      "name: 'Bombadil CLI Contract'",
+      "targets:",
+      "  web: 'https://placeholder.example.com'",
+      "agents:",
+      "  web:",
+      "    enabled: true",
+      "    type: bombadil",
+      "    intensity: normal",
+      "    duration: 50ms",
+      "intelligence:",
+      "  self_healing: false",
+      "  prediction: false",
+      "  correlation: true",
+      "  collective: false",
+      "quantum:",
+      "  enabled: false",
+      "chaos:",
+      "  enabled: false",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(
+      ["test", "--config", configPath, "--target", "https://example.com", "--quick"],
+      { TEST_CAPABILITIES_BOMBADIL_BIN: fakeBombadil },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Health:\s+pass/);
+    assert.match(`${result.stdout}\n${result.stderr}`, /edge=100%/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("CLI surf explore rejects flags that are not wired to runtime behavior", () => {

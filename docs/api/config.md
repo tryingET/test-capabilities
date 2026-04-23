@@ -51,6 +51,8 @@ This succeeds because the current orchestrator supports:
 - quantum disabled or explicitly configured against `targets.web`
 - chaos disabled
 
+A Bombadil-backed web run is also supported when you enable a `bombadil` agent and provide `targets.web`.
+
 ---
 
 ## Supported top-level keys
@@ -89,7 +91,7 @@ targets:
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `web` | URL string | Required when `quantum.enabled: true` |
+| `web` | URL string | Required when `quantum.enabled: true` or a `bombadil` agent is enabled |
 | `api` | URL string | Parsed but not currently used by the supported orchestrator path |
 | `cli` | string | Required when `cli-tester` is enabled |
 
@@ -103,7 +105,8 @@ Schema-supported types:
 - `api-fuzzer`
 - `cli-tester`
 
-Runtime-supported type:
+Runtime-supported types:
+- `bombadil`
 - `cli-tester`
 
 Example:
@@ -126,7 +129,9 @@ Supported fields:
 | `duration` | string |
 | `focus` | string[] |
 
-If an enabled agent uses `bombadil`, `surf`, or `api-fuzzer`, runtime validation fails clearly.
+If an enabled agent uses `surf` or `api-fuzzer`, runtime validation fails clearly.
+If an enabled agent uses `bombadil`, runtime validation requires `targets.web` and a Bombadil binary that can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout pointed to by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
+A source checkout only overrides the vendored fallback after it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
 ---
 

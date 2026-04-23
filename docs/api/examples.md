@@ -98,7 +98,53 @@ console.log(result.passed, result.coverage);
 
 ---
 
-## Example 4: surf exploration
+## Example 4: Bombadil-backed web exploration
+
+```yaml
+version: '2.0'
+name: 'Bombadil Web Exploration'
+
+targets:
+  web: 'https://example.com'
+
+agents:
+  web:
+    enabled: true
+    type: bombadil
+    intensity: normal
+    duration: 10s
+
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false
+```
+
+```bash
+TEST_CAPABILITIES_BOMBADIL_BIN=/path/to/bombadil \
+  test-capabilities test --config test-capabilities.yaml --target https://example.com --quick
+```
+
+Or, if you have a source checkout:
+
+```bash
+TEST_CAPABILITIES_BOMBADIL_REPO=/path/to/bombadil-source \
+  test-capabilities test --config test-capabilities.yaml --target https://example.com --quick
+```
+
+If you are running inside this repo checkout, the orchestrator also checks for a built `softwareco/contrib/bombadil/target/release|debug/bombadil` before falling back to repo-local `external/bombadil` and then `bombadil` on `PATH`.
+A source checkout only overrides the vendored fallback after it has a built binary; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
+
+---
+
+## Example 5: surf exploration
 
 ```bash
 test-capabilities surf explore --url https://example.com
@@ -106,7 +152,7 @@ test-capabilities surf explore --url https://example.com
 
 ---
 
-## Example 5: selector healing as a library workflow
+## Example 6: selector healing as a library workflow
 
 ```typescript
 import { TestFileHealer } from 'test-capabilities';
@@ -123,7 +169,7 @@ for (const proposal of proposals) {
 
 ---
 
-## Example 6: prediction engine as a direct library API
+## Example 7: prediction engine as a direct library API
 
 > The prediction engine exists as a library surface, but it is not currently wired into the supported orchestrator CLI path.
 
@@ -157,7 +203,7 @@ console.log(predictions[0]);
 
 ---
 
-## Example 7: quantum simulation
+## Example 8: quantum simulation
 
 ```typescript
 import { QuantumTestRunner } from 'test-capabilities';
@@ -174,7 +220,7 @@ console.log(result.collapsedFindings.length);
 
 ---
 
-## Example 8: packaged consumer smoke
+## Example 9: packaged consumer smoke
 
 ```bash
 npm run consumer:smoke
@@ -184,7 +230,7 @@ Use this to verify the packed artifact still exposes a working consumer contract
 
 ---
 
-## Example 9: repo-local capability drill
+## Example 10: repo-local capability drill
 
 ```bash
 npm run capability:drill

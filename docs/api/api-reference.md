@@ -166,9 +166,10 @@ const result = await suite.run();
 The orchestrator is fail-closed.
 For the current supported orchestrator path, you must configure:
 - at least one enabled supported agent
-- currently that means `cli-tester`
+- currently that means `bombadil` and/or `cli-tester`
 - `targets.cli` when `cli-tester` is enabled
-- `targets.web` if `quantum.enabled` is true
+- `targets.web` when `bombadil` is enabled or `quantum.enabled` is true
+- a Bombadil binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout pointed to by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH` when the supported Bombadil agent is enabled
 
 ---
 

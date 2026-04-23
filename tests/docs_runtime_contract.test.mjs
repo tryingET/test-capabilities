@@ -14,7 +14,13 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
-  assert.match(cliDoc, /does \*\*not\*\* replace the required `targets\.cli` smoke target/);
+  assert.match(cliDoc, /enabled `bombadil` agent/);
+  assert.match(cliDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
+  assert.match(cliDoc, /softwareco\/contrib\/bombadil/);
+  assert.match(
+    cliDoc,
+    /does \*\*not\*\* replace `targets\.cli` when `cli-tester` is still enabled/,
+  );
   assert.match(cliDoc, /kernel no longer defaults to `about:blank`/);
   assert.match(cliDoc, /Required target URL for the simulator/);
   assert.match(cliDoc, /Fails with an unsupported-option error/);
@@ -39,6 +45,8 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   const configDoc = load("docs/api/config.md");
 
   assert.match(configDoc, /Rejected top-level keys/);
+  assert.match(configDoc, /Runtime-supported types:\s*- `bombadil`\s*- `cli-tester`/s);
+  assert.match(configDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.doesNotMatch(configDoc, /^reporting:/m);
   assert.doesNotMatch(configDoc, /^alerts:/m);
   assert.doesNotMatch(configDoc, /^execution:/m);
@@ -107,6 +115,7 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
+  assert.match(apiReferenceDoc, /`bombadil` and\/or `cli-tester`/);
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 
@@ -115,6 +124,7 @@ test("examples docs include the repo-local capability drill", () => {
   const readmeDoc = load("README.md");
 
   assert.match(examplesDoc, /npm run capability:drill/);
+  assert.match(examplesDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.match(examplesDoc, /--surf-mode shim/);
   assert.match(examplesDoc, /--surf-mode real/);
   assert.match(examplesDoc, /--json --surf-mode shim --skip-build/);

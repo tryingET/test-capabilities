@@ -237,7 +237,7 @@ Heal directory not found: /path/to/tests. Use --dir with an existing directory.
 ### No enabled supported agents
 
 ```text
-At least one enabled agent is required. The current orchestrator capability contract supports the 'cli-tester' agent.
+At least one enabled agent is required. The current orchestrator capability contract supports the 'bombadil' and 'cli-tester' agents.
 ```
 
 **Cause**
@@ -246,7 +246,7 @@ At least one enabled agent is required. The current orchestrator capability cont
 - only unsupported agent types are enabled
 
 **Fix**
-Configure at least one enabled `cli-tester` agent.
+Configure at least one enabled `bombadil` or `cli-tester` agent.
 
 ---
 
@@ -257,11 +257,33 @@ Unsupported agent type(s): web:surf. Outside the current capability contract.
 ```
 
 **Cause**
-- An enabled agent uses `surf`, `bombadil`, or `api-fuzzer`
+- An enabled agent uses `surf` or `api-fuzzer`
 
 **Fix**
 - Disable those agents for the orchestrator path
-- Keep `cli-tester` as the enabled orchestrator agent
+- Keep `bombadil` and/or `cli-tester` as the enabled orchestrator agents
+
+---
+
+### Bombadil target missing
+
+```text
+The enabled 'bombadil' agent requires targets.web to be configured with a valid URL origin.
+```
+
+**Cause**
+- `bombadil` is enabled but `targets.web` is missing
+
+**Fix**
+Add a web target, for example:
+
+```yaml
+targets:
+  web: 'https://example.com'
+```
+
+Make sure the Bombadil binary can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
+If you only cloned the source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
 ---
 
