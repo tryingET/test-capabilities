@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bombadil Rich Fixture — About</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 720px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      section {
+        margin: 1rem 0;
+        padding: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>About the Bombadil Rich Fixture</h1>
+    <p>
+      This secondary page exists so Bombadil can explore intra-origin navigation
+      without leaving the local fixture boundary.
+    </p>
+
+    <section>
+      <h2>Navigation</h2>
+      <p><a href="/index.html">Return to the main fixture</a></p>
+    </section>
+
+    <section>
+      <h2>Static expectations</h2>
+      <ul>
+        <li>The page title stays non-empty.</li>
+        <li>Navigation remains inside the local origin.</li>
+        <li>The return link is always visible.</li>
+      </ul>
+    </section>
+  </body>
+</html>

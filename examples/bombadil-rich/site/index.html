@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bombadil Rich Fixture</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+      section {
+        margin: 1.2rem 0;
+        padding: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .hidden {
+        display: none;
+      }
+      button,
+      input,
+      select {
+        margin: 0.35rem 0;
+      }
+      #items li {
+        margin: 0.3rem 0;
+      }
+      .ok {
+        color: green;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bombadil Rich Fixture</h1>
+    <p>
+      This page exposes links, buttons, inputs, a form, and stateful UI for
+      richer local Bombadil exploration.
+    </p>
+
+    <nav>
+      <a href="#panel-a">Panel A</a>
+      <a href="#panel-b">Panel B</a>
+      <a href="#controls">Controls</a>
+      <a href="/about.html">About</a>
+    </nav>
+
+    <section id="panel-a">
+      <h2>Panel A</h2>
+      <button id="toggle-details">Toggle details</button>
+      <div id="details" class="hidden">
+        <p class="ok">Details are visible.</p>
+      </div>
+    </section>
+
+    <section id="panel-b">
+      <h2>Panel B</h2>
+      <label>
+        Pick a mode
+        <select id="mode-select">
+          <option value="browse">Browse</option>
+          <option value="edit">Edit</option>
+          <option value="review">Review</option>
+        </select>
+      </label>
+      <p id="mode-output">Mode: browse</p>
+    </section>
+
+    <section id="controls">
+      <h2>Controls</h2>
+      <form id="item-form">
+        <label for="item-input">Add item</label><br />
+        <input id="item-input" name="item" type="text" placeholder="Type an item" />
+        <button id="add-item" type="submit">Add</button>
+      </form>
+      <p id="form-status">No submissions yet.</p>
+      <ul id="items">
+        <li>alpha</li>
+        <li>beta</li>
+      </ul>
+      <label>
+        <input id="confirm-box" type="checkbox" />
+        Confirm ready state
+      </label>
+      <p id="confirm-output">Ready: false</p>
+    </section>
+
+    <script>
+      const details = document.getElementById("details");
+      const form = document.getElementById("item-form");
+      const input = document.getElementById("item-input");
+      const items = document.getElementById("items");
+      const formStatus = document.getElementById("form-status");
+      const confirmBox = document.getElementById("confirm-box");
+      const confirmOutput = document.getElementById("confirm-output");
+      const modeSelect = document.getElementById("mode-select");
+      const modeOutput = document.getElementById("mode-output");
+
+      document.getElementById("toggle-details").addEventListener("click", () => {
+        details.classList.toggle("hidden");
+      });
+
+      modeSelect.addEventListener("change", () => {
+        modeOutput.textContent = `Mode: ${modeSelect.value}`;
+      });
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const value = input.value.trim();
+        if (!value) {
+          formStatus.textContent = "Ignored empty submission.";
+          return;
+        }
+        const li = document.createElement("li");
+        li.textContent = value;
+        items.appendChild(li);
+        formStatus.textContent = `Added: ${value}`;
+        input.value = "";
+      });
+
+      confirmBox.addEventListener("change", () => {
+        confirmOutput.textContent = `Ready: ${confirmBox.checked}`;
+      });
+    </script>
+  </body>
+</html>

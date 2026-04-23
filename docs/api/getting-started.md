@@ -96,6 +96,18 @@ Only `explore` is currently supported through the CLI wrapper.
 
 ---
 
+## Rich Bombadil local smoke
+
+If you want a deterministic local Bombadil regression check instead of pointing at a live app immediately, run:
+
+```bash
+npm run bombadil:smoke
+```
+
+This serves the checked-in fixture under `examples/bombadil-rich/site/`, runs Bombadil directly, then runs the TEST-CAPABILITIES Bombadil-backed wrapper against the same fixture.
+
+---
+
 ## Quantum simulation
 
 ```bash

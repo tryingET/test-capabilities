@@ -98,6 +98,7 @@ npm run test:property     # fast-check invariant lane for config, route selectio
 npm run test:behavior     # cucumber-backed CLI workflow scenarios mapped to docs/examples
 npm run test:ci-targeted  # CI-targeted smoke tests
 npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
+npm run bombadil:smoke    # Richer Bombadil regression smoke against a deterministic local fixture
 
 # Docs discovery
 npm run docs:list            # List relevant docs for a task
@@ -140,6 +141,37 @@ bash ./scripts/capability-drill.sh --json --surf-mode shim --skip-build
 ```
 
 The JSON mode returns a structured summary with `ok`, `surfMode`, `summary`, and per-check status entries so CI or agent tooling can consume the drill result without scraping terminal text.
+
+## Bombadil richer smoke fixture
+
+To run a richer local Bombadil regression against a deterministic multi-control fixture, use:
+
+```bash
+npm run bombadil:smoke
+```
+
+What it does:
+- serves `examples/bombadil-rich/site/` on a temporary local port
+- runs Bombadil directly and expects trace artifacts under a temporary output directory
+- runs `test-capabilities test --quick` with a Bombadil-backed config against the same local fixture
+
+Useful options:
+
+```bash
+# Reuse an already-built dist/
+bash ./scripts/bombadil-rich-smoke.sh --skip-build
+
+# Run only the direct Bombadil phase
+bash ./scripts/bombadil-rich-smoke.sh --direct-only
+
+# Run only the TEST-CAPABILITIES wrapper phase
+bash ./scripts/bombadil-rich-smoke.sh --tc-only
+
+# Keep the generated fixture/output directory for inspection
+bash ./scripts/bombadil-rich-smoke.sh --keep-temp
+```
+
+The richer fixture currently lives at `examples/bombadil-rich/site/` and includes intra-origin navigation, toggles, select inputs, a form, and stateful UI so Bombadil can explore more than the minimal capability-drill page.
 
 ## Structure
 

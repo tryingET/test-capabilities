@@ -150,6 +150,19 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-23"
+        },
+        {
+          "id": "AK-TASK-1828",
+          "title": "Add a reusable richer Bombadil fixture and smoke runner for local regression checks",
+          "state": "done",
+          "tasks": [
+            {
+              "text": "Add a reusable richer Bombadil fixture and smoke runner for local regression checks (task #1828)",
+              "done": true
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "completed_at": "2026-04-23"
         }
       ]
     }

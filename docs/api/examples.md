@@ -142,6 +142,18 @@ TEST_CAPABILITIES_BOMBADIL_REPO=/path/to/bombadil-source \
 If you are running inside this repo checkout, the orchestrator also checks for a built `softwareco/contrib/bombadil/target/release|debug/bombadil` before falling back to repo-local `external/bombadil` and then `bombadil` on `PATH`.
 A source checkout only overrides the vendored fallback after it has a built binary; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
+For a richer deterministic local regression, use the checked-in fixture runner:
+
+```bash
+npm run bombadil:smoke
+
+# Or call the script directly when you want narrower control
+bash ./scripts/bombadil-rich-smoke.sh --direct-only
+bash ./scripts/bombadil-rich-smoke.sh --tc-only
+```
+
+This serves `examples/bombadil-rich/site/` on a temporary local port, runs Bombadil directly against it, and then runs the TEST-CAPABILITIES Bombadil-backed wrapper on the same fixture.
+
 ---
 
 ## Example 5: surf exploration

@@ -125,10 +125,13 @@ test("examples docs include the repo-local capability drill", () => {
 
   assert.match(examplesDoc, /npm run capability:drill/);
   assert.match(examplesDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
+  assert.match(examplesDoc, /npm run bombadil:smoke/);
+  assert.match(examplesDoc, /--direct-only/);
   assert.match(examplesDoc, /--surf-mode shim/);
   assert.match(examplesDoc, /--surf-mode real/);
   assert.match(examplesDoc, /--json --surf-mode shim --skip-build/);
-  assert.match(readmeDoc, /--json --surf-mode shim --skip-build/);
+  assert.match(readmeDoc, /npm run bombadil:smoke/);
+  assert.match(readmeDoc, /examples\/bombadil-rich\/site\//);
   assert.match(readmeDoc, /structured summary with `ok`, `surfMode`, `summary`/);
 });
 
