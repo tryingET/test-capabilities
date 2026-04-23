@@ -43,6 +43,7 @@
     "release:check": "npm run check && npm run release:check:quick",
     "release:check:quick": "npm run consumer:smoke",
     "test": "npm run build --silent && node --test tests/*.test.mjs",
+    "test:property": "npm run build --silent && node --test tests/property_contract.test.mjs",
     "test:ci-targeted": "node ./scripts/run_ci_targeted_tests.mjs",
     "test:runtime": "RUN_CONVEX_RUNTIME_TESTS=1 node --test tests/convex_runtime_contract_enforcement.test.mjs",
     "ci:smoke": "bash ./scripts/ci/smoke.sh",
@@ -79,8 +80,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
-    "@types/node": "^22.0.0",
     "@types/figlet": "^1.5.8",
+    "@types/node": "^22.0.0",
+    "fast-check": "^4.7.0",
     "typescript": "^5.3.0",
     "vitest": "^1.2.0"
   }

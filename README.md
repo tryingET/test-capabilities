@@ -91,6 +91,7 @@ node ./bin/test-capabilities heal --dir ./tests --dry-run
 
 # Testing
 npm test                  # Run tests
+npm run test:property     # fast-check invariant lane for config, route selection, and orchestrator behavior
 npm run test:ci-targeted  # CI-targeted smoke tests
 npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
 
