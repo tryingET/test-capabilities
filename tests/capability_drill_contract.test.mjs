@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import process from "node:process";
 import test from "node:test";
+import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const scriptPath = new URL("../scripts/capability-drill.sh", import.meta.url).pathname;
 
@@ -12,7 +12,7 @@ test(
     const result = spawnSync("bash", [scriptPath, "--skip-build", "--surf-mode", "shim"], {
       encoding: "utf8",
       cwd: new URL("..", import.meta.url).pathname,
-      env: process.env,
+      env: runtimeEnv(),
     });
 
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
@@ -34,7 +34,7 @@ test("capability drill script emits machine-readable JSON", { timeout: 20000 }, 
   const result = spawnSync("bash", [scriptPath, "--skip-build", "--surf-mode", "shim", "--json"], {
     encoding: "utf8",
     cwd: new URL("..", import.meta.url).pathname,
-    env: process.env,
+    env: runtimeEnv(),
   });
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);

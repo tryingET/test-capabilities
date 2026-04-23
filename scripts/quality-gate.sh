@@ -80,6 +80,10 @@ run_tests() {
     exit 1
   fi
 
+  if [[ -f "$ROOT_DIR/package.json" ]] && command -v npm >/dev/null 2>&1; then
+    npm run build --silent
+  fi
+
   node --test "${test_files[@]}"
 }
 

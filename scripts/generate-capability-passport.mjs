@@ -2,15 +2,22 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = path.join(repoRoot, "governance", "capability-passport.json");
 const stdoutMode = process.argv.includes("--stdout");
 
+const runtimeDistRoot = path.resolve(
+  process.env.TEST_CAPABILITIES_DIST_ROOT ?? path.join(repoRoot, "dist"),
+);
+const runtimeCapabilitiesModuleUrl = pathToFileURL(
+  path.join(runtimeDistRoot, "core", "capabilities.js"),
+).href;
+
 let capabilityMatrix;
 try {
-  ({ CAPABILITY_MATRIX: capabilityMatrix } = await import("../dist/core/capabilities.js"));
+  ({ CAPABILITY_MATRIX: capabilityMatrix } = await import(runtimeCapabilitiesModuleUrl));
 } catch (error) {
   throw new Error(
     `Capability passport generation requires built runtime artifacts. Run 'npm run build' first. ${error instanceof Error ? error.message : String(error)}`,

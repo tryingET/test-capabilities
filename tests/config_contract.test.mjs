@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import test from "node:test";
 import yaml from "js-yaml";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { TestCapabilitiesConfigSchema, TestCapabilitiesOrchestrator } = await import(
-  "../dist/index.js"
-);
+const { TestCapabilitiesConfigSchema, TestCapabilitiesOrchestrator } =
+  await importRuntimeModule("index.js");
 
 test("canonical YAML config parses through the fail-closed schema", async () => {
   const raw = yaml.load(

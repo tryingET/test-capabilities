@@ -53,6 +53,8 @@
     "tech-stack": "bash ./scripts/tech-stack.sh",
     "capability:drill": "bash ./scripts/capability-drill.sh",
     "capability:passport": "npm run build --silent && node ./scripts/generate-capability-passport.mjs",
+    "screening:witness-refresh": "bash ./scripts/screening/ts-quality-witness-refresh.sh",
+    "screening:check": "bash ./scripts/screening/ts-quality-check.sh",
     "test-capabilities": "npm run build --silent && node ./bin/test-capabilities",
     "prepack": "npm run build"
   },

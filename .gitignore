@@ -10,12 +10,23 @@ convex/_generated/
 # Local temp artifacts
 tmp/
 out/
+coverage/
 
 # Generated artifacts
 dist/
 ontology/*.generated.*
 ontology/dist/
 .ts-mutate/
+.ts-quality/attestations/
+.ts-quality/keys/
+.ts-quality/locks/
+.ts-quality/materialized/
+.ts-quality/runs/
+.ts-quality/tmp-mutants/
+.ts-quality/latest.json
+.ts-quality/mutation-manifest.json
+.ts-quality/witnesses/*.json
+!.ts-quality/witnesses/README.md
 
 # Python caches/build metadata (vendored tooling)
 **/__pycache__/

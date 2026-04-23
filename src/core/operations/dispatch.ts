@@ -1,0 +1,18 @@
+export {
+  assertKnownSurfExecutionRoute,
+  CLI_OPERATION_REGISTRY,
+  CLI_ROUTE_MANIFEST,
+  executeCliOperation,
+  executeHealOperation,
+  executeQuantumOperation,
+  executeSurfExploreOperation,
+  executeTestOperation,
+  getCliCommandStatus,
+  getSurfActionStatus,
+  type RouteRecord,
+  requireManifestEntry,
+  requireRegisteredOperation,
+  resolveCliRoute,
+  throwUnavailableManifestEntry,
+  throwUnsupportedCommand,
+} from "./dispatch-core.js";

@@ -4,16 +4,34 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { CAPABILITY_MATRIX } = await import("../dist/core/capabilities.js");
+const { CAPABILITY_MATRIX } = await importRuntimeModule("core/capabilities.js");
 const {
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
   SURF_EXPLORE_OPTION_SUPPORT,
   TEST_OPTION_SUPPORT,
   executeCliOperation,
+  executeHealOperation,
+  executeQuantumOperation,
+  executeSurfExploreOperation,
+  executeTestOperation,
   resolveCliRoute,
-} = await import("../dist/core/operations.js");
+} = await importRuntimeModule("core/operations.js");
+const {
+  getCliCommandStatus,
+  getSurfActionStatus,
+  resolveCliRoute: resolveCliRouteCore,
+} = await importRuntimeModule("core/operations/dispatch-manifest.js");
+const {
+  assertKnownSurfExecutionRoute,
+  executeCliOperation: executeCliOperationCore,
+  requireManifestEntry,
+  requireRegisteredOperation,
+  throwUnavailableManifestEntry,
+  throwUnsupportedCommand,
+} = await importRuntimeModule("core/operations/dispatch-execution.js");
 
 function withFakeSurf(script) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-operation-kernel-"));
@@ -43,8 +61,16 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.deepEqual(CAPABILITY_MATRIX.cli.testOptions, TEST_OPTION_SUPPORT);
   assert.deepEqual(CAPABILITY_MATRIX.cli.surfExploreOptions, SURF_EXPLORE_OPTION_SUPPORT);
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
+  assert.equal(getCliCommandStatus("test"), "implemented");
+  assert.equal(getCliCommandStatus("predict"), "unsupported");
+  assert.equal(getSurfActionStatus("explore"), "implemented");
+  assert.equal(getSurfActionStatus("flow"), "unsupported");
   assert.equal(
     resolveCliRoute({ command: "surf", action: "explore" })?.operationId,
+    "surf.explore",
+  );
+  assert.equal(
+    resolveCliRouteCore({ command: "surf", action: "explore" })?.operationId,
     "surf.explore",
   );
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
@@ -83,6 +109,20 @@ test("executeCliOperation rejects URL test targets when no supported web consume
   );
 });
 
+test("direct executeTestOperation export stays wired to the same runtime path", async () => {
+  const result = await executeTestOperation({
+    config: new URL("../test-capabilities.yaml", import.meta.url).pathname,
+    target: process.execPath,
+    quick: true,
+  });
+
+  assert.equal(result.operationId, "test");
+  assert.equal(result.summary.health, "pass");
+  assert.equal(result.result.passed, true);
+  assert.equal(result.input.quick, true);
+  assert.equal(result.effectiveConfig.targets.cli, process.execPath);
+});
+
 test("executeCliOperation routes surf explore through the typed operation kernel", async () => {
   const fake = withFakeSurf('printf "surf:%s\\n" "$1"\nprintf "%s\\n" "$2"');
   const previousPath = process.env.PATH;
@@ -113,6 +153,23 @@ test("executeCliOperation rejects surf explore flags that are not wired to runti
       ),
     /Unsupported option\(s\) for 'surf explore': --record/,
   );
+});
+
+test("direct executeSurfExploreOperation export stays wired to the surf runtime helper", async () => {
+  const fake = withFakeSurf('printf "surf:%s\\n" "$1"\nprintf "%s\\n" "$2"');
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${fake.dir}:${process.env.PATH ?? ""}`;
+
+  try {
+    const result = await executeSurfExploreOperation({ url: "https://example.com" });
+
+    assert.equal(result.operationId, "surf.explore");
+    assert.deepEqual(result.result.args, ["go", "https://example.com"]);
+    assert.match(result.result.stdout, /surf:go/);
+  } finally {
+    process.env.PATH = previousPath;
+    fake.cleanup();
+  }
 });
 
 test("executeCliOperation requires an explicit surf explore URL", async () => {
@@ -149,6 +206,14 @@ test("executeCliOperation requires an explicit quantum target", async () => {
     async () => executeCliOperation({ command: "quantum" }, { branches: "1" }),
     /Quantum simulation requires --target with a valid URL/,
   );
+});
+
+test("direct executeQuantumOperation export stays wired to the quantum runtime helper", async () => {
+  const result = await executeQuantumOperation({ target: "https://example.com", branches: "2" });
+
+  assert.equal(result.operationId, "quantum");
+  assert.equal(result.input.branches, "2");
+  assert.equal(result.result.branchesSimulated, 2);
 });
 
 test("executeCliOperation fails closed when the heal directory is missing", async () => {
@@ -202,6 +267,70 @@ test("executeCliOperation heal applies multiple same-line proposals in one pass"
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("direct executeHealOperation export stays wired to the healing runtime helper", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-direct-"));
+
+  try {
+    const result = await executeHealOperation({ dir, dryRun: true });
+    assert.equal(result.operationId, "heal");
+    assert.equal(result.input.dryRun, true);
+    assert.deepEqual(result.proposals, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("direct dispatch-core executeCliOperation stays wired to the registered operations", async () => {
+  const result = await executeCliOperationCore(
+    { command: "test" },
+    {
+      config: new URL("../test-capabilities.yaml", import.meta.url).pathname,
+      target: process.execPath,
+      quick: true,
+    },
+  );
+
+  assert.equal(result.operationId, "test");
+  assert.equal(result.result.passed, true);
+});
+
+test("dispatch helpers fail clearly for unsupported or malformed routes", () => {
+  assert.throws(
+    () => assertKnownSurfExecutionRoute({ command: "surf" }),
+    /Unsupported surf action\(s\): \(missing action\)/,
+  );
+  assert.throws(
+    () => assertKnownSurfExecutionRoute({ command: "surf", action: "typo" }),
+    /Unsupported surf action\(s\): typo/,
+  );
+  assert.doesNotThrow(() => assertKnownSurfExecutionRoute({ command: "test" }));
+
+  assert.equal(requireManifestEntry({ command: "test" }).operationId, "test");
+  assert.equal(requireManifestEntry({ command: "predict" }).status, "unsupported");
+
+  assert.throws(() => requireManifestEntry({}), /Invalid CLI route payload: \{\}/);
+
+  assert.equal(requireRegisteredOperation(requireManifestEntry({ command: "test" })).id, "test");
+  assert.throws(
+    () => requireRegisteredOperation(requireManifestEntry({ command: "predict" })),
+    /Unsupported CLI command\(s\): predict/,
+  );
+  assert.throws(
+    () =>
+      throwUnavailableManifestEntry({
+        command: "surf",
+        action: "flow",
+        status: "unsupported",
+        description: "flow",
+      }),
+    /Unsupported surf action\(s\): flow/,
+  );
+  assert.throws(
+    () => throwUnsupportedCommand({ command: "typo" }, { command: "typo" }),
+    /Unsupported CLI command\(s\): typo/,
+  );
 });
 
 test("executeCliOperation fails clearly for unsupported or unknown routes", async () => {

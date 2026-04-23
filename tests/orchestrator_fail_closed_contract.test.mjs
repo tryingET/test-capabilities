@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { TestCapabilitiesOrchestrator } = await import("../dist/index.js");
+const { TestCapabilitiesOrchestrator } = await importRuntimeModule("index.js");
 
 test("orchestrator rejects configs with no enabled agents", async () => {
   await assert.rejects(

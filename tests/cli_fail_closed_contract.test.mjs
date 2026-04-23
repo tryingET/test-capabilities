@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import test from "node:test";
+import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
 
 function runCli(args) {
   return spawnSync(process.execPath, [binPath, ...args], {
     encoding: "utf8",
+    env: runtimeEnv(),
   });
 }
 

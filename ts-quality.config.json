@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "sourcePatterns": ["src/**/*.ts"],
+  "testPatterns": ["tests/**/*.test.mjs"],
+  "coverage": { "lcovPath": "coverage/lcov.info" },
+  "mutations": {
+    "testCommand": ["./scripts/screening/run-runtime-tests.sh"],
+    "coveredOnly": true,
+    "timeoutMs": 15000,
+    "maxSites": 64,
+    "runtimeMirrorRoots": ["dist"]
+  },
+  "policy": {
+    "maxChangedCrap": 30,
+    "minMutationScore": 0.5,
+    "minMergeConfidence": 50
+  },
+  "changeSet": { "files": [] },
+  "invariantsPath": ".ts-quality/invariants.ts",
+  "constitutionPath": ".ts-quality/constitution.ts",
+  "agentsPath": ".ts-quality/agents.ts",
+  "approvalsPath": ".ts-quality/approvals.json",
+  "waiversPath": ".ts-quality/waivers.json",
+  "overridesPath": ".ts-quality/overrides.json",
+  "attestationsDir": ".ts-quality/attestations",
+  "trustedKeysDir": ".ts-quality/keys"
+}

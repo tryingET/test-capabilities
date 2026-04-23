@@ -36,6 +36,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 | [docs/TEST-CAPABILITIES-FRAMEWORK.md](docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
 | [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
+| [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md) | Repo-local deterministic screening proof path via `ts-quality` |
 | [docs/api/](docs/api/) | TEST-CAPABILITIES API reference docs |
 
 ## Capability Contract
@@ -43,7 +44,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 The runtime is now fail-closed.
 If a config section, agent, command, or flag is not wired to a real implementation path, the CLI errors instead of pretending success.
 
-The shipped CLI verbs now run through a typed **operation kernel** in `src/core/operations.ts`.
+The shipped CLI verbs now run through a typed **operation kernel** exposed at `src/core/operations.ts` and implemented in trust-sized modules under `src/core/operations/`.
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
 
 ### Implemented today
@@ -82,7 +83,7 @@ npm run release:check  # Release preflight (quality + packed-artifact verificati
 npm run build          # TypeScript build
 
 # TEST-CAPABILITIES CLI
-npm run test-capabilities          # Run TEST-CAPABILITIES CLI
+npm run test-capabilities                # Run TEST-CAPABILITIES CLI
 node ./bin/test-capabilities test --config ./test-capabilities.yaml
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com
@@ -97,6 +98,10 @@ npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
 npm run docs:list            # List relevant docs for a task
 npm run docs:list:workspace  # Workspace-wide doc scan
 ```
+
+## Screening proof path
+
+Repo-local `ts-quality` screening currently starts with a narrow operation-kernel slice over the test-capabilities source surface. For the wrapper, commands, and changed-scope rules, see [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md).
 
 ## Capability drill
 

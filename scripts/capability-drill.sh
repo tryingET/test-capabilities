@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+runtime_dist_root="${TEST_CAPABILITIES_DIST_ROOT:-$repo_root/dist}"
 surf_mode="auto"
 skip_build=0
 keep_temp=0
@@ -311,7 +312,9 @@ run_failure_contains \
 
 cat >"$tmpdir/correlation-check.mjs" <<EOF
 import assert from "node:assert/strict";
-import { TestCapabilitiesOrchestrator } from "${repo_root}/dist/index.js";
+import { pathToFileURL } from "node:url";
+const runtimeModuleUrl = pathToFileURL("${runtime_dist_root}/index.js").href;
+const { TestCapabilitiesOrchestrator } = await import(runtimeModuleUrl);
 
 const result = await new TestCapabilitiesOrchestrator({
   version: "2.0",
@@ -343,7 +346,9 @@ assert_last_output_contains "correlation library path synthesizes systemic findi
 
 cat >"$tmpdir/prediction-check.mjs" <<EOF
 import assert from "node:assert/strict";
-import { PredictionEngine } from "${repo_root}/dist/index.js";
+import { pathToFileURL } from "node:url";
+const runtimeModuleUrl = pathToFileURL("${runtime_dist_root}/index.js").href;
+const { PredictionEngine } = await import(runtimeModuleUrl);
 
 const engine = new PredictionEngine();
 const predictions = await engine.analyze({

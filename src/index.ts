@@ -108,13 +108,20 @@ export type {
 export { QuantumSimulator, QuantumTestRunner } from "./quantum/simulator.js";
 
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import type { TestCapabilitiesConfig } from "./core/orchestrator.js";
 // Convenience factory
 import { TestCapabilitiesOrchestrator } from "./core/orchestrator.js";
 
-const packageJson = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-) as { version: string };
+const packageRoot = process.env.TEST_CAPABILITIES_PACKAGE_ROOT
+  ? path.resolve(process.env.TEST_CAPABILITIES_PACKAGE_ROOT)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const packageJson = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8")) as {
+  version: string;
+};
 
 // Version
 export const VERSION = packageJson.version;

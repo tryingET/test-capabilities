@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import process from "node:process";
 import test from "node:test";
+import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 function loadPassport() {
   return JSON.parse(
@@ -36,7 +36,7 @@ test("capability passport generator stays in sync with the checked-in projection
   const generated = spawnSync("node", ["./scripts/generate-capability-passport.mjs", "--stdout"], {
     cwd: new URL("..", import.meta.url).pathname,
     encoding: "utf8",
-    env: process.env,
+    env: runtimeEnv(),
   });
 
   assert.equal(generated.status, 0, `${generated.stdout}\n${generated.stderr}`);
