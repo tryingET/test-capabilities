@@ -49,6 +49,7 @@ The shipped CLI verbs now run through a typed **operation kernel** exposed at `s
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
 For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
 A contrib checkout only overrides the vendored binary once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil currently needs `trunk` and `esbuild` for local builds, or its Nix shell.
+Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass.
 
 ### Implemented today
 

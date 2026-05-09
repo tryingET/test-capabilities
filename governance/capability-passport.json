@@ -374,11 +374,11 @@
       "verification_state": "present_only",
       "evidence": {
         "files": ["external/bombadil"],
-        "commands": ["file external/bombadil"]
+        "commands": ["file external/bombadil", "npm run consumer:smoke"]
       },
       "attach_points": ["external/bombadil", "README.md", "docs/project/product_posture.md"],
       "activation_requirements": [
-        "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface."
+        "Intentionally include the vendored Bombadil binary in packed artifacts before treating this vendored tool itself as a consumer-facing supported surface; the current packed-consumer contract treats Bombadil as an external binary requirement."
       ],
       "notes": "Repo-local external/bombadil is one binary provider for the supported Bombadil agent in this checkout; a built softwareco/contrib/bombadil checkout can override it locally, while packed consumers still need TEST_CAPABILITIES_BOMBADIL_BIN, TEST_CAPABILITIES_BOMBADIL_REPO, or bombadil on PATH."
     }

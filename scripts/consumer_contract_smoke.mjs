@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
@@ -9,21 +17,48 @@ mkdirSync(localTempRoot, { recursive: true });
 const tempDir = mkdtempSync(path.join(localTempRoot, "test-capabilities-consumer-"));
 let tarballPath;
 
-function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+function runRaw(command, args, options = {}) {
+  return spawnSync(command, args, {
     cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     ...options,
   });
+}
+
+function renderResult(command, args, result) {
+  const renderedCommand = [command, ...args].join(" ");
+  const details = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  return `${renderedCommand} failed\n${details}`.trim();
+}
+
+function run(command, args, options = {}) {
+  const result = runRaw(command, args, options);
 
   if (result.status !== 0) {
-    const renderedCommand = [command, ...args].join(" ");
-    const details = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
-    throw new Error(`${renderedCommand} failed\n${details}`.trim());
+    throw new Error(renderResult(command, args, result));
   }
 
   return result;
+}
+
+function runFailure(command, args, expected, options = {}) {
+  const result = runRaw(command, args, options);
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+
+  if (result.status === 0) {
+    throw new Error(`${[command, ...args].join(" ")} unexpectedly succeeded\n${output}`.trim());
+  }
+
+  assert.match(output, expected);
+  return result;
+}
+
+function sanitizedExternalToolEnv(packageRoot, nodeBinDir) {
+  const env = { ...process.env, PATH: nodeBinDir, TEST_CAPABILITIES_PACKAGE_ROOT: packageRoot };
+  delete env.TEST_CAPABILITIES_BOMBADIL_BIN;
+  delete env.TEST_CAPABILITIES_BOMBADIL_REPO;
+  return env;
 }
 
 try {
@@ -47,6 +82,11 @@ try {
   assert.ok(
     packedFiles.includes("test-capabilities.yaml"),
     "packed artifact missing sample config",
+  );
+  assert.equal(
+    packedFiles.some((packedPath) => packedPath.startsWith("external/")),
+    false,
+    "packed artifact intentionally excludes the repo-local Bombadil binary",
   );
   assert.equal(
     packedFiles.some((packedPath) => packedPath.startsWith("docs/")),
@@ -127,6 +167,94 @@ try {
   run(binPath, ["test", "--quick", "--config", smokeConfig], {
     cwd: tempDir,
   });
+
+  const installedPackageRoot = path.join(tempDir, "node_modules", "test-capabilities");
+  const nodeOnlyBin = path.join(tempDir, "node-only-bin");
+  mkdirSync(nodeOnlyBin, { recursive: true });
+  symlinkSync(
+    process.execPath,
+    path.join(nodeOnlyBin, process.platform === "win32" ? "node.exe" : "node"),
+  );
+
+  const bombadilConfig = path.join(tempDir, "consumer-bombadil.yaml");
+  writeFileSync(
+    bombadilConfig,
+    [
+      "version: '2.0'",
+      "name: 'Consumer Bombadil External Binary Contract'",
+      "targets:",
+      "  web: 'https://example.com'",
+      "agents:",
+      "  web:",
+      "    enabled: true",
+      "    type: bombadil",
+      "    intensity: gentle",
+      "    duration: 10ms",
+      "intelligence:",
+      "  self_healing: false",
+      "  prediction: false",
+      "  correlation: true",
+      "  collective: false",
+      "quantum:",
+      "  enabled: false",
+      "chaos:",
+      "  enabled: false",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const externalToolEnv = sanitizedExternalToolEnv(installedPackageRoot, nodeOnlyBin);
+  const bombadilFailure = runFailure(
+    binPath,
+    ["test", "--quick", "--config", bombadilConfig],
+    /Health:\s+fail/,
+    {
+      cwd: tempDir,
+      env: externalToolEnv,
+    },
+  );
+  assert.match(bombadilFailure.stdout, /Findings:\s+1/);
+
+  const bombadilProgram = `
+    import assert from "node:assert/strict";
+    import { createTestCapabilities } from "test-capabilities";
+
+    const result = await createTestCapabilities({
+      version: "2.0",
+      name: "Packed Consumer Bombadil External Requirement",
+      targets: { web: "https://example.com" },
+      agents: {
+        web: {
+          enabled: true,
+          type: "bombadil",
+          intensity: "gentle",
+          duration: "10ms",
+        },
+      },
+      intelligence: {
+        selfHealing: false,
+        prediction: false,
+        correlation: true,
+        collective: false,
+      },
+      quantum: { enabled: false },
+      chaos: { enabled: false },
+    }).run();
+
+    const finding = result.findings[0];
+    assert.equal(result.passed, false);
+    assert.match(finding.description, /Bombadil runtime could not complete/);
+    assert.match(finding.recommendation, /TEST_CAPABILITIES_BOMBADIL_BIN/);
+    assert.match(finding.evidence.join("\\n"), /provider: path/);
+    console.log("packed-consumer-bombadil-external-contract: ok");
+  `;
+
+  const bombadilProgramResult = run("node", ["--input-type=module", "-e", bombadilProgram], {
+    cwd: tempDir,
+    env: externalToolEnv,
+  });
+  assert.match(bombadilProgramResult.stdout, /packed-consumer-bombadil-external-contract: ok/);
 
   const smokeProgram = `
     import assert from "node:assert/strict";

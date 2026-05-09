@@ -252,13 +252,13 @@ capabilities.push(
     evidence: bombadilPresent
       ? {
           files: ["external/bombadil"],
-          commands: ["file external/bombadil"],
+          commands: ["file external/bombadil", "npm run consumer:smoke"],
         }
       : {},
     attachPoints: ["external/bombadil", "README.md", "docs/project/product_posture.md"],
     activationRequirements: bombadilPresent
       ? [
-          "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface.",
+          "Intentionally include the vendored Bombadil binary in packed artifacts before treating this vendored tool itself as a consumer-facing supported surface; the current packed-consumer contract treats Bombadil as an external binary requirement.",
         ]
       : [],
     notes: bombadilPresent
