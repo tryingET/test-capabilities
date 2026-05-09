@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "c50745a80b7a512219f7e56a1356da19f1bc448a"
-created_at: "2026-05-09T19:24:55Z"
+created_at: "2026-05-09T19:25:13Z"
 intent: "test(release): prove packed Bombadil external-tool contract"
 files:
   - "README.md"
@@ -17,7 +17,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run release:check"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
