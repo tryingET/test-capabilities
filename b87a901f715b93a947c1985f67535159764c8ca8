@@ -3,25 +3,18 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "b87a901f715b93a947c1985f67535159764c8ca8"
-created_at: "2026-05-09T19:08:04Z"
-intent: "feat(heal): recovery-backed repair readiness \u2014 proposal artifact, verification artifact, checkpoint-ref guard, verifyProposals method"
+created_at: "2026-05-09T19:09:26Z"
+intent: "feat(heal): add recovery-backed repair readiness with proposal/verification artifacts and checkpoint guard"
 files:
-  - "src/healing/self-healing.ts"
-  - "src/core/operations/heal-operation.ts"
-  - "src/core/operations/types.ts"
-  - "src/core/operations.ts"
-  - "src/index.ts"
-  - "bin/test-capabilities"
-  - "tests/healing_contract.test.mjs"
-  - "tests/operation_kernel_contract.test.mjs"
+  []
 validation:
   fast_gate:
     command: "npm run build"
     status: "pass"
   full_gate:
     command: "npm run release:check"
-    status: "pending"
+    status: "pass"
 group:
-  index: 1
+  index: 0
   total: 3
-  rationale: "Core runtime + test changes for heal proposal/verification artifact contract and checkpoint-required apply guard"
+  rationale: "full_gate rewrite after final validation"
