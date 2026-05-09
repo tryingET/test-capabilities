@@ -130,6 +130,28 @@ test("workspace contrib Bombadil checkout without a build falls back to vendored
   }
 });
 
+test("runBombadil rejects no-op binaries that exit successfully without Bombadil evidence", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-noop-"));
+  const noopBinary = path.join(tempDir, "bombadil");
+  writeExecutable(noopBinary, "#!/bin/sh\nexit 0\n");
+
+  try {
+    const result = await runBombadil({
+      origin: "https://example.com",
+      durationMs: 50,
+      env: {
+        TEST_CAPABILITIES_BOMBADIL_BIN: noopBinary,
+      },
+    });
+
+    assert.equal(result.status, "runtime_error");
+    assert.equal(result.binaryProvider, "explicit_bin");
+    assert.equal(result.exitCode, 0);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("runBombadil surfaces missing-build guidance when TEST_CAPABILITIES_BOMBADIL_REPO points at an unbuilt checkout", async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-run-"));
   const repoRoot = path.join(tempDir, "bombadil");

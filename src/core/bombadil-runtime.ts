@@ -153,6 +153,10 @@ function looksLikeViolation(output: string): boolean {
   return /\bviolation\b/i.test(output) || /\bproperty\b.*\bfailed\b/i.test(output);
 }
 
+function looksLikeBombadilRunEvidence(output: string): boolean {
+  return /using default specification|storing trace in|starting test|bombadil/i.test(output);
+}
+
 export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunResult> {
   const resolution = resolveBombadilBinaryResolution(input.env);
   const { binaryPath, provider, resolutionNotes } = resolution;
@@ -244,7 +248,7 @@ export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunR
       const elapsedMs = Date.now() - startedAt;
       const status: BombadilRunStatus = timedOut
         ? "budget_exhausted"
-        : code === 0
+        : code === 0 && looksLikeBombadilRunEvidence(combinedOutput)
           ? "completed"
           : looksLikeViolation(combinedOutput)
             ? "violation"

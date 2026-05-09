@@ -331,12 +331,15 @@ assert.equal(proposal.mutation.applied_count, 0);
 assert.equal(proposal.mutation.external_checkpoint_required_for_apply, true);
 assert.equal(proposal.mutation.external_checkpoint_ref, "checkpoint/test-capabilities/capability-drill-heal-001");
 assert.equal(proposal.mutation.replay_fabric_guidance_only, true);
-assert.equal(proposal.summary.proposal_count, 4);
+const proposedSelectors = proposal.proposals.map((entry) => entry.oldSelector);
+assert.equal(proposal.summary.proposal_count, proposal.proposals.length);
+assert.equal(proposedSelectors.includes("#old-password"), true);
+assert.equal(proposedSelectors.includes("old-password"), false);
 assert.equal(verification.artifact_kind, "test-capabilities.heal.verification");
 assert.equal(verification.proposal_artifact.path, proposalPath);
 assert.equal(verification.verification.mode, "in_memory_apply_check");
 assert.equal(verification.verification.status, "pass");
-assert.equal(verification.verification.proposalCount, 4);
+assert.equal(verification.verification.proposalCount, proposal.proposals.length);
 assert.deepEqual(verification.verification.failures, []);
 console.log("heal artifact drill ok");
 EOF

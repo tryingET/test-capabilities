@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -171,10 +172,14 @@ try {
   const installedPackageRoot = path.join(tempDir, "node_modules", "test-capabilities");
   const nodeOnlyBin = path.join(tempDir, "node-only-bin");
   mkdirSync(nodeOnlyBin, { recursive: true });
-  symlinkSync(
-    process.execPath,
-    path.join(nodeOnlyBin, process.platform === "win32" ? "node.exe" : "node"),
-  );
+  const nodeShimPath = path.join(nodeOnlyBin, process.platform === "win32" ? "node.cmd" : "node");
+  if (process.platform === "win32") {
+    writeFileSync(nodeShimPath, `@echo off\r\n"${process.execPath}" %*\r\n`, "utf8");
+  } else {
+    symlinkSync("/bin/sh", path.join(nodeOnlyBin, "sh"));
+    writeFileSync(nodeShimPath, `#!/usr/bin/env sh\nexec "${process.execPath}" "$@"\n`, "utf8");
+    chmodSync(nodeShimPath, 0o755);
+  }
 
   const bombadilConfig = path.join(tempDir, "consumer-bombadil.yaml");
   writeFileSync(
