@@ -134,6 +134,29 @@ for (const [command, status] of Object.entries(capabilityMatrix.cli.commands)) {
   );
 }
 
+capabilities.push(
+  capabilityEntry({
+    id: "cli-option:heal-proposal-and-verification-output",
+    name: "heal --proposal-output / --verification-output / --checkpoint-ref",
+    surfaceKind: "cli-option",
+    presenceState: "present",
+    supportState: "implemented",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/operation_kernel_contract.test.mjs"],
+      commands: ["npm test"],
+    },
+    attachPoints: [
+      "bin/test-capabilities",
+      "src/core/operations/heal-operation.ts",
+      "docs/project/2026-04-30-recovery-backed-repair-readiness.md",
+    ],
+    activationRequirements: [],
+    notes:
+      "Writes dry-run-only JSON healing proposal and in-memory verification artifacts for review or future replay-ledger artifact follow-through, and requires an externally-owned checkpoint ref before apply-mode healing mutates files. It does not create checkpoints, emit Replay Fabric milestones, or execute rollback.",
+  }),
+);
+
 for (const [action, status] of Object.entries(capabilityMatrix.cli.surfActions)) {
   capabilities.push(
     capabilityEntry({
@@ -232,7 +255,7 @@ capabilities.push(
           commands: ["file external/bombadil"],
         }
       : {},
-    attachPoints: ["external/bombadil", "README.md", "next_session_prompt.md"],
+    attachPoints: ["external/bombadil", "README.md", "docs/project/product_posture.md"],
     activationRequirements: bombadilPresent
       ? [
           "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface.",

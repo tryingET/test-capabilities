@@ -71,6 +71,25 @@
       "activation_requirements": []
     },
     {
+      "id": "cli-option:heal-proposal-and-verification-output",
+      "name": "heal --proposal-output / --verification-output / --checkpoint-ref",
+      "surface_kind": "cli-option",
+      "presence_state": "present",
+      "support_state": "implemented",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": ["tests/operation_kernel_contract.test.mjs"],
+        "commands": ["npm test"]
+      },
+      "attach_points": [
+        "bin/test-capabilities",
+        "src/core/operations/heal-operation.ts",
+        "docs/project/2026-04-30-recovery-backed-repair-readiness.md"
+      ],
+      "activation_requirements": [],
+      "notes": "Writes dry-run-only JSON healing proposal and in-memory verification artifacts for review or future replay-ledger artifact follow-through, and requires an externally-owned checkpoint ref before apply-mode healing mutates files. It does not create checkpoints, emit Replay Fabric milestones, or execute rollback."
+    },
+    {
       "id": "cli:heal",
       "name": "heal command",
       "surface_kind": "cli-command",
@@ -357,7 +376,7 @@
         "files": ["external/bombadil"],
         "commands": ["file external/bombadil"]
       },
-      "attach_points": ["external/bombadil", "README.md", "next_session_prompt.md"],
+      "attach_points": ["external/bombadil", "README.md", "docs/project/product_posture.md"],
       "activation_requirements": [
         "Include the vendored Bombadil binary in packed artifacts or explicitly document the external binary requirement before treating this vendored tool itself as a consumer-facing supported surface."
       ],
