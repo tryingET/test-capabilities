@@ -298,6 +298,53 @@ assert_last_output_contains "heal dry-run proposes selector fixes without mutati
 assert_last_output_not_contains "heal dry-run proposes selector fixes without mutating payload literals" "old-submit-label"
 assert_last_output_not_contains "heal dry-run proposes selector fixes without mutating payload literals" "  - old-password"
 
+proposal_artifact="$tmpdir/heal-artifacts/proposals.json"
+verification_artifact="$tmpdir/heal-artifacts/verification.json"
+run_success \
+  "heal dry-run writes proposal and verification artifacts without mutation" \
+  node "$repo_root/bin/test-capabilities" heal \
+    --dir "$tmpdir/heal" \
+    --dry-run \
+    --proposal-output "$proposal_artifact" \
+    --verification-output "$verification_artifact" \
+    --checkpoint-ref checkpoint/test-capabilities/capability-drill-heal-001
+assert_last_output_contains "heal dry-run writes proposal and verification artifacts without mutation" "Proposal artifact: $proposal_artifact"
+assert_last_output_contains "heal dry-run writes proposal and verification artifacts without mutation" "Verification artifact: $verification_artifact"
+
+cat >"$tmpdir/heal-artifact-check.mjs" <<'EOF'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+const [healDir, proposalPath, verificationPath] = process.argv.slice(2);
+const source = readFileSync(path.join(healDir, "sample.test.ts"), "utf8");
+const proposal = JSON.parse(readFileSync(proposalPath, "utf8"));
+const verification = JSON.parse(readFileSync(verificationPath, "utf8"));
+
+assert.match(source, /old-login/);
+assert.match(source, /#deprecated-submit/);
+assert.match(source, /#old-password/);
+assert.match(source, /old-password/);
+assert.equal(proposal.artifact_kind, "test-capabilities.heal.proposal");
+assert.equal(proposal.mutation.mode, "dry_run");
+assert.equal(proposal.mutation.applied_count, 0);
+assert.equal(proposal.mutation.external_checkpoint_required_for_apply, true);
+assert.equal(proposal.mutation.external_checkpoint_ref, "checkpoint/test-capabilities/capability-drill-heal-001");
+assert.equal(proposal.mutation.replay_fabric_guidance_only, true);
+assert.equal(proposal.summary.proposal_count, 4);
+assert.equal(verification.artifact_kind, "test-capabilities.heal.verification");
+assert.equal(verification.proposal_artifact.path, proposalPath);
+assert.equal(verification.verification.mode, "in_memory_apply_check");
+assert.equal(verification.verification.status, "pass");
+assert.equal(verification.verification.proposalCount, 4);
+assert.deepEqual(verification.verification.failures, []);
+console.log("heal artifact drill ok");
+EOF
+run_success \
+  "heal proposal and verification artifacts are structurally valid" \
+  node "$tmpdir/heal-artifact-check.mjs" "$tmpdir/heal" "$proposal_artifact" "$verification_artifact"
+assert_last_output_contains "heal proposal and verification artifacts are structurally valid" "heal artifact drill ok"
+
 run_success \
   "surf explore exercises the shipped wrapper path (${surf_mode})" \
   node "$repo_root/bin/test-capabilities" surf explore --url "$base_url"
