@@ -219,6 +219,18 @@ program
   .description("Analyze and fix broken tests")
   .option("-d, --dir <path>", "Tests directory", "./tests")
   .option("--dry-run", "Show what would be fixed")
+  .option(
+    "--proposal-output <file>",
+    "Write a dry-run healing proposal artifact as JSON for review or replay-ledger follow-through",
+  )
+  .option(
+    "--verification-output <file>",
+    "Write a dry-run healing verification artifact as JSON after checking proposals in memory",
+  )
+  .option(
+    "--checkpoint-ref <ref>",
+    "External checkpoint identity required before applying healing proposals",
+  )
   .action(async (options) => {
     showBanner();
     const spinner = ora("Executing registered healing operation...").start();
@@ -229,6 +241,12 @@ program
 
       if (output.proposals.length === 0) {
         spinner.succeed("No healing proposals found.");
+        if (output.proposalArtifact) {
+          console.log(chalk.dim(`Proposal artifact: ${output.proposalArtifact.path}`));
+        }
+        if (output.verificationArtifact) {
+          console.log(chalk.dim(`Verification artifact: ${output.verificationArtifact.path}`));
+        }
         return;
       }
 
@@ -241,10 +259,19 @@ program
           console.log(chalk.green(`  + ${proposal.newSelector}`));
           console.log(chalk.dim(`    confidence=${proposal.confidence}`));
         }
+        if (output.proposalArtifact) {
+          console.log(chalk.dim(`Proposal artifact: ${output.proposalArtifact.path}`));
+        }
+        if (output.verificationArtifact) {
+          console.log(chalk.dim(`Verification artifact: ${output.verificationArtifact.path}`));
+        }
         return;
       }
 
       spinner.succeed(`Applied ${output.appliedCount} healing proposal(s).`);
+      if (output.checkpointRef) {
+        console.log(chalk.dim(`Checkpoint ref: ${output.checkpointRef}`));
+      }
     } catch (error) {
       exitWithError(error, spinner, "Healing failed!");
     }

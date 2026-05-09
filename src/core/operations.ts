@@ -24,6 +24,8 @@ export type {
   CliRouteManifestEntry,
   HealOperationInput,
   HealOperationResultEnvelope,
+  HealProposalArtifactRef,
+  HealVerificationArtifactRef,
   OperationDefinition,
   OperationId,
   OperationStatus,

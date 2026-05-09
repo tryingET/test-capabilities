@@ -1,5 +1,5 @@
 import type { ZodType, ZodTypeDef } from "zod";
-import type { HealingProposal } from "../../healing/self-healing.js";
+import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
 import type { CoverageReport, TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
 
@@ -55,6 +55,9 @@ export interface QuantumOperationInput {
 export interface HealOperationInput {
   dir?: string;
   dryRun?: boolean;
+  proposalOutput?: string;
+  verificationOutput?: string;
+  checkpointRef?: string;
 }
 
 export interface TestOperationSummary {
@@ -93,11 +96,29 @@ export interface QuantumOperationResultEnvelope {
   result: QuantumResult;
 }
 
+export interface HealProposalArtifactRef {
+  path: string;
+  schemaVersion: 1;
+  proposalCount: number;
+}
+
+export interface HealVerificationArtifactRef {
+  path: string;
+  schemaVersion: 1;
+  status: HealingProposalVerification["status"];
+  proposalCount: number;
+}
+
 export interface HealOperationResultEnvelope {
   operationId: "heal";
-  input: Required<Pick<HealOperationInput, "dir" | "dryRun">>;
+  input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
+    Pick<HealOperationInput, "proposalOutput">;
   proposals: HealingProposal[];
   appliedCount: number;
+  proposalArtifact?: HealProposalArtifactRef;
+  verification?: HealingProposalVerification;
+  verificationArtifact?: HealVerificationArtifactRef;
+  checkpointRef?: string;
 }
 
 export type CliOperationResult =

@@ -1,7 +1,8 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { collectFiles } from "../../healing/collect-files.js";
-import type { HealingProposal } from "../../healing/self-healing.js";
+import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
 import { TestFileHealer } from "../../healing/self-healing.js";
 import type {
   HealOperationInput,
@@ -12,13 +13,144 @@ import type {
 export const HealOperationInputSchema = z.object({
   dir: z.string().optional().default("./tests"),
   dryRun: z.boolean().optional().default(false),
+  proposalOutput: z.string().min(1).optional(),
+  verificationOutput: z.string().min(1).optional(),
+  checkpointRef: z.string().min(1).optional(),
 });
 
 type NormalizedHealOperationInput = z.output<typeof HealOperationInputSchema>;
 
+interface HealMutationPosture {
+  mode: "dry_run";
+  applied_count: 0;
+  external_checkpoint_required_for_apply: true;
+  external_checkpoint_ref?: string;
+  replay_fabric_guidance_only: true;
+}
+
+interface HealProposalArtifact {
+  schema_version: 1;
+  artifact_kind: "test-capabilities.heal.proposal";
+  generated_at: string;
+  operation_id: "heal";
+  input: NormalizedHealOperationInput;
+  mutation: HealMutationPosture;
+  summary: {
+    scanned_file_count: number;
+    proposal_count: number;
+    file_count_with_proposals: number;
+  };
+  proposals: HealingProposal[];
+}
+
+interface HealVerificationArtifact {
+  schema_version: 1;
+  artifact_kind: "test-capabilities.heal.verification";
+  generated_at: string;
+  operation_id: "heal";
+  input: NormalizedHealOperationInput;
+  proposal_artifact?: {
+    path: string;
+    schema_version: 1;
+  };
+  mutation: HealMutationPosture;
+  verification: HealingProposalVerification & {
+    mode: "in_memory_apply_check";
+  };
+}
+
+function dryRunMutationPosture(input: NormalizedHealOperationInput): HealMutationPosture {
+  return {
+    mode: "dry_run",
+    applied_count: 0,
+    external_checkpoint_required_for_apply: true,
+    ...(input.checkpointRef ? { external_checkpoint_ref: input.checkpointRef } : {}),
+    replay_fabric_guidance_only: true,
+  };
+}
+
+async function writeProposalArtifact(
+  outputPath: string,
+  input: NormalizedHealOperationInput,
+  scannedFileCount: number,
+  proposals: HealingProposal[],
+): Promise<HealOperationResultEnvelope["proposalArtifact"]> {
+  const artifactPath = path.resolve(outputPath);
+  await fs.mkdir(path.dirname(artifactPath), { recursive: true });
+
+  const artifact: HealProposalArtifact = {
+    schema_version: 1,
+    artifact_kind: "test-capabilities.heal.proposal",
+    generated_at: new Date().toISOString(),
+    operation_id: "heal",
+    input,
+    mutation: dryRunMutationPosture(input),
+    summary: {
+      scanned_file_count: scannedFileCount,
+      proposal_count: proposals.length,
+      file_count_with_proposals: new Set(proposals.map((proposal) => proposal.file)).size,
+    },
+    proposals,
+  };
+
+  await fs.writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+
+  return {
+    path: artifactPath,
+    schemaVersion: 1,
+    proposalCount: proposals.length,
+  };
+}
+
+async function writeVerificationArtifact(
+  outputPath: string,
+  input: NormalizedHealOperationInput,
+  verification: HealingProposalVerification,
+  proposalArtifact: HealOperationResultEnvelope["proposalArtifact"],
+): Promise<HealOperationResultEnvelope["verificationArtifact"]> {
+  const artifactPath = path.resolve(outputPath);
+  await fs.mkdir(path.dirname(artifactPath), { recursive: true });
+
+  const artifact: HealVerificationArtifact = {
+    schema_version: 1,
+    artifact_kind: "test-capabilities.heal.verification",
+    generated_at: new Date().toISOString(),
+    operation_id: "heal",
+    input,
+    ...(proposalArtifact
+      ? {
+          proposal_artifact: {
+            path: proposalArtifact.path,
+            schema_version: proposalArtifact.schemaVersion,
+          },
+        }
+      : {}),
+    mutation: dryRunMutationPosture(input),
+    verification: {
+      ...verification,
+      mode: "in_memory_apply_check",
+    },
+  };
+
+  await fs.writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+
+  return {
+    path: artifactPath,
+    schemaVersion: 1,
+    status: verification.status,
+    proposalCount: verification.proposalCount,
+  };
+}
+
 async function runHealOperation(
   normalized: NormalizedHealOperationInput,
 ): Promise<HealOperationResultEnvelope> {
+  if ((normalized.proposalOutput || normalized.verificationOutput) && !normalized.dryRun) {
+    throw new Error(
+      "Healing proposal and verification artifacts are only supported with --dry-run.",
+    );
+  }
+
   const healer = new TestFileHealer();
   const files = collectFiles(path.resolve(normalized.dir));
   const proposals: HealingProposal[] = [];
@@ -28,15 +160,40 @@ async function runHealOperation(
     proposals.push(...fileProposals);
   }
 
+  if (!normalized.dryRun && proposals.length > 0 && !normalized.checkpointRef) {
+    throw new Error(
+      "Healing apply requires --checkpoint-ref from an external checkpoint/restore authority.",
+    );
+  }
+
   if (!normalized.dryRun) {
     await healer.applyProposals(proposals);
   }
+
+  const proposalArtifact = normalized.proposalOutput
+    ? await writeProposalArtifact(normalized.proposalOutput, normalized, files.length, proposals)
+    : undefined;
+  const verification = normalized.verificationOutput
+    ? await healer.verifyProposals(proposals)
+    : undefined;
+  const verificationArtifact = normalized.verificationOutput
+    ? await writeVerificationArtifact(
+        normalized.verificationOutput,
+        normalized,
+        verification as HealingProposalVerification,
+        proposalArtifact,
+      )
+    : undefined;
 
   return {
     operationId: "heal",
     input: normalized,
     proposals,
     appliedCount: normalized.dryRun ? 0 : proposals.length,
+    ...(proposalArtifact ? { proposalArtifact } : {}),
+    ...(verification ? { verification } : {}),
+    ...(verificationArtifact ? { verificationArtifact } : {}),
+    ...(normalized.checkpointRef ? { checkpointRef: normalized.checkpointRef } : {}),
   };
 }
 

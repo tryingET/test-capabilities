@@ -17,6 +17,8 @@ export type {
   CliRouteManifestEntry,
   HealOperationInput,
   HealOperationResultEnvelope,
+  HealProposalArtifactRef,
+  HealVerificationArtifactRef,
   OperationId,
   OperationStatus,
   QuantumOperationInput,
@@ -69,6 +71,8 @@ export type {
   ElementSnapshot,
   HealingContext,
   HealingProposal,
+  HealingProposalVerification,
+  HealingProposalVerificationFailure,
   HealingResult,
   HealingStrategy,
 } from "./healing/self-healing.js";

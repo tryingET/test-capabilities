@@ -215,6 +215,107 @@ test("executeCliOperation heal ignores generated and dependency directories", as
   }
 });
 
+test("executeCliOperation heal writes dry-run proposal and verification artifacts without mutating files", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-artifact-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "artifacts", "heal-proposals.json");
+  const verificationPath = path.join(dir, "artifacts", "heal-verification.json");
+  const original = "test('login', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(file, original, "utf8");
+
+  try {
+    const result = await executeCliOperation(
+      { command: "heal" },
+      {
+        dir,
+        dryRun: true,
+        proposalOutput: artifactPath,
+        verificationOutput: verificationPath,
+        checkpointRef: "checkpoint/demo-heal-001",
+      },
+    );
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
+    const verificationArtifact = JSON.parse(readFileSync(verificationPath, "utf8"));
+
+    assert.equal(result.appliedCount, 0);
+    assert.equal(result.proposals.length, 1);
+    assert.equal(result.proposalArtifact.path, artifactPath);
+    assert.equal(result.proposalArtifact.schemaVersion, 1);
+    assert.equal(result.proposalArtifact.proposalCount, 1);
+    assert.equal(result.verification.status, "pass");
+    assert.equal(result.verificationArtifact.path, verificationPath);
+    assert.equal(result.verificationArtifact.schemaVersion, 1);
+    assert.equal(result.verificationArtifact.status, "pass");
+    assert.equal(result.verificationArtifact.proposalCount, 1);
+    assert.equal(readFileSync(file, "utf8"), original);
+    assert.equal(artifact.schema_version, 1);
+    assert.equal(artifact.artifact_kind, "test-capabilities.heal.proposal");
+    assert.equal(artifact.operation_id, "heal");
+    assert.equal(artifact.mutation.mode, "dry_run");
+    assert.equal(artifact.mutation.applied_count, 0);
+    assert.equal(artifact.mutation.external_checkpoint_required_for_apply, true);
+    assert.equal(artifact.mutation.external_checkpoint_ref, "checkpoint/demo-heal-001");
+    assert.equal(artifact.mutation.replay_fabric_guidance_only, true);
+    assert.equal(artifact.summary.scanned_file_count, 1);
+    assert.equal(artifact.summary.proposal_count, 1);
+    assert.equal(artifact.summary.file_count_with_proposals, 1);
+    assert.equal(artifact.proposals[0].oldSelector, "#old-login");
+    assert.equal(artifact.proposals[0].newSelector, "#login");
+    assert.equal(verificationArtifact.schema_version, 1);
+    assert.equal(verificationArtifact.artifact_kind, "test-capabilities.heal.verification");
+    assert.equal(verificationArtifact.proposal_artifact.path, artifactPath);
+    assert.equal(verificationArtifact.mutation.external_checkpoint_ref, "checkpoint/demo-heal-001");
+    assert.equal(verificationArtifact.verification.mode, "in_memory_apply_check");
+    assert.equal(verificationArtifact.verification.status, "pass");
+    assert.equal(verificationArtifact.verification.proposalCount, 1);
+    assert.equal(verificationArtifact.verification.checkedFileCount, 1);
+    assert.deepEqual(verificationArtifact.verification.failures, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal rejects proposal and verification artifacts outside dry-run mode", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-artifact-reject-"));
+
+  try {
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          {
+            dir,
+            dryRun: false,
+            proposalOutput: path.join(dir, "proposal.json"),
+            verificationOutput: path.join(dir, "verification.json"),
+          },
+        ),
+      /Healing proposal and verification artifacts are only supported with --dry-run/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal requires an external checkpoint ref before applying proposals", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-checkpoint-required-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    await assert.rejects(
+      async () => executeCliOperation({ command: "heal" }, { dir, dryRun: false }),
+      /Healing apply requires --checkpoint-ref/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("executeCliOperation heal applies multiple same-line proposals in one pass", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-atomic-"));
   const file = path.join(dir, "sample.test.ts");
@@ -225,10 +326,14 @@ test("executeCliOperation heal applies multiple same-line proposals in one pass"
   );
 
   try {
-    const result = await executeCliOperation({ command: "heal" }, { dir, dryRun: false });
+    const result = await executeCliOperation(
+      { command: "heal" },
+      { dir, dryRun: false, checkpointRef: "checkpoint/heal-atomic-001" },
+    );
     const updated = readFileSync(file, "utf8");
 
     assert.equal(result.appliedCount, 2);
+    assert.equal(result.checkpointRef, "checkpoint/heal-atomic-001");
     assert.match(updated, /locator\('#login'\)/);
     assert.match(updated, /locator\('#submit'\)/);
     assert.doesNotMatch(updated, /#old-login/);

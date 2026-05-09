@@ -345,6 +345,36 @@ export class TestFileHealer {
     await this.writeFile(proposal.file, updated);
   }
 
+  async verifyProposals(proposals: HealingProposal[]): Promise<HealingProposalVerification> {
+    const proposalsByFile = new Map<string, HealingProposal[]>();
+    for (const proposal of proposals) {
+      const existing = proposalsByFile.get(proposal.file) ?? [];
+      existing.push(proposal);
+      proposalsByFile.set(proposal.file, existing);
+    }
+
+    const failures: HealingProposalVerificationFailure[] = [];
+
+    for (const [file, fileProposals] of proposalsByFile) {
+      try {
+        const content = await this.readFile(file);
+        this.applyProposalsToContent(content, fileProposals);
+      } catch (error) {
+        failures.push({
+          file,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return {
+      status: failures.length === 0 ? "pass" : "fail",
+      proposalCount: proposals.length,
+      checkedFileCount: proposalsByFile.size,
+      failures,
+    };
+  }
+
   async applyProposals(proposals: HealingProposal[]): Promise<void> {
     if (proposals.length === 0) {
       return;
@@ -498,6 +528,18 @@ export interface HealingProposal {
   confidence: number;
   strategy: string;
   requiresReview: boolean;
+}
+
+export interface HealingProposalVerificationFailure {
+  file: string;
+  message: string;
+}
+
+export interface HealingProposalVerification {
+  status: "pass" | "fail";
+  proposalCount: number;
+  checkedFileCount: number;
+  failures: HealingProposalVerificationFailure[];
 }
 
 // ============================================

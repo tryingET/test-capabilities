@@ -215,6 +215,36 @@ test("TestFileHealer.applyProposal rewrites only the targeted line", async () =>
   }
 });
 
+test("TestFileHealer.verifyProposals reports in-memory apply failures without mutating files", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  const original = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(file, original, "utf8");
+
+  try {
+    const healer = new TestFileHealer();
+    const verification = await healer.verifyProposals([
+      {
+        file,
+        line: 1,
+        oldSelector: "#missing-selector",
+        newSelector: "#new-login",
+        confidence: 0.95,
+        strategy: "manual",
+        requiresReview: false,
+      },
+    ]);
+
+    assert.equal(verification.status, "fail");
+    assert.equal(verification.proposalCount, 1);
+    assert.equal(verification.checkedFileCount, 1);
+    assert.match(verification.failures[0]?.message ?? "", /selector mismatch/);
+    assert.equal(readFileSync(file, "utf8"), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.applyProposal fails when the selector is not present on the targeted line", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");
