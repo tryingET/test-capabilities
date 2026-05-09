@@ -3,10 +3,12 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "f2660821a9c0e3802662052f540b50b01184e873"
-created_at: "2026-05-09T19:09:26Z"
+created_at: "2026-05-09T19:11:23Z"
 intent: "chore: replace next_session_prompt.md with product_posture.md and refresh governance projections"
 files:
-  []
+  - "next_session_prompt.md"
+  - "governance/capability-passport.json"
+  - "scripts/generate-capability-passport.mjs"
 validation:
   fast_gate:
     command: "npm run build"
@@ -15,6 +17,6 @@ validation:
     command: "npm run release:check"
     status: "pass"
 group:
-  index: 0
+  index: 3
   total: 3
-  rationale: "full_gate rewrite after final validation"
+  rationale: "Remove obsolete next_session_prompt.md, add heal proposal/verification CLI option to passport generator, update bombadil attach_points"
