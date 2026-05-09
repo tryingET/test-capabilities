@@ -1,0 +1,29 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "f20b4e214384c424b4f3b2e51699ed0d44b122f2"
+created_at: "2026-05-09T19:08:33Z"
+intent: "docs: align vision, posture, and capability docs with fail-closed product boundary"
+files:
+  - "README.md"
+  - "docs/TEST-CAPABILITIES-FRAMEWORK.md"
+  - "docs/api/api-healing.md"
+  - "docs/api/cli.md"
+  - "docs/api/types.md"
+  - "docs/dev/EXTENSION_SOP.md"
+  - "docs/project/2026-04-30-recovery-backed-repair-readiness.md"
+  - "docs/project/product_posture.md"
+  - "docs/project/vision.md"
+  - "src/TEST-CAPABILITIES-AGENTS.md"
+validation:
+  fast_gate:
+    command: "npm run build"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pending"
+group:
+  index: 2
+  total: 3
+  rationale: "Doc-only: vision rename, product posture, repair-readiness note, API/cli/types docs, AGENTS.md surface update"
