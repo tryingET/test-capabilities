@@ -1,0 +1,27 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "05c22c84576ca9768871ffd6ae6db3de3fe5d1ad"
+created_at: "2026-05-09T19:32:12Z"
+intent: "fix(bombadil): gate capability truth and reject no-op binaries"
+files:
+  - "README.md"
+  - "docs/project/product_posture.md"
+  - "package.json"
+  - "scripts/capability-drill.sh"
+  - "scripts/capability-truth-gate.mjs"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "src/core/bombadil-runtime.ts"
+  - "tests/bombadil_runtime_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Nexus implementation: add truth gate, reject Bombadil no-op binaries, sync AK direction posture, reduce brittle drill assertion, harden consumer smoke"
