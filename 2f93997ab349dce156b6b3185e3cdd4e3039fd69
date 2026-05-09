@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "2f93997ab349dce156b6b3185e3cdd4e3039fd69"
+created_at: "2026-05-09T19:17:52Z"
+intent: "test(drill): dogfood heal proposal verification artifacts"
+files:
+  - "scripts/capability-drill.sh"
+  - "tests/capability_drill_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Make recovery-backed heal proposal/verification artifacts a permanent capability-drill dogfood path"
