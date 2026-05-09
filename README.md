@@ -16,7 +16,7 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 
 > *We don't build tests. We build the immune system of software.*
 
-See [docs/project/vision.md](docs/project/vision.md) for the full vision.
+See [docs/project/vision.md](docs/project/vision.md) for the durable north-star vision and [docs/project/product_posture.md](docs/project/product_posture.md) for the current product maturity snapshot.
 
 ## Components
 
@@ -32,7 +32,8 @@ See [docs/project/vision.md](docs/project/vision.md) for the full vision.
 
 | Doc | Description |
 |-----|-------------|
-| [docs/project/vision.md](docs/project/vision.md) | Project vision and strategic direction |
+| [docs/project/vision.md](docs/project/vision.md) | Durable product vision and strategic direction |
+| [docs/project/product_posture.md](docs/project/product_posture.md) | Current product maturity, supported/unsupported boundary, and major gaps |
 | [docs/TEST-CAPABILITIES-FRAMEWORK.md](docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
 | [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
@@ -91,6 +92,10 @@ node ./bin/test-capabilities test --config ./test-capabilities.yaml
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com
 node ./bin/test-capabilities heal --dir ./tests --dry-run
+node ./bin/test-capabilities heal --dir ./tests --dry-run \
+  --proposal-output artifacts/heal-proposals.json \
+  --verification-output artifacts/heal-verification.json
+node ./bin/test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 
 # Testing
 npm test                  # Run node contract tests
@@ -121,6 +126,8 @@ What it checks today:
 - `test` succeeds on a real CLI smoke target and rejects inert URL overrides in quick mode
 - `quantum` succeeds on an explicit local URL and fails closed when `--target` is missing
 - `heal` proposes selector fixes without rewriting payload literals or custom-helper strings
+- `heal --dry-run --proposal-output <file> --verification-output <file>` writes durable proposal and in-memory verification artifacts for review or future replay-ledger follow-through without mutating files
+- `heal` requires `--checkpoint-ref` from an external checkpoint/restore authority before applying proposals that mutate files
 - `surf explore` runs through the shipped wrapper path and rejects invalid URLs
 - library drills for orchestrator correlation and prediction input validation
 

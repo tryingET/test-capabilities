@@ -120,7 +120,7 @@ healer.register({
 
 ## TestFileHealer
 
-Analyze and fix test files.
+Analyze, verify, and fix test files.
 
 ### Constructor
 
@@ -164,6 +164,39 @@ The runtime targets the proposal's recorded line and, when available, column so 
 ```typescript
 await healer.applyProposal(proposal);
 ```
+
+### `verifyProposals(proposals)`
+
+Check whether a proposal set can be applied in memory to the current files without writing changes.
+
+```typescript
+const verification = await healer.verifyProposals(proposals);
+console.log(verification.status); // 'pass' | 'fail'
+```
+
+This is an applicability check for the proposal coordinates and selector text. It does not run the test suite or prove product correctness.
+
+### Dry-run proposal and verification artifacts
+
+The CLI operation can write durable dry-run artifacts with `proposalOutput` / `--proposal-output` and `verificationOutput` / `--verification-output`.
+These artifacts are intentionally review-oriented and replay-ledger-friendly: they record the proposal set, scanned file count, in-memory applicability verification, and mutation posture without applying changes.
+They also mark that applying the proposal later requires an external checkpoint/restore authority and that Replay Fabric-style use is guidance-only. If `checkpointRef` is supplied, it is copied into the artifact mutation posture as an external reference.
+
+```typescript
+const output = await executeHealOperation({
+  dir: './tests',
+  dryRun: true,
+  proposalOutput: './artifacts/heal-proposals.json',
+  verificationOutput: './artifacts/heal-verification.json',
+});
+
+console.log(output.proposalArtifact?.path);
+console.log(output.verificationArtifact?.path);
+```
+
+The artifacts are only supported for dry runs. If `proposalOutput` or `verificationOutput` is provided while `dryRun` is false, the operation fails closed.
+
+Mutation mode (`dryRun: false`) requires `checkpointRef` when proposals would be applied. The ref must come from an external checkpoint/restore authority; `test-capabilities` records the identity but does not create checkpoints or perform rollback.
 
 ### `applyProposals(proposals)`
 
@@ -209,4 +242,12 @@ test-capabilities heal --dir ./tests
 
 # Dry run (show fixes without applying)
 test-capabilities heal --dir ./tests --dry-run
+
+# Dry run with durable proposal + verification artifacts for review / replay-ledger follow-through
+test-capabilities heal --dir ./tests --dry-run \
+  --proposal-output artifacts/heal-proposals.json \
+  --verification-output artifacts/heal-verification.json
+
+# Apply proposals only after an external checkpoint exists
+test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```

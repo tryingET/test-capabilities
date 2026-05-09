@@ -40,5 +40,5 @@ system4d:
 ## 5) Maintain
 
 - Review the most central edited file for complexity debt.
-- Either refactor immediately or record a concrete follow-up trigger in `next_session_prompt.md`.
-- Keep `README.md`, `docs/api/*`, `docs/learnings/`, and `next_session_prompt.md` current when they are affected.
+- Either refactor immediately or record a concrete follow-up in AK; use `docs/project/product_posture.md` only when the gap changes product maturity or strategic selection.
+- Keep `README.md`, `docs/api/*`, `docs/learnings/`, and `docs/project/product_posture.md` current when they are affected.

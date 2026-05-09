@@ -142,16 +142,26 @@ Run the selector-healing workflow.
 
 ```bash
 test-capabilities heal --dir ./tests --dry-run
+test-capabilities heal --dir ./tests --dry-run \
+  --proposal-output artifacts/heal-proposals.json \
+  --verification-output artifacts/heal-verification.json
+
+test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--dir <path>` | Directory to scan for test files (must exist) | `./tests` |
 | `--dry-run` | Show proposals without applying them | `false` |
+| `--proposal-output <file>` | Write a dry-run proposal artifact as JSON for review or replay-ledger follow-through | unset |
+| `--verification-output <file>` | Write a dry-run verification artifact after checking proposals in memory | unset |
+| `--checkpoint-ref <ref>` | External checkpoint identity required before applying healing proposals | unset |
 
 Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
 The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
-When applying fixes, the kernel validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
+Proposal and verification artifacts are dry-run only: requesting `--proposal-output` or `--verification-output` without `--dry-run` fails closed instead of writing misleading mutation artifacts.
+When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
+The checkpoint ref must come from an external checkpoint/restore authority; this command records the identity but does not create checkpoints or perform rollback.
 
 ---
 

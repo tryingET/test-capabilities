@@ -496,8 +496,11 @@ export class InterdimensionalDebugger {
   }
   
   async timeTravel(snapshot: DimensionalSnapshot, targetState: State) {
-    // Restore to any point in history
-    await this.restoreState(targetState);
+    // Future capability: restore must be delegated to an authoritative
+    // checkpoint/restore tool. test-capabilities may record recovery
+    // milestones in a Replay Fabric-style ledger, but it must not pretend
+    // to own restore execution.
+    await this.restoreStateViaExternalAuthority(targetState);
     
     // Or branch into alternate futures
     return this.branchFrom(targetState);

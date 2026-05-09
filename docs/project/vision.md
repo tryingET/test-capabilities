@@ -17,6 +17,19 @@ system4d:
 
 ---
 
+## How to Read This Vision in 2026
+
+This document is the north-star narrative, not a shipped-capability inventory.
+The current product posture lives in [product_posture.md](product_posture.md), the operator-facing capability contract lives in the repository `README.md`, and live task/direction/evidence truth lives in AK.
+
+As of the current product slice, test-capabilities is deliberately **fail-closed**: supported routes run through real runtime paths; unsupported commands, flags, agents, and intelligence modes error instead of pretending to work.
+That boundary is not a retreat from the vision. It is the discipline that lets the vision become real without corrupting operator trust.
+
+Current supported runtime surfaces include the typed operation kernel, `test`, `quantum`, `heal`, `surf explore`, `cli-tester`, Bombadil-backed exploration, and finding correlation.
+Prediction, collective learning, self-generation, self-evolution, chaos execution, reporting, visualization, and broad autonomy remain future or research-to-product promotions unless the capability matrix says otherwise.
+
+---
+
 ## Prologue: The 3 AM Truth
 
 It always happens at 3 AM.
@@ -82,7 +95,7 @@ The terrifying truth: **The bugs that kill systems live in the regions we didn't
 
 Traditional testing is 90% deductive, 10% inductive. This leaves the two most valuable modes—abductive and explorative—almost entirely uncovered.
 
-**testers exists to cover all four modes simultaneously.**
+**test-capabilities exists to cover all four modes simultaneously.**
 
 ### The Conservation of Testing Pain
 
@@ -101,7 +114,7 @@ Testing pain is conserved, but it can be transformed:
 
 Traditional tools minimize creation pain by making tests easy to write. But this maximizes maintenance pain (brittle tests), execution pain (slow suites), and blindspot pain (untested regions).
 
-testers takes a different approach: **Accept higher creation pain to minimize all other pains.**
+test-capabilities takes a different approach: **Accept higher creation pain to minimize all other pains.**
 
 A test that generates itself, maintains itself, and explores its own edges is worth ten tests you have to babysit.
 
@@ -147,7 +160,7 @@ A testing tool detects failures. A testing **nervous system** senses, thinks, an
 
 ### Sensory Cortex: The Many Eyes
 
-No single tool perceives all modalities. The sensory cortex is a **parliament of observers**, each voting on system health from its domain of expertise:
+No single tool perceives all modalities. The sensory cortex is a **parliament of observers**, each voting on system health from its domain of expertise. The table below is the target architecture; today, only the supported runtime paths named in the capability contract should be treated as shipped behavior.
 
 | Sensor | Modality | Perceives |
 |--------|----------|-----------|
@@ -231,7 +244,7 @@ Correlation answers: **"What's actually happening?"**
 
 #### Prediction: The Future Sight
 
-The most valuable bug is the one you prevent. Prediction shifts testing from reactive to proactive:
+The most valuable bug is the one you prevent. Prediction shifts testing from reactive to proactive. In the current product, prediction is not a supported CLI/orchestrator intelligence mode; this section describes the capability that must earn promotion through data quality, validation thresholds, privacy posture, and operator trust:
 
 ```typescript
 interface FailurePrediction {
@@ -312,7 +325,7 @@ interface Synthesis {
   // The connections
   relatedPatterns: {
     local: string[];       // Similar patterns in this codebase
-    collective: string[];  // Similar patterns across testers users (opt-in)
+    collective: string[];  // Similar patterns across test-capabilities users (opt-in)
   };
 }
 ```
@@ -321,7 +334,7 @@ Synthesis answers: **"What does this mean and what should I do?"**
 
 ### Motor Cortex: The Autonomous Response
 
-Understanding without action is impotent. The motor cortex turns insight into execution.
+Understanding without action is impotent. The motor cortex turns insight into execution. Today, the shipped motor surface is bounded heuristic healing; the stronger self-healing, self-generating, and self-evolving examples below are target-state capabilities that require human-review gates and proof-backed runtime contracts before support promotion.
 
 #### Self-Healing: Tests That Fix Themselves
 
@@ -352,7 +365,7 @@ Understanding without action is impotent. The motor cortex turns insight into ex
     verifyBy: "click_and_assert_navigation",
     createPR: true,
     prTitle: "test: update checkout button selector",
-    prBody: "Selector auto-healed by testers motor cortex.\n\nConfidence: 94%\nVerified: Yes"
+    prBody: "Selector auto-healed by test-capabilities motor cortex.\n\nConfidence: 94%\nVerified: Yes"
   },
   
   outcome: {
@@ -515,7 +528,7 @@ The nervous system remembers. Every observation, correlation, prediction, and ac
 │                                 │                                       │
 │                                 ▼                                       │
 │                        ┌───────────────┐                               │
-│                        │    TESTERS    │                               │
+│                        │   TEST-CAP    │                               │
 │                        │               │                               │
 │                        │  • Self-heal  │                               │
 │                        │  • Self-gen   │                               │
@@ -536,7 +549,7 @@ Testing becomes autonomous when:
 
 Below this threshold, testing is always falling behind the system it tests. Above it, testing **leads** the system—anticipating changes, adapting before they're needed, evolving faster than entropy can accumulate.
 
-We are approaching this threshold. testers is the infrastructure that will carry us across it.
+We are approaching this threshold. test-capabilities is the infrastructure being built to carry us across it without pretending the threshold has already been crossed.
 
 ---
 
@@ -544,15 +557,18 @@ We are approaching this threshold. testers is the infrastructure that will carry
 
 ### Phase 1: Consolidation (2026)
 
-**"One config. One report. One mental model."**
+**"One config. One truthful capability contract. One mental model."**
 
 Deliverables:
 - Unified `test-capabilities.yaml` specification
-- Normalized observation protocol
-- Basic correlation (failure → root cause)
-- The definitive LLM testing knowledge base
+- Fail-closed capability matrix for commands, flags, agents, and intelligence modes
+- Typed operation kernel with thin CLI wrappers and structured result envelopes
+- Supported bounded paths for CLI smoke, Bombadil exploration, quantum simulation, surf exploration, heuristic healing, and finding correlation
+- Generated capability passport that distinguishes implemented, parked, unsupported, and future surfaces
+- Normalized observation/finding protocol sufficient for cross-signal correlation
+- The definitive LLM testing knowledge base, kept separate from unsupported runtime claims
 
-Success: An engineer configures testing once and understands every report.
+Success: An engineer configures testing once, sees exactly what is supported, receives clear errors for everything else, and can trust every report because no capability is faked.
 
 ### Phase 2: Intelligence (2027)
 
@@ -560,23 +576,24 @@ Success: An engineer configures testing once and understands every report.
 
 Deliverables:
 - Cross-domain correlation (web + API + CLI synthesized)
-- Failure prediction with 70%+ precision
+- Evidence-backed synthesis that explains why failures matter, not just that they occurred
+- Failure prediction promoted only after measured precision, calibration, and false-positive budgets are explicit
 - Living documentation (tests document themselves)
-- Collective intelligence (opt-in, anonymized pattern sharing)
+- Collective intelligence only with explicit opt-in, enforced anonymization, and auditable local control
 
-Success: First prediction of production failure before it happens.
+Success: First operator-trusted prediction of production failure before it happens, with enough calibration evidence that acting on it is rational.
 
 ### Phase 3: Autonomy (2028+)
 
 **"Tests that act."**
 
 Deliverables:
-- Self-healing with 95%+ accuracy
-- Self-generating tests from natural language intent
-- Self-evolving suites that track architectural changes
-- Full testing autonomy with human oversight
+- Self-healing with 95%+ accuracy on bounded, reviewed change classes
+- Self-generating tests from natural language intent with human approval and deterministic verification
+- Self-evolving suites that track architectural changes without erasing auditability
+- Full testing autonomy with human oversight, an external checkpoint/restore authority plus Replay Fabric-style recovery ledger for rollback posture, and no hidden auto-merge authority
 
-Success: Test suite grows and adapts without human maintenance.
+Success: Test suite grows and adapts without routine human maintenance while humans remain sovereign over risk-bearing changes.
 
 ---
 
@@ -586,11 +603,11 @@ Success: Test suite grows and adapts without human maintenance.
 
 #### I. Instrument, Don't Replace
 
-testers is not a test runner. It's a **meta-layer** that makes existing tools smarter.
+test-capabilities is not a test runner. It's a **meta-layer** that makes existing tools smarter.
 
-- You run Playwright → testers adds correlation
-- You run Bombadil → testers adds prediction
-- You run BATS → testers adds synthesis
+- You run Playwright → test-capabilities adds correlation and synthesis once the integration is wired
+- You run Bombadil → test-capabilities adds bounded exploration and finding correlation today, with prediction as a later promotion
+- You run BATS → test-capabilities should preserve the runner while adding cross-signal meaning
 
 We meet you where you are. No rewrites. No lock-in.
 
@@ -640,7 +657,7 @@ AI proposes. Humans dispose.
 
 Quality isn't binary. It's a spectrum from "broken" to "robust" through "antifragile."
 
-testers treats testing as continuous sensing, not discrete verification.
+test-capabilities treats testing as continuous sensing, not discrete verification.
 
 ---
 
@@ -651,7 +668,7 @@ testers treats testing as continuous sensing, not discrete verification.
 ```
 Engineer: "Users should be able to checkout without friction."
 
-testers:
+test-capabilities:
   ├─ Understanding intent...
   │   └─ "Checkout flow: cart → payment → confirmation"
   │
@@ -691,7 +708,7 @@ This sounds like heresy. But consider:
 | Test Type | Creation Cost | Maintenance Cost | Value |
 |-----------|---------------|------------------|-------|
 | Written manually | High | High | Decays |
-| Generated by testers | Zero | Zero | Appreciates |
+| Generated by test-capabilities | Zero | Zero | Appreciates |
 
 A test that generates itself, maintains itself, and explores its own edges has **negative cost**—it creates more value than it consumes.
 
@@ -709,7 +726,7 @@ Testing is the immune system of software. When it works, we take it for granted.
 
 We've accepted testing as a cost center—a necessary drag on velocity. This acceptance is a failure of imagination. Testing can be an accelerator. A competitive advantage. A source of confidence that enables bold moves rather than cautious ones.
 
-testers exists to make this real.
+test-capabilities exists to make this real.
 
 The future of testing is:
 - **Intelligent** — Understanding what to test, not just how
@@ -725,5 +742,5 @@ This isn't science fiction. It's the roadmap.
 
 ---
 
-*Last updated: 2026-02-23*
-*Version: 2.0*
+*Last updated: 2026-04-30*
+*Version: 2.1*

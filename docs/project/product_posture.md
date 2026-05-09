@@ -1,0 +1,119 @@
+---
+summary: "Product posture snapshot for test-capabilities: current capability maturity, truthful runtime boundary, major gaps, and proof signals."
+read_when:
+  - "When selecting or reviewing test-capabilities product direction from current maturity rather than task history"
+  - "When deciding whether a testing capability is implemented, bounded, unsupported, or future vision"
+  - "When bridging docs/project/vision.md to AK direction, tasks, decisions, or capability-passport evidence"
+type: "reference"
+system4d:
+  container: "Testing infrastructure for the AI-native era."
+  compass: "Testing should think, adapt, and evolve without pretending unsupported capabilities are real."
+  engine: "Ship bounded capability slices, fail closed, verify with deterministic checks, then widen."
+  fog: "The product is still converging from testing vision toward packaged, capability-backed runtime surfaces."
+---
+
+# Product Posture: test-capabilities
+
+## Purpose
+
+This file is the bridge between durable vision and active execution authority.
+
+It captures where `test-capabilities` stands as a product/runtime, what target operator experience it is converging toward, which maturity gaps matter most, and what proof would close those gaps.
+
+It does **not** replace:
+
+- shipped runtime/source truth in code, tests, README, API docs, generated artifacts, or release checks
+- AK task, decision, direction, evidence, or receipt authority
+- `docs/project/vision.md` as the durable north-star narrative
+- `governance/capability-passport.json` as the generated capability inventory
+- focused implementation plans under `docs/dev/plans/` when a non-trivial change needs design capture
+
+Do not turn this file into a task log, changelog, queue mirror, handoff file, or second direction substrate.
+
+## Posture in one sentence
+
+`test-capabilities` has crossed from aspirational testing-framework narrative into a fail-closed TypeScript CLI/package with an operation kernel, supported `test`/`quantum`/`heal`/`surf explore` routes, implemented `cli-tester` and Bombadil-backed orchestrator paths, property/behavior/release checks, and a generated capability passport; its main maturity gap is now selecting the next truthful capability frontier without blurring supported runtime behavior with the larger autonomous-testing vision.
+
+## Product maturity map
+
+| Area | Current posture | Target posture | Main gap | Proof of closure |
+|---|---|---|---|---|
+| Capability contract | Runtime support is explicit and fail-closed through `src/core/capabilities.ts`, the operation registry, and contract tests. Unsupported agents, commands, flags, and intelligence surfaces fail clearly. | Operators can trust that every advertised capability is wired to a real implementation path with tests, docs, and release checks. | Some narrative docs still describe future autonomy/prediction as if it were product behavior. | README, vision, posture, capability passport, and tests agree on implemented vs unsupported vs future surfaces. |
+| Operation kernel | CLI routes run through `src/core/operations.ts` and trust-sized operation modules. | Adding a new command or adapter means adding a typed route, schema, executor, result envelope, docs, and contract tests. | The kernel can grow into a central bottleneck if more verbs/adapters are added without another split. | A new capability lands without duplicating CLI wrapper logic or inflating `operations.ts` beyond a manifest/export seam. |
+| Orchestrator sensors | `cli-tester` and `bombadil` are implemented; Bombadil resolves from explicit env, built contrib checkout, repo-local binary, or `PATH`. | Sensor integrations become a small, typed parliament of real observers with normalized findings and evidence. | `surf` and `api-fuzzer` orchestrator agents are still unsupported; packed Bombadil consumers still depend on external binary availability. | Supported sensors have deterministic fixtures/smokes, distribution policy, and generated passport evidence. |
+| Intelligence layer | Finding correlation exists inside the orchestrator; prediction, collective learning, and self-healing intelligence flags are unsupported. | Cognitive surfaces turn observations into correlation, synthesis, and eventually prediction while preserving budget and local/privacy constraints. | Prediction and collective learning remain vision-level until backed by empirical/runtime proof. | A first intelligence slice has measurable inputs, deterministic tests, acceptance thresholds, and explicit opt-in/privacy posture. |
+| Motor/autonomy layer | `heal` provides a heuristic selector repair workflow; autonomous self-healing, self-generation, self-evolution, and chaos execution are not shipped. | The system can propose bounded repairs/generation with human review and no hidden auto-merge authority. | Current runtime is not yet a true motor cortex; vision language should not imply it is. Replay Fabric is a good fit for rollback/recovery history and guidance, not restore execution authority. | Repair/generation actions produce reviewable artifacts, verification evidence, externally-owned checkpoint/restore facts, Replay Fabric-style recovery milestones, and human-approval gates. |
+| Packaging/release | Package entrypoints, built `dist/`, packed-artifact smoke, and `release:check` exist. | Consumers receive only intentional package contents and clear external-tool requirements. | Bombadil vendoring vs packed-consumer expectation remains a product/distribution decision. | Release checks prove package contents, CLI entrypoints, and external Bombadil requirement or inclusion policy. |
+| Direction substrate | AK is canonical task/direction authority where available; `governance/work-items.json` is compatibility projection only. | Product posture selects strategic frames, AK carries live direction/tasks/decisions/evidence, and docs remain narrative/reference. | This repo currently has little/no AK-native direction surface despite recent completed tasks. | AK direction/task state names the next strategic frame or implementation wave without recreating handoff files. |
+
+## Current strengths
+
+- The runtime is fail-closed: unsupported config sections, agents, commands, and flags error instead of pretending success.
+- The CLI is backed by a typed operation kernel rather than ad-hoc command branches.
+- `test`, `quantum`, `heal`, and `surf explore` have real operation paths; `heal --dry-run --proposal-output --verification-output` can emit durable proposal and in-memory verification artifacts without mutating files, and apply-mode healing now requires an externally-owned `--checkpoint-ref` before mutating files.
+- `cli-tester` and Bombadil-backed orchestrator execution are implemented and covered by contract/regression checks.
+- Bombadil runtime resolution is explicit: `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or conventional `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
+- Property tests, behavior scenarios, targeted CI smoke, capability drill, richer Bombadil smoke, and packed-consumer release checks are part of the verification surface.
+- `governance/capability-passport.json` gives a generated inventory of implemented, parked, and unsupported surfaces.
+- The durable vision is strong enough to guide future capability selection while the README now provides a truthful current capability contract.
+
+## Current gaps
+
+- `docs/project/vision.md` now separates north-star ambition from shipped capability truth, but it still needs to remain aligned whenever runtime support states change.
+- Prediction, collective learning, self-healing intelligence, API fuzzing, surf orchestration, chaos, visualization, reports, and several advanced flags remain unsupported.
+- Bombadil distribution policy is unresolved: the repo-local binary can support this checkout, but packed consumers need an external binary unless inclusion becomes intentional.
+- The product has no strong AK-native direction frame at the moment; completed work is represented, but the next strategic frame is not yet clearly selected in AK.
+- The `heal` surface is useful but not yet the autonomous motor cortex described by the vision.
+- Rollback posture needs an explicit checkpoint/restore authority outside test-capabilities plus a replay ledger integration; Replay Fabric appears to fit the ledger/guidance side, but not the executor side.
+- Future intelligence/autonomy slices need empirical proof and privacy/approval boundaries before they are promoted from aspiration to supported capability.
+
+## Target product experience
+
+A fresh operator should be able to:
+
+1. read `docs/project/vision.md` for durable ambition,
+2. read this file for current product maturity and major gaps,
+3. read `README.md` for the current fail-closed capability contract and commands,
+4. inspect `governance/capability-passport.json` when they need generated capability inventory detail,
+5. inspect AK for live direction, task, decision, and evidence truth,
+6. choose the smallest truthful capability slice,
+7. implement through typed runtime contracts, tests, docs, and release checks,
+8. leave future work in AK direction/tasks/decisions rather than a repo-local handoff file.
+
+## Near-term convergence path
+
+1. Keep `docs/project/vision.md` aligned with the fail-closed capability contract whenever support states change.
+2. Decide the Bombadil distribution posture: external binary requirement vs intentional packed inclusion.
+3. Establish a small AK-native strategic frame for the next capability frontier instead of reviving handoff files or markdown micro-plans.
+4. If adding more operation routes or adapter surfaces, keep the operation kernel split into manifest/registry/executor modules before it becomes a large central file again.
+5. Use the dry-run healing proposal and verification artifacts plus the apply-mode checkpoint-ref requirement as the first recovery-readiness proof objects for future Replay Fabric follow-through.
+6. For autonomous repair/generation, keep rollback as an externally-owned checkpoint/restore flow and evaluate Replay Fabric as the recovery-milestone ledger before promoting any runtime support.
+7. Treat prediction, collective learning, and autonomous repair/generation as research-to-product promotions: require data shape, privacy posture, acceptance thresholds, deterministic tests, and human-review gates before support-state changes.
+8. Keep the generated capability passport current after capability-surface changes.
+
+## Hard rules for status language
+
+- Say "implemented" only when a capability has a real runtime path plus tests/docs appropriate to its surface.
+- Say "unsupported" when the runtime intentionally fails closed.
+- Say "parked" for present artifacts that are not consumer-facing supported capabilities.
+- Say "future vision" for prediction, collective learning, self-generation, self-evolution, and broad autonomy until they have proof-backed runtime contracts.
+- Say "Replay Fabric can record recovery milestones and bounded guidance" rather than "Replay Fabric performs rollback."
+- Say "Bombadil agent is supported" but "vendored Bombadil binary is parked as a consumer-facing package surface" unless the distribution policy changes.
+- Say "AK owns live task/direction/evidence truth" rather than encoding current queue state in docs.
+- Say "product posture guides strategic selection" rather than "product posture is the current plan."
+
+## Authority map
+
+- Durable ambition: `docs/project/vision.md`
+- Product posture: this file
+- Current capability contract and commands: `README.md`
+- Runtime capability matrix: `src/core/capabilities.ts`
+- Operation kernel: `src/core/operations.ts` and `src/core/operations/`
+- Orchestrator runtime: `src/core/orchestrator.ts`
+- Bombadil runtime: `src/core/bombadil-runtime.ts`
+- Generated capability inventory: `governance/capability-passport.json`
+- Capability-passport generator: `scripts/generate-capability-passport.mjs`
+- Live execution truth: AK task, direction, decision, evidence, and receipts
+- Compatibility projection only: `governance/work-items.json`
+- Focused implementation plans: `docs/dev/plans/`
+- Crystallized learning: `docs/learnings/` when present

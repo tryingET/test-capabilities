@@ -377,14 +377,41 @@ Runtime note:
 ### `HealOperationResultEnvelope`
 
 ```typescript
+interface HealingProposalVerification {
+  status: 'pass' | 'fail';
+  proposalCount: number;
+  checkedFileCount: number;
+  failures: Array<{ file: string; message: string }>;
+}
+
+interface HealProposalArtifactRef {
+  path: string;
+  schemaVersion: 1;
+  proposalCount: number;
+}
+
+interface HealVerificationArtifactRef {
+  path: string;
+  schemaVersion: 1;
+  status: HealingProposalVerification['status'];
+  proposalCount: number;
+}
+
 interface HealOperationResultEnvelope {
   operationId: 'heal';
   input: {
     dir: string;
     dryRun: boolean;
+    proposalOutput?: string;
+    verificationOutput?: string;
+    checkpointRef?: string;
   };
   proposals: HealingProposal[];
   appliedCount: number;
+  proposalArtifact?: HealProposalArtifactRef;
+  verification?: HealingProposalVerification;
+  verificationArtifact?: HealVerificationArtifactRef;
+  checkpointRef?: string;
 }
 ```
 
