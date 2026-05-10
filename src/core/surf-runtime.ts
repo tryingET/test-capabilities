@@ -384,7 +384,7 @@ export function translateSurfArgs(command: string, args: string[] = []): string[
     case "tab.reload":
       return ["reload"];
     case "chatgpt":
-      return ["chatgpt", ...args];
+      return ["chatgpt", "ask", ...args];
     case "wait":
       return translateSurfGoWaitArgs(args);
     case "click":

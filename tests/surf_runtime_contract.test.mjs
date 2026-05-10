@@ -154,7 +154,7 @@ test("surf-go command translation covers verified SurfClient command shapes", ()
   assert.deepEqual(translateSurfArgs("tab.reload"), ["reload"]);
   assert.deepEqual(translateSurfArgs("tab.list"), ["tab", "list", "--args-json", "{}"]);
   assert.deepEqual(translateSurfArgs("window.list"), ["window", "list", "--args-json", "{}"]);
-  assert.deepEqual(translateSurfArgs("chatgpt", ["say ping"]), ["chatgpt", "say ping"]);
+  assert.deepEqual(translateSurfArgs("chatgpt", ["say ping"]), ["chatgpt", "ask", "say ping"]);
   assert.deepEqual(translateSurfArgs("click", ["--selector", "button.login"]), [
     "click",
     "--args-json",
