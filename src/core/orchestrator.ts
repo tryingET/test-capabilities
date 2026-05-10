@@ -623,23 +623,17 @@ export class TestCapabilitiesOrchestrator {
         calibrationFindings,
         nonPassing,
       );
-
-      const observedSensorCount = new Set(
-        evidenceUnits
-          .map((unit) => unit.agent)
-          .filter((agent): agent is string => agent !== undefined),
-      ).size;
-
-      if (evidenceUnits.length < 2 || observedSensorCount < 2) {
-        continue;
-      }
-
       const calibration = calibrateRootCause(
         componentObservations,
         calibrationFindings,
         nonPassing,
         evidenceUnits,
       );
+
+      if (calibration.level !== "high") {
+        continue;
+      }
+
       const failureClass = inferRootCauseClass(componentObservations, calibrationFindings);
       const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
       const sensorLabel = calibration.sensorCount === 1 ? "sensor" : "sensors";
@@ -966,18 +960,17 @@ function rootCauseEvidenceUnits(
   const findingIds = new Set(findings.map((finding) => finding.id));
 
   for (const finding of findings) {
-    const linkedObservation = observations.find((observation) =>
+    const linkedObservations = observations.filter((observation) =>
       observation.findingIds.includes(finding.id),
     );
-    if (!linkedObservation) {
-      continue;
-    }
 
-    units.set(`finding:${finding.id}`, {
-      id: `finding:${finding.id}`,
-      source: "finding",
-      agent: linkedObservation.agent,
-    });
+    for (const linkedObservation of linkedObservations) {
+      units.set(`finding:${finding.id}:observation:${linkedObservation.id}`, {
+        id: `finding:${finding.id}:observation:${linkedObservation.id}`,
+        source: "finding",
+        agent: linkedObservation.agent,
+      });
+    }
   }
 
   for (const observation of nonPassingObservations) {

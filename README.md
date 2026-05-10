@@ -170,6 +170,7 @@ What it checks today:
 - two independent observed CLI failures classify as `command_resolution` or `timeout_or_latency`
 - two independent observed Surf failures classify as `browser_coverage_gap`
 - two independent observed Bombadil failures classify as `property_violation`
+- two independent sensors linked to the same API finding classify as `contract_mismatch`
 - finding-only, single-sensor multi-finding, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
