@@ -2164,6 +2164,135 @@ const cases = [
       }),
     },
   },
+  {
+    name: "Same failure class across api and web emits propagation via shared-infra",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-timeout-a", "api-timeout-b"],
+      },
+      {
+        subject: "web",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-timeout-a", "web-timeout-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "api-to-web",
+      link: "shared-infra",
+    },
+    agents: {
+      apiTimeoutA: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-a",
+            component: "api",
+            description: "API endpoint timed out",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-a",
+            agent: "apiTimeoutA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out.",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            findingIds: ["api-timeout-a"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      apiTimeoutB: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-b",
+            component: "api",
+            description: "API endpoint timed out on retry",
+            evidence: ["timed out after 5000ms"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-b",
+            agent: "apiTimeoutB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out on retry.",
+            evidence: ["timed out after 5000ms"],
+            findingIds: ["api-timeout-b"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      webTimeoutA: agentResult({
+        findings: [
+          finding({
+            id: "web-timeout-a",
+            component: "web",
+            description: "Web page load timed out waiting for backend",
+            evidence: ["timed out after 10000ms"],
+            recommendation: "Check backend responsiveness.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-timeout-obs-a",
+            agent: "webTimeoutA",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime timed out during page load.",
+            evidence: ["timed out after 10000ms"],
+            findingIds: ["web-timeout-a"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
+      webTimeoutB: agentResult({
+        findings: [
+          finding({
+            id: "web-timeout-b",
+            component: "web",
+            description: "Web page load timed out on second probe",
+            evidence: ["timed out after 10000ms (SIGKILL)"],
+            recommendation: "Check backend responsiveness.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-timeout-obs-b",
+            agent: "webTimeoutB",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime timed out on second probe.",
+            evidence: ["timed out after 10000ms (SIGKILL)"],
+            findingIds: ["web-timeout-b"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
+    },
+  },
 ];
 
 try {

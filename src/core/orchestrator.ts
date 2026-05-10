@@ -1338,25 +1338,17 @@ function synthesizePropagationChains(rootCauseObservations: Observation[]): Obse
     const downstreamFindingIds = downstreamObs.findingIds ?? [];
     const allFindingIds = [...new Set([...upstreamFindingIds, ...downstreamFindingIds])];
 
-    // Count distinct sensors involved across both root causes
-    const upstreamSensors = new Set(
-      (upstreamObs.semantics?.calibration?.basis ?? [])
-        .filter((b) => /sensor/i.test(b))
-        .map((b) => b),
-    ).size;
-    const downstreamSensors = new Set(
-      (downstreamObs.semantics?.calibration?.basis ?? [])
-        .filter((b) => /sensor/i.test(b))
-        .map((b) => b),
-    ).size;
+    // Use actual sensor counts from each root cause's calibration.
+    const upstreamSensorCount = upstreamObs.semantics?.calibration?.sensorCount ?? 0;
+    const downstreamSensorCount = downstreamObs.semantics?.calibration?.sensorCount ?? 0;
     const totalSignals = 2; // two root_cause observations form the chain
     const propagationCalibration: ObservationCalibration = {
       level: "low",
       signalCount: totalSignals,
-      sensorCount: Math.max(upstreamSensors, downstreamSensors),
+      sensorCount: Math.max(upstreamSensorCount, downstreamSensorCount),
       findingCount: allFindingIds.length,
       basis: [
-        `heuristic dependency topology (${upstream} → ${downstream})`,
+        `heuristic dependency topology (${upstream}-to-${downstream})`,
         `upstream failureClass:${upstreamClass}`,
         `downstream failureClass:${downstreamClass}`,
         `link:${link}`,

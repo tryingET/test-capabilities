@@ -91,7 +91,7 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 49, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 50, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
     10,
