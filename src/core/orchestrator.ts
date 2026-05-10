@@ -596,7 +596,7 @@ export class TestCapabilitiesOrchestrator {
   }
 
   private synthesizeRootCauses(observations: Observation[], findings: Finding[]): Observation[] {
-    if (observations.length === 0 || findings.length === 0) {
+    if (observations.length === 0) {
       return [];
     }
 
@@ -630,18 +630,27 @@ export class TestCapabilitiesOrchestrator {
       }
 
       const evidenceUnits = strongestAgreedRootCauseUnits(candidateEvidenceUnits);
-      const representedFindingIds = new Set(
+      const selectedObservationIds = new Set(evidenceUnits.map((unit) => unit.observationId));
+      const selectedFindingIds = new Set(
         evidenceUnits.flatMap((unit) => (unit.findingId ? [unit.findingId] : [])),
       );
 
-      if (calibrationFindings.some((finding) => !representedFindingIds.has(finding.id))) {
+      if (calibrationFindings.some((finding) => !selectedFindingIds.has(finding.id))) {
         continue;
       }
 
+      const selectedObservations = componentObservations.filter((observation) =>
+        selectedObservationIds.has(observation.id),
+      );
+      const selectedFindings = calibrationFindings.filter((finding) =>
+        selectedFindingIds.has(finding.id),
+      );
+      const selectedRootCauseSignals = selectedObservations.filter(isRootCauseSignalObservation);
+
       const calibration = calibrateRootCause(
-        componentObservations,
-        calibrationFindings,
-        rootCauseSignals,
+        selectedObservations,
+        selectedFindings,
+        selectedRootCauseSignals,
         evidenceUnits,
       );
 
@@ -651,8 +660,8 @@ export class TestCapabilitiesOrchestrator {
 
       const failureClass =
         evidenceUnits[0]?.failureClass ??
-        inferRootCauseClass(componentObservations, calibrationFindings);
-      const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
+        inferRootCauseClass(selectedObservations, selectedFindings);
+      const status = worstObservationOrFindingStatus(selectedObservations, selectedFindings);
       const sensorLabel = calibration.sensorCount === 1 ? "sensor" : "sensors";
       const findingLabel = calibration.findingCount === 1 ? "finding" : "findings";
 
@@ -666,8 +675,8 @@ export class TestCapabilitiesOrchestrator {
           evidence: rootCauseEvidence(
             failureClass,
             calibration,
-            componentObservations,
-            calibrationFindings,
+            selectedObservations,
+            selectedFindings,
           ),
           semantics: {
             component,
@@ -675,7 +684,7 @@ export class TestCapabilitiesOrchestrator {
             nextStep: `Inspect ${component} evidence for ${failureClass}, repair the smallest confirmed cause, then rerun the same sensor set for calibration comparison.`,
             calibration,
           },
-          findingIds: findingIdsForComponent(componentObservations, calibrationFindings, component),
+          findingIds: [...selectedFindingIds],
         }),
       );
     }
@@ -938,12 +947,16 @@ function rootCauseCorpus(observations: Observation[], findings: Finding[]): stri
 }
 
 function inferRootCauseClass(observations: Observation[], findings: Finding[]): string {
+  if (findings.some((finding) => finding.type === "api_contract")) {
+    return "contract_mismatch";
+  }
+
   const corpus = rootCauseCorpus(observations, findings);
 
   if (/timeout|timed out|latency|duration|slow|sigterm|sigkill/.test(corpus)) {
     return "timeout_or_latency";
   }
-  if (/enoent|spawn|not found|no such file|command|executable|--help/.test(corpus)) {
+  if (/enoent|spawn|not found|no such file/.test(corpus)) {
     return "command_resolution";
   }
   if (/selector|locator|data-testid|button|dom/.test(corpus)) {
@@ -966,6 +979,7 @@ interface RootCauseEvidenceUnit {
   id: string;
   source: "finding" | "observation";
   failureClass: string;
+  observationId: string;
   findingId?: string;
   agent?: string;
 }
@@ -993,6 +1007,7 @@ function rootCauseEvidenceUnits(
         id: `finding:${finding.id}:observation:${linkedObservation.id}`,
         source: "finding",
         failureClass: inferRootCauseClass([linkedObservation], [finding]),
+        observationId: linkedObservation.id,
         findingId: finding.id,
         agent: linkedObservation.agent,
       });
@@ -1011,6 +1026,7 @@ function rootCauseEvidenceUnits(
       id: `observation:${observation.id}`,
       source: "observation",
       failureClass: inferRootCauseClass([observation], []),
+      observationId: observation.id,
       agent: observation.agent,
     });
   }

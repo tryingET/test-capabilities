@@ -197,11 +197,16 @@ async function executeCase(definition) {
 
   if (definition.expectRootCause === false) {
     assert.equal(
-      rootCause,
-      undefined,
-      `${definition.name}: unexpected root_cause ${rootCause?.summary ?? ""}`,
+      rootCauses.length,
+      0,
+      `${definition.name}: unexpected root_cause ${rootCauses.map((entry) => entry.summary).join("; ")}`,
     );
   } else {
+    assert.equal(
+      rootCauses.length,
+      1,
+      `${definition.name}: expected exactly one root_cause, got ${rootCauses.length}`,
+    );
     assert.ok(rootCause, `${definition.name}: expected root_cause`);
     assert.match(
       rootCause.summary,
@@ -211,6 +216,9 @@ async function executeCase(definition) {
     assert.equal(rootCause.semantics?.calibration?.signalCount, definition.signalCount);
     assert.equal(rootCause.semantics?.calibration?.sensorCount, definition.sensorCount);
     assert.equal(rootCause.semantics?.calibration?.findingCount, definition.findingCount);
+    if (definition.findingIds) {
+      assert.deepEqual([...rootCause.findingIds].sort(), [...definition.findingIds].sort());
+    }
     assert.equal(
       rootCause.findingIds.some((id) => id.startsWith("corr-")),
       false,
@@ -263,6 +271,65 @@ const cases = [
     agents: {
       cliA: cliFailureAgent("cliA", "timeout_or_latency"),
       cliB: cliFailureAgent("cliB", "timeout_or_latency"),
+    },
+  },
+  {
+    name: "CLI app crash does not classify as command_resolution",
+    subject: "cli",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliA: agentResult({
+        findings: [
+          finding({
+            id: "cliA-app-crash",
+            component: "cli",
+            description: "CLI smoke command failed: app --help",
+            evidence: ["TypeError: cannot read config"],
+            recommendation: "Fix the runtime exception so --help exits successfully.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "cliA-smoke-failed",
+            agent: "cliA",
+            kind: "smoke",
+            status: "failed",
+            subject: "cli",
+            component: "cli",
+            summary: "CLI smoke hit an application runtime exception.",
+            evidence: ["TypeError: cannot read config"],
+            findingIds: ["cliA-app-crash"],
+          }),
+        ],
+      }),
+      cliB: agentResult({
+        findings: [
+          finding({
+            id: "cliB-app-crash",
+            component: "cli",
+            description: "CLI smoke command failed: app --help",
+            evidence: ["TypeError: cannot read config"],
+            recommendation: "Fix the runtime exception so --help exits successfully.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "cliB-smoke-failed",
+            agent: "cliB",
+            kind: "smoke",
+            status: "failed",
+            subject: "cli",
+            component: "cli",
+            summary: "CLI smoke hit an application runtime exception.",
+            evidence: ["TypeError: cannot read config"],
+            findingIds: ["cliB-app-crash"],
+          }),
+        ],
+      }),
     },
   },
   {
@@ -351,6 +418,174 @@ const cases = [
             description: "API validation mismatch",
             evidence: ["validation mismatch"],
             recommendation: "Align validation.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "Observation-only API signals classify contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiObserverA: agentResult({
+        observations: [
+          observation({
+            id: "api-observation-only-a",
+            agent: "apiObserverA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema mismatch observed by sensor A.",
+            evidence: ["schema mismatch"],
+          }),
+        ],
+      }),
+      apiObserverB: agentResult({
+        observations: [
+          observation({
+            id: "api-observation-only-b",
+            agent: "apiObserverB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema mismatch observed by sensor B.",
+            evidence: ["schema mismatch"],
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "API contract finding with browser-word observations classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 1,
+    findingIds: ["api-contract-drift"],
+    agents: {
+      apiObserverA: agentResult({
+        observations: [
+          observation({
+            id: "api-browser-word-observed-a",
+            agent: "apiObserverA",
+            kind: "coverage",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "Browser user-flow saw API schema validation mismatch.",
+            evidence: ["browser-state included API schema validation mismatch"],
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiObserverB: agentResult({
+        observations: [
+          observation({
+            id: "api-browser-word-observed-b",
+            agent: "apiObserverB",
+            kind: "coverage",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "Browser user-flow saw API schema validation mismatch.",
+            evidence: ["browser-state included API schema validation mismatch"],
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-drift",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema validation mismatch",
+            evidence: ["schema validation mismatch"],
+            recommendation: "Align schema.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "Foreign observation finding IDs stay out of API root_cause",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    findingIds: ["api-contract-a", "api-contract-b"],
+    agents: {
+      apiObserverA: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-observed-a",
+            agent: "apiObserverA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema mismatch observed by sensor A.",
+            evidence: ["schema mismatch"],
+            findingIds: ["api-contract-a", "foreign-web-critical"],
+          }),
+        ],
+      }),
+      apiObserverB: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-observed-b",
+            agent: "apiObserverB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema mismatch observed by sensor B.",
+            evidence: ["schema mismatch"],
+            findingIds: ["api-contract-b"],
+          }),
+        ],
+      }),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-a",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema mismatch A",
+            evidence: ["schema mismatch"],
+            recommendation: "Align schema.",
+          }),
+          finding({
+            id: "api-contract-b",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema mismatch B",
+            evidence: ["schema mismatch"],
+            recommendation: "Align schema.",
+          }),
+          finding({
+            id: "foreign-web-critical",
+            type: "bug",
+            severity: "critical",
+            component: "web",
+            description: "Web selector drift",
+            evidence: ["selector drift"],
+            recommendation: "Fix web selector.",
           }),
         ],
       }),

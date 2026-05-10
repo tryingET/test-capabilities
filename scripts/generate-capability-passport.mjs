@@ -180,7 +180,7 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
       id: `agent:${agent}`,
       name: `${agent} orchestrator agent`,
       surfaceKind: "orchestrator-agent",
-      presenceState: bombadilAgent && bombadilPresent ? "present" : "present",
+      presenceState: status === "implemented" ? "present" : "absent",
       supportState:
         status === "implemented"
           ? "supported"

@@ -16,9 +16,13 @@ test("capability passport projection records supported Bombadil runtime separate
   assert.equal(passport.schema_version, 1);
   assert.match(passport.projection_note, /Candidate future AK model/);
 
+  const apiFuzzerAgent = passport.capabilities.find((entry) => entry.id === "agent:api-fuzzer");
   const bombadilAgent = passport.capabilities.find((entry) => entry.id === "agent:bombadil");
   const bombadilTool = passport.capabilities.find((entry) => entry.id === "tool:bombadil-binary");
   const testCommand = passport.capabilities.find((entry) => entry.id === "cli:test");
+
+  assert.equal(apiFuzzerAgent?.presence_state, "absent");
+  assert.equal(apiFuzzerAgent?.support_state, "unsupported");
 
   assert.equal(bombadilAgent?.presence_state, "present");
   assert.equal(bombadilAgent?.support_state, "supported");

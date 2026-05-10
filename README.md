@@ -167,10 +167,11 @@ npm run root-cause:corpus
 
 What it checks today:
 - single-agent CLI or Surf failures do not emit `root_cause`
-- two independent observed CLI failures classify as `command_resolution` or `timeout_or_latency`
+- two independent observed CLI command-resolution or timeout failures classify as `command_resolution` or `timeout_or_latency`, while app crashes do not masquerade as command resolution
+- two independent observation-only API signals can classify as `contract_mismatch`
 - two independent observed Surf failures classify as `browser_coverage_gap`
 - two independent observed Bombadil failures classify as `property_violation`
-- two independent sensors linked to the same API finding classify as `contract_mismatch`
+- two independent sensors linked to the same API finding classify as `contract_mismatch`, even when generic browser words appear in the observations
 - finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 

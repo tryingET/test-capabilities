@@ -22,6 +22,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] CLI timeout with two observed agents classifies timeout_or_latency/,
   );
+  assert.match(result.stdout, /\[pass\] CLI app crash does not classify as command_resolution/);
   assert.match(
     result.stdout,
     /\[pass\] Mixed Surf and Bombadil failure classes do not emit root_cause/,
@@ -29,6 +30,15 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   assert.match(
     result.stdout,
     /\[pass\] Majority Surf with conflicting Bombadil class does not emit root_cause/,
+  );
+  assert.match(result.stdout, /\[pass\] Observation-only API signals classify contract_mismatch/);
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract finding with browser-word observations classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Foreign observation finding IDs stay out of API root_cause/,
   );
   assert.match(
     result.stdout,
@@ -50,7 +60,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(14 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(18 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -64,7 +74,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   const payload = JSON.parse(result.stdout);
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.total, 14);
+  assert.equal(payload.total, 18);
   assert.equal(payload.failed, 0);
   assert.equal(
     payload.cases.some(

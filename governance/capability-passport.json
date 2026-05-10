@@ -11,7 +11,7 @@
       "id": "agent:api-fuzzer",
       "name": "api-fuzzer orchestrator agent",
       "surface_kind": "orchestrator-agent",
-      "presence_state": "present",
+      "presence_state": "absent",
       "support_state": "unsupported",
       "verification_state": "contract_only",
       "evidence": {
