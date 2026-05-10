@@ -721,6 +721,30 @@ test("root-cause synthesis requires observed independent evidence units", async 
       },
     ],
     [
+      "apiPartialObservation",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [
+            {
+              protocol: "observation.v1",
+              id: "api-contract-observed",
+              agent: "apiPartialObservation",
+              kind: "runtime",
+              status: "failed",
+              subject: "api",
+              summary: "api contract drift observed",
+              evidence: ["schema mismatch"],
+              semantics: { component: "api", interpretation: "schema drift observed" },
+              findingIds: ["api-contract-drift"],
+              timestamp: observedAt,
+            },
+          ],
+        }),
+      },
+    ],
+    [
       "apiFindings",
       {
         execute: async () => ({

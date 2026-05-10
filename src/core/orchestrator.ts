@@ -963,10 +963,14 @@ function rootCauseEvidenceUnits(
     const linkedObservation = observations.find((observation) =>
       observation.findingIds.includes(finding.id),
     );
+    if (!linkedObservation) {
+      continue;
+    }
+
     units.set(`finding:${finding.id}`, {
       id: `finding:${finding.id}`,
       source: "finding",
-      agent: linkedObservation?.agent,
+      agent: linkedObservation.agent,
     });
   }
 
