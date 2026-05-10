@@ -1,0 +1,50 @@
+kind: ai-society/commit-provenance/v1
+tool: /commit
+intent: Standardize Surf integration on Surf Go as the only runtime with browser-state evidence verification
+files:
+  - src/core/surf-runtime.ts (new)
+  - src/core/operations/surf-explore-operation.ts
+  - src/core/operations/types.ts
+  - src/core/operations/config-targets-core.ts
+  - src/core/orchestrator.ts
+  - src/core/capabilities.ts
+  - src/integrations/surf-client.ts
+  - src/index.ts
+  - src/TEST-CAPABILITIES-AGENTS.md
+  - bin/test-capabilities
+  - test-capabilities.yaml
+  - tests/surf_runtime_contract.test.mjs (new)
+  - tests/surf_client_contract.test.mjs
+  - tests/operation_kernel_contract.test.mjs
+  - tests/orchestrator_fail_closed_contract.test.mjs
+  - tests/cli_fail_closed_contract.test.mjs
+  - tests/capability_drill_contract.test.mjs
+  - tests/config_overrides_contract.test.mjs
+  - tests/docs_runtime_contract.test.mjs
+  - tests/behavior/cli_workflows.feature
+  - tests/behavior/cli_workflows.steps.mjs
+  - scripts/capability-drill.sh
+  - scripts/generate-capability-passport.mjs
+  - governance/capability-passport.json
+  - README.md
+  - docs/api/api-surf.md
+  - docs/api/api-reference.md
+  - docs/api/cli.md
+  - docs/api/config.md
+  - docs/api/errors.md
+  - docs/api/examples.md
+  - docs/api/getting-started.md
+  - docs/api/patterns.md
+  - docs/api/types.md
+  - docs/project/product_posture.md
+validation:
+  fast_gate:
+    command: npm run build
+    status: pass
+  full_gate:
+    command: npm run release:check
+    status: pass
+group:
+  index: 1
+  total: 1
+  rationale: Single atomic commit — Surf Go standardization spans runtime, adapter, evidence, tests, docs, and passport; no safe intermediate split.
