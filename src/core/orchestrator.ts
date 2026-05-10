@@ -122,6 +122,37 @@ export interface Finding {
   timestamp: Date;
 }
 
+export type ObservationProtocol = "observation.v1";
+export type ObservationKind =
+  | "runtime"
+  | "coverage"
+  | "property"
+  | "smoke"
+  | "correlation"
+  | "synthesis";
+export type ObservationStatus = "passed" | "failed" | "skipped" | "errored";
+
+export interface ObservationSemantics {
+  component: string;
+  interpretation: string;
+  nextStep?: string;
+}
+
+export interface Observation {
+  protocol: ObservationProtocol;
+  id: string;
+  agent: string;
+  kind: ObservationKind;
+  status: ObservationStatus;
+  subject: string;
+  summary: string;
+  evidence: string[];
+  coverage?: Partial<CoverageReport>;
+  semantics?: ObservationSemantics;
+  findingIds: string[];
+  timestamp: Date;
+}
+
 export type FindingType =
   | "bug"
   | "performance"
@@ -140,6 +171,7 @@ export interface TestResult {
   duration: number;
   findings: Finding[];
   coverage: CoverageReport;
+  observations?: Observation[];
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }
@@ -366,10 +398,30 @@ export class TestCapabilitiesOrchestrator {
     const startTime = Date.now();
 
     const agentResults = await Promise.all(
-      Array.from(this.agents.values()).map((agent) => agent.execute(this.config.targets)),
+      Array.from(this.agents.entries()).map(async ([agentName, agent]) =>
+        normalizeKnownAgentResult(
+          agentName,
+          agent,
+          await agent.execute(this.config.targets),
+          this.config.targets,
+        ),
+      ),
     );
 
-    const correlatedFindings = this.correlateFindings(agentResults.flatMap((r) => r.findings));
+    const agentObservations = agentResults.flatMap((result) => result.observations ?? []);
+    const rawFindings = agentResults.flatMap((result) => result.findings);
+    const correlationEnabled = this.config.intelligence?.correlation !== false;
+    const correlatedFindings = correlationEnabled
+      ? this.correlateFindings(rawFindings)
+      : rawFindings;
+    const observations = ensureUniqueObservationIds(
+      correlationEnabled
+        ? [
+            ...agentObservations,
+            ...this.correlateObservations(agentObservations, correlatedFindings),
+          ]
+        : agentObservations,
+    );
 
     if (this.config.intelligence?.prediction) {
       this.predictions = await this.runPrediction(correlatedFindings);
@@ -391,6 +443,7 @@ export class TestCapabilitiesOrchestrator {
       duration,
       findings: correlatedFindings,
       coverage,
+      observations,
       predictions: this.predictions,
       quantumInsights,
     };
@@ -444,6 +497,87 @@ export class TestCapabilitiesOrchestrator {
     }
 
     return [...findings, ...correlations];
+  }
+
+  private correlateObservations(observations: Observation[], findings: Finding[]): Observation[] {
+    if (observations.length <= 1) {
+      return [];
+    }
+
+    const correlated: Observation[] = [];
+    const byComponent = new Map<string, Observation[]>();
+    for (const observation of observations) {
+      const component = observation.semantics?.component ?? observation.subject;
+      byComponent.set(component, [...(byComponent.get(component) ?? []), observation]);
+    }
+
+    for (const [component, componentObservations] of byComponent) {
+      if (componentObservations.length <= 1) {
+        continue;
+      }
+
+      const status = worstObservationStatus(componentObservations);
+      const nonPassing = componentObservations.filter(
+        (observation) => observation.status !== "passed",
+      );
+      const kinds = observationKinds(componentObservations);
+      correlated.push(
+        makeObservation({
+          agent: "orchestrator",
+          kind: "synthesis",
+          status,
+          subject: component,
+          summary:
+            nonPassing.length === 0
+              ? `Semantic synthesis: ${component} passed across ${kinds.join(", ")} observations.`
+              : `Semantic synthesis: ${component} has ${nonPassing.length}/${componentObservations.length} non-passing observation(s) across ${kinds.join(", ")}.`,
+          evidence: observationEvidence(componentObservations),
+          semantics: {
+            component,
+            interpretation:
+              nonPassing.length === 0
+                ? `${component} has a consistent pass signal across the supported sensors that measured it.`
+                : `${component} has a cross-sensor degradation signal; inspect linked findings before treating isolated output as the whole story.`,
+            nextStep:
+              nonPassing.length === 0
+                ? "Keep this as a measured baseline and widen sensors only with new evidence."
+                : "Triage the linked findings and rerun the same sensor set after repair.",
+          },
+          findingIds: findingIdsForComponent(componentObservations, findings, component),
+        }),
+      );
+    }
+
+    const worstStatus = worstObservationStatus(observations);
+    const nonPassing = observations.filter((observation) => observation.status !== "passed");
+    const kinds = observationKinds(observations);
+    correlated.push(
+      makeObservation({
+        agent: "orchestrator",
+        kind: "correlation",
+        status: worstStatus,
+        subject: "test-capabilities suite",
+        summary:
+          nonPassing.length === 0
+            ? `Observation correlation: ${observations.length} supported sensor observation(s) passed across ${kinds.join(", ")}.`
+            : `Observation correlation: ${nonPassing.length}/${observations.length} supported sensor observation(s) did not pass across ${kinds.join(", ")}.`,
+        evidence: observationEvidence(observations),
+        semantics: {
+          component: "suite",
+          interpretation:
+            nonPassing.length === 0
+              ? "All supported sensors that ran produced pass observations."
+              : "At least one supported sensor produced a non-passing observation; suite health is degraded by evidence, not by observation synthesis alone.",
+          nextStep:
+            nonPassing.length === 0
+              ? "Use the observation set as a baseline for the next capability frontier."
+              : "Use findings and per-sensor evidence as the authority for repair prioritization.",
+        },
+        findingIds: uniqueFindingIds(observations, findings),
+      }),
+    );
+
+    return correlated;
   }
 
   private async runPrediction(findings: Finding[]): Promise<Prediction[]> {
@@ -579,10 +713,237 @@ export class TestCapabilitiesOrchestrator {
 interface AgentResult {
   findings: Finding[];
   coverage: Partial<CoverageReport>;
+  observations?: Observation[];
 }
 
 interface TestAgent {
   execute(targets: Target): Promise<AgentResult>;
+}
+
+type ObservationInput = Omit<Observation, "protocol" | "id" | "timestamp">;
+
+function observationSlug(value: string): string {
+  return (
+    value
+      .replace(/[^a-z0-9_-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "unknown"
+  );
+}
+
+function observationId(
+  agent: string,
+  kind: ObservationKind,
+  status: ObservationStatus,
+  subject: string,
+): string {
+  return `${observationSlug(agent)}-${kind}-${observationSlug(subject)}-${status}`;
+}
+
+function makeObservation(input: ObservationInput): Observation {
+  return {
+    protocol: "observation.v1",
+    id: observationId(input.agent, input.kind, input.status, input.subject),
+    timestamp: new Date(),
+    ...input,
+  };
+}
+
+function findingEvidence(findings: Finding[]): string[] {
+  return findings
+    .flatMap((finding) => finding.evidence)
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function statusFromFindings(findings: Finding[]): ObservationStatus {
+  return findings.some((finding) => finding.severity === "critical") ? "errored" : "failed";
+}
+
+const OBSERVATION_STATUS_WEIGHT: Record<ObservationStatus, number> = {
+  passed: 1,
+  skipped: 2,
+  failed: 3,
+  errored: 4,
+};
+
+function worstObservationStatus(observations: Observation[]): ObservationStatus {
+  return observations.reduce<ObservationStatus>(
+    (worst, observation) =>
+      OBSERVATION_STATUS_WEIGHT[observation.status] > OBSERVATION_STATUS_WEIGHT[worst]
+        ? observation.status
+        : worst,
+    "passed",
+  );
+}
+
+function observationKinds(observations: Observation[]): ObservationKind[] {
+  return [...new Set(observations.map((observation) => observation.kind))].sort();
+}
+
+function uniqueFindingIds(observations: Observation[], findings: Finding[] = []): string[] {
+  return [
+    ...new Set([
+      ...observations.flatMap((observation) => observation.findingIds),
+      ...findings.map((finding) => finding.id),
+    ]),
+  ];
+}
+
+function findingIdsForComponent(
+  observations: Observation[],
+  findings: Finding[],
+  component: string,
+): string[] {
+  return uniqueFindingIds(
+    observations,
+    findings.filter((finding) => finding.component === component),
+  );
+}
+
+function ensureUniqueObservationIds(observations: Observation[]): Observation[] {
+  const seen = new Set<string>();
+  const baseCounts = new Map<string, number>();
+
+  return observations.map((observation) => {
+    if (!seen.has(observation.id)) {
+      seen.add(observation.id);
+      baseCounts.set(observation.id, Math.max(baseCounts.get(observation.id) ?? 1, 1));
+      return observation;
+    }
+
+    let nextIndex = (baseCounts.get(observation.id) ?? 1) + 1;
+    let candidate = `${observation.id}-${nextIndex}`;
+    while (seen.has(candidate)) {
+      nextIndex += 1;
+      candidate = `${observation.id}-${nextIndex}`;
+    }
+
+    baseCounts.set(observation.id, nextIndex);
+    seen.add(candidate);
+    return {
+      ...observation,
+      id: candidate,
+    };
+  });
+}
+
+function observationEvidence(observations: Observation[]): string[] {
+  return observations
+    .map(
+      (observation) =>
+        `${observation.agent}:${observation.kind}:${observation.status} — ${observation.summary}`,
+    )
+    .slice(0, 8);
+}
+
+function normalizeKnownAgentResult(
+  agentName: string,
+  agent: TestAgent,
+  result: AgentResult,
+  targets: Target,
+): AgentResult {
+  if (result.observations !== undefined) {
+    return result;
+  }
+
+  const findingIds = result.findings.map((finding) => finding.id);
+  const failed = result.findings.length > 0;
+  const status = failed ? statusFromFindings(result.findings) : "passed";
+  const evidence = failed ? findingEvidence(result.findings) : [];
+
+  if (agent instanceof SurfAgent) {
+    const coverage = result.coverage.userFlows ?? 0;
+    return {
+      ...result,
+      observations: [
+        makeObservation({
+          agent: agentName,
+          kind: "coverage",
+          status,
+          subject: targets.web ?? "targets.web",
+          summary: failed
+            ? "Surf exploration did not produce verified browser-state coverage."
+            : `Surf verified user-flow coverage at ${coverage}%.`,
+          evidence: failed ? evidence : [`userFlows: ${coverage}%`],
+          coverage: result.coverage,
+          semantics: {
+            component: "web",
+            interpretation: failed
+              ? "Surf could not verify browser-state user-flow coverage for the web target."
+              : "Surf verified browser-state user-flow coverage for the web target.",
+            nextStep: failed
+              ? "Inspect Surf runtime evidence and rerun after browser/runtime repair."
+              : "Use this measured user-flow signal alongside property exploration.",
+          },
+          findingIds,
+        }),
+      ],
+    };
+  }
+
+  if (agent instanceof BombadilAgent) {
+    return {
+      ...result,
+      observations: [
+        makeObservation({
+          agent: agentName,
+          kind: "property",
+          status,
+          subject: targets.web ?? "targets.web",
+          summary: failed
+            ? "Bombadil exploration surfaced a blocking runtime or property finding."
+            : "Bounded Bombadil exploration completed without a surfaced violation.",
+          evidence:
+            evidence.length > 0
+              ? evidence
+              : ["bounded exploration completed without surfaced violation"],
+          coverage: result.coverage,
+          semantics: {
+            component: "web",
+            interpretation: failed
+              ? "Bombadil surfaced a property/runtime issue while exploring the web target."
+              : "Bombadil completed a bounded exploration budget without surfacing a violation.",
+            nextStep: failed
+              ? "Review Bombadil trace evidence before treating UI behavior as stable."
+              : "Pair this property signal with user-flow coverage for the web surface.",
+          },
+          findingIds,
+        }),
+      ],
+    };
+  }
+
+  if (agent instanceof CliTesterAgent) {
+    return {
+      ...result,
+      observations: [
+        makeObservation({
+          agent: agentName,
+          kind: "smoke",
+          status,
+          subject: targets.cli ?? "targets.cli",
+          summary: failed
+            ? "CLI smoke did not complete successfully."
+            : "CLI smoke completed successfully.",
+          evidence: failed ? evidence : ["--help exited successfully"],
+          coverage: result.coverage,
+          semantics: {
+            component: "cli",
+            interpretation: failed
+              ? "The CLI smoke sensor could not establish basic executable health."
+              : "The CLI smoke sensor established basic executable health.",
+            nextStep: failed
+              ? "Repair command resolution or --help behavior before relying on CLI-facing tests."
+              : "Use this smoke signal as a baseline, not as full CLI behavior coverage.",
+          },
+          findingIds,
+        }),
+      ],
+    };
+  }
+
+  return result;
 }
 
 function summarizeBombadilEvidence(

@@ -142,6 +142,9 @@ test("cli agent fails closed when the configured command does not exist", async 
 
   assert.equal(result.passed, false);
   assert.equal(result.coverage.overall, 0);
+  assert.equal(result.observations.length, 1);
+  assert.equal(result.observations[0].kind, "smoke");
+  assert.equal(result.observations[0].status, "errored");
   assert.equal(
     result.findings.some((finding) => finding.severity === "critical"),
     true,
@@ -189,6 +192,10 @@ test(
       assert.equal(result.coverage.edgeCases, 100);
       assert.equal(result.coverage.overall, 100);
       assert.deepEqual(result.coverage.measuredDimensions, ["edgeCases"]);
+      assert.equal(result.observations.length, 1);
+      assert.equal(result.observations[0].protocol, "observation.v1");
+      assert.equal(result.observations[0].kind, "property");
+      assert.equal(result.observations[0].status, "passed");
     } finally {
       if (previousBinary === undefined) {
         delete process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
@@ -362,6 +369,10 @@ printf '%s\n' "$@"
         assert.equal(result.coverage.userFlows, 100);
         assert.equal(result.coverage.overall, 100);
         assert.deepEqual(result.coverage.measuredDimensions, ["userFlows"]);
+        assert.equal(result.observations.length, 1);
+        assert.equal(result.observations[0].kind, "coverage");
+        assert.equal(result.observations[0].status, "passed");
+        assert.match(result.observations[0].evidence.join("\n"), /userFlows: 100%/);
       });
     } finally {
       fake.cleanup();
@@ -397,6 +408,14 @@ test(
 
       assert.equal(result.passed, false);
       assert.equal(result.coverage.overall, 0);
+      assert.equal(result.observations[0].kind, "coverage");
+      assert.equal(result.observations[0].status, "errored");
+      assert.equal(
+        result.observations.some(
+          (observation) => observation.kind === "coverage" && observation.status === "passed",
+        ),
+        false,
+      );
       assert.equal(
         result.findings.some((finding) =>
           finding.evidence.some((entry) => /produced no runtime evidence/.test(entry)),
@@ -522,6 +541,196 @@ test("correlation can synthesize repeated supported-agent findings on the same c
     ),
     true,
   );
+  assert.equal(
+    result.observations.some(
+      (observation) =>
+        observation.kind === "synthesis" &&
+        observation.subject === "cli" &&
+        observation.status === "errored" &&
+        observation.findingIds.includes("corr-cli") &&
+        /Semantic synthesis: cli has 2\/2 non-passing observation/.test(observation.summary) &&
+        /cross-sensor degradation signal/.test(observation.semantics?.interpretation ?? ""),
+    ),
+    true,
+  );
+  assert.equal(
+    result.observations.some(
+      (observation) =>
+        observation.kind === "correlation" &&
+        observation.status === "errored" &&
+        /2\/2 supported sensor observation/.test(observation.summary),
+    ),
+    true,
+  );
+});
+
+test("orchestrator respects disabled correlation for findings and observations", async () => {
+  const result = await new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Correlation Disabled",
+    targets: { cli: "/definitely/not/a/real/binary" },
+    agents: {
+      cliA: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+      cliB: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+    intelligence: {
+      selfHealing: false,
+      prediction: false,
+      correlation: false,
+      collective: false,
+    },
+  }).run();
+
+  assert.equal(
+    result.findings.some((finding) => finding.id.startsWith("corr-")),
+    false,
+  );
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "synthesis" || observation.kind === "correlation",
+    ),
+    false,
+  );
+  assert.equal(result.observations.length, 2);
+});
+
+test("observation protocol keeps ids unique across multiple synthesized components", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const observation = (agent, kind, subject, component) => ({
+    protocol: "observation.v1",
+    id: `${agent}-${kind}-passed`,
+    agent,
+    kind,
+    status: "passed",
+    subject,
+    summary: `${agent} ${kind} passed`,
+    evidence: [],
+    semantics: { component, interpretation: "passed" },
+    findingIds: [],
+    timestamp: observedAt,
+  });
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Observation Ids",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "cliA",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("cliA", "smoke", "cli", "cli")],
+        }),
+      },
+    ],
+    [
+      "cliB",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("cliB", "runtime", "cli", "cli")],
+        }),
+      },
+    ],
+    [
+      "webA",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("webA", "coverage", "web", "web")],
+        }),
+      },
+    ],
+    [
+      "webB",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("webB", "property", "web", "web")],
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+  const ids = result.observations.map((entry) => entry.id);
+
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(ids.includes("orchestrator-synthesis-cli-passed"), true);
+  assert.equal(ids.includes("orchestrator-synthesis-web-passed"), true);
+});
+
+test("observation id de-duplication avoids collisions with generated suffixes", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const observation = (id) => ({
+    protocol: "observation.v1",
+    id,
+    agent: id,
+    kind: "runtime",
+    status: "passed",
+    subject: "custom",
+    summary: `${id} passed`,
+    evidence: [],
+    findingIds: [],
+    timestamp: observedAt,
+  });
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Observation Suffix Collision",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+    intelligence: {
+      selfHealing: false,
+      prediction: false,
+      correlation: false,
+      collective: false,
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "a",
+      { execute: async () => ({ findings: [], coverage: {}, observations: [observation("a")] }) },
+    ],
+    [
+      "a2",
+      { execute: async () => ({ findings: [], coverage: {}, observations: [observation("a-2")] }) },
+    ],
+    [
+      "aAgain",
+      { execute: async () => ({ findings: [], coverage: {}, observations: [observation("a")] }) },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+  const ids = result.observations.map((entry) => entry.id);
+
+  assert.deepEqual(ids, ["a", "a-2", "a-3"]);
 });
 
 test(

@@ -469,6 +469,7 @@ test("property: orchestrator coverage and correlation invariants stay stable for
         );
         assert.equal(run.quantumInsights, undefined);
         assert.equal(run.predictions?.length ?? 0, 0);
+        assert.deepEqual(run.observations, []);
         assert.equal(run.passed, !hasBlockingFinding && expectedCoverage.overall > 0);
 
         for (const finding of rawFindings) {

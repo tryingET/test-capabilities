@@ -105,6 +105,8 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
 
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
   assert.match(typesDoc, /status: CoverageStatus;/);
+  assert.match(typesDoc, /observations\?: Observation\[\];/);
+  assert.match(typesDoc, /observation\.v1/);
   assert.match(typesDoc, /column\?: number;/);
 });
 
@@ -119,6 +121,7 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
   assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);
   assert.match(apiReferenceDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
+  assert.match(apiReferenceDoc, /observations\?: Observation\[\];/);
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 

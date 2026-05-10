@@ -281,6 +281,28 @@ capabilities.push(
   }),
 );
 
+capabilities.push(
+  capabilityEntry({
+    id: "protocol:observation-v1",
+    name: "Observation protocol v1",
+    surfaceKind: "orchestrator-protocol",
+    presenceState: "present",
+    supportState: "supported",
+    verificationState: "verified",
+    evidence: {
+      files: ["src/core/orchestrator.ts", "docs/api/types.md"],
+      tests: [
+        "tests/orchestrator_fail_closed_contract.test.mjs",
+        "tests/docs_runtime_contract.test.mjs",
+      ],
+      commands: ["npm test"],
+    },
+    attachPoints: ["src/core/orchestrator.ts", "docs/api/types.md"],
+    notes:
+      "Supported orchestrator agents emit observation.v1 diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution. When correlation is enabled and multiple observations are present, orchestrator runs can also include component-level semantic synthesis and suite-level observation correlation. Observations explain sensor facts; findings and coverage remain pass/fail authority.",
+  }),
+);
+
 const libraryCapabilities = [
   {
     id: "library:executeCliOperation",

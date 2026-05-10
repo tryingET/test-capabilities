@@ -156,6 +156,7 @@ interface TestResult {
   duration: number;
   findings: Finding[];
   coverage: CoverageReport;
+  observations?: Observation[];
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }
@@ -207,6 +208,48 @@ interface Finding {
   timestamp: Date;
 }
 ```
+
+### `Observation`
+
+```typescript
+type ObservationProtocol = 'observation.v1';
+type ObservationKind =
+  | 'runtime'
+  | 'coverage'
+  | 'property'
+  | 'smoke'
+  | 'correlation'
+  | 'synthesis';
+type ObservationStatus = 'passed' | 'failed' | 'skipped' | 'errored';
+
+interface ObservationSemantics {
+  component: string;
+  interpretation: string;
+  nextStep?: string;
+}
+
+interface Observation {
+  protocol: ObservationProtocol;
+  id: string;
+  agent: string;
+  kind: ObservationKind;
+  status: ObservationStatus;
+  subject: string;
+  summary: string;
+  evidence: string[];
+  coverage?: Partial<CoverageReport>;
+  semantics?: ObservationSemantics;
+  findingIds: string[];
+  timestamp: Date;
+}
+```
+
+Runtime note:
+- observations are diagnostic sensor events, not pass/fail authority
+- `observations` is optional in the public type for compatibility with historical `TestResult` objects; orchestrator runs populate it
+- findings still drive blocking severity and correlation; observations explain what each supported sensor actually measured
+- known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
+- when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
 
 ### `CoverageReport`
 

@@ -66,6 +66,7 @@ import {
   NexusConfig,
   TestResult,
   Finding,
+  Observation,
   Prediction,
   QuantumResult,
   VERSION,
@@ -182,6 +183,7 @@ interface TestResult {
   duration: number;
   findings: Finding[];
   coverage: CoverageReport;
+  observations?: Observation[];
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }
