@@ -32,14 +32,33 @@ function assertNoStaleDirectionClaims(productPosture) {
 
 function assertDirectionDocsTrackAk(productPosture) {
   const result = run("ak", ["direction", "list", "--repo", repoRoot]);
-  if (result.status !== 0) {
-    return;
-  }
+  assert.equal(
+    result.status,
+    0,
+    `AK direction check is part of the repo-local truth gate. ${result.stderr || result.stdout}`,
+  );
 
   const output = result.stdout;
-  if (output.includes("SF1") || output.includes("IW1")) {
-    assert.match(productPosture, /SF1/, "product_posture.md should mention AK direction SF1");
-    assert.match(productPosture, /IW1/, "product_posture.md should mention AK direction IW1");
+  assert.match(output, /SF1\s+strategic_frame\s+active/, "AK direction should keep SF1 active");
+  assert.match(output, /IW1\s+work_wave\s+done/, "AK direction should keep IW1 done");
+  assert.match(output, /IW2\s+work_wave\s+next/, "AK direction should keep IW2 next");
+  assert.match(productPosture, /SF1/, "product_posture.md should mention AK direction SF1");
+  assert.match(productPosture, /IW1/, "product_posture.md should mention AK direction IW1");
+  assert.match(productPosture, /IW2/, "product_posture.md should mention AK direction IW2");
+}
+
+function assertPassportVocabulary(passport) {
+  for (const capability of passport.capabilities) {
+    assert.equal(
+      passport.support_state_vocabulary.includes(capability.support_state),
+      true,
+      `${capability.id} support_state '${capability.support_state}' is not declared`,
+    );
+    assert.equal(
+      passport.verification_state_vocabulary.includes(capability.verification_state),
+      true,
+      `${capability.id} verification_state '${capability.verification_state}' is not declared`,
+    );
   }
 }
 
@@ -67,6 +86,7 @@ const productPosture = readText("docs/project/product_posture.md");
 assertNoStaleDirectionClaims(productPosture);
 assertDirectionDocsTrackAk(productPosture);
 assertPackedBombadilContract(packageJson, readme, productPosture);
+assertPassportVocabulary(readJson("governance/capability-passport.json"));
 assertPassportGeneratedProjection();
 
 console.log("capability-truth-gate: ok");

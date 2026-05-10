@@ -82,7 +82,7 @@
       "name": "heal --proposal-output / --verification-output / --checkpoint-ref",
       "surface_kind": "cli-option",
       "presence_state": "present",
-      "support_state": "implemented",
+      "support_state": "supported",
       "verification_state": "verified",
       "evidence": {
         "tests": ["tests/operation_kernel_contract.test.mjs"],

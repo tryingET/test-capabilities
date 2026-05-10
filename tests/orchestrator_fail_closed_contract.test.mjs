@@ -549,7 +549,7 @@ test("correlation can synthesize repeated supported-agent findings on the same c
         observation.status === "errored" &&
         observation.findingIds.includes("corr-cli") &&
         /Semantic synthesis: cli has 2\/2 non-passing observation/.test(observation.summary) &&
-        /cross-sensor degradation signal/.test(observation.semantics?.interpretation ?? ""),
+        /degradation or finding signal/.test(observation.semantics?.interpretation ?? ""),
     ),
     true,
   );
@@ -678,6 +678,88 @@ test("observation protocol keeps ids unique across multiple synthesized componen
   assert.equal(new Set(ids).size, ids.length);
   assert.equal(ids.includes("orchestrator-synthesis-cli-passed"), true);
   assert.equal(ids.includes("orchestrator-synthesis-web-passed"), true);
+});
+
+test("observation synthesis cannot pass while linking same-component critical findings", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const observation = (agent) => ({
+    protocol: "observation.v1",
+    id: `${agent}-runtime-passed`,
+    agent,
+    kind: "runtime",
+    status: "passed",
+    subject: "web",
+    summary: `${agent} passed`,
+    evidence: [],
+    semantics: { component: "web", interpretation: "passed" },
+    findingIds: [],
+    timestamp: observedAt,
+  });
+  const criticalFinding = {
+    id: "web-critical",
+    type: "bug",
+    severity: "critical",
+    component: "web",
+    description: "web is broken",
+    evidence: ["boom"],
+    recommendation: "fix web",
+    timestamp: observedAt,
+  };
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Observation Finding Integrity",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "webA",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("webA")],
+        }),
+      },
+    ],
+    [
+      "webB",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [observation("webB")],
+        }),
+      },
+    ],
+    [
+      "webFinding",
+      {
+        execute: async () => ({
+          findings: [criticalFinding],
+          coverage: {},
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+  const synthesis = result.observations.find((entry) => entry.kind === "synthesis");
+  const suiteCorrelation = result.observations.find((entry) => entry.kind === "correlation");
+
+  assert.equal(result.passed, false);
+  assert.equal(synthesis?.status, "errored");
+  assert.equal(synthesis?.findingIds.includes("web-critical"), true);
+  assert.match(synthesis?.summary ?? "", /1 finding/);
+  assert.match(synthesis?.evidence.join("\n") ?? "", /finding:critical:web-critical/);
+  assert.equal(suiteCorrelation?.status, "errored");
+  assert.equal(suiteCorrelation?.findingIds.includes("web-critical"), true);
 });
 
 test("observation id de-duplication avoids collisions with generated suffixes", async () => {

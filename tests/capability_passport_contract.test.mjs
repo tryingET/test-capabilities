@@ -35,6 +35,23 @@ test("capability passport projection records supported Bombadil runtime separate
   assert.equal(testCommand?.verification_state, "verified");
 });
 
+test("capability passport entries use declared vocabulary values", () => {
+  const passport = loadPassport();
+
+  for (const capability of passport.capabilities) {
+    assert.equal(
+      passport.support_state_vocabulary.includes(capability.support_state),
+      true,
+      `${capability.id} support_state '${capability.support_state}' is not declared`,
+    );
+    assert.equal(
+      passport.verification_state_vocabulary.includes(capability.verification_state),
+      true,
+      `${capability.id} verification_state '${capability.verification_state}' is not declared`,
+    );
+  }
+});
+
 test("capability passport generator stays in sync with the checked-in projection", () => {
   const generated = spawnSync("node", ["./scripts/generate-capability-passport.mjs", "--stdout"], {
     cwd: new URL("..", import.meta.url).pathname,

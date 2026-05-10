@@ -516,11 +516,13 @@ export class TestCapabilitiesOrchestrator {
         continue;
       }
 
-      const status = worstObservationStatus(componentObservations);
+      const componentFindings = findings.filter((finding) => finding.component === component);
+      const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
       const nonPassing = componentObservations.filter(
         (observation) => observation.status !== "passed",
       );
       const kinds = observationKinds(componentObservations);
+      const hasFindings = componentFindings.length > 0;
       correlated.push(
         makeObservation({
           agent: "orchestrator",
@@ -528,18 +530,18 @@ export class TestCapabilitiesOrchestrator {
           status,
           subject: component,
           summary:
-            nonPassing.length === 0
+            nonPassing.length === 0 && !hasFindings
               ? `Semantic synthesis: ${component} passed across ${kinds.join(", ")} observations.`
-              : `Semantic synthesis: ${component} has ${nonPassing.length}/${componentObservations.length} non-passing observation(s) across ${kinds.join(", ")}.`,
-          evidence: observationEvidence(componentObservations),
+              : `Semantic synthesis: ${component} has ${nonPassing.length}/${componentObservations.length} non-passing observation(s) and ${componentFindings.length} finding(s) across ${kinds.join(", ")} observations.`,
+          evidence: observationAndFindingEvidence(componentObservations, componentFindings),
           semantics: {
             component,
             interpretation:
-              nonPassing.length === 0
+              nonPassing.length === 0 && !hasFindings
                 ? `${component} has a consistent pass signal across the supported sensors that measured it.`
-                : `${component} has a cross-sensor degradation signal; inspect linked findings before treating isolated output as the whole story.`,
+                : `${component} has a cross-sensor degradation or finding signal; inspect linked findings before treating isolated output as the whole story.`,
             nextStep:
-              nonPassing.length === 0
+              nonPassing.length === 0 && !hasFindings
                 ? "Keep this as a measured baseline and widen sensors only with new evidence."
                 : "Triage the linked findings and rerun the same sensor set after repair.",
           },
@@ -548,8 +550,9 @@ export class TestCapabilitiesOrchestrator {
       );
     }
 
-    const worstStatus = worstObservationStatus(observations);
+    const worstStatus = worstObservationOrFindingStatus(observations, findings);
     const nonPassing = observations.filter((observation) => observation.status !== "passed");
+    const hasFindings = findings.length > 0;
     const kinds = observationKinds(observations);
     correlated.push(
       makeObservation({
@@ -558,18 +561,18 @@ export class TestCapabilitiesOrchestrator {
         status: worstStatus,
         subject: "test-capabilities suite",
         summary:
-          nonPassing.length === 0
+          nonPassing.length === 0 && !hasFindings
             ? `Observation correlation: ${observations.length} supported sensor observation(s) passed across ${kinds.join(", ")}.`
-            : `Observation correlation: ${nonPassing.length}/${observations.length} supported sensor observation(s) did not pass across ${kinds.join(", ")}.`,
-        evidence: observationEvidence(observations),
+            : `Observation correlation: ${nonPassing.length}/${observations.length} supported sensor observation(s) did not pass and ${findings.length} finding(s) were present across ${kinds.join(", ")}.`,
+        evidence: observationAndFindingEvidence(observations, findings),
         semantics: {
           component: "suite",
           interpretation:
-            nonPassing.length === 0
+            nonPassing.length === 0 && !hasFindings
               ? "All supported sensors that ran produced pass observations."
-              : "At least one supported sensor produced a non-passing observation; suite health is degraded by evidence, not by observation synthesis alone.",
+              : "At least one supported sensor or finding produced a non-passing signal; suite health is degraded by evidence, not by observation synthesis alone.",
           nextStep:
-            nonPassing.length === 0
+            nonPassing.length === 0 && !hasFindings
               ? "Use the observation set as a baseline for the next capability frontier."
               : "Use findings and per-sensor evidence as the authority for repair prioritization.",
         },
@@ -779,6 +782,34 @@ function worstObservationStatus(observations: Observation[]): ObservationStatus 
 
 function observationKinds(observations: Observation[]): ObservationKind[] {
   return [...new Set(observations.map((observation) => observation.kind))].sort();
+}
+
+function worstObservationOrFindingStatus(
+  observations: Observation[],
+  findings: Finding[],
+): ObservationStatus {
+  const observationStatus = worstObservationStatus(observations);
+  if (findings.length === 0) {
+    return observationStatus;
+  }
+
+  const findingStatus = statusFromFindings(findings);
+  return OBSERVATION_STATUS_WEIGHT[findingStatus] > OBSERVATION_STATUS_WEIGHT[observationStatus]
+    ? findingStatus
+    : observationStatus;
+}
+
+function findingObservationEvidence(findings: Finding[]): string[] {
+  return findings.map(
+    (finding) => `finding:${finding.severity}:${finding.id} — ${finding.description}`,
+  );
+}
+
+function observationAndFindingEvidence(observations: Observation[], findings: Finding[]): string[] {
+  return [...observationEvidence(observations), ...findingObservationEvidence(findings)].slice(
+    0,
+    8,
+  );
 }
 
 function uniqueFindingIds(observations: Observation[], findings: Finding[] = []): string[] {

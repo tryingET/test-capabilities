@@ -140,7 +140,7 @@ capabilities.push(
     name: "heal --proposal-output / --verification-output / --checkpoint-ref",
     surfaceKind: "cli-option",
     presenceState: "present",
-    supportState: "implemented",
+    supportState: "supported",
     verificationState: "verified",
     evidence: {
       tests: ["tests/operation_kernel_contract.test.mjs"],
