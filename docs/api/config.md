@@ -151,12 +151,12 @@ Alias mapping:
 - `self_healing` → `selfHealing`
 
 Supported current runtime state:
-- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two current-run signals
+- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two independent observed current-run evidence units
 - `selfHealing: false`
 - `prediction: false`
 - `collective: false`
 
-`root_cause` observations are diagnostic and evidence-bounded. They do not use probability, time horizon, or later-failure claims.
+`root_cause` observations are diagnostic and evidence-bounded. Derived observations do not count separately from their source findings, and root-cause output does not use probability, time horizon, or later-failure claims.
 
 If `selfHealing`, `prediction`, or `collective` are enabled, runtime validation fails clearly.
 

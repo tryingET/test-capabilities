@@ -63,7 +63,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow |
-| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for same-component evidence |
+| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for at least two same-component independent observed evidence units |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
 
 ### Explicitly unsupported for now

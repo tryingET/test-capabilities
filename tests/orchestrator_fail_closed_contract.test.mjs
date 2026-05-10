@@ -142,7 +142,7 @@ test("cli agent fails closed when the configured command does not exist", async 
 
   assert.equal(result.passed, false);
   assert.equal(result.coverage.overall, 0);
-  assert.equal(result.observations.length, 4);
+  assert.equal(result.observations.length, 3);
   assert.equal(result.observations[0].kind, "smoke");
   assert.equal(result.observations[0].status, "errored");
   assert.equal(
@@ -158,10 +158,8 @@ test("cli agent fails closed when the configured command does not exist", async 
     true,
   );
   assert.equal(
-    result.observations.some(
-      (observation) => observation.kind === "root_cause" && observation.status === "errored",
-    ),
-    true,
+    result.observations.some((observation) => observation.kind === "root_cause"),
+    false,
   );
   assert.equal(
     result.findings.some((finding) => finding.severity === "critical"),
@@ -244,7 +242,13 @@ test(
         name: "Bombadil Violation",
         targets: { web: "https://example.com" },
         agents: {
-          web: {
+          webA: {
+            enabled: true,
+            type: "bombadil",
+            intensity: "normal",
+            duration: "50ms",
+          },
+          webB: {
             enabled: true,
             type: "bombadil",
             intensity: "normal",
@@ -279,7 +283,10 @@ test(
         (observation) => observation.kind === "root_cause",
       );
       assert.equal(rootCause?.subject, "web");
-      assert.equal(rootCause?.semantics?.calibration?.level, "medium");
+      assert.equal(rootCause?.semantics?.calibration?.level, "high");
+      assert.equal(rootCause?.semantics?.calibration?.signalCount, 2);
+      assert.equal(rootCause?.semantics?.calibration?.sensorCount, 2);
+      assert.equal(rootCause?.semantics?.calibration?.findingCount, 2);
       assert.match(rootCause?.summary ?? "", /property_violation as the current failure surface/);
       assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:property_violation/);
       assert.doesNotMatch(
@@ -419,7 +426,12 @@ test(
         name: "Surf Empty Success",
         targets: { web: "https://example.com" },
         agents: {
-          web: {
+          webA: {
+            enabled: true,
+            type: "surf",
+            intensity: "normal",
+          },
+          webB: {
             enabled: true,
             type: "surf",
             intensity: "normal",
@@ -455,7 +467,10 @@ test(
         (observation) => observation.kind === "root_cause",
       );
       assert.equal(rootCause?.subject, "web");
-      assert.equal(rootCause?.semantics?.calibration?.level, "medium");
+      assert.equal(rootCause?.semantics?.calibration?.level, "high");
+      assert.equal(rootCause?.semantics?.calibration?.signalCount, 2);
+      assert.equal(rootCause?.semantics?.calibration?.sensorCount, 2);
+      assert.equal(rootCause?.semantics?.calibration?.findingCount, 2);
       assert.match(rootCause?.summary ?? "", /browser_coverage_gap as the current failure surface/);
       assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:browser_coverage_gap/);
       assert.doesNotMatch(
@@ -549,17 +564,9 @@ test(
           ),
           true,
         );
-        const rootCause = result.observations.find(
-          (observation) => observation.kind === "root_cause",
-        );
-        assert.equal(rootCause?.subject, "web");
-        assert.match(
-          rootCause?.summary ?? "",
-          /browser_coverage_gap as the current failure surface/,
-        );
-        assert.doesNotMatch(
-          `${rootCause?.summary ?? ""}\n${rootCause?.semantics?.interpretation ?? ""}`,
-          /predict|probability|horizon|future|will fail/i,
+        assert.equal(
+          result.observations.some((observation) => observation.kind === "root_cause"),
+          false,
         );
       });
     } finally {
@@ -619,9 +626,14 @@ test("correlation can synthesize repeated supported-agent findings on the same c
   assert.equal(rootCause?.subject, "cli");
   assert.equal(rootCause?.status, "errored");
   assert.equal(rootCause?.semantics?.calibration?.level, "high");
-  assert.equal(rootCause?.semantics?.calibration?.signalCount, 4);
+  assert.equal(rootCause?.semantics?.calibration?.signalCount, 2);
   assert.equal(rootCause?.semantics?.calibration?.sensorCount, 2);
-  assert.equal(rootCause?.findingIds.includes("corr-cli"), true);
+  assert.equal(rootCause?.semantics?.calibration?.findingCount, 2);
+  assert.equal(
+    rootCause?.semantics?.calibration?.basis.includes("2 independent evidence unit(s)"),
+    true,
+  );
+  assert.equal(rootCause?.findingIds.includes("corr-cli"), false);
   assert.match(rootCause?.summary ?? "", /command_resolution as the current failure surface/);
   assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:command_resolution/);
   assert.doesNotMatch(
@@ -667,6 +679,87 @@ test("orchestrator respects disabled correlation for findings and observations",
     false,
   );
   assert.equal(result.observations.length, 2);
+});
+
+test("root-cause synthesis requires observed independent evidence units", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Finding-only Component",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "otherObservation",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [
+            {
+              protocol: "observation.v1",
+              id: "other-runtime-passed",
+              agent: "otherObservation",
+              kind: "runtime",
+              status: "passed",
+              subject: "other",
+              summary: "other component passed",
+              evidence: [],
+              semantics: { component: "other", interpretation: "passed" },
+              findingIds: [],
+              timestamp: observedAt,
+            },
+          ],
+        }),
+      },
+    ],
+    [
+      "apiFindings",
+      {
+        execute: async () => ({
+          findings: [
+            {
+              id: "api-contract-drift",
+              type: "api_contract",
+              severity: "high",
+              component: "api",
+              description: "API schema drift",
+              evidence: ["schema mismatch"],
+              recommendation: "Align schema",
+              timestamp: observedAt,
+            },
+            {
+              id: "api-validation-mismatch",
+              type: "bug",
+              severity: "medium",
+              component: "api",
+              description: "API validation mismatch",
+              evidence: ["validation mismatch"],
+              recommendation: "Align validation",
+              timestamp: observedAt,
+            },
+          ],
+          coverage: {},
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "root_cause" && observation.subject === "api",
+    ),
+    false,
+  );
 });
 
 test("observation protocol keeps ids unique across multiple synthesized components", async () => {
@@ -1042,7 +1135,13 @@ test(
         name: "Timed Out CLI Target",
         targets: { cli: scriptPath },
         agents: {
-          cli: {
+          cliA: {
+            enabled: true,
+            type: "cli-tester",
+            intensity: "normal",
+            duration: "50ms",
+          },
+          cliB: {
             enabled: true,
             type: "cli-tester",
             intensity: "normal",
@@ -1060,6 +1159,10 @@ test(
         ),
         true,
       );
+      const rootCause = result.observations.find(
+        (observation) => observation.kind === "root_cause",
+      );
+      assert.match(rootCause?.summary ?? "", /timeout_or_latency as the current failure surface/);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

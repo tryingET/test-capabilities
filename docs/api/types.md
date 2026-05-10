@@ -261,7 +261,7 @@ Runtime note:
 - findings still drive blocking severity and correlation; observations explain what each supported sensor actually measured
 - known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
-- when same-component evidence has at least two current-run signals, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; these identify an evidence-bounded current failure class, not a forecast or probability claim
+- when same-component evidence has at least two independent observed current-run evidence units, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; derived observations do not count separately from their source findings, and the result identifies an evidence-bounded current failure class, not a forecast or probability claim
 
 ### `CoverageReport`
 

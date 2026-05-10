@@ -25,7 +25,7 @@ The current product posture lives in [product_posture.md](product_posture.md), t
 As of the current product slice, test-capabilities is deliberately **fail-closed**: supported routes run through real runtime paths; unsupported commands, flags, agents, and intelligence modes error instead of pretending to work.
 That boundary is not a retreat from the vision. It is the discipline that lets the vision become real without corrupting operator trust.
 
-Current supported runtime surfaces include the typed operation kernel, `test`, `quantum`, `heal`, `surf explore`, `cli-tester`, Bombadil-backed exploration, normalized `observation.v1` events from supported agents, finding correlation, correlation-gated diagnostic semantic synthesis/correlation, and deterministic calibrated `root_cause` observations for same-component current-run evidence. Surf is now the first concrete multi-probe sensory surface: it verifies browser state, DOM shape, and same-origin link discovery before contributing graded user-flow coverage.
+Current supported runtime surfaces include the typed operation kernel, `test`, `quantum`, `heal`, `surf explore`, `cli-tester`, Bombadil-backed exploration, normalized `observation.v1` events from supported agents, finding correlation, correlation-gated diagnostic semantic synthesis/correlation, and deterministic calibrated `root_cause` observations for independent same-component observed current-run evidence. Surf is now the first concrete multi-probe sensory surface: it verifies browser state, DOM shape, and same-origin link discovery before contributing graded user-flow coverage.
 Prediction, collective learning, self-generation, self-evolution, chaos execution, reporting, visualization, and broad autonomy remain future or research-to-product promotions unless the capability matrix says otherwise.
 
 ---
@@ -565,7 +565,7 @@ Deliverables:
 - Typed operation kernel with thin CLI wrappers and structured result envelopes
 - Supported bounded paths for CLI smoke, Bombadil exploration, quantum simulation, multi-probe Surf exploration, heuristic healing, and finding correlation
 - Generated capability passport that distinguishes implemented, parked, unsupported, and future surfaces
-- Normalized `observation.v1` events from supported agents, diagnostic semantic synthesis/correlation, and first deterministic calibrated `root_cause` observations for same-component current-run evidence
+- Normalized `observation.v1` events from supported agents, diagnostic semantic synthesis/correlation, and first deterministic calibrated `root_cause` observations for independent same-component observed current-run evidence
 - The definitive LLM testing knowledge base, kept separate from unsupported runtime claims
 
 Success: An engineer configures testing once, sees exactly what is supported, receives clear errors for everything else, and can trust every report because no capability is faked.
