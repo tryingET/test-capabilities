@@ -129,13 +129,24 @@ export type ObservationKind =
   | "property"
   | "smoke"
   | "correlation"
-  | "synthesis";
+  | "synthesis"
+  | "root_cause";
 export type ObservationStatus = "passed" | "failed" | "skipped" | "errored";
+export type ObservationCalibrationLevel = "low" | "medium" | "high";
+
+export interface ObservationCalibration {
+  level: ObservationCalibrationLevel;
+  signalCount: number;
+  sensorCount: number;
+  findingCount: number;
+  basis: string[];
+}
 
 export interface ObservationSemantics {
   component: string;
   interpretation: string;
   nextStep?: string;
+  calibration?: ObservationCalibration;
 }
 
 export interface Observation {
@@ -419,6 +430,7 @@ export class TestCapabilitiesOrchestrator {
         ? [
             ...agentObservations,
             ...this.correlateObservations(agentObservations, correlatedFindings),
+            ...this.synthesizeRootCauses(agentObservations, correlatedFindings),
           ]
         : agentObservations,
     );
@@ -581,6 +593,72 @@ export class TestCapabilitiesOrchestrator {
     );
 
     return correlated;
+  }
+
+  private synthesizeRootCauses(observations: Observation[], findings: Finding[]): Observation[] {
+    if (observations.length === 0 || findings.length === 0) {
+      return [];
+    }
+
+    const rootCauses: Observation[] = [];
+    const components = new Set<string>([
+      ...observations.map((observation) => observation.semantics?.component ?? observation.subject),
+      ...findings.map((finding) => finding.component),
+    ]);
+
+    for (const component of [...components].sort()) {
+      const componentObservations = observations.filter(
+        (observation) => (observation.semantics?.component ?? observation.subject) === component,
+      );
+      const componentFindings = findings.filter((finding) => finding.component === component);
+      const primaryFindings = componentFindings.filter(
+        (finding) => !finding.id.startsWith("corr-"),
+      );
+      const calibrationFindings = primaryFindings.length > 0 ? primaryFindings : componentFindings;
+      const nonPassing = componentObservations.filter(
+        (observation) => observation.status !== "passed",
+      );
+      const signalCount = nonPassing.length + calibrationFindings.length;
+
+      if (signalCount < 2) {
+        continue;
+      }
+
+      const calibration = calibrateRootCause(
+        componentObservations,
+        calibrationFindings,
+        nonPassing,
+      );
+      const failureClass = inferRootCauseClass(componentObservations, calibrationFindings);
+      const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
+      const sensorLabel = calibration.sensorCount === 1 ? "sensor" : "sensors";
+      const findingLabel = calibration.findingCount === 1 ? "finding" : "findings";
+
+      rootCauses.push(
+        makeObservation({
+          agent: "orchestrator",
+          kind: "root_cause",
+          status,
+          subject: component,
+          summary: `Root-cause synthesis: ${component} has ${calibration.level} evidence support for ${failureClass} as the current failure surface (${calibration.signalCount} signal(s), ${calibration.sensorCount} ${sensorLabel}, ${calibration.findingCount} ${findingLabel}).`,
+          evidence: rootCauseEvidence(
+            failureClass,
+            calibration,
+            componentObservations,
+            componentFindings,
+          ),
+          semantics: {
+            component,
+            interpretation: `Evidence-bounded root-cause synthesis identifies ${failureClass} as the current ${component} failure class with ${calibration.level} support from the observed run. No later-time claim is made.`,
+            nextStep: `Inspect ${component} evidence for ${failureClass}, repair the smallest confirmed cause, then rerun the same sensor set for calibration comparison.`,
+            calibration,
+          },
+          findingIds: findingIdsForComponent(componentObservations, findings, component),
+        }),
+      );
+    }
+
+    return rootCauses;
   }
 
   private async runPrediction(findings: Finding[]): Promise<Prediction[]> {
@@ -814,6 +892,112 @@ function observationAndFindingEvidence(observations: Observation[], findings: Fi
   const observationLimit = Math.max(0, 8 - Math.min(findingEvidence.length, 8));
   const observedEvidence = observationEvidence(observations).slice(0, observationLimit);
   return [...observedEvidence, ...findingEvidence.slice(0, 8 - observedEvidence.length)];
+}
+
+function rootCauseCorpus(observations: Observation[], findings: Finding[]): string {
+  return [
+    ...observations.flatMap((observation) => [
+      observation.kind,
+      observation.status,
+      observation.summary,
+      observation.semantics?.interpretation ?? "",
+      ...observation.evidence,
+    ]),
+    ...findings.flatMap((finding) => [
+      finding.type,
+      finding.severity,
+      finding.description,
+      finding.recommendation,
+      ...finding.evidence,
+    ]),
+  ]
+    .join("\n")
+    .toLowerCase();
+}
+
+function inferRootCauseClass(observations: Observation[], findings: Finding[]): string {
+  const corpus = rootCauseCorpus(observations, findings);
+
+  if (
+    /enoent|spawn|not found|no such file|command|executable|--help|sigterm|sigkill/.test(corpus)
+  ) {
+    return "command_resolution";
+  }
+  if (/timeout|timed out|latency|duration|slow/.test(corpus)) {
+    return "timeout_or_latency";
+  }
+  if (/selector|locator|data-testid|button|dom/.test(corpus)) {
+    return "selector_or_dom_drift";
+  }
+  if (/bombadil|property|violation|invariant|trace/.test(corpus)) {
+    return "property_violation";
+  }
+  if (/surf|browser|coverage|user-flow|browser-state|navigation/.test(corpus)) {
+    return "browser_coverage_gap";
+  }
+  if (/api|contract|schema|validation/.test(corpus)) {
+    return "contract_mismatch";
+  }
+
+  return "component_failure_surface";
+}
+
+function calibrateRootCause(
+  observations: Observation[],
+  findings: Finding[],
+  nonPassingObservations: Observation[],
+): ObservationCalibration {
+  const sensorCount = new Set(observations.map((observation) => observation.agent)).size;
+  const signalCount = nonPassingObservations.length + findings.length;
+  const highSeverityFindingCount = findings.filter(
+    (finding) => finding.severity === "high" || finding.severity === "critical",
+  ).length;
+  const findingTypes = new Set(findings.map((finding) => finding.type));
+  const observationKindsPresent = new Set(observations.map((observation) => observation.kind));
+  const basis = [
+    `${nonPassingObservations.length} non-passing observation(s)`,
+    `${findings.length} finding(s)`,
+    `${sensorCount} sensor(s)`,
+  ];
+
+  if (highSeverityFindingCount > 0) {
+    basis.push(`${highSeverityFindingCount} high-or-critical finding(s)`);
+  }
+  if (findingTypes.size > 1) {
+    basis.push(`${findingTypes.size} finding type(s)`);
+  }
+  if (observationKindsPresent.size > 1) {
+    basis.push(`${observationKindsPresent.size} observation kind(s)`);
+  }
+
+  const level: ObservationCalibrationLevel =
+    signalCount >= 3 &&
+    (sensorCount >= 2 || findingTypes.size >= 2 || observationKindsPresent.size >= 2)
+      ? "high"
+      : signalCount >= 2
+        ? "medium"
+        : "low";
+
+  return {
+    level,
+    signalCount,
+    sensorCount,
+    findingCount: findings.length,
+    basis,
+  };
+}
+
+function rootCauseEvidence(
+  failureClass: string,
+  calibration: ObservationCalibration,
+  observations: Observation[],
+  findings: Finding[],
+): string[] {
+  return [
+    `failureClass:${failureClass}`,
+    `calibration:${calibration.level} — ${calibration.basis.join("; ")}`,
+    ...observationAndFindingEvidence(observations, findings),
+  ].slice(0, 10);
 }
 
 function uniqueFindingIds(observations: Observation[], findings: Finding[] = []): string[] {

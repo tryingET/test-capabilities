@@ -219,13 +219,24 @@ type ObservationKind =
   | 'property'
   | 'smoke'
   | 'correlation'
-  | 'synthesis';
+  | 'synthesis'
+  | 'root_cause';
 type ObservationStatus = 'passed' | 'failed' | 'skipped' | 'errored';
+type ObservationCalibrationLevel = 'low' | 'medium' | 'high';
+
+interface ObservationCalibration {
+  level: ObservationCalibrationLevel;
+  signalCount: number;
+  sensorCount: number;
+  findingCount: number;
+  basis: string[];
+}
 
 interface ObservationSemantics {
   component: string;
   interpretation: string;
   nextStep?: string;
+  calibration?: ObservationCalibration;
 }
 
 interface Observation {
@@ -250,6 +261,7 @@ Runtime note:
 - findings still drive blocking severity and correlation; observations explain what each supported sensor actually measured
 - known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
+- when same-component evidence has at least two current-run signals, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; these identify an evidence-bounded current failure class, not a forecast or probability claim
 
 ### `CoverageReport`
 

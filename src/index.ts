@@ -53,6 +53,8 @@ export type {
   Finding,
   FindingType,
   Observation,
+  ObservationCalibration,
+  ObservationCalibrationLevel,
   ObservationKind,
   ObservationProtocol,
   ObservationSemantics,

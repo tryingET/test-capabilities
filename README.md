@@ -63,8 +63,8 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow |
-| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled and multiple observations are present they can also include component-level semantic synthesis and suite-level observation correlation |
-| finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis now summarizes multi-sensor meaning without becoming pass/fail authority |
+| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for same-component evidence |
+| finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
 
 ### Explicitly unsupported for now
 
@@ -136,7 +136,7 @@ What it checks today:
 - `heal` requires `--checkpoint-ref` from an external checkpoint/restore authority before applying proposals that mutate files
 - `surf explore` runs through the shipped wrapper path and rejects invalid URLs
 - `test` runs a surf-backed orchestrator agent against a deterministic local fixture
-- library drills for orchestrator correlation and prediction input validation
+- library drills for orchestrator correlation and prediction input validation; contract tests cover calibrated root-cause observation synthesis
 
 Surf modes:
 

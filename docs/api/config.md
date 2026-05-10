@@ -63,7 +63,7 @@ Surf-backed and Bombadil-backed web runs are also supported when you enable a `s
 | `name` | yes | Human-readable suite name |
 | `targets` | yes | `web`, `api`, and/or `cli` |
 | `agents` | no | At least one enabled supported agent is still required by runtime |
-| `intelligence` | no | Only `correlation: true` is currently supported |
+| `intelligence` | no | `correlation: true` is supported and may emit synthesis, suite correlation, and calibrated `root_cause` observations |
 | `quantum` | no | Supported when `targets.web` is present |
 | `chaos` | no | Must remain disabled for now |
 
@@ -151,10 +151,12 @@ Alias mapping:
 - `self_healing` → `selfHealing`
 
 Supported current runtime state:
-- `correlation: true`
+- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two current-run signals
 - `selfHealing: false`
 - `prediction: false`
 - `collective: false`
+
+`root_cause` observations are diagnostic and evidence-bounded. They do not use probability, time horizon, or later-failure claims.
 
 If `selfHealing`, `prediction`, or `collective` are enabled, runtime validation fails clearly.
 

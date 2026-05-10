@@ -142,7 +142,7 @@ test("cli agent fails closed when the configured command does not exist", async 
 
   assert.equal(result.passed, false);
   assert.equal(result.coverage.overall, 0);
-  assert.equal(result.observations.length, 3);
+  assert.equal(result.observations.length, 4);
   assert.equal(result.observations[0].kind, "smoke");
   assert.equal(result.observations[0].status, "errored");
   assert.equal(
@@ -154,6 +154,12 @@ test("cli agent fails closed when the configured command does not exist", async 
   assert.equal(
     result.observations.some(
       (observation) => observation.kind === "correlation" && observation.status === "errored",
+    ),
+    true,
+  );
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "root_cause" && observation.status === "errored",
     ),
     true,
   );
@@ -268,6 +274,17 @@ test(
           finding.evidence.some((entry) => /trace: \/tmp\/fake-bombadil-trace/.test(entry)),
         ),
         true,
+      );
+      const rootCause = result.observations.find(
+        (observation) => observation.kind === "root_cause",
+      );
+      assert.equal(rootCause?.subject, "web");
+      assert.equal(rootCause?.semantics?.calibration?.level, "medium");
+      assert.match(rootCause?.summary ?? "", /property_violation as the current failure surface/);
+      assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:property_violation/);
+      assert.doesNotMatch(
+        `${rootCause?.summary ?? ""}\n${rootCause?.semantics?.interpretation ?? ""}`,
+        /predict|probability|horizon|future|will fail/i,
       );
     } finally {
       if (previousBinary === undefined) {
@@ -434,6 +451,17 @@ test(
         ),
         true,
       );
+      const rootCause = result.observations.find(
+        (observation) => observation.kind === "root_cause",
+      );
+      assert.equal(rootCause?.subject, "web");
+      assert.equal(rootCause?.semantics?.calibration?.level, "medium");
+      assert.match(rootCause?.summary ?? "", /browser_coverage_gap as the current failure surface/);
+      assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:browser_coverage_gap/);
+      assert.doesNotMatch(
+        `${rootCause?.summary ?? ""}\n${rootCause?.semantics?.interpretation ?? ""}`,
+        /predict|probability|horizon|future|will fail/i,
+      );
     });
   },
 );
@@ -521,6 +549,18 @@ test(
           ),
           true,
         );
+        const rootCause = result.observations.find(
+          (observation) => observation.kind === "root_cause",
+        );
+        assert.equal(rootCause?.subject, "web");
+        assert.match(
+          rootCause?.summary ?? "",
+          /browser_coverage_gap as the current failure surface/,
+        );
+        assert.doesNotMatch(
+          `${rootCause?.summary ?? ""}\n${rootCause?.semantics?.interpretation ?? ""}`,
+          /predict|probability|horizon|future|will fail/i,
+        );
       });
     } finally {
       fake.cleanup();
@@ -574,6 +614,21 @@ test("correlation can synthesize repeated supported-agent findings on the same c
     ),
     true,
   );
+
+  const rootCause = result.observations.find((observation) => observation.kind === "root_cause");
+  assert.equal(rootCause?.subject, "cli");
+  assert.equal(rootCause?.status, "errored");
+  assert.equal(rootCause?.semantics?.calibration?.level, "high");
+  assert.equal(rootCause?.semantics?.calibration?.signalCount, 4);
+  assert.equal(rootCause?.semantics?.calibration?.sensorCount, 2);
+  assert.equal(rootCause?.findingIds.includes("corr-cli"), true);
+  assert.match(rootCause?.summary ?? "", /command_resolution as the current failure surface/);
+  assert.match(rootCause?.evidence.join("\n") ?? "", /failureClass:command_resolution/);
+  assert.doesNotMatch(
+    `${rootCause?.summary ?? ""}\n${rootCause?.semantics?.interpretation ?? ""}\n${rootCause?.semantics?.nextStep ?? ""}`,
+    /predict|probability|horizon|future|will fail/i,
+  );
+  assert.equal(result.predictions?.length ?? 0, 0);
 });
 
 test("orchestrator respects disabled correlation for findings and observations", async () => {
@@ -606,8 +661,8 @@ test("orchestrator respects disabled correlation for findings and observations",
     false,
   );
   assert.equal(
-    result.observations.some(
-      (observation) => observation.kind === "synthesis" || observation.kind === "correlation",
+    result.observations.some((observation) =>
+      ["synthesis", "correlation", "root_cause"].includes(observation.kind),
     ),
     false,
   );
