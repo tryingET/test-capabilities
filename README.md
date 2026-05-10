@@ -85,8 +85,9 @@ npm run check          # Full CI check (lint + test)
 npm run lint           # Lint check
 npm run fix            # Auto-fix lint issues
 npm run consumer:smoke # Packed-artifact consumer contract smoke
-npm run truth:gate     # Cross-check runtime/package/docs/passport truth surfaces
-npm run release:check  # Release preflight (quality + truth gate + packed-artifact verification)
+npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
+npm run truth:gate:local # Repo-local truth gate that also requires AK direction state
+npm run release:check    # Release preflight (quality + truth gate + packed-artifact verification)
 
 # Build
 npm run build          # TypeScript build

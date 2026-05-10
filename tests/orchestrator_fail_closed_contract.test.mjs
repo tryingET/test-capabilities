@@ -142,9 +142,21 @@ test("cli agent fails closed when the configured command does not exist", async 
 
   assert.equal(result.passed, false);
   assert.equal(result.coverage.overall, 0);
-  assert.equal(result.observations.length, 1);
+  assert.equal(result.observations.length, 3);
   assert.equal(result.observations[0].kind, "smoke");
   assert.equal(result.observations[0].status, "errored");
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "synthesis" && observation.status === "errored",
+    ),
+    true,
+  );
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "correlation" && observation.status === "errored",
+    ),
+    true,
+  );
   assert.equal(
     result.findings.some((finding) => finding.severity === "critical"),
     true,
@@ -760,6 +772,147 @@ test("observation synthesis cannot pass while linking same-component critical fi
   assert.match(synthesis?.evidence.join("\n") ?? "", /finding:critical:web-critical/);
   assert.equal(suiteCorrelation?.status, "errored");
   assert.equal(suiteCorrelation?.findingIds.includes("web-critical"), true);
+});
+
+test("single passing observation with a critical finding emits degraded synthesis", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Single Observation Finding Integrity",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "webObservation",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [
+            {
+              protocol: "observation.v1",
+              id: "web-observation-passed",
+              agent: "webObservation",
+              kind: "runtime",
+              status: "passed",
+              subject: "web",
+              summary: "web passed",
+              evidence: [],
+              semantics: { component: "web", interpretation: "passed" },
+              findingIds: [],
+              timestamp: observedAt,
+            },
+          ],
+        }),
+      },
+    ],
+    [
+      "webFinding",
+      {
+        execute: async () => ({
+          findings: [
+            {
+              id: "web-critical-single",
+              type: "bug",
+              severity: "critical",
+              component: "web",
+              description: "single-observation web is broken",
+              evidence: ["boom"],
+              recommendation: "fix web",
+              timestamp: observedAt,
+            },
+          ],
+          coverage: {},
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+  const synthesis = result.observations.find((entry) => entry.kind === "synthesis");
+  const suiteCorrelation = result.observations.find((entry) => entry.kind === "correlation");
+
+  assert.equal(result.passed, false);
+  assert.equal(synthesis?.status, "errored");
+  assert.equal(synthesis?.findingIds.includes("web-critical-single"), true);
+  assert.equal(suiteCorrelation?.status, "errored");
+  assert.equal(suiteCorrelation?.findingIds.includes("web-critical-single"), true);
+});
+
+test("synthesized finding evidence is retained when observation evidence is truncated", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Observation Evidence Retention",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    ...Array.from({ length: 9 }, (_, index) => [
+      `webObservation${index}`,
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [
+            {
+              protocol: "observation.v1",
+              id: `web-observation-${index}`,
+              agent: `webObservation${index}`,
+              kind: "runtime",
+              status: "passed",
+              subject: "web",
+              summary: `web passed ${index}`,
+              evidence: [`observation ${index}`],
+              semantics: { component: "web", interpretation: "passed" },
+              findingIds: [],
+              timestamp: observedAt,
+            },
+          ],
+        }),
+      },
+    ]),
+    [
+      "webFinding",
+      {
+        execute: async () => ({
+          findings: [
+            {
+              id: "web-critical-retained",
+              type: "bug",
+              severity: "critical",
+              component: "web",
+              description: "finding evidence must remain visible",
+              evidence: ["boom"],
+              recommendation: "fix web",
+              timestamp: observedAt,
+            },
+          ],
+          coverage: {},
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+  const synthesis = result.observations.find((entry) => entry.kind === "synthesis");
+
+  assert.equal(synthesis?.status, "errored");
+  assert.equal(synthesis?.evidence.length, 8);
+  assert.match(synthesis?.evidence.join("\n") ?? "", /finding:critical:web-critical-retained/);
 });
 
 test("observation id de-duplication avoids collisions with generated suffixes", async () => {

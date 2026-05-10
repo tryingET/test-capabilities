@@ -31,11 +31,21 @@ function assertNoStaleDirectionClaims(productPosture) {
 }
 
 function assertDirectionDocsTrackAk(productPosture) {
+  const requireAkDirection = process.env.TEST_CAPABILITIES_REQUIRE_AK_DIRECTION === "1";
   const result = run("ak", ["direction", "list", "--repo", repoRoot]);
+  if (!requireAkDirection) {
+    const detail =
+      result.status === 0 ? "portable mode" : `unavailable. ${result.stderr || result.stdout}`;
+    console.warn(
+      `capability-truth-gate: AK direction check skipped (${detail}); run npm run truth:gate:local for repo-local AK validation.`,
+    );
+    return;
+  }
+
   assert.equal(
     result.status,
     0,
-    `AK direction check is part of the repo-local truth gate. ${result.stderr || result.stdout}`,
+    `AK direction check is required for the repo-local truth gate. ${result.stderr || result.stdout}`,
   );
 
   const output = result.stdout;

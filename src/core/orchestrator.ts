@@ -500,7 +500,7 @@ export class TestCapabilitiesOrchestrator {
   }
 
   private correlateObservations(observations: Observation[], findings: Finding[]): Observation[] {
-    if (observations.length <= 1) {
+    if (observations.length === 0 || (observations.length === 1 && findings.length === 0)) {
       return [];
     }
 
@@ -512,11 +512,11 @@ export class TestCapabilitiesOrchestrator {
     }
 
     for (const [component, componentObservations] of byComponent) {
-      if (componentObservations.length <= 1) {
+      const componentFindings = findings.filter((finding) => finding.component === component);
+      if (componentObservations.length <= 1 && componentFindings.length === 0) {
         continue;
       }
 
-      const componentFindings = findings.filter((finding) => finding.component === component);
       const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
       const nonPassing = componentObservations.filter(
         (observation) => observation.status !== "passed",
@@ -806,10 +806,14 @@ function findingObservationEvidence(findings: Finding[]): string[] {
 }
 
 function observationAndFindingEvidence(observations: Observation[], findings: Finding[]): string[] {
-  return [...observationEvidence(observations), ...findingObservationEvidence(findings)].slice(
-    0,
-    8,
-  );
+  const findingEvidence = findingObservationEvidence(findings);
+  if (findingEvidence.length === 0) {
+    return observationEvidence(observations).slice(0, 8);
+  }
+
+  const observationLimit = Math.max(0, 8 - Math.min(findingEvidence.length, 8));
+  const observedEvidence = observationEvidence(observations).slice(0, observationLimit);
+  return [...observedEvidence, ...findingEvidence.slice(0, 8 - observedEvidence.length)];
 }
 
 function uniqueFindingIds(observations: Observation[], findings: Finding[] = []): string[] {
