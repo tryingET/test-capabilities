@@ -409,6 +409,63 @@ const cases = [
     },
   },
   {
+    name: "Two sensors plus unobserved conflicting finding do not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiObserverA: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-observed-a",
+            agent: "apiObserverA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema drift observed by sensor A.",
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiObserverB: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-observed-b",
+            agent: "apiObserverB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API schema drift observed by sensor B.",
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-drift",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema drift",
+            evidence: ["schema mismatch"],
+            recommendation: "Align schema.",
+          }),
+          finding({
+            id: "api-timeout",
+            type: "performance",
+            severity: "high",
+            component: "api",
+            description: "API timed out without an observed current-run sensor link.",
+            evidence: ["stale timeout finding"],
+            recommendation: "Rerun timeout sensor before diagnosing.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
     name: "Two passing sensors linked to the same finding do not emit root_cause",
     subject: "api",
     expectRootCause: false,

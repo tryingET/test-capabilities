@@ -630,6 +630,14 @@ export class TestCapabilitiesOrchestrator {
       }
 
       const evidenceUnits = strongestAgreedRootCauseUnits(candidateEvidenceUnits);
+      const representedFindingIds = new Set(
+        evidenceUnits.flatMap((unit) => (unit.findingId ? [unit.findingId] : [])),
+      );
+
+      if (calibrationFindings.some((finding) => !representedFindingIds.has(finding.id))) {
+        continue;
+      }
+
       const calibration = calibrateRootCause(
         componentObservations,
         calibrationFindings,
@@ -958,6 +966,7 @@ interface RootCauseEvidenceUnit {
   id: string;
   source: "finding" | "observation";
   failureClass: string;
+  findingId?: string;
   agent?: string;
 }
 
@@ -984,6 +993,7 @@ function rootCauseEvidenceUnits(
         id: `finding:${finding.id}:observation:${linkedObservation.id}`,
         source: "finding",
         failureClass: inferRootCauseClass([linkedObservation], [finding]),
+        findingId: finding.id,
         agent: linkedObservation.agent,
       });
     }

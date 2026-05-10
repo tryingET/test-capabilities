@@ -36,6 +36,10 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   );
   assert.match(
     result.stdout,
+    /\[pass\] Two sensors plus unobserved conflicting finding do not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
     /\[pass\] Two passing sensors linked to the same finding do not emit root_cause/,
   );
   assert.match(
@@ -46,7 +50,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(13 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(14 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -60,7 +64,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   const payload = JSON.parse(result.stdout);
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.total, 13);
+  assert.equal(payload.total, 14);
   assert.equal(payload.failed, 0);
   assert.equal(
     payload.cases.some(

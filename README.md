@@ -171,7 +171,7 @@ What it checks today:
 - two independent observed Surf failures classify as `browser_coverage_gap`
 - two independent observed Bombadil failures classify as `property_violation`
 - two independent sensors linked to the same API finding classify as `contract_mismatch`
-- finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, and partially observed evidence pairs do not emit `root_cause`
+- finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
 Machine-readable mode:
