@@ -130,7 +130,8 @@ export type ObservationKind =
   | "smoke"
   | "correlation"
   | "synthesis"
-  | "root_cause";
+  | "root_cause"
+  | "propagation";
 export type ObservationStatus = "passed" | "failed" | "skipped" | "errored";
 export type ObservationCalibrationLevel = "low" | "medium" | "high";
 
@@ -425,12 +426,19 @@ export class TestCapabilitiesOrchestrator {
     const correlatedFindings = correlationEnabled
       ? this.correlateFindings(rawFindings)
       : rawFindings;
+    const rootCauseObservations = correlationEnabled
+      ? this.synthesizeRootCauses(agentObservations, correlatedFindings)
+      : [];
+    const propagationObservations = correlationEnabled
+      ? synthesizePropagationChains(rootCauseObservations)
+      : [];
     const observations = ensureUniqueObservationIds(
       correlationEnabled
         ? [
             ...agentObservations,
             ...this.correlateObservations(agentObservations, correlatedFindings),
-            ...this.synthesizeRootCauses(agentObservations, correlatedFindings),
+            ...rootCauseObservations,
+            ...propagationObservations,
           ]
         : agentObservations,
     );
@@ -1189,6 +1197,199 @@ function rootCauseEvidence(
     `calibration:${calibration.level} — ${calibration.basis.join("; ")}`,
     ...observationAndFindingEvidence(observations, findings),
   ].slice(0, 10);
+}
+
+// ============================================
+// Propagation synthesis helpers
+// ============================================
+
+/**
+ * Extract the failure class string from a root_cause observation's semantics.
+ * Returns undefined if the observation is not a root_cause or has no interpretable class.
+ */
+function getFailureClassFromRootCause(observation: Observation): string | undefined {
+  if (observation.kind !== "root_cause") {
+    return undefined;
+  }
+  const calibration = observation.semantics?.calibration;
+  if (calibration) {
+    // The failure class is embedded in the first evidence line: "failureClass:<class>"
+    for (const ev of observation.evidence) {
+      const match = ev.match(/^failureClass:(.+)$/);
+      if (match) {
+        return match[1];
+      }
+    }
+  }
+  // Fallback: extract from summary text
+  const summaryMatch = observation.summary.match(
+    /has\s+\w+\s+evidence support for (\S+) as the current/,
+  );
+  return summaryMatch ? summaryMatch[1] : undefined;
+}
+
+/**
+ * Known dependency topology: upstream failures can propagate downstream.
+ * These are conventional architectural heuristics derived from common stack layouts.
+ * They are non-authoritative and produce no output when both components lack
+ * high-calibration root_cause observations.
+ */
+const KNOWN_DEPENDENCY_PAIRS: [string, string][] = [
+  ["api", "web"],
+  ["cli", "api"],
+  ["cli", "web"],
+];
+
+/**
+ * Infer whether an upstream failure plausibly explains a downstream failure.
+ * Returns a human-readable link description or undefined if no plausible link exists.
+ *
+ * Heuristic rules:
+ * - api timeout_or_latency → web component_failure_surface or browser_coverage_gap: API latency cascades to UI timeouts
+ * - api contract_mismatch → web component_failure_surface: API schema drift breaks client rendering
+ * - cli command_resolution → api component_failure_surface: CLI tooling failure prevents API health checks
+ * - Same failure class across dependent components: suggests shared infrastructure cause
+ */
+function inferPropagationLink(
+  upstream: string,
+  upstreamClass: string,
+  downstream: string,
+  downstreamClass: string,
+): string | undefined {
+  // Same failure class across dependent components suggests shared infrastructure
+  if (upstreamClass === downstreamClass) {
+    return `shared-infra (${upstreamClass} on both)`;
+  }
+
+  // API→web propagation patterns
+  if (upstream === "api" && downstream === "web") {
+    if (
+      upstreamClass === "timeout_or_latency" &&
+      (downstreamClass === "component_failure_surface" ||
+        downstreamClass === "browser_coverage_gap")
+    ) {
+      return "api-latency-cascade";
+    }
+    if (upstreamClass === "contract_mismatch" && downstreamClass === "component_failure_surface") {
+      return "api-schema-drift-to-ui";
+    }
+  }
+
+  // CLI→api propagation patterns
+  if (upstream === "cli" && downstream === "api") {
+    if (upstreamClass === "command_resolution" && downstreamClass === "component_failure_surface") {
+      return "cli-tool-failure-blocks-api-check";
+    }
+  }
+
+  // CLI→web propagation patterns
+  if (upstream === "cli" && downstream === "web") {
+    if (upstreamClass === "command_resolution" && downstreamClass === "component_failure_surface") {
+      return "cli-tool-failure-blocks-web-check";
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Synthesize propagation chains from existing root_cause observations.
+ * Only emits when two dependent components both have high-calibration root_cause
+ * and the upstream failure plausibly explains the downstream failure.
+ *
+ * This is non-authoritative heuristic reasoning — it does not constitute causal proof.
+ */
+function synthesizePropagationChains(rootCauseObservations: Observation[]): Observation[] {
+  if (rootCauseObservations.length < 2) {
+    return [];
+  }
+
+  const propagations: Observation[] = [];
+
+  // Build a map of component -> root_cause observation.
+  // If multiple root_causes exist for one component, keep the first (highest calibration).
+  const byComponent = new Map<string, Observation>();
+  for (const obs of rootCauseObservations) {
+    const component = obs.semantics?.component ?? obs.subject;
+    if (!byComponent.has(component)) {
+      byComponent.set(component, obs);
+    }
+  }
+
+  for (const [upstream, downstream] of KNOWN_DEPENDENCY_PAIRS) {
+    const upstreamObs = byComponent.get(upstream);
+    const downstreamObs = byComponent.get(downstream);
+    if (!upstreamObs || !downstreamObs) {
+      continue;
+    }
+
+    const upstreamClass = getFailureClassFromRootCause(upstreamObs);
+    const downstreamClass = getFailureClassFromRootCause(downstreamObs);
+    if (!upstreamClass || !downstreamClass) {
+      continue;
+    }
+
+    const link = inferPropagationLink(upstream, upstreamClass, downstream, downstreamClass);
+    if (!link) {
+      continue;
+    }
+
+    const upstreamFindingIds = upstreamObs.findingIds ?? [];
+    const downstreamFindingIds = downstreamObs.findingIds ?? [];
+    const allFindingIds = [...new Set([...upstreamFindingIds, ...downstreamFindingIds])];
+
+    // Count distinct sensors involved across both root causes
+    const upstreamSensors = new Set(
+      (upstreamObs.semantics?.calibration?.basis ?? [])
+        .filter((b) => /sensor/i.test(b))
+        .map((b) => b),
+    ).size;
+    const downstreamSensors = new Set(
+      (downstreamObs.semantics?.calibration?.basis ?? [])
+        .filter((b) => /sensor/i.test(b))
+        .map((b) => b),
+    ).size;
+    const totalSignals = 2; // two root_cause observations form the chain
+    const propagationCalibration: ObservationCalibration = {
+      level: "low",
+      signalCount: totalSignals,
+      sensorCount: Math.max(upstreamSensors, downstreamSensors),
+      findingCount: allFindingIds.length,
+      basis: [
+        `heuristic dependency topology (${upstream} → ${downstream})`,
+        `upstream failureClass:${upstreamClass}`,
+        `downstream failureClass:${downstreamClass}`,
+        `link:${link}`,
+        `non-authoritative — verify independently`,
+      ],
+    };
+
+    propagations.push(
+      makeObservation({
+        agent: "orchestrator",
+        kind: "propagation",
+        status: "failed",
+        subject: `${upstream}-to-${downstream}`,
+        summary: `Propagation synthesis: ${upstream} (${upstreamClass}) likely caused ${downstream} (${downstreamClass}) via ${link}. Non-authoritative heuristic.`,
+        evidence: [
+          `upstream:${upstream}:${upstreamClass}`,
+          `downstream:${downstream}:${downstreamClass}`,
+          `link:${link}`,
+          `calibration:${propagationCalibration.level} — ${propagationCalibration.basis.join("; ")}`,
+          `non-authoritative heuristic — verify independently before acting on this chain.`,
+        ],
+        semantics: {
+          component: `${upstream}-to-${downstream}`,
+          interpretation: `Heuristic propagation analysis suggests ${upstream} failure (${upstreamClass}) may have cascaded to ${downstream} (${downstreamClass}) via ${link}. This is a non-authoritative inference from co-occurring root causes and known dependency topology; it does not constitute causal proof.`,
+          nextStep: `Repair ${upstream} first, then rerun sensors for both ${upstream} and ${downstream} to confirm whether the ${downstream} failure was dependent or independent.`,
+          calibration: propagationCalibration,
+        },
+        findingIds: allFindingIds,
+      }),
+    );
+  }
+
+  return propagations;
 }
 
 function uniqueFindingIds(observations: Observation[], findings: Finding[] = []): string[] {

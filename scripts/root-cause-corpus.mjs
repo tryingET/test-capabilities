@@ -617,6 +617,7 @@ async function executeCase(definition) {
   orchestrator.agents = new Map(Object.entries(definition.agents));
   const run = await orchestrator.run();
   const rootCauses = (run.observations ?? []).filter((entry) => entry.kind === "root_cause");
+  const propagations = (run.observations ?? []).filter((entry) => entry.kind === "propagation");
   const rootCause = definition.subject
     ? rootCauses.find((entry) => entry.subject === definition.subject)
     : rootCauses[0];
@@ -695,6 +696,40 @@ async function executeCase(definition) {
   const calibrations = definition.expectedRootCauses
     ? rootCauses.map((entry) => summarizeCalibration(entry.semantics.calibration))
     : undefined;
+
+  // Propagation assertions
+  if (definition.expectNoPropagation === true) {
+    assert.equal(
+      propagations.length,
+      0,
+      `${definition.name}: unexpected propagation ${propagations.map((e) => e.summary).join("; ")}`,
+    );
+  }
+  if (definition.expectPropagation) {
+    const ep = definition.expectPropagation;
+    assert.ok(
+      propagations.some((p) => p.subject === ep.subject),
+      `${definition.name}: expected propagation with subject ${ep.subject}, got subjects: ${propagations.map((p) => p.subject).join(", ")}`,
+    );
+    const propObs = propagations.find((p) => p.subject === ep.subject);
+    if (ep.link) {
+      assert.match(propObs.summary, new RegExp(ep.link, "i"));
+    }
+    assert.equal(
+      propObs.semantics?.calibration?.level,
+      "low",
+      `${definition.name}: propagation calibration must be low (heuristic)`,
+    );
+    assert.match(
+      propObs.evidence.join("\n"),
+      /non-authoritative/i,
+      `${definition.name}: propagation evidence must declare non-authoritative status`,
+    );
+    assert.doesNotMatch(
+      `${propObs.summary}\n${propObs.semantics?.interpretation ?? ""}`,
+      /predict|probability|horizon|future|will fail/i,
+    );
+  }
 
   results.push({
     status: "passed",
@@ -1825,6 +1860,308 @@ const cases = [
       surfB: surfFailureAgent("surfB"),
       apiA: apiContractViolationAgent("apiA"),
       apiB: apiContractViolationAgent("apiB"),
+    },
+  },
+  // Propagation synthesis cases
+  {
+    name: "Single root_cause does not emit propagation",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    expectNoPropagation: true,
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+    },
+  },
+  {
+    name: "Two independent root_causes on unrelated components do not emit propagation",
+    expectedRootCauses: [
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+      {
+        subject: "web",
+        failureClass: "property_violation",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["bombadilA-property-violation", "bombadilB-property-violation"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      bombadilA: bombadilFailureAgent("bombadilA"),
+      bombadilB: bombadilFailureAgent("bombadilB"),
+    },
+  },
+  {
+    name: "API timeout + web component_failure emits propagation via api-latency-cascade",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-timeout-a", "api-timeout-b"],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-fail-a", "web-fail-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "api-to-web",
+      link: "api-latency-cascade",
+    },
+    agents: {
+      apiTimeoutA: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-a",
+            component: "api",
+            description: "API endpoint timed out during health check",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-a",
+            agent: "apiTimeoutA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out before health could be established.",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            findingIds: ["api-timeout-a"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      apiTimeoutB: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-b",
+            component: "api",
+            description: "API endpoint timed out on second probe",
+            evidence: ["timed out after 5000ms"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-b",
+            agent: "apiTimeoutB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out on second probe.",
+            evidence: ["timed out after 5000ms"],
+            findingIds: ["api-timeout-b"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      webFailA: agentResult({
+        findings: [
+          finding({
+            id: "web-fail-a",
+            component: "web",
+            description: "Web page failed to load due to backend unavailability",
+            evidence: ["backend connection refused"],
+            recommendation: "Check backend services.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-fail-obs-a",
+            agent: "webFailA",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime failed during page load.",
+            evidence: ["backend connection refused"],
+            findingIds: ["web-fail-a"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
+      webFailB: agentResult({
+        findings: [
+          finding({
+            id: "web-fail-b",
+            component: "web",
+            description: "Web page render failed from missing backend data",
+            evidence: ["render error: no backend response"],
+            recommendation: "Check backend services.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-fail-obs-b",
+            agent: "webFailB",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime failed during render.",
+            evidence: ["render error: no backend response"],
+            findingIds: ["web-fail-b"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
+    },
+  },
+  {
+    name: "Propagation observations do not make prediction claims",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-timeout-a", "api-timeout-b"],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-fail-a", "web-fail-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "api-to-web",
+    },
+    agents: {
+      apiTimeoutA: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-a",
+            component: "api",
+            description: "API endpoint timed out",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-a",
+            agent: "apiTimeoutA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out.",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            findingIds: ["api-timeout-a"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      apiTimeoutB: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-b",
+            component: "api",
+            description: "API endpoint timed out on retry",
+            evidence: ["timed out after 5000ms"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-b",
+            agent: "apiTimeoutB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out on retry.",
+            evidence: ["timed out after 5000ms"],
+            findingIds: ["api-timeout-b"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      webFailA: agentResult({
+        findings: [
+          finding({
+            id: "web-fail-a",
+            component: "web",
+            description: "Web page failed to load",
+            evidence: ["backend connection refused"],
+            recommendation: "Check backend services.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-fail-obs-a",
+            agent: "webFailA",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime failed during page load.",
+            evidence: ["backend connection refused"],
+            findingIds: ["web-fail-a"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
+      webFailB: agentResult({
+        findings: [
+          finding({
+            id: "web-fail-b",
+            component: "web",
+            description: "Web page render failed",
+            evidence: ["render error: no backend response"],
+            recommendation: "Check backend services.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "web-fail-obs-b",
+            agent: "webFailB",
+            kind: "runtime",
+            status: "failed",
+            subject: "web",
+            component: "web",
+            summary: "Web runtime failed during render.",
+            evidence: ["render error: no backend response"],
+            findingIds: ["web-fail-b"],
+          }),
+        ],
+        coverage: { userFlows: 0 },
+      }),
     },
   },
 ];

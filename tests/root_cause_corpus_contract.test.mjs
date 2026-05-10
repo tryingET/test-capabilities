@@ -161,7 +161,18 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(45 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(49 cases\)/);
+  // Propagation synthesis assertions
+  assert.match(result.stdout, /\[pass\] Single root_cause does not emit propagation/);
+  assert.match(
+    result.stdout,
+    /\[pass\] Two independent root_causes on unrelated components do not emit propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API timeout \+ web component_failure emits propagation via api-latency-cascade/,
+  );
+  assert.match(result.stdout, /\[pass\] Propagation observations do not make prediction claims/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -177,19 +188,23 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   // Exact corpus counts are intentional truth locks: fixture changes must update both
   // machine-readable coverage expectations and named guardrail assertions.
-  assert.equal(payload.total, 45);
+  assert.equal(payload.total, 49);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 45);
+  assert.equal(payload.coverage.total, 49);
   assert.equal(payload.coverage.noRootCauseCases, 15);
-  assert.equal(payload.coverage.positiveRootCauseCases, 30);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 30);
+  assert.equal(payload.coverage.positiveRootCauseCases, 34);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 34);
   assert.equal(payload.coverage.expectedClasses.none, 15);
-  assert.equal(payload.coverage.expectedClasses.command_resolution, 8);
+  assert.equal(payload.coverage.expectedClasses.command_resolution, 10);
+  assert.equal(payload.coverage.expectedClasses.timeout_or_latency, 3);
   assert.equal(payload.coverage.expectedClasses.contract_mismatch, 10);
-  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 6);
-  assert.equal(payload.coverage.subjects.api, 22);
-  assert.equal(payload.coverage.subjects.cli, 12);
-  assert.equal(payload.coverage.subjects.web, 15);
+  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 8);
+  assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 3);
+  assert.equal(payload.coverage.expectedClasses.selector_or_dom_drift, 3);
+  assert.equal(payload.coverage.expectedClasses.property_violation, 4);
+  assert.equal(payload.coverage.subjects.api, 24);
+  assert.equal(payload.coverage.subjects.cli, 14);
+  assert.equal(payload.coverage.subjects.web, 18);
   const mixedCliCase = payload.cases.find(
     (entry) =>
       entry.name === "Mixed CLI command-resolution and timeout evidence does not emit root_cause",

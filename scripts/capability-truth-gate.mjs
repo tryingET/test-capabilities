@@ -91,7 +91,7 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 45, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 49, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
     10,
@@ -237,6 +237,42 @@ function assertRootCauseCorpusExecutes() {
     threeWayCase?.rootCauseCount,
     3,
     "root-cause corpus should report three simultaneous component-scoped diagnoses",
+  );
+
+  // Propagation synthesis assertions
+  const noPropagationCase = payload.cases?.find(
+    (entry) => entry.name === "Single root_cause does not emit propagation",
+  );
+  assert.ok(
+    noPropagationCase,
+    "root-cause corpus should include a single-root_cause-no-propagation guardrail case",
+  );
+
+  const unrelatedNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "Two independent root_causes on unrelated components do not emit propagation",
+  );
+  assert.ok(
+    unrelatedNoPropagationCase,
+    "root-cause corpus should include an unrelated-components-no-propagation guardrail case",
+  );
+
+  const propagationCascadeCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "API timeout + web component_failure emits propagation via api-latency-cascade",
+  );
+  assert.ok(
+    propagationCascadeCase,
+    "root-cause corpus should include a positive propagation cascade case",
+  );
+
+  const propagationNoPredictionCase = payload.cases?.find(
+    (entry) => entry.name === "Propagation observations do not make prediction claims",
+  );
+  assert.ok(
+    propagationNoPredictionCase,
+    "root-cause corpus should verify propagation does not make prediction claims",
   );
 }
 
