@@ -300,7 +300,7 @@ capabilities.push(
     },
     attachPoints: ["src/core/orchestrator.ts", "docs/api/types.md"],
     notes:
-      "Supported orchestrator agents emit observation.v1 diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution. When correlation is enabled, orchestrator runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic calibrated root_cause observations for at least two independent same-component failed-or-errored observed current-run evidence units from at least two sensors. Observations explain sensor facts; findings and coverage remain pass/fail authority, and root_cause observations do not make prediction claims.",
+      "Supported orchestrator agents emit observation.v1 diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution. When correlation is enabled, orchestrator runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic calibrated root_cause observations for at least two independent same-component failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class. Observations explain sensor facts; findings and coverage remain pass/fail authority, and root_cause observations do not make prediction claims.",
   }),
 );
 

@@ -151,7 +151,7 @@ Alias mapping:
 - `self_healing` → `selfHealing`
 
 Supported current runtime state:
-- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors
+- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class
 - `selfHealing: false`
 - `prediction: false`
 - `collective: false`

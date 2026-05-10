@@ -616,11 +616,12 @@ export class TestCapabilitiesOrchestrator {
       );
       const calibrationFindings = primaryFindings.length > 0 ? primaryFindings : componentFindings;
       const rootCauseSignals = componentObservations.filter(isRootCauseSignalObservation);
-      const evidenceUnits = rootCauseEvidenceUnits(
+      const candidateEvidenceUnits = rootCauseEvidenceUnits(
         componentObservations,
         calibrationFindings,
         rootCauseSignals,
       );
+      const evidenceUnits = strongestAgreedRootCauseUnits(candidateEvidenceUnits);
       const calibration = calibrateRootCause(
         componentObservations,
         calibrationFindings,
@@ -632,7 +633,9 @@ export class TestCapabilitiesOrchestrator {
         continue;
       }
 
-      const failureClass = inferRootCauseClass(componentObservations, calibrationFindings);
+      const failureClass =
+        evidenceUnits[0]?.failureClass ??
+        inferRootCauseClass(componentObservations, calibrationFindings);
       const status = worstObservationOrFindingStatus(componentObservations, componentFindings);
       const sensorLabel = calibration.sensorCount === 1 ? "sensor" : "sensors";
       const findingLabel = calibration.findingCount === 1 ? "finding" : "findings";
@@ -946,6 +949,7 @@ function inferRootCauseClass(observations: Observation[], findings: Finding[]): 
 interface RootCauseEvidenceUnit {
   id: string;
   source: "finding" | "observation";
+  failureClass: string;
   agent?: string;
 }
 
@@ -971,6 +975,7 @@ function rootCauseEvidenceUnits(
       units.set(`finding:${finding.id}:observation:${linkedObservation.id}`, {
         id: `finding:${finding.id}:observation:${linkedObservation.id}`,
         source: "finding",
+        failureClass: inferRootCauseClass([linkedObservation], [finding]),
         agent: linkedObservation.agent,
       });
     }
@@ -987,11 +992,40 @@ function rootCauseEvidenceUnits(
     units.set(`observation:${observation.id}`, {
       id: `observation:${observation.id}`,
       source: "observation",
+      failureClass: inferRootCauseClass([observation], []),
       agent: observation.agent,
     });
   }
 
   return [...units.values()];
+}
+
+function strongestAgreedRootCauseUnits(
+  evidenceUnits: RootCauseEvidenceUnit[],
+): RootCauseEvidenceUnit[] {
+  const byFailureClass = new Map<string, RootCauseEvidenceUnit[]>();
+
+  for (const unit of evidenceUnits) {
+    byFailureClass.set(unit.failureClass, [...(byFailureClass.get(unit.failureClass) ?? []), unit]);
+  }
+
+  return (
+    [...byFailureClass.entries()]
+      .map(([failureClass, units]) => ({
+        failureClass,
+        units,
+        sensorCount: new Set(
+          units.map((unit) => unit.agent).filter((agent): agent is string => agent !== undefined),
+        ).size,
+      }))
+      .filter((entry) => entry.units.length >= 2 && entry.sensorCount >= 2)
+      .sort(
+        (left, right) =>
+          right.sensorCount - left.sensorCount ||
+          right.units.length - left.units.length ||
+          left.failureClass.localeCompare(right.failureClass),
+      )[0]?.units ?? []
+  );
 }
 
 function calibrateRootCause(
@@ -1009,12 +1043,17 @@ function calibrateRootCause(
   ).length;
   const findingTypes = new Set(findings.map((finding) => finding.type));
   const observationKindsPresent = new Set(observations.map((observation) => observation.kind));
+  const agreedFailureClasses = new Set(evidenceUnits.map((unit) => unit.failureClass));
   const basis = [
     `${signalCount} independent evidence unit(s)`,
     `${rootCauseSignals.length} failed-or-errored observation(s)`,
     `${findings.length} primary finding(s)`,
     `${sensorCount} sensor(s)`,
   ];
+
+  if (agreedFailureClasses.size === 1) {
+    basis.push(`${[...agreedFailureClasses][0]} failure-class agreement`);
+  }
 
   if (highSeverityFindingCount > 0) {
     basis.push(`${highSeverityFindingCount} high-or-critical finding(s)`);

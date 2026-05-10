@@ -63,7 +63,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow |
-| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units |
+| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
 
 ### Explicitly unsupported for now
@@ -171,7 +171,7 @@ What it checks today:
 - two independent observed Surf failures classify as `browser_coverage_gap`
 - two independent observed Bombadil failures classify as `property_violation`
 - two independent sensors linked to the same API finding classify as `contract_mismatch`
-- finding-only, all-passing linked sensors, single-sensor multi-finding, and partially observed evidence pairs do not emit `root_cause`
+- finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
 Machine-readable mode:
