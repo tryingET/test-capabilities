@@ -2,9 +2,9 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = process.cwd();
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distRoot = path.resolve(
   process.env.TEST_CAPABILITIES_DIST_ROOT ?? path.join(repoRoot, "dist"),
 );
@@ -312,6 +312,47 @@ const cases = [
             subject: "other",
             component: "other",
             summary: "Other component passed.",
+          }),
+        ],
+      }),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-drift",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema drift",
+            evidence: ["schema mismatch"],
+            recommendation: "Align schema.",
+          }),
+          finding({
+            id: "api-validation-mismatch",
+            component: "api",
+            description: "API validation mismatch",
+            evidence: ["validation mismatch"],
+            recommendation: "Align validation.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "Single sensor with multiple linked findings does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiObserved: agentResult({
+        observations: [
+          observation({
+            id: "api-multi-finding-observed",
+            agent: "apiObserved",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API contract and validation drift observed by one sensor.",
+            findingIds: ["api-contract-drift", "api-validation-mismatch"],
           }),
         ],
       }),

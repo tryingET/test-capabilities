@@ -624,7 +624,13 @@ export class TestCapabilitiesOrchestrator {
         nonPassing,
       );
 
-      if (evidenceUnits.length < 2 || !evidenceUnits.some((unit) => unit.agent !== undefined)) {
+      const observedSensorCount = new Set(
+        evidenceUnits
+          .map((unit) => unit.agent)
+          .filter((agent): agent is string => agent !== undefined),
+      ).size;
+
+      if (evidenceUnits.length < 2 || observedSensorCount < 2) {
         continue;
       }
 

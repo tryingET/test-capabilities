@@ -83,6 +83,14 @@ function assertPackedBombadilContract(packageJson, readme, productPosture) {
   assert.match(productPosture, /external Bombadil/i);
 }
 
+function assertRootCauseCorpusExecutes() {
+  const result = run("node", ["./scripts/root-cause-corpus.mjs", "--json"]);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, true, "root-cause corpus should pass in truth gate");
+  assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
+}
+
 function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport) {
   assert.match(
     packageJson.scripts?.["root-cause:corpus"] ?? "",
@@ -129,6 +137,7 @@ const passport = readJson("governance/capability-passport.json");
 
 assertPackedBombadilContract(packageJson, readme, productPosture);
 assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport);
+assertRootCauseCorpusExecutes();
 assertPassportVocabulary(passport);
 assertPassportGeneratedProjection();
 
