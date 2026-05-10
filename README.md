@@ -167,15 +167,16 @@ npm run root-cause:corpus
 
 What it checks today:
 - single-agent CLI or Surf failures do not emit `root_cause`
-- two independent observed CLI command-resolution or timeout failures classify as `command_resolution` or `timeout_or_latency`, while app crashes do not masquerade as command resolution
-- two independent observation-only API signals can classify as `contract_mismatch`
-- two independent observed Surf failures classify as `browser_coverage_gap`
-- two independent observed Bombadil failures classify as `property_violation`
+- two independent observed CLI command-resolution or timeout failures classify as `command_resolution` or `timeout_or_latency`, including shell not-found wording, while app crashes do not masquerade as command resolution
+- two independent observation-only API signals can classify as `contract_mismatch`, including API contract violation, property-kind payload evidence, and response-payload/required-field wording that must not masquerade as Bombadil/property failure or selector drift; generic API runtime, property-kind runtime, stack-trace, validation, or schema exceptions without contract evidence remain `component_failure_surface`
+- two independent observed Surf failures classify as `browser_coverage_gap`, including generic DOM coverage wording that must not masquerade as selector drift
+- two independent observed selector/DOM drift failures classify as `selector_or_dom_drift`, including selector-contract wording, while single-sensor or unobserved selector drift does not emit `root_cause`
+- two independent observed Bombadil failures classify as `property_violation`, including required-property validation wording that must not masquerade as API contract mismatch
 - two independent sensors linked to the same API finding classify as `contract_mismatch`, even when generic browser words appear in the observations
 - finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
-Machine-readable mode:
+Machine-readable mode emits per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:
 
 ```bash
 npm run --silent root-cause:corpus -- --json

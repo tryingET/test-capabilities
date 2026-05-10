@@ -18,11 +18,16 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] CLI missing command with one observed agent does not emit root_cause/,
   );
+  assert.match(result.stdout, /\[pass\] CLI shell not-found wording classifies command_resolution/);
   assert.match(
     result.stdout,
     /\[pass\] CLI timeout with two observed agents classifies timeout_or_latency/,
   );
   assert.match(result.stdout, /\[pass\] CLI app crash does not classify as command_resolution/);
+  assert.match(
+    result.stdout,
+    /\[pass\] Bombadil required-property validation wording classifies property_violation/,
+  );
   assert.match(
     result.stdout,
     /\[pass\] Mixed Surf and Bombadil failure classes do not emit root_cause/,
@@ -34,7 +39,63 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   assert.match(result.stdout, /\[pass\] Observation-only API signals classify contract_mismatch/);
   assert.match(
     result.stdout,
+    /\[pass\] Observation-only API contract violation wording classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Observation-only API response payload element missing classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API property-kind payload evidence classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API property-kind runtime exception without contract evidence classifies component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API runtime exception without contract evidence classifies component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API stack trace exception without property evidence classifies component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API validation exception without contract evidence classifies component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API schema exception without contract evidence classifies component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
     /\[pass\] API contract finding with browser-word observations classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Surf DOM coverage wording without selector evidence classifies browser_coverage_gap/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Selector drift with two observed agents classifies selector_or_dom_drift/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Selector contract wording classifies selector_or_dom_drift/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] DOM drift with two observed agents classifies selector_or_dom_drift/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Unobserved selector drift finding does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Same-component unobserved selector drift finding suppresses root_cause/,
   );
   assert.match(
     result.stdout,
@@ -60,7 +121,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(18 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(35 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -74,7 +135,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   const payload = JSON.parse(result.stdout);
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.total, 18);
+  assert.equal(payload.total, 35);
   assert.equal(payload.failed, 0);
   assert.equal(
     payload.cases.some(
@@ -84,4 +145,22 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
     ),
     true,
   );
+  const selectorCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Selector drift with two observed agents classifies selector_or_dom_drift",
+  );
+  assert.equal(selectorCase?.expected, "selector_or_dom_drift");
+  assert.equal(selectorCase?.actual, "selector_or_dom_drift");
+  assert.equal(selectorCase?.rootCauseCount, 1);
+  assert.equal(selectorCase?.calibration?.level, "high");
+  assert.equal(selectorCase?.calibration?.signalCount, 2);
+  assert.equal(selectorCase?.calibration?.sensorCount, 2);
+  assert.equal(selectorCase?.calibration?.findingCount, 2);
+
+  const singleSensorCase = payload.cases.find(
+    (entry) => entry.name === "Selector drift with one observed agent does not emit root_cause",
+  );
+  assert.equal(singleSensorCase?.expected, "none");
+  assert.equal(singleSensorCase?.actual, "none");
+  assert.equal(singleSensorCase?.rootCauseCount, 0);
 });

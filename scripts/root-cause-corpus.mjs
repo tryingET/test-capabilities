@@ -127,6 +127,36 @@ function cliFailureAgent(agent, failureClass) {
   });
 }
 
+function cliShellNotFoundAgent(agent) {
+  const id = `${agent}-shell-not-found`;
+  const evidence = [`sh: 1: ${agent}-missing: not found`];
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "cli",
+        description: `CLI smoke command failed: ${agent}-missing --help`,
+        evidence,
+        recommendation: "Ensure the CLI command resolves and --help exits successfully.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-shell-not-found-errored`,
+        agent,
+        kind: "smoke",
+        status: "errored",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI smoke shell reported command not found.",
+        evidence,
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
 function surfFailureAgent(agent) {
   const id = `${agent}-surf-empty`;
   return agentResult({
@@ -149,6 +179,134 @@ function surfFailureAgent(agent) {
         component: "web",
         summary: "Surf exploration did not produce verified browser-state coverage.",
         evidence: ["produced no runtime evidence"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function surfDomCoverageAgent(agent) {
+  const id = `${agent}-surf-dom-coverage`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Surf browser coverage found a DOM element missing during probe verification",
+        evidence: ["browser-state present but DOM element missing during coverage probe"],
+        recommendation: "Repair Surf runtime evidence before trusting coverage.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-dom-coverage-errored`,
+        agent,
+        kind: "coverage",
+        status: "errored",
+        subject: "web",
+        component: "web",
+        summary: "Surf browser coverage saw DOM element missing during probe verification.",
+        evidence: ["browser-state present but DOM element missing during coverage probe"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 25 },
+  });
+}
+
+function selectorDriftAgent(agent) {
+  const id = `${agent}-selector-drift`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description:
+          "Selector drift: CSS selector [data-testid='submit-order'] matched zero elements",
+        evidence: [
+          "css selector [data-testid='submit-order'] matched zero elements",
+          "stale element reference at checkout submit",
+        ],
+        recommendation:
+          "Update the selector or restore the stable data-testid before rerunning heal.",
+        severity: "high",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-selector-failed`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Selector locator drift observed for data-testid submit-order.",
+        evidence: [
+          "css selector [data-testid='submit-order'] matched zero elements",
+          "stale element reference at checkout submit",
+        ],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function selectorContractDriftAgent(agent) {
+  const id = `${agent}-selector-contract-drift`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description:
+          "Selector contract changed: CSS selector [data-testid='submit-order'] matched zero elements",
+        evidence: ["data-testid contract changed for checkout submit selector"],
+        recommendation: "Update the selector contract or restore the stable data-testid.",
+        severity: "high",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-selector-contract-failed`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Selector contract changed for data-testid submit-order.",
+        evidence: ["data-testid contract changed for checkout submit selector"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function domDriftAgent(agent) {
+  const id = `${agent}-dom-drift`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "DOM drift: checkout submit node missing from rendered page",
+        evidence: ["expected DOM node for submit action was removed from checkout"],
+        recommendation: "Restore the submit node or update the flow before rerunning heal.",
+        severity: "high",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-dom-failed`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "DOM drift observed: checkout submit node missing.",
+        evidence: ["expected DOM node for submit action was removed from checkout"],
         findingIds: [id],
       }),
     ],
@@ -183,6 +341,172 @@ function bombadilFailureAgent(agent) {
       }),
     ],
     coverage: { edgeCases: 100 },
+  });
+}
+
+function bombadilRequiredPropertyAgent(agent) {
+  const id = `${agent}-required-property`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Bombadil found required property validation failure in generated state",
+        evidence: ["property validation failed: required property id missing"],
+        recommendation: "Review the Bombadil trace and repair the violated invariant.",
+        severity: "high",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-required-property-failed`,
+        agent,
+        kind: "property",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Bombadil property validation failed for required property id.",
+        evidence: ["property validation failed: required property id missing"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 100 },
+  });
+}
+
+function apiContractViolationAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-contract-violation`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API contract violation observed during schema validation.",
+        evidence: ["response body violates required schema contract"],
+      }),
+    ],
+  });
+}
+
+function apiPayloadElementAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-payload-element-missing`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "Response payload element missing from checkout response.",
+        evidence: ["required payload element totalPrice was missing from JSON response"],
+      }),
+    ],
+  });
+}
+
+function apiPropertyKindContractAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-property-contract`,
+        agent,
+        kind: "property",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API response payload required field id missing.",
+        evidence: ["response payload required field id missing"],
+      }),
+    ],
+  });
+}
+
+function apiPropertyKindRuntimeAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-property-runtime`,
+        agent,
+        kind: "property",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API property probe hit TypeError during request processing.",
+        evidence: ["TypeError: cannot read properties of undefined"],
+      }),
+    ],
+  });
+}
+
+function apiRuntimeExceptionAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-runtime-exception`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API handler threw TypeError during request processing.",
+        evidence: ["TypeError: cannot read properties of undefined"],
+      }),
+    ],
+  });
+}
+
+function apiStackTraceExceptionAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-stack-trace-exception`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API handler threw TypeError with stack trace evidence.",
+        evidence: ["stack trace: TypeError at handler.ts:12"],
+      }),
+    ],
+  });
+}
+
+function apiValidationExceptionAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-validation-exception`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API handler raised ValidationError for invalid date input.",
+        evidence: ["ValidationError: invalid date"],
+      }),
+    ],
+  });
+}
+
+function apiSchemaExceptionAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-schema-exception`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API handler raised SchemaError during request processing.",
+        evidence: ["SchemaError: invalid schema configuration"],
+      }),
+    ],
   });
 }
 
@@ -229,10 +553,29 @@ async function executeCase(definition) {
     );
   }
 
+  const actualFailureClass = rootCause?.evidence
+    ?.find((entry) => entry.startsWith("failureClass:"))
+    ?.replace("failureClass:", "");
+  const calibration = rootCause?.semantics?.calibration;
+
   results.push({
     status: "passed",
     name: definition.name,
+    subject: definition.subject ?? rootCause?.subject,
     expected: definition.expectRootCause === false ? "none" : definition.failureClass,
+    actual: rootCause ? (actualFailureClass ?? "root_cause") : "none",
+    rootCauseCount: rootCauses.length,
+    ...(calibration
+      ? {
+          calibration: {
+            level: calibration.level,
+            signalCount: calibration.signalCount,
+            sensorCount: calibration.sensorCount,
+            findingCount: calibration.findingCount,
+          },
+          findingIds: rootCause.findingIds,
+        }
+      : {}),
   });
 
   if (!jsonMode) {
@@ -258,6 +601,19 @@ const cases = [
     agents: {
       cliA: cliFailureAgent("cliA", "command_resolution"),
       cliB: cliFailureAgent("cliB", "command_resolution"),
+    },
+  },
+  {
+    name: "CLI shell not-found wording classifies command_resolution",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliA: cliShellNotFoundAgent("cliA"),
+      cliB: cliShellNotFoundAgent("cliB"),
     },
   },
   {
@@ -352,6 +708,117 @@ const cases = [
     },
   },
   {
+    name: "Surf DOM coverage wording without selector evidence classifies browser_coverage_gap",
+    subject: "web",
+    failureClass: "browser_coverage_gap",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      surfDomA: surfDomCoverageAgent("surfDomA"),
+      surfDomB: surfDomCoverageAgent("surfDomB"),
+    },
+  },
+  {
+    name: "Selector drift with one observed agent does not emit root_cause",
+    subject: "web",
+    expectRootCause: false,
+    agents: { selectorA: selectorDriftAgent("selectorA") },
+  },
+  {
+    name: "Selector drift with two observed agents classifies selector_or_dom_drift",
+    subject: "web",
+    failureClass: "selector_or_dom_drift",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      selectorA: selectorDriftAgent("selectorA"),
+      selectorB: selectorDriftAgent("selectorB"),
+    },
+  },
+  {
+    name: "Selector contract wording classifies selector_or_dom_drift",
+    subject: "web",
+    failureClass: "selector_or_dom_drift",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      selectorA: selectorContractDriftAgent("selectorA"),
+      selectorB: selectorContractDriftAgent("selectorB"),
+    },
+  },
+  {
+    name: "DOM drift with two observed agents classifies selector_or_dom_drift",
+    subject: "web",
+    failureClass: "selector_or_dom_drift",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      domA: domDriftAgent("domA"),
+      domB: domDriftAgent("domB"),
+    },
+  },
+  {
+    name: "Unobserved selector drift finding does not emit root_cause",
+    subject: "web",
+    expectRootCause: false,
+    agents: {
+      otherObserved: agentResult({
+        observations: [
+          observation({
+            id: "other-runtime-passed",
+            agent: "otherObserved",
+            kind: "runtime",
+            status: "passed",
+            subject: "other",
+            component: "other",
+            summary: "Other component passed.",
+          }),
+        ],
+      }),
+      selectorFindings: agentResult({
+        findings: [
+          finding({
+            id: "web-selector-stale",
+            severity: "high",
+            component: "web",
+            description: "Selector drift: stale locator for checkout submit button",
+            evidence: ["stale selector finding from previous run"],
+            recommendation: "Rerun selector sensors before diagnosing.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "Same-component unobserved selector drift finding suppresses root_cause",
+    subject: "web",
+    expectRootCause: false,
+    agents: {
+      surfA: surfFailureAgent("surfA"),
+      surfB: surfFailureAgent("surfB"),
+      selectorFindings: agentResult({
+        findings: [
+          finding({
+            id: "web-selector-stale",
+            severity: "high",
+            component: "web",
+            description: "Selector drift: stale locator for checkout submit button",
+            evidence: ["stale selector finding from previous run"],
+            recommendation: "Rerun selector sensors before diagnosing.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
     name: "Bombadil property violations with two observed agents classify property_violation",
     subject: "web",
     failureClass: "property_violation",
@@ -362,6 +829,19 @@ const cases = [
     agents: {
       bombadilA: bombadilFailureAgent("bombadilA"),
       bombadilB: bombadilFailureAgent("bombadilB"),
+    },
+  },
+  {
+    name: "Bombadil required-property validation wording classifies property_violation",
+    subject: "web",
+    failureClass: "property_violation",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      bombadilA: bombadilRequiredPropertyAgent("bombadilA"),
+      bombadilB: bombadilRequiredPropertyAgent("bombadilB"),
     },
   },
   {
@@ -461,6 +941,118 @@ const cases = [
           }),
         ],
       }),
+    },
+  },
+  {
+    name: "Observation-only API contract violation wording classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiViolationA: apiContractViolationAgent("apiViolationA"),
+      apiViolationB: apiContractViolationAgent("apiViolationB"),
+    },
+  },
+  {
+    name: "Observation-only API response payload element missing classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiPayloadA: apiPayloadElementAgent("apiPayloadA"),
+      apiPayloadB: apiPayloadElementAgent("apiPayloadB"),
+    },
+  },
+  {
+    name: "API property-kind payload evidence classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiPropertyA: apiPropertyKindContractAgent("apiPropertyA"),
+      apiPropertyB: apiPropertyKindContractAgent("apiPropertyB"),
+    },
+  },
+  {
+    name: "API property-kind runtime exception without contract evidence classifies component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiPropertyRuntimeA: apiPropertyKindRuntimeAgent("apiPropertyRuntimeA"),
+      apiPropertyRuntimeB: apiPropertyKindRuntimeAgent("apiPropertyRuntimeB"),
+    },
+  },
+  {
+    name: "API runtime exception without contract evidence classifies component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiRuntimeA: apiRuntimeExceptionAgent("apiRuntimeA"),
+      apiRuntimeB: apiRuntimeExceptionAgent("apiRuntimeB"),
+    },
+  },
+  {
+    name: "API stack trace exception without property evidence classifies component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiTraceA: apiStackTraceExceptionAgent("apiTraceA"),
+      apiTraceB: apiStackTraceExceptionAgent("apiTraceB"),
+    },
+  },
+  {
+    name: "API validation exception without contract evidence classifies component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiValidationA: apiValidationExceptionAgent("apiValidationA"),
+      apiValidationB: apiValidationExceptionAgent("apiValidationB"),
+    },
+  },
+  {
+    name: "API schema exception without contract evidence classifies component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiSchemaA: apiSchemaExceptionAgent("apiSchemaA"),
+      apiSchemaB: apiSchemaExceptionAgent("apiSchemaB"),
     },
   },
   {

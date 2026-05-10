@@ -956,20 +956,61 @@ function inferRootCauseClass(observations: Observation[], findings: Finding[]): 
   if (/timeout|timed out|latency|duration|slow|sigterm|sigkill/.test(corpus)) {
     return "timeout_or_latency";
   }
-  if (/enoent|spawn|not found|no such file/.test(corpus)) {
+
+  const hasCliContext =
+    observations.some(
+      (observation) => observation.subject === "cli" || observation.semantics?.component === "cli",
+    ) || findings.some((finding) => finding.component === "cli");
+  if (
+    /enoent|spawn|command not found|executable[^\n]*not found|binary[^\n]*not found|no such file/.test(
+      corpus,
+    ) ||
+    (hasCliContext && /(^|\n)(sh: \d+: [^\s:]+|[./\w-]+): not found(\n|$)/.test(corpus))
+  ) {
     return "command_resolution";
   }
-  if (/selector|locator|data-testid|button|dom/.test(corpus)) {
-    return "selector_or_dom_drift";
+
+  const hasApiContext =
+    observations.some(
+      (observation) => observation.subject === "api" || observation.semantics?.component === "api",
+    ) || findings.some((finding) => finding.component === "api" || finding.type === "api_contract");
+  const hasApiContractEvidence =
+    hasApiContext &&
+    /api[_ -]?contract|contract|openapi|schema[^\n]*(mismatch|drift|contract|validation)|schema[ -]?validation|contract[ -]?validation|response[^\n]*(body|payload|field|element|property)|payload[^\n]*(field|element|property|missing|required)|required[^\n]*(field|property|element)/.test(
+      corpus,
+    );
+  if (hasApiContractEvidence) {
+    return "contract_mismatch";
   }
-  if (/bombadil|property|violation|invariant|trace/.test(corpus)) {
+
+  const hasPropertyEvidence =
+    observations.some(
+      (observation) =>
+        /bombadil/i.test(observation.agent) ||
+        (observation.kind === "property" &&
+          observation.subject !== "api" &&
+          observation.semantics?.component !== "api"),
+    ) || /bombadil|invariant/.test(corpus);
+  if (hasPropertyEvidence) {
     return "property_violation";
   }
-  if (/surf|browser|coverage|user-flow|browser-state|navigation/.test(corpus)) {
+
+  const hasSelectorOrDomDrift =
+    /selector|locator|data-testid|xpath|css selector|stale element|dom[^\n]*drift|markup (drift|changed)/.test(
+      corpus,
+    );
+  const hasBrowserCoverageGap = /surf|browser|coverage|user-flow|browser-state|navigation/.test(
+    corpus,
+  );
+
+  if (hasBrowserCoverageGap && !hasSelectorOrDomDrift) {
     return "browser_coverage_gap";
   }
-  if (/api|contract|schema|validation/.test(corpus)) {
-    return "contract_mismatch";
+  if (hasSelectorOrDomDrift) {
+    return "selector_or_dom_drift";
+  }
+  if (hasBrowserCoverageGap) {
+    return "browser_coverage_gap";
   }
 
   return "component_failure_surface";
