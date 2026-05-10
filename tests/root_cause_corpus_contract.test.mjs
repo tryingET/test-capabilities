@@ -103,6 +103,10 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   );
   assert.match(
     result.stdout,
+    /\[pass\] Extra same-class unlinked API finding preserves contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
     /\[pass\] Two sensors linked to the same finding classify contract_mismatch/,
   );
   assert.match(
@@ -121,7 +125,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(35 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(36 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -135,18 +139,25 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   const payload = JSON.parse(result.stdout);
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.total, 35);
+  assert.equal(payload.total, 36);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 35);
+  assert.equal(payload.coverage.total, 36);
   assert.equal(payload.coverage.noRootCauseCases, 12);
-  assert.equal(payload.coverage.positiveRootCauseCases, 23);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 23);
+  assert.equal(payload.coverage.positiveRootCauseCases, 24);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 24);
   assert.equal(payload.coverage.expectedClasses.none, 12);
-  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 7);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 8);
   assert.equal(payload.coverage.expectedClasses.component_failure_surface, 6);
-  assert.equal(payload.coverage.subjects.api, 17);
+  assert.equal(payload.coverage.subjects.api, 18);
   assert.equal(payload.coverage.subjects.cli, 5);
   assert.equal(payload.coverage.subjects.web, 13);
+  const sameClassExtraCase = payload.cases.find(
+    (entry) => entry.name === "Extra same-class unlinked API finding preserves contract_mismatch",
+  );
+  assert.equal(sameClassExtraCase?.expected, "contract_mismatch");
+  assert.equal(sameClassExtraCase?.actual, "contract_mismatch");
+  assert.deepEqual(sameClassExtraCase?.findingIds, ["api-contract-a", "api-contract-b"]);
+  assert.equal(sameClassExtraCase?.rootCauseCount, 1);
   assert.equal(
     payload.cases.some(
       (entry) =>

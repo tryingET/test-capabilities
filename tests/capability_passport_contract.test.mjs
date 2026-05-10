@@ -64,5 +64,10 @@ test("capability passport generator stays in sync with the checked-in projection
   });
 
   assert.equal(generated.status, 0, `${generated.stdout}\n${generated.stderr}`);
+  const checkedIn = readFileSync(
+    new URL("../governance/capability-passport.json", import.meta.url),
+    "utf8",
+  );
+  assert.equal(generated.stdout, checkedIn);
   assert.deepEqual(JSON.parse(generated.stdout), loadPassport());
 });

@@ -395,23 +395,31 @@ const passport = {
 
 const serialized = `${JSON.stringify(passport, null, 2)}\n`;
 
-if (stdoutMode) {
-  process.stdout.write(serialized);
-} else {
-  writeFileSync(outputPath, serialized, "utf8");
-
+function formatPassportJson(input) {
   const biomePath = path.join(repoRoot, "node_modules", ".bin", "biome");
-  if (existsSync(biomePath)) {
-    const formatted = spawnSync(biomePath, ["format", "--write", outputPath], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
-    if (formatted.status !== 0) {
-      throw new Error(
-        `Biome formatting failed for capability passport: ${formatted.stderr || formatted.stdout}`,
-      );
-    }
+  if (!existsSync(biomePath)) {
+    return input;
   }
 
+  const formatted = spawnSync(biomePath, ["format", "--stdin-file-path", outputPath], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    input,
+  });
+  if (formatted.status !== 0) {
+    throw new Error(
+      `Biome formatting failed for capability passport: ${formatted.stderr || formatted.stdout}`,
+    );
+  }
+
+  return formatted.stdout;
+}
+
+const formatted = formatPassportJson(serialized);
+
+if (stdoutMode) {
+  process.stdout.write(formatted);
+} else {
+  writeFileSync(outputPath, formatted, "utf8");
   process.stdout.write(`${outputPath}\n`);
 }

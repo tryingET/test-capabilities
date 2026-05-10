@@ -634,8 +634,17 @@ export class TestCapabilitiesOrchestrator {
       const selectedFindingIds = new Set(
         evidenceUnits.flatMap((unit) => (unit.findingId ? [unit.findingId] : [])),
       );
+      const selectedFailureClass = evidenceUnits[0]?.failureClass;
+      const unselectedFindings = calibrationFindings.filter(
+        (finding) => !selectedFindingIds.has(finding.id),
+      );
 
-      if (calibrationFindings.some((finding) => !selectedFindingIds.has(finding.id))) {
+      if (
+        selectedFailureClass &&
+        unselectedFindings.some(
+          (finding) => inferRootCauseClass([], [finding]) !== selectedFailureClass,
+        )
+      ) {
         continue;
       }
 
