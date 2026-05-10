@@ -355,6 +355,72 @@ try {
 
   run("node", ["--input-type=module", "-e", smokeProgram], { cwd: tempDir });
 
+  // Verify that packed dist/ produces correct root-cause observations when exercised
+  // through the library API with mock agents. This proves calibrated diagnosis invariants
+  // survive distribution.
+  const rootCauseProgram = `
+    import assert from "node:assert/strict";
+    import process from "node:process";
+    import { TestCapabilitiesOrchestrator } from "test-capabilities";
+
+    const observedAt = new Date("2026-01-01T00:00:00.000Z");
+
+    const cliFinding = (agent) => ({
+      id: agent + "-missing",
+      type: "bug",
+      severity: "critical",
+      component: "cli",
+      description: "sh: 1: " + agent + ": not found",
+      evidence: ["sh: 1: " + agent + ": not found"],
+      recommendation: "Fix CLI command resolution.",
+      timestamp: observedAt,
+    });
+
+    const cliObs = (agent, fid) => ({
+      protocol: "observation.v1",
+      id: agent + "-cli-smoke",
+      agent,
+      kind: "smoke",
+      status: "failed",
+      subject: "cli",
+      summary: "CLI smoke failed: sh: 1: " + agent + ": not found",
+      evidence: ["sh: 1: " + agent + ": not found"],
+      semantics: { component: "cli", interpretation: "CLI executable not found." },
+      findingIds: [fid],
+      timestamp: observedAt,
+    });
+
+    const orchestrator = new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name: "Packed Root-Cause Proof",
+      targets: { cli: process.execPath },
+      agents: { cli: { enabled: true, type: "cli-tester" } },
+    });
+
+    // Replace agents with mock implementations
+    orchestrator.agents = new Map([
+      ["cliA", { execute: async () => ({ findings: [cliFinding("cliA")], coverage: {}, observations: [cliObs("cliA", "cliA-missing")] }) }],
+      ["cliB", { execute: async () => ({ findings: [cliFinding("cliB")], coverage: {}, observations: [cliObs("cliB", "cliB-missing")] }) }],
+    ]);
+
+    const result = await orchestrator.run();
+    const rootCauses = result.observations.filter((o) => o.kind === "root_cause");
+
+    assert.equal(rootCauses.length, 1, "packed dist must produce exactly one root_cause for two agreeing CLI sensors");
+    const rc = rootCauses[0];
+    assert.equal(rc.subject, "cli");
+    assert.match(rc.summary, /command_resolution as the current failure surface/);
+    assert.equal(rc.semantics.calibration.level, "high");
+    assert.equal(rc.semantics.calibration.signalCount, 2);
+    assert.equal(rc.semantics.calibration.sensorCount, 2);
+    assert.equal(rc.semantics.calibration.findingCount, 2);
+    assert.deepEqual([...rc.findingIds].sort(), ["cliA-missing", "cliB-missing"]);
+
+    console.log("packed-root-cause-invariant: ok");
+  `;
+
+  run("node", ["--input-type=module", "-e", rootCauseProgram], { cwd: tempDir });
+
   console.log("consumer-contract: ok");
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
