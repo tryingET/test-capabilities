@@ -83,6 +83,36 @@ function assertPackedBombadilContract(packageJson, readme, productPosture) {
   assert.match(productPosture, /external Bombadil/i);
 }
 
+function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport) {
+  assert.match(
+    packageJson.scripts?.["root-cause:corpus"] ?? "",
+    /root-cause-corpus\.mjs/,
+    "package.json should expose the root-cause corpus dogfood command",
+  );
+  assert.match(
+    packageJson.scripts?.["release:check"] ?? "",
+    /root-cause:corpus/,
+    "release:check should run the root-cause corpus dogfood lane explicitly",
+  );
+  assert.match(readme, /root-cause:corpus/);
+  assert.match(productPosture, /root-cause:corpus/);
+
+  const observationProtocol = passport.capabilities.find(
+    (capability) => capability.id === "protocol:observation-v1",
+  );
+  assert.ok(observationProtocol, "capability passport should include protocol:observation-v1");
+  assert.equal(
+    observationProtocol.evidence?.tests?.includes("tests/root_cause_corpus_contract.test.mjs"),
+    true,
+    "observation protocol passport evidence should include the root-cause corpus contract test",
+  );
+  assert.equal(
+    observationProtocol.evidence?.commands?.includes("npm run root-cause:corpus"),
+    true,
+    "observation protocol passport evidence should include npm run root-cause:corpus",
+  );
+}
+
 function assertPassportGeneratedProjection() {
   const generated = run("node", ["./scripts/generate-capability-passport.mjs", "--stdout"]);
   assert.equal(generated.status, 0, `${generated.stdout}\n${generated.stderr}`);
@@ -95,8 +125,11 @@ const productPosture = readText("docs/project/product_posture.md");
 
 assertNoStaleDirectionClaims(productPosture);
 assertDirectionDocsTrackAk(productPosture);
+const passport = readJson("governance/capability-passport.json");
+
 assertPackedBombadilContract(packageJson, readme, productPosture);
-assertPassportVocabulary(readJson("governance/capability-passport.json"));
+assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport);
+assertPassportVocabulary(passport);
 assertPassportGeneratedProjection();
 
 console.log("capability-truth-gate: ok");

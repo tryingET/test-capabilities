@@ -38,7 +38,7 @@
     "consumer:smoke": "node ./scripts/consumer_contract_smoke.mjs",
     "truth:gate": "node ./scripts/capability-truth-gate.mjs",
     "truth:gate:local": "TEST_CAPABILITIES_REQUIRE_AK_DIRECTION=1 node ./scripts/capability-truth-gate.mjs",
-    "release:check": "npm run check && npm run truth:gate && npm run release:check:quick",
+    "release:check": "npm run check && npm run root-cause:corpus && npm run truth:gate && npm run release:check:quick",
     "release:check:quick": "npm run consumer:smoke",
     "test": "npm run build --silent && node --test tests/*.test.mjs",
     "test:property": "npm run build --silent && node --test tests/property_contract.test.mjs",

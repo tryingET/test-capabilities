@@ -293,9 +293,10 @@ capabilities.push(
       files: ["src/core/orchestrator.ts", "docs/api/types.md"],
       tests: [
         "tests/orchestrator_fail_closed_contract.test.mjs",
+        "tests/root_cause_corpus_contract.test.mjs",
         "tests/docs_runtime_contract.test.mjs",
       ],
-      commands: ["npm test"],
+      commands: ["npm test", "npm run root-cause:corpus"],
     },
     attachPoints: ["src/core/orchestrator.ts", "docs/api/types.md"],
     notes:
