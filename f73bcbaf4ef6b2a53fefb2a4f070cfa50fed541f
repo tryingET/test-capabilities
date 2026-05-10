@@ -1,0 +1,32 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "f73bcbaf4ef6b2a53fefb2a4f070cfa50fed541f"
+created_at: "2026-05-10T09:12:28Z"
+intent: "Implement graded Surf coverage with explicit browser-state/DOM/links probes, bounded same-origin depth exploration (1-3), and probe-based user-flow scoring"
+files:
+  - "src/core/operations/surf-explore-operation.ts"
+  - "src/core/operations/types.ts"
+  - "src/core/operations/support.ts"
+  - "src/core/orchestrator.ts"
+  - "tests/operation_kernel_contract.test.mjs"
+  - "bin/test-capabilities"
+  - "README.md"
+  - "docs/api/cli.md"
+  - "docs/api/types.md"
+  - "docs/api/api-surf.md"
+  - "docs/project/product_posture.md"
+  - "governance/capability-passport.json"
+  - "scripts/generate-capability-passport.mjs"
+validation:
+  fast_gate:
+    command: "npm run build && node --test tests/operation_kernel_contract.test.mjs tests/orchestrator_fail_closed_contract.test.mjs"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Atomic feature: runtime probes, depth exploration, graded coverage, orchestrator integration, tests, docs, passport"
