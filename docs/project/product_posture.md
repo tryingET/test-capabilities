@@ -85,7 +85,7 @@ A fresh operator should be able to:
 1. Keep `docs/project/vision.md` aligned with the fail-closed capability contract whenever support states change.
 2. Keep the packed-consumer Bombadil external-tool contract and root-cause corpus dogfood lane covered whenever package contents, binary resolution, or diagnosis semantics change; revisit intentional vendoring only through an explicit distribution decision.
 3. Keep AK-native direction (`SF1`, completed `IW1`, next `IW2`) linked to concrete tasks/evidence as the calibrated root-cause frontier advances instead of reviving handoff files or markdown micro-plans.
-4. Broaden the calibrated root-cause corpus beyond the first Surf, Bombadil, and CLI smoke fixtures before attempting prediction or autonomy.
+4. Broaden the calibrated root-cause corpus beyond the current CLI, Surf, Bombadil, and API contract fixtures before attempting prediction or autonomy.
 5. Use the dry-run healing proposal and verification artifacts plus the apply-mode checkpoint-ref requirement as the first recovery-readiness proof objects for future Replay Fabric follow-through.
 6. For autonomous repair/generation, keep rollback as an externally-owned checkpoint/restore flow and evaluate Replay Fabric as the recovery-milestone ledger before promoting any runtime support.
 7. Treat prediction, collective learning, and autonomous repair/generation as research-to-product promotions: require data shape, privacy posture, acceptance thresholds, deterministic tests, and human-review gates before support-state changes.
