@@ -173,7 +173,9 @@ What it checks today:
 - two independent observed selector/DOM drift failures classify as `selector_or_dom_drift`, including selector-contract wording, while single-sensor or unobserved selector drift does not emit `root_cause`
 - two independent observed Bombadil failures classify as `property_violation`, including required-property validation wording that must not masquerade as API contract mismatch
 - two independent sensors linked to the same API finding classify as `contract_mismatch`, even when generic browser words appear in the observations
-- finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, and partially observed evidence pairs do not emit `root_cause`
+- finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, partially observed evidence pairs, linked finding/current-run evidence disagreement, and same-component mixed CLI/API failure classes do not emit `root_cause`
+- unrelated ambiguous signals in one component, including a suppressed same-component mixed-class ambiguity, do not suppress a calibrated same-run diagnosis for another component
+- independent CLI and API failures can emit simultaneous component-scoped `root_cause` observations
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
 Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:

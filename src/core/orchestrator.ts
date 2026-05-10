@@ -1053,14 +1053,26 @@ function rootCauseEvidenceUnits(
     );
 
     for (const linkedObservation of linkedObservations) {
+      const findingFailureClass = inferRootCauseClass([linkedObservation], [finding]);
+      const observationFailureClass = inferRootCauseClass([linkedObservation], []);
       units.set(`finding:${finding.id}:observation:${linkedObservation.id}`, {
         id: `finding:${finding.id}:observation:${linkedObservation.id}`,
         source: "finding",
-        failureClass: inferRootCauseClass([linkedObservation], [finding]),
+        failureClass: findingFailureClass,
         observationId: linkedObservation.id,
         findingId: finding.id,
         agent: linkedObservation.agent,
       });
+
+      if (observationFailureClass !== findingFailureClass) {
+        units.set(`observation-conflict:${linkedObservation.id}`, {
+          id: `observation-conflict:${linkedObservation.id}`,
+          source: "observation",
+          failureClass: observationFailureClass,
+          observationId: linkedObservation.id,
+          agent: linkedObservation.agent,
+        });
+      }
     }
   }
 

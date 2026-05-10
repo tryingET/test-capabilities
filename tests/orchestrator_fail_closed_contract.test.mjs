@@ -786,6 +786,80 @@ test("root-cause synthesis requires observed independent evidence units", async 
   );
 });
 
+test("linked finding class does not mask conflicting current-run observation evidence", async () => {
+  const observedAt = new Date("2026-01-01T00:00:00.000Z");
+  const linkedRuntimeObservation = (id, agent) => ({
+    protocol: "observation.v1",
+    id,
+    agent,
+    kind: "runtime",
+    status: "failed",
+    subject: "api",
+    summary: "API handler threw TypeError during request processing.",
+    evidence: ["TypeError: cannot read properties of undefined"],
+    semantics: {
+      component: "api",
+      interpretation: "API handler threw TypeError during request processing.",
+    },
+    findingIds: ["api-contract-drift"],
+    timestamp: observedAt,
+  });
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    version: "2.0",
+    name: "Linked Finding Conflict",
+    targets: { cli: process.execPath },
+    agents: {
+      cli: {
+        enabled: true,
+        type: "cli-tester",
+        intensity: "normal",
+      },
+    },
+  });
+  orchestrator.agents = new Map([
+    [
+      "apiObserverA",
+      {
+        execute: async () => ({
+          findings: [
+            {
+              id: "api-contract-drift",
+              type: "api_contract",
+              severity: "high",
+              component: "api",
+              description: "API schema validation mismatch",
+              evidence: ["schema validation mismatch"],
+              recommendation: "Align schema",
+              timestamp: observedAt,
+            },
+          ],
+          coverage: {},
+          observations: [linkedRuntimeObservation("api-a-runtime", "apiObserverA")],
+        }),
+      },
+    ],
+    [
+      "apiObserverB",
+      {
+        execute: async () => ({
+          findings: [],
+          coverage: {},
+          observations: [linkedRuntimeObservation("api-b-runtime", "apiObserverB")],
+        }),
+      },
+    ],
+  ]);
+
+  const result = await orchestrator.run();
+
+  assert.equal(
+    result.observations.some(
+      (observation) => observation.kind === "root_cause" && observation.subject === "api",
+    ),
+    false,
+  );
+});
+
 test("observation protocol keeps ids unique across multiple synthesized components", async () => {
   const observedAt = new Date("2026-01-01T00:00:00.000Z");
   const observation = (agent, kind, subject, component) => ({

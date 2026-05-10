@@ -459,6 +459,24 @@ function apiRuntimeExceptionAgent(agent) {
   });
 }
 
+function apiLinkedRuntimeObservationAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-linked-runtime-exception`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API handler threw TypeError during request processing.",
+        evidence: ["TypeError: cannot read properties of undefined"],
+        findingIds: ["api-contract-drift"],
+      }),
+    ],
+  });
+}
+
 function apiStackTraceExceptionAgent(agent) {
   return agentResult({
     observations: [
@@ -519,10 +537,21 @@ function summarizeCoverage(entries) {
   const subjects = {};
 
   for (const entry of entries) {
-    increment(expectedClasses, entry.expected);
-    increment(actualClasses, entry.actual);
-    if (entry.subject) {
-      increment(subjects, entry.subject);
+    const expectedRootCauses = entry.expectedRootCauses ?? [
+      { subject: entry.subject, failureClass: entry.expected },
+    ];
+    const actualRootCauses = entry.actualRootCauses ?? [
+      { subject: entry.subject, failureClass: entry.actual },
+    ];
+
+    for (const expectedRootCause of expectedRootCauses) {
+      increment(expectedClasses, expectedRootCause.failureClass);
+      if (expectedRootCause.subject) {
+        increment(subjects, expectedRootCause.subject);
+      }
+    }
+    for (const actualRootCause of actualRootCauses) {
+      increment(actualClasses, actualRootCause.failureClass);
     }
   }
 
@@ -530,9 +559,15 @@ function summarizeCoverage(entries) {
     total: entries.length,
     positiveRootCauseCases: entries.filter((entry) => entry.expected !== "none").length,
     noRootCauseCases: entries.filter((entry) => entry.expected === "none").length,
-    highCalibrationRootCauseCases: entries.filter(
-      (entry) => entry.expected !== "none" && entry.calibration?.level === "high",
-    ).length,
+    highCalibrationRootCauseCases: entries.filter((entry) => {
+      if (entry.expected === "none") {
+        return false;
+      }
+      const calibrations = entry.calibrations ?? (entry.calibration ? [entry.calibration] : []);
+      return (
+        calibrations.length > 0 && calibrations.every((calibration) => calibration.level === "high")
+      );
+    }).length,
     expectedClasses,
     actualClasses,
     subjects,
@@ -586,60 +621,103 @@ async function executeCase(definition) {
     ? rootCauses.find((entry) => entry.subject === definition.subject)
     : rootCauses[0];
 
+  const failureClassFor = (entry) =>
+    entry?.evidence?.find((item) => item.startsWith("failureClass:"))?.replace("failureClass:", "");
+  const summarizeCalibration = (calibration) => ({
+    level: calibration.level,
+    signalCount: calibration.signalCount,
+    sensorCount: calibration.sensorCount,
+    findingCount: calibration.findingCount,
+  });
+  const assertRootCause = (entry, expectation) => {
+    assert.ok(entry, `${definition.name}: expected ${expectation.subject} root_cause`);
+    assert.match(
+      entry.summary,
+      new RegExp(`${expectation.failureClass} as the current failure surface`),
+    );
+    assert.equal(failureClassFor(entry), expectation.failureClass);
+    assert.equal(entry.semantics?.calibration?.level, expectation.level);
+    assert.equal(entry.semantics?.calibration?.signalCount, expectation.signalCount);
+    assert.equal(entry.semantics?.calibration?.sensorCount, expectation.sensorCount);
+    assert.equal(entry.semantics?.calibration?.findingCount, expectation.findingCount);
+    if (expectation.findingIds) {
+      assert.deepEqual([...entry.findingIds].sort(), [...expectation.findingIds].sort());
+    }
+    assert.equal(
+      entry.findingIds.some((id) => id.startsWith("corr-")),
+      false,
+    );
+    assert.doesNotMatch(
+      `${entry.summary}\n${entry.semantics?.interpretation ?? ""}\n${entry.semantics?.nextStep ?? ""}`,
+      /predict|probability|horizon|future|will fail/i,
+    );
+  };
+
   if (definition.expectRootCause === false) {
     assert.equal(
       rootCauses.length,
       0,
       `${definition.name}: unexpected root_cause ${rootCauses.map((entry) => entry.summary).join("; ")}`,
     );
+  } else if (definition.expectedRootCauses) {
+    assert.equal(
+      rootCauses.length,
+      definition.expectedRootCauses.length,
+      `${definition.name}: expected ${definition.expectedRootCauses.length} root_cause observations, got ${rootCauses.length}`,
+    );
+    for (const expectation of definition.expectedRootCauses) {
+      assertRootCause(
+        rootCauses.find((entry) => entry.subject === expectation.subject),
+        expectation,
+      );
+    }
   } else {
     assert.equal(
       rootCauses.length,
       1,
       `${definition.name}: expected exactly one root_cause, got ${rootCauses.length}`,
     );
-    assert.ok(rootCause, `${definition.name}: expected root_cause`);
-    assert.match(
-      rootCause.summary,
-      new RegExp(`${definition.failureClass} as the current failure surface`),
-    );
-    assert.equal(rootCause.semantics?.calibration?.level, definition.level);
-    assert.equal(rootCause.semantics?.calibration?.signalCount, definition.signalCount);
-    assert.equal(rootCause.semantics?.calibration?.sensorCount, definition.sensorCount);
-    assert.equal(rootCause.semantics?.calibration?.findingCount, definition.findingCount);
-    if (definition.findingIds) {
-      assert.deepEqual([...rootCause.findingIds].sort(), [...definition.findingIds].sort());
-    }
-    assert.equal(
-      rootCause.findingIds.some((id) => id.startsWith("corr-")),
-      false,
-    );
-    assert.doesNotMatch(
-      `${rootCause.summary}\n${rootCause.semantics?.interpretation ?? ""}\n${rootCause.semantics?.nextStep ?? ""}`,
-      /predict|probability|horizon|future|will fail/i,
-    );
+    assertRootCause(rootCause, definition);
   }
 
-  const actualFailureClass = rootCause?.evidence
-    ?.find((entry) => entry.startsWith("failureClass:"))
-    ?.replace("failureClass:", "");
+  const actualFailureClass = failureClassFor(rootCause);
   const calibration = rootCause?.semantics?.calibration;
+  const expectedRootCauses = definition.expectedRootCauses?.map((entry) => ({
+    subject: entry.subject,
+    failureClass: entry.failureClass,
+  }));
+  const actualRootCauses = definition.expectedRootCauses
+    ? rootCauses.map((entry) => ({
+        subject: entry.subject,
+        failureClass: failureClassFor(entry) ?? "root_cause",
+      }))
+    : undefined;
+  const calibrations = definition.expectedRootCauses
+    ? rootCauses.map((entry) => summarizeCalibration(entry.semantics.calibration))
+    : undefined;
 
   results.push({
     status: "passed",
     name: definition.name,
-    subject: definition.subject ?? rootCause?.subject,
-    expected: definition.expectRootCause === false ? "none" : definition.failureClass,
-    actual: rootCause ? (actualFailureClass ?? "root_cause") : "none",
+    ...(definition.expectedRootCauses ? {} : { subject: definition.subject ?? rootCause?.subject }),
+    expected:
+      definition.expectRootCause === false
+        ? "none"
+        : definition.expectedRootCauses
+          ? "multi"
+          : definition.failureClass,
+    actual: definition.expectedRootCauses
+      ? "multi"
+      : rootCause
+        ? (actualFailureClass ?? "root_cause")
+        : "none",
     rootCauseCount: rootCauses.length,
-    ...(calibration
+    ...(expectedRootCauses ? { expectedRootCauses } : {}),
+    ...(actualRootCauses ? { actualRootCauses } : {}),
+    ...(calibrations ? { calibrations } : {}),
+    ...(!definition.expectedRootCauses && calibration
       ? {
-          calibration: {
-            level: calibration.level,
-            signalCount: calibration.signalCount,
-            sensorCount: calibration.sensorCount,
-            findingCount: calibration.findingCount,
-          },
+          calibration: summarizeCalibration(calibration),
           findingIds: rootCause.findingIds,
         }
       : {}),
@@ -694,6 +772,15 @@ const cases = [
     agents: {
       cliA: cliFailureAgent("cliA", "timeout_or_latency"),
       cliB: cliFailureAgent("cliB", "timeout_or_latency"),
+    },
+  },
+  {
+    name: "Mixed CLI command-resolution and timeout evidence does not emit root_cause",
+    subject: "cli",
+    expectRootCause: false,
+    agents: {
+      cliMissing: cliFailureAgent("cliMissing", "command_resolution"),
+      cliTimeout: cliFailureAgent("cliTimeout", "timeout_or_latency"),
     },
   },
   {
@@ -753,6 +840,66 @@ const cases = [
           }),
         ],
       }),
+    },
+  },
+  {
+    name: "CLI diagnosis remains isolated from unrelated ambiguous web signals",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      surfA: surfFailureAgent("surfA"),
+      bombadilA: bombadilFailureAgent("bombadilA"),
+    },
+  },
+  {
+    name: "Independent CLI and API failures emit component-scoped root_causes",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "contract_mismatch",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+    ],
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      apiA: apiContractViolationAgent("apiA"),
+      apiB: apiContractViolationAgent("apiB"),
+    },
+  },
+  {
+    name: "CLI diagnosis survives suppressed API mixed-class ambiguity",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    findingIds: ["cliA-missing", "cliB-missing"],
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      apiContract: apiContractViolationAgent("apiContract"),
+      apiRuntime: apiRuntimeExceptionAgent("apiRuntime"),
     },
   },
   {
@@ -965,6 +1112,37 @@ const cases = [
             description: "API validation mismatch",
             evidence: ["validation mismatch"],
             recommendation: "Align validation.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
+    name: "Mixed API contract and runtime evidence does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiContract: apiContractViolationAgent("apiContract"),
+      apiRuntime: apiRuntimeExceptionAgent("apiRuntime"),
+    },
+  },
+  {
+    name: "Linked API contract finding with runtime observations does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiObserverA: apiLinkedRuntimeObservationAgent("apiObserverA"),
+      apiObserverB: apiLinkedRuntimeObservationAgent("apiObserverB"),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-drift",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema validation mismatch",
+            evidence: ["schema validation mismatch"],
+            recommendation: "Align schema.",
           }),
         ],
       }),

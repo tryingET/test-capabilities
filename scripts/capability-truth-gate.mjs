@@ -89,10 +89,12 @@ function assertRootCauseCorpusExecutes() {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.ok, true, "root-cause corpus should pass in truth gate");
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
-  assert.equal(payload.total, 36, "root-cause corpus should include the current fixture set");
+  // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
+  // update this gate and the corpus contract test together.
+  assert.equal(payload.total, 42, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
-    8,
+    9,
     "root-cause corpus should preserve API contract ambiguity coverage",
   );
   assert.equal(
@@ -103,6 +105,94 @@ function assertRootCauseCorpusExecutes() {
     ),
     true,
     "root-cause corpus should guard same-class unlinked finding tolerance",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI diagnosis remains isolated from unrelated ambiguous web signals" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should guard component-isolated diagnosis under unrelated ambiguity",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI diagnosis survives suppressed API mixed-class ambiguity" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should guard diagnosis beside a suppressed ambiguous component",
+  );
+  const simultaneousCase = payload.cases?.find(
+    (entry) => entry.name === "Independent CLI and API failures emit component-scoped root_causes",
+  );
+  assert.equal(
+    simultaneousCase?.actual,
+    "multi",
+    "root-cause corpus should mark simultaneous component diagnoses as multi",
+  );
+  assert.equal(
+    simultaneousCase?.rootCauseCount,
+    2,
+    "root-cause corpus should report two simultaneous component-scoped diagnoses",
+  );
+  assert.deepEqual(
+    simultaneousCase?.actualRootCauses,
+    [
+      { subject: "api", failureClass: "contract_mismatch" },
+      { subject: "cli", failureClass: "command_resolution" },
+    ],
+    "root-cause corpus should preserve simultaneous diagnosis subjects and classes",
+  );
+  assert.equal(
+    Object.hasOwn(simultaneousCase ?? {}, "subject"),
+    false,
+    "multi-root corpus cases should not expose scalar subject",
+  );
+  assert.equal(
+    Object.hasOwn(simultaneousCase ?? {}, "calibration"),
+    false,
+    "multi-root corpus cases should not expose scalar calibration",
+  );
+  assert.equal(
+    Object.hasOwn(simultaneousCase ?? {}, "findingIds"),
+    false,
+    "multi-root corpus cases should not expose scalar findingIds",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name ===
+          "Mixed CLI command-resolution and timeout evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard same-component mixed CLI class suppression",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Mixed API contract and runtime evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard same-component mixed API class suppression",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name ===
+          "Linked API contract finding with runtime observations does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard linked-finding/current-run evidence disagreement",
   );
 }
 

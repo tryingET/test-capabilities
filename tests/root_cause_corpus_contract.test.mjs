@@ -23,7 +23,23 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] CLI timeout with two observed agents classifies timeout_or_latency/,
   );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed CLI command-resolution and timeout evidence does not emit root_cause/,
+  );
   assert.match(result.stdout, /\[pass\] CLI app crash does not classify as command_resolution/);
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI diagnosis remains isolated from unrelated ambiguous web signals/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Independent CLI and API failures emit component-scoped root_causes/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI diagnosis survives suppressed API mixed-class ambiguity/,
+  );
   assert.match(
     result.stdout,
     /\[pass\] Bombadil required-property validation wording classifies property_violation/,
@@ -35,6 +51,14 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   assert.match(
     result.stdout,
     /\[pass\] Majority Surf with conflicting Bombadil class does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed API contract and runtime evidence does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Linked API contract finding with runtime observations does not emit root_cause/,
   );
   assert.match(result.stdout, /\[pass\] Observation-only API signals classify contract_mismatch/);
   assert.match(
@@ -125,7 +149,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(36 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(42 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -139,18 +163,79 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   const payload = JSON.parse(result.stdout);
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.total, 36);
+  // Exact corpus counts are intentional truth locks: fixture changes must update both
+  // machine-readable coverage expectations and named guardrail assertions.
+  assert.equal(payload.total, 42);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 36);
-  assert.equal(payload.coverage.noRootCauseCases, 12);
-  assert.equal(payload.coverage.positiveRootCauseCases, 24);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 24);
-  assert.equal(payload.coverage.expectedClasses.none, 12);
-  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 8);
+  assert.equal(payload.coverage.total, 42);
+  assert.equal(payload.coverage.noRootCauseCases, 15);
+  assert.equal(payload.coverage.positiveRootCauseCases, 27);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 27);
+  assert.equal(payload.coverage.expectedClasses.none, 15);
+  assert.equal(payload.coverage.expectedClasses.command_resolution, 5);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 9);
   assert.equal(payload.coverage.expectedClasses.component_failure_surface, 6);
-  assert.equal(payload.coverage.subjects.api, 18);
-  assert.equal(payload.coverage.subjects.cli, 5);
+  assert.equal(payload.coverage.subjects.api, 21);
+  assert.equal(payload.coverage.subjects.cli, 9);
   assert.equal(payload.coverage.subjects.web, 13);
+  const mixedCliCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Mixed CLI command-resolution and timeout evidence does not emit root_cause",
+  );
+  assert.equal(mixedCliCase?.expected, "none");
+  assert.equal(mixedCliCase?.actual, "none");
+  assert.equal(mixedCliCase?.rootCauseCount, 0);
+
+  const mixedApiCase = payload.cases.find(
+    (entry) => entry.name === "Mixed API contract and runtime evidence does not emit root_cause",
+  );
+  assert.equal(mixedApiCase?.expected, "none");
+  assert.equal(mixedApiCase?.actual, "none");
+  assert.equal(mixedApiCase?.rootCauseCount, 0);
+
+  const linkedApiRuntimeCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Linked API contract finding with runtime observations does not emit root_cause",
+  );
+  assert.equal(linkedApiRuntimeCase?.expected, "none");
+  assert.equal(linkedApiRuntimeCase?.actual, "none");
+  assert.equal(linkedApiRuntimeCase?.rootCauseCount, 0);
+
+  const suppressedApiAmbiguityCase = payload.cases.find(
+    (entry) => entry.name === "CLI diagnosis survives suppressed API mixed-class ambiguity",
+  );
+  assert.equal(suppressedApiAmbiguityCase?.expected, "command_resolution");
+  assert.equal(suppressedApiAmbiguityCase?.actual, "command_resolution");
+  assert.deepEqual(suppressedApiAmbiguityCase?.findingIds, ["cliA-missing", "cliB-missing"]);
+  assert.equal(suppressedApiAmbiguityCase?.rootCauseCount, 1);
+
+  const isolatedCliCase = payload.cases.find(
+    (entry) => entry.name === "CLI diagnosis remains isolated from unrelated ambiguous web signals",
+  );
+  assert.equal(isolatedCliCase?.expected, "command_resolution");
+  assert.equal(isolatedCliCase?.actual, "command_resolution");
+  assert.deepEqual(isolatedCliCase?.findingIds, ["cliA-missing", "cliB-missing"]);
+  assert.equal(isolatedCliCase?.rootCauseCount, 1);
+
+  const multiComponentCase = payload.cases.find(
+    (entry) => entry.name === "Independent CLI and API failures emit component-scoped root_causes",
+  );
+  assert.equal(multiComponentCase?.expected, "multi");
+  assert.equal(multiComponentCase?.actual, "multi");
+  assert.equal(multiComponentCase?.rootCauseCount, 2);
+  assert.deepEqual(multiComponentCase?.actualRootCauses, [
+    { subject: "api", failureClass: "contract_mismatch" },
+    { subject: "cli", failureClass: "command_resolution" },
+  ]);
+  assert.deepEqual(multiComponentCase?.calibrations, [
+    { level: "high", signalCount: 2, sensorCount: 2, findingCount: 0 },
+    { level: "high", signalCount: 2, sensorCount: 2, findingCount: 2 },
+  ]);
+  assert.equal(Object.hasOwn(multiComponentCase ?? {}, "subject"), false);
+  assert.equal(Object.hasOwn(multiComponentCase ?? {}, "calibration"), false);
+  assert.equal(Object.hasOwn(multiComponentCase ?? {}, "findingIds"), false);
+
   const sameClassExtraCase = payload.cases.find(
     (entry) => entry.name === "Extra same-class unlinked API finding preserves contract_mismatch",
   );
