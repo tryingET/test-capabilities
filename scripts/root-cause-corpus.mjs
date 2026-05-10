@@ -1740,6 +1740,93 @@ const cases = [
       }),
     },
   },
+  // Three-sensor agreement proves calibration works beyond exactly-two
+  {
+    name: "Three sensors agreeing on CLI command_resolution emit high-calibration root_cause",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 3,
+    sensorCount: 3,
+    findingCount: 3,
+    findingIds: ["cliA-missing", "cliB-missing", "cliC-missing"],
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      cliC: cliFailureAgent("cliC", "command_resolution"),
+    },
+  },
+  // Bombadil + CLI cross-component simultaneous diagnoses
+  {
+    name: "Independent Bombadil and CLI failures emit component-scoped root_causes",
+    expectedRootCauses: [
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+      {
+        subject: "web",
+        failureClass: "property_violation",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["bombadilA-property-violation", "bombadilB-property-violation"],
+      },
+    ],
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      bombadilA: bombadilFailureAgent("bombadilA"),
+      bombadilB: bombadilFailureAgent("bombadilB"),
+    },
+  },
+  // Three-way simultaneous: web + cli + api all fail independently
+  {
+    name: "Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "contract_mismatch",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+      {
+        subject: "web",
+        failureClass: "browser_coverage_gap",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["surfA-surf-empty", "surfB-surf-empty"],
+      },
+    ],
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      surfA: surfFailureAgent("surfA"),
+      surfB: surfFailureAgent("surfB"),
+      apiA: apiContractViolationAgent("apiA"),
+      apiB: apiContractViolationAgent("apiB"),
+    },
+  },
 ];
 
 try {

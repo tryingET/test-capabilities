@@ -176,6 +176,9 @@ What it checks today:
 - finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, partially observed evidence pairs, linked finding/current-run evidence disagreement, and same-component mixed CLI/API failure classes do not emit `root_cause`
 - unrelated ambiguous signals in one component, including a suppressed same-component mixed-class ambiguity, do not suppress a calibrated same-run diagnosis for another component
 - independent CLI and API failures can emit simultaneous component-scoped `root_cause` observations
+- three-sensor agreement produces high-calibration `root_cause` with signalCount and sensorCount reflecting all three observers
+- independent Bombadil + CLI failures emit two component-scoped `root_cause` observations (property_violation + command_resolution)
+- three-way simultaneous Surf + CLI + API failures emit three component-scoped `root_cause` observations
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
 Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:

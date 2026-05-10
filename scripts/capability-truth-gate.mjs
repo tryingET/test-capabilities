@@ -91,10 +91,10 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 42, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 45, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
-    9,
+    10,
     "root-cause corpus should preserve API contract ambiguity coverage",
   );
   assert.equal(
@@ -193,6 +193,50 @@ function assertRootCauseCorpusExecutes() {
     ),
     true,
     "root-cause corpus should guard linked-finding/current-run evidence disagreement",
+  );
+  // Three-sensor agreement
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name ===
+          "Three sensors agreeing on CLI command_resolution emit high-calibration root_cause" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1 &&
+        entry.calibration?.sensorCount === 3,
+    ),
+    true,
+    "root-cause corpus should guard three-sensor agreement calibration",
+  );
+  // Bombadil + CLI cross-component simultaneous
+  const bombadilCliCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "Independent Bombadil and CLI failures emit component-scoped root_causes",
+  );
+  assert.equal(
+    bombadilCliCase?.actual,
+    "multi",
+    "root-cause corpus should mark Bombadil+CLI simultaneous diagnoses as multi",
+  );
+  assert.equal(
+    bombadilCliCase?.rootCauseCount,
+    2,
+    "root-cause corpus should report two simultaneous Bombadil+CLI component-scoped diagnoses",
+  );
+  // Three-way simultaneous
+  const threeWayCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes",
+  );
+  assert.equal(
+    threeWayCase?.actual,
+    "multi",
+    "root-cause corpus should mark three-way simultaneous diagnoses as multi",
+  );
+  assert.equal(
+    threeWayCase?.rootCauseCount,
+    3,
+    "root-cause corpus should report three simultaneous component-scoped diagnoses",
   );
 }
 

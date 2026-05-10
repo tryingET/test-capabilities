@@ -149,7 +149,19 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Partial observed\/unobserved finding pair does not emit root_cause/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(42 cases\)/);
+  assert.match(
+    result.stdout,
+    /\[pass\] Three sensors agreeing on CLI command_resolution emit high-calibration root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Independent Bombadil and CLI failures emit component-scoped root_causes/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes/,
+  );
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(45 cases\)/);
 });
 
 test("root-cause corpus emits machine-readable dogfood results", { timeout: 20000 }, () => {
@@ -165,19 +177,19 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   // Exact corpus counts are intentional truth locks: fixture changes must update both
   // machine-readable coverage expectations and named guardrail assertions.
-  assert.equal(payload.total, 42);
+  assert.equal(payload.total, 45);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 42);
+  assert.equal(payload.coverage.total, 45);
   assert.equal(payload.coverage.noRootCauseCases, 15);
-  assert.equal(payload.coverage.positiveRootCauseCases, 27);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 27);
+  assert.equal(payload.coverage.positiveRootCauseCases, 30);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 30);
   assert.equal(payload.coverage.expectedClasses.none, 15);
-  assert.equal(payload.coverage.expectedClasses.command_resolution, 5);
-  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 9);
+  assert.equal(payload.coverage.expectedClasses.command_resolution, 8);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 10);
   assert.equal(payload.coverage.expectedClasses.component_failure_surface, 6);
-  assert.equal(payload.coverage.subjects.api, 21);
-  assert.equal(payload.coverage.subjects.cli, 9);
-  assert.equal(payload.coverage.subjects.web, 13);
+  assert.equal(payload.coverage.subjects.api, 22);
+  assert.equal(payload.coverage.subjects.cli, 12);
+  assert.equal(payload.coverage.subjects.web, 15);
   const mixedCliCase = payload.cases.find(
     (entry) =>
       entry.name === "Mixed CLI command-resolution and timeout evidence does not emit root_cause",
@@ -235,6 +247,53 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(Object.hasOwn(multiComponentCase ?? {}, "subject"), false);
   assert.equal(Object.hasOwn(multiComponentCase ?? {}, "calibration"), false);
   assert.equal(Object.hasOwn(multiComponentCase ?? {}, "findingIds"), false);
+
+  // Three-sensor agreement case
+  const threeSensorCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Three sensors agreeing on CLI command_resolution emit high-calibration root_cause",
+  );
+  assert.equal(threeSensorCase?.expected, "command_resolution");
+  assert.equal(threeSensorCase?.actual, "command_resolution");
+  assert.equal(threeSensorCase?.rootCauseCount, 1);
+  assert.equal(threeSensorCase?.calibration?.level, "high");
+  assert.equal(threeSensorCase?.calibration?.signalCount, 3);
+  assert.equal(threeSensorCase?.calibration?.sensorCount, 3);
+  assert.equal(threeSensorCase?.calibration?.findingCount, 3);
+
+  // Bombadil + CLI cross-component simultaneous
+  const bombadilCliCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Independent Bombadil and CLI failures emit component-scoped root_causes",
+  );
+  assert.equal(bombadilCliCase?.expected, "multi");
+  assert.equal(bombadilCliCase?.actual, "multi");
+  assert.equal(bombadilCliCase?.rootCauseCount, 2);
+  assert.deepEqual(bombadilCliCase?.actualRootCauses, [
+    { subject: "cli", failureClass: "command_resolution" },
+    { subject: "web", failureClass: "property_violation" },
+  ]);
+
+  // Three-way simultaneous
+  const threeWayCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes",
+  );
+  assert.equal(threeWayCase?.expected, "multi");
+  assert.equal(threeWayCase?.actual, "multi");
+  assert.equal(threeWayCase?.rootCauseCount, 3);
+  assert.deepEqual(threeWayCase?.actualRootCauses, [
+    { subject: "api", failureClass: "contract_mismatch" },
+    { subject: "cli", failureClass: "command_resolution" },
+    { subject: "web", failureClass: "browser_coverage_gap" },
+  ]);
+  assert.deepEqual(threeWayCase?.calibrations, [
+    { level: "high", signalCount: 2, sensorCount: 2, findingCount: 0 },
+    { level: "high", signalCount: 2, sensorCount: 2, findingCount: 2 },
+    { level: "high", signalCount: 2, sensorCount: 2, findingCount: 2 },
+  ]);
 
   const sameClassExtraCase = payload.cases.find(
     (entry) => entry.name === "Extra same-class unlinked API finding preserves contract_mismatch",
