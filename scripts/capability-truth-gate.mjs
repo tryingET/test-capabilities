@@ -89,6 +89,21 @@ function assertRootCauseCorpusExecutes() {
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.ok, true, "root-cause corpus should pass in truth gate");
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
+  assert.equal(payload.total, 36, "root-cause corpus should include the current fixture set");
+  assert.equal(
+    payload.coverage?.expectedClasses?.contract_mismatch,
+    8,
+    "root-cause corpus should preserve API contract ambiguity coverage",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Extra same-class unlinked API finding preserves contract_mismatch" &&
+        entry.actual === "contract_mismatch",
+    ),
+    true,
+    "root-cause corpus should guard same-class unlinked finding tolerance",
+  );
 }
 
 function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport) {
@@ -124,6 +139,11 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
 function assertPassportGeneratedProjection() {
   const generated = run("node", ["./scripts/generate-capability-passport.mjs", "--stdout"]);
   assert.equal(generated.status, 0, `${generated.stdout}\n${generated.stderr}`);
+  assert.equal(
+    generated.stdout,
+    readText("governance/capability-passport.json"),
+    "capability passport --stdout must be byte-identical to the checked-in projection",
+  );
   assert.deepEqual(JSON.parse(generated.stdout), readJson("governance/capability-passport.json"));
 }
 
