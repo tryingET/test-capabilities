@@ -621,6 +621,14 @@ export class TestCapabilitiesOrchestrator {
         calibrationFindings,
         rootCauseSignals,
       );
+      const candidateFailureClasses = new Set(
+        candidateEvidenceUnits.map((unit) => unit.failureClass),
+      );
+
+      if (candidateFailureClasses.size > 1) {
+        continue;
+      }
+
       const evidenceUnits = strongestAgreedRootCauseUnits(candidateEvidenceUnits);
       const calibration = calibrateRootCause(
         componentObservations,

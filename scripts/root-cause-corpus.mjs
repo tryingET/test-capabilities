@@ -307,6 +307,16 @@ const cases = [
     },
   },
   {
+    name: "Majority Surf with conflicting Bombadil class does not emit root_cause",
+    subject: "web",
+    expectRootCause: false,
+    agents: {
+      surfA: surfFailureAgent("surfA"),
+      surfB: surfFailureAgent("surfB"),
+      bombadilA: bombadilFailureAgent("bombadilA"),
+    },
+  },
+  {
     name: "Finding-only component does not emit root_cause",
     subject: "api",
     expectRootCause: false,
