@@ -143,7 +143,7 @@ program
   .description("Advanced browser testing with surf-cli")
   .argument("<action>", "Action: explore (implemented) | flow | assert | compare | replay")
   .option("-u, --url <url>", "Target URL")
-  .option("--depth <n>", "Reserved surf explore flag; currently fails until implemented")
+  .option("--depth <n>", "Explore same-origin links to bounded depth 1-3 with graded probe coverage")
   .option("--record", "Reserved surf explore flag; currently fails until implemented")
   .option("--validate", "Reserved surf explore flag; currently fails until implemented")
   .option(
@@ -166,6 +166,11 @@ program
       }
       if (output.result.stderr) {
         console.error(output.result.stderr);
+      }
+      if (output.result.coverage) {
+        console.log(
+          `Surf coverage: userFlows=${output.result.coverage.userFlows}% probes=${output.result.coverage.probesVerified}/${output.result.coverage.probesRequired} status=${output.result.coverage.status}`,
+        );
       }
     } catch (error) {
       exitWithError(error, spinner, `Surf ${action} failed!`);

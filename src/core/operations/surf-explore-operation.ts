@@ -10,6 +10,11 @@ import type {
   SurfExploreOperationResultEnvelope,
 } from "./types.js";
 
+const DEFAULT_SURF_EXPLORE_DEPTH = 1;
+const MAX_SURF_EXPLORE_DEPTH = 3;
+const MAX_SURF_EXPLORE_PAGES = 10;
+const MAX_SURF_EXPLORE_LINKS_PER_PAGE = 5;
+
 export const SurfExploreOperationInputSchema = z
   .object({
     url: z
@@ -26,20 +31,83 @@ export const SurfExploreOperationInputSchema = z
   })
   .transform((input) => {
     assertSupportedSurfExploreOptions(input);
+    parseSurfExploreDepth(input.depth);
     return input;
   });
 
 type NormalizedSurfExploreOperationInput = z.output<typeof SurfExploreOperationInputSchema>;
 
+type SurfExploreProbeKind = "state" | "dom" | "links";
+
 type SurfExploreEvidence = {
   verified: true;
   url: string;
   signal: string;
+  coverageScore: number;
+  probesVerified: number;
+  probesRequired: number;
 };
+
+type SurfExploreEvidenceMatch = {
+  evidence: Omit<SurfExploreEvidence, "coverageScore" | "probesVerified" | "probesRequired">;
+  record?: Record<string, unknown>;
+};
+
+type SurfExploreProbeResult = {
+  kind: SurfExploreProbeKind;
+  url: string;
+  depth: number;
+  verified: boolean;
+  signal?: string;
+  error?: string;
+};
+
+type SurfExplorePageResult = {
+  url: string;
+  depth: number;
+  verified: boolean;
+  probes: SurfExploreProbeResult[];
+  discoveredUrls: string[];
+};
+
+type ProbeExecutionResult = {
+  probe: SurfExploreProbeResult;
+  stdout: string;
+  stderr: string;
+  discoveredUrls: string[];
+};
+
+function parseSurfExploreDepth(depth: string | undefined): number {
+  if (depth === undefined) {
+    return DEFAULT_SURF_EXPLORE_DEPTH;
+  }
+
+  const normalized = depth.trim();
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`Surf explore --depth must be an integer from 1 to ${MAX_SURF_EXPLORE_DEPTH}.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_SURF_EXPLORE_DEPTH) {
+    throw new Error(`Surf explore --depth must be an integer from 1 to ${MAX_SURF_EXPLORE_DEPTH}.`);
+  }
+
+  return parsed;
+}
 
 function normalizeUrl(value: string): string | undefined {
   try {
     return new URL(value).href;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeVisitKey(value: string): string | undefined {
+  try {
+    const parsed = new URL(value);
+    parsed.hash = "";
+    return parsed.href;
   } catch {
     return undefined;
   }
@@ -55,7 +123,7 @@ function objectContainsVerifiedBrowserEvidence(
   value: unknown,
   normalizedTargetUrl: string,
   probeId: string,
-): SurfExploreEvidence | undefined {
+): SurfExploreEvidenceMatch | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
   }
@@ -78,6 +146,12 @@ function objectContainsVerifiedBrowserEvidence(
     typeof record.tabId === "number" || typeof record.tab_id === "number",
     typeof record.windowId === "number" || typeof record.window_id === "number",
     typeof record.title === "string" && record.title.trim().length > 0,
+    typeof record.readyState === "string" && record.readyState.trim().length > 0,
+    Array.isArray(record.links),
+    typeof record.anchors === "number" ||
+      typeof record.buttons === "number" ||
+      typeof record.forms === "number" ||
+      typeof record.inputs === "number",
   ];
 
   if (!browserStateSignals.some(Boolean)) {
@@ -85,9 +159,12 @@ function objectContainsVerifiedBrowserEvidence(
   }
 
   return {
-    verified: true,
-    url: normalizedTargetUrl,
-    signal: `structured ${matchedUrlKey} with browser state`,
+    evidence: {
+      verified: true,
+      url: normalizedTargetUrl,
+      signal: `structured ${matchedUrlKey} with browser state`,
+    },
+    record,
   };
 }
 
@@ -111,7 +188,7 @@ function findEvidenceInParsedValue(
   value: unknown,
   normalizedTargetUrl: string,
   probeId: string,
-): SurfExploreEvidence | undefined {
+): SurfExploreEvidenceMatch | undefined {
   const direct = objectContainsVerifiedBrowserEvidence(value, normalizedTargetUrl, probeId);
   if (direct) {
     return direct;
@@ -119,6 +196,15 @@ function findEvidenceInParsedValue(
 
   if (Array.isArray(value)) {
     for (const item of value) {
+      const nested = findEvidenceInParsedValue(item, normalizedTargetUrl, probeId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
       const nested = findEvidenceInParsedValue(item, normalizedTargetUrl, probeId);
       if (nested) {
         return nested;
@@ -156,7 +242,7 @@ function findStructuredEvidence(
   output: string,
   normalizedTargetUrl: string,
   probeId: string,
-): SurfExploreEvidence | undefined {
+): SurfExploreEvidenceMatch | undefined {
   const rawLines = output.split(/\r?\n/);
   const suffixes = rawLines.map((_, index) => rawLines.slice(index).join("\n"));
   const lines = rawLines.map((line) => line.trim());
@@ -191,7 +277,7 @@ function findTabularEvidence(
   output: string,
   normalizedTargetUrl: string,
   probeId: string,
-): SurfExploreEvidence | undefined {
+): SurfExploreEvidenceMatch | undefined {
   const lines = output.split(/\r?\n/).map((line) => line.trim());
   const targetText = normalizedTargetUrl.replace(/\/$/, "");
   const evidenceLine = lines.find((line) => {
@@ -199,7 +285,7 @@ function findTabularEvidence(
     return (
       (normalizedLine.includes(normalizedTargetUrl) || normalizedLine.includes(targetText)) &&
       line.includes(probeId) &&
-      /\b(tab[_ -]?id|window[_ -]?id|title|current[_ -]?url|href)\b/i.test(line)
+      /\b(tab[_ -]?id|window[_ -]?id|title|current[_ -]?url|href|ready[_ -]?state)\b/i.test(line)
     );
   });
 
@@ -208,9 +294,11 @@ function findTabularEvidence(
   }
 
   return {
-    verified: true,
-    url: normalizedTargetUrl,
-    signal: "tabular/browser-state output containing target URL",
+    evidence: {
+      verified: true,
+      url: normalizedTargetUrl,
+      signal: "tabular/browser-state output containing target URL",
+    },
   };
 }
 
@@ -219,7 +307,7 @@ function assertSurfExploreEvidence(
   commandDisplay: string[],
   targetUrl: string,
   probeId: string,
-): SurfExploreEvidence {
+): SurfExploreEvidenceMatch {
   const output = `${result.stdout}\n${result.stderr}`.trim();
   const normalizedTargetUrl = normalizeUrl(targetUrl);
 
@@ -241,43 +329,307 @@ function assertSurfExploreEvidence(
   );
 }
 
+function buildProbeScript(kind: SurfExploreProbeKind, probeId: string): string {
+  const probeIdLiteral = JSON.stringify(probeId);
+
+  if (kind === "links") {
+    return `const probeId = ${probeIdLiteral}; return (() => { const seen = new Set(); const links = Array.from(document.querySelectorAll('a[href]')).map((anchor) => new URL(anchor.getAttribute('href'), location.href).href).filter((href) => { const url = new URL(href); if (url.origin !== location.origin) return false; url.hash = ''; if (seen.has(url.href)) return false; seen.add(url.href); return true; }).slice(0, ${MAX_SURF_EXPLORE_LINKS_PER_PAGE}); return { ${SURF_EXPLORE_PROBE_FIELD}: probeId, kind: 'links', href: location.href, title: document.title, readyState: document.readyState, links }; })()`;
+  }
+
+  if (kind === "dom") {
+    return `return { ${SURF_EXPLORE_PROBE_FIELD}: ${probeIdLiteral}, kind: "dom", href: location.href, title: document.title, readyState: document.readyState, anchors: document.querySelectorAll("a[href]").length, buttons: document.querySelectorAll("button,[role=button],input[type=submit]").length, forms: document.querySelectorAll("form").length, inputs: document.querySelectorAll("input,textarea,select").length }`;
+  }
+
+  return `return { ${SURF_EXPLORE_PROBE_FIELD}: ${probeIdLiteral}, kind: "state", href: location.href, title: document.title, readyState: document.readyState }`;
+}
+
+function normalizeDiscoveredLink(link: unknown, origin: string): string | undefined {
+  if (typeof link !== "string") {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(link);
+    if (parsed.origin !== origin) {
+      return undefined;
+    }
+    parsed.hash = "";
+    return parsed.href;
+  } catch {
+    return undefined;
+  }
+}
+
+function extractLinksFromEvidence(
+  record: Record<string, unknown> | undefined,
+  pageUrl: string,
+): string[] {
+  const links = record?.links;
+  if (!Array.isArray(links)) {
+    return [];
+  }
+
+  const origin = new URL(pageUrl).origin;
+  const uniqueLinks = new Set<string>();
+  for (const link of links) {
+    const normalized = normalizeDiscoveredLink(link, origin);
+    if (normalized) {
+      uniqueLinks.add(normalized);
+    }
+  }
+
+  return [...uniqueLinks].slice(0, MAX_SURF_EXPLORE_LINKS_PER_PAGE);
+}
+
+async function runSurfProbe(
+  kind: SurfExploreProbeKind,
+  url: string,
+  depth: number,
+): Promise<ProbeExecutionResult> {
+  const probeId = randomUUID();
+  const runtime = resolveSurfRuntimeCommand("js", [buildProbeScript(kind, probeId)]);
+
+  try {
+    const result = await runCommand(runtime.command, runtime.args);
+    const match = assertSurfExploreEvidence(result, runtime.commandDisplay, url, probeId);
+    return {
+      probe: {
+        kind,
+        url,
+        depth,
+        verified: true,
+        signal: match.evidence.signal,
+      },
+      stdout: result.stdout,
+      stderr: result.stderr,
+      discoveredUrls: kind === "links" ? extractLinksFromEvidence(match.record, url) : [],
+    };
+  } catch (error) {
+    return {
+      probe: {
+        kind,
+        url,
+        depth,
+        verified: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      discoveredUrls: [],
+    };
+  }
+}
+
+function failedPageFromNavigationError(
+  url: string,
+  depth: number,
+  requestedDepth: number,
+  error: unknown,
+): SurfExplorePageResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const kinds: SurfExploreProbeKind[] =
+    depth < requestedDepth ? ["state", "dom", "links"] : ["state", "dom"];
+  return {
+    url,
+    depth,
+    verified: false,
+    probes: kinds.map((kind) => ({
+      kind,
+      url,
+      depth,
+      verified: false,
+      error: message,
+    })),
+    discoveredUrls: [],
+  };
+}
+
+async function explorePage(
+  url: string,
+  depth: number,
+  requestedDepth: number,
+): Promise<{
+  page: SurfExplorePageResult;
+  stdout: string[];
+  stderr: string[];
+  seedRuntime: ReturnType<typeof resolveSurfRuntimeCommand>;
+}> {
+  const runtime = resolveSurfRuntimeCommand("go", [url]);
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+
+  const navigateResult = await runCommand(runtime.command, runtime.args);
+  if (navigateResult.stdout) {
+    stdout.push(navigateResult.stdout);
+  }
+  if (navigateResult.stderr) {
+    stderr.push(navigateResult.stderr);
+  }
+
+  const probeKinds: SurfExploreProbeKind[] =
+    depth < requestedDepth ? ["state", "dom", "links"] : ["state", "dom"];
+  const probes: SurfExploreProbeResult[] = [];
+  let discoveredUrls: string[] = [];
+
+  for (const kind of probeKinds) {
+    const probeResult = await runSurfProbe(kind, url, depth);
+    probes.push(probeResult.probe);
+    if (probeResult.stdout) {
+      stdout.push(probeResult.stdout);
+    }
+    if (probeResult.stderr) {
+      stderr.push(probeResult.stderr);
+    }
+    if (kind === "links") {
+      discoveredUrls = probeResult.discoveredUrls;
+    }
+  }
+
+  return {
+    page: {
+      url,
+      depth,
+      verified: probes.every((probe) => probe.verified),
+      probes,
+      discoveredUrls,
+    },
+    stdout,
+    stderr,
+    seedRuntime: runtime,
+  };
+}
+
+function summarizeCoverage(
+  requestedDepth: number,
+  pages: SurfExplorePageResult[],
+  pagesDiscovered: number,
+): SurfExploreOperationResultEnvelope["result"]["coverage"] {
+  const probes = pages.flatMap((page) => page.probes);
+  const probesRequired = probes.length;
+  const probesVerified = probes.filter((probe) => probe.verified).length;
+  const userFlows = probesRequired === 0 ? 0 : Math.round((probesVerified / probesRequired) * 100);
+  const reachedDepth = pages
+    .filter((page) => page.verified)
+    .reduce((maximum, page) => Math.max(maximum, page.depth), 0);
+
+  return {
+    userFlows,
+    status: userFlows === 100 ? "verified" : "partial",
+    requestedDepth,
+    reachedDepth,
+    pagesDiscovered,
+    pagesVisited: pages.length,
+    pagesVerified: pages.filter((page) => page.verified).length,
+    probesRequired,
+    probesVerified,
+  };
+}
+
+function buildAggregateEvidence(
+  normalizedTargetUrl: string,
+  coverage: SurfExploreOperationResultEnvelope["result"]["coverage"],
+): SurfExploreEvidence {
+  return {
+    verified: true,
+    url: normalizedTargetUrl,
+    signal: `${coverage.probesVerified}/${coverage.probesRequired} explicit Surf flow probes verified across ${coverage.pagesVisited} page(s)`,
+    coverageScore: coverage.userFlows,
+    probesVerified: coverage.probesVerified,
+    probesRequired: coverage.probesRequired,
+  };
+}
+
 async function runSurfExploreOperation(
   normalized: NormalizedSurfExploreOperationInput,
 ): Promise<SurfExploreOperationResultEnvelope> {
-  const runtime = resolveSurfRuntimeCommand("go", [normalized.url]);
-  const navigateResult = await runCommand(runtime.command, runtime.args);
-  const probeId = randomUUID();
-  const probeRuntime = resolveSurfRuntimeCommand("js", [
-    `return { ${SURF_EXPLORE_PROBE_FIELD}: "${probeId}", href: location.href, title: document.title, readyState: document.readyState }`,
+  const requestedDepth = parseSurfExploreDepth(normalized.depth);
+  const normalizedTargetUrl = normalizeUrl(normalized.url);
+  if (!normalizedTargetUrl) {
+    throw new Error("Surf explore target must be a valid URL.");
+  }
+
+  const queue: Array<{ url: string; depth: number }> = [{ url: normalizedTargetUrl, depth: 1 }];
+  const scheduled = new Set<string>([
+    normalizeVisitKey(normalizedTargetUrl) ?? normalizedTargetUrl,
   ]);
-  const probeResult = await runCommand(probeRuntime.command, probeRuntime.args);
+  const pages: SurfExplorePageResult[] = [];
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  let firstRuntime: ReturnType<typeof resolveSurfRuntimeCommand> | undefined;
+
+  while (queue.length > 0 && pages.length < MAX_SURF_EXPLORE_PAGES) {
+    const next = queue.shift();
+    if (!next) {
+      break;
+    }
+
+    try {
+      const pageResult = await explorePage(next.url, next.depth, requestedDepth);
+      firstRuntime ??= pageResult.seedRuntime;
+      pages.push(pageResult.page);
+      stdout.push(...pageResult.stdout);
+      stderr.push(...pageResult.stderr);
+
+      if (next.depth < requestedDepth) {
+        for (const discoveredUrl of pageResult.page.discoveredUrls) {
+          if (pages.length + queue.length >= MAX_SURF_EXPLORE_PAGES) {
+            break;
+          }
+          const visitKey = normalizeVisitKey(discoveredUrl);
+          if (!visitKey || scheduled.has(visitKey)) {
+            continue;
+          }
+          scheduled.add(visitKey);
+          queue.push({ url: discoveredUrl, depth: next.depth + 1 });
+        }
+      }
+    } catch (error) {
+      if (pages.length === 0) {
+        throw error;
+      }
+      const failedPage = failedPageFromNavigationError(next.url, next.depth, requestedDepth, error);
+      pages.push(failedPage);
+      stderr.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  const seedStateProbe = pages[0]?.probes.find((probe) => probe.kind === "state");
+  if (!seedStateProbe?.verified) {
+    throw new Error(
+      seedStateProbe?.error ??
+        "Surf explore produced no verified browser evidence from the seed page state probe.",
+    );
+  }
+
+  if (!firstRuntime) {
+    firstRuntime = resolveSurfRuntimeCommand("go", [normalizedTargetUrl]);
+  }
+
+  const coverage = summarizeCoverage(requestedDepth, pages, scheduled.size);
+  const evidence = buildAggregateEvidence(normalizedTargetUrl, coverage);
   const result = {
-    code: probeResult.code,
-    stdout: [navigateResult.stdout, probeResult.stdout].filter(Boolean).join("\n"),
-    stderr: [navigateResult.stderr, probeResult.stderr].filter(Boolean).join("\n"),
+    code: 0,
+    stdout: stdout.filter(Boolean).join("\n"),
+    stderr: stderr.filter(Boolean).join("\n"),
   };
-  const evidence = assertSurfExploreEvidence(
-    result,
-    [...runtime.commandDisplay, "&&", ...probeRuntime.commandDisplay],
-    normalized.url,
-    probeId,
-  );
 
   return {
     operationId: "surf.explore",
     input: normalized,
     result: {
-      command: runtime.command,
-      args: runtime.args,
+      command: firstRuntime.command,
+      args: firstRuntime.args,
       runtime: {
-        flavor: runtime.flavor,
-        provider: runtime.provider,
-        resolutionNotes: runtime.resolutionNotes,
+        flavor: firstRuntime.flavor,
+        provider: firstRuntime.provider,
+        resolutionNotes: firstRuntime.resolutionNotes,
       },
       stdout: result.stdout,
       stderr: result.stderr,
       code: result.code,
       evidence,
+      coverage,
+      pages,
     },
   };
 }

@@ -87,11 +87,13 @@ Accepted but currently unsupported options:
 
 ### `test-capabilities surf explore`
 
-Run the resolved Surf Go (`surf-go`) runtime through the supported `explore` action. `test-capabilities surf explore --url <url>` invokes Surf Go as `navigate --url <url>`, then runs a browser-state JavaScript probe and verifies that the observed page state matches the target URL before reporting coverage.
-An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs. Non-empty stdout is not evidence by itself: help text, warnings, and target URLs without a matching browser-state probe fail closed as unverified coverage.
+Run the resolved Surf Go (`surf-go`) runtime through the supported `explore` action. `test-capabilities surf explore --url <url>` invokes Surf Go as `navigate --url <url>`, then runs explicit browser-state and DOM JavaScript probes and verifies that observed page state matches the target URL before reporting coverage.
+An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs. Non-empty stdout is not evidence by itself: help text, warnings, and target URLs without a matching browser-state probe fail closed as unverified coverage. `--depth 2` or `--depth 3` adds bounded same-origin link discovery and turns user-flow coverage into a graded verified-probe score instead of a binary process-success signal.
 
 ```bash
 test-capabilities surf explore --url https://example.com
+# bounded same-origin exploration with graded coverage
+test-capabilities surf explore --url https://example.com --depth 2
 ```
 
 Options:
@@ -99,7 +101,7 @@ Options:
 | Option | Description |
 |--------|-------------|
 | `--url <url>` | Required target URL |
-| `--depth <n>` | Fails with an unsupported-option error until wired to a real runtime path |
+| `--depth <n>` | Optional bounded same-origin exploration depth, integer `1`-`3`; deeper pages contribute graded coverage only when their probes verify |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--baseline <dir>` | Fails with an unsupported-option error until wired to a real runtime path |

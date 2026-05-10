@@ -4,7 +4,7 @@ import type { OperationStatus } from "./types.js";
 const unsupportedTestOptionGuidance =
   "Use only --config, --target, and --quick until the remaining paths are implemented.";
 const unsupportedSurfExploreOptionGuidance =
-  "Use only --url until the remaining surf explore flags are wired to real runtime behavior.";
+  "Use only --url and --depth until the remaining surf explore flags are wired to real runtime behavior.";
 
 export const TEST_OPTION_SUPPORT = {
   target: "implemented",
@@ -20,7 +20,7 @@ export const TEST_OPTION_SUPPORT = {
 
 export const SURF_EXPLORE_OPTION_SUPPORT = {
   url: "implemented",
-  depth: "unsupported",
+  depth: "implemented",
   record: "unsupported",
   validate: "unsupported",
   baseline: "unsupported",

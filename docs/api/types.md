@@ -475,12 +475,41 @@ interface SurfExploreOperationResultEnvelope {
       verified: true;
       url: string;
       signal: string;
+      coverageScore: number;
+      probesVerified: number;
+      probesRequired: number;
     };
+    coverage: {
+      userFlows: number;
+      status: 'verified' | 'partial';
+      requestedDepth: number;
+      reachedDepth: number;
+      pagesDiscovered: number;
+      pagesVisited: number;
+      pagesVerified: number;
+      probesRequired: number;
+      probesVerified: number;
+    };
+    pages: Array<{
+      url: string;
+      depth: number;
+      verified: boolean;
+      probes: Array<{
+        kind: 'state' | 'dom' | 'links';
+        url: string;
+        depth: number;
+        verified: boolean;
+        signal?: string;
+        error?: string;
+      }>;
+      discoveredUrls: string[];
+    }>;
   };
 }
 ```
 
 Runtime note:
-- `url` is required and is the only implemented `surf explore` option today
-- the operation navigates with Surf Go and then verifies a browser-state probe containing the target URL before returning `evidence.verified: true`
-- `depth`, `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path
+- `url` is required; `depth` is implemented as a bounded integer from `1` to `3`
+- the operation navigates with Surf Go, verifies explicit browser-state and DOM probes, and uses a links probe for same-origin depth expansion
+- `coverage.userFlows` is a graded score from verified probes over required probes; unsupported or failed deeper pages reduce the score instead of becoming fake 100% coverage
+- `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path

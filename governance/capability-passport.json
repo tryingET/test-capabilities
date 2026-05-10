@@ -75,7 +75,7 @@
       },
       "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
       "activation_requirements": [],
-      "notes": "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, and verifies browser-state evidence after navigation before reporting user-flow coverage. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
+      "notes": "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, verifies explicit browser-state/DOM/link probes, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
     },
     {
       "id": "cli-option:heal-proposal-and-verification-output",

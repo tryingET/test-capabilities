@@ -169,10 +169,14 @@ printf '%s\n' "$@"
       );
 
       assert.equal(result.operationId, "surf.explore");
-      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com"]);
+      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com/"]);
       assert.match(result.result.stdout, /"href": "https:\/\/example\.com"/);
       assert.match(result.result.stdout, /"title": "Example Domain"/);
       assert.equal(result.result.evidence.verified, true);
+      assert.equal(result.result.coverage.userFlows, 100);
+      assert.equal(result.result.coverage.probesVerified, 2);
+      assert.equal(result.result.coverage.probesRequired, 2);
+      assert.equal(result.result.pages[0].probes.length, 2);
     });
   } finally {
     fake.cleanup();
@@ -236,7 +240,8 @@ printf '{ "success": true, "url": "https://example.com" }\n'
 
       assert.equal(result.operationId, "surf.explore");
       assert.equal(result.result.evidence.verified, true);
-      assert.match(result.result.evidence.signal, /structured currentUrl/);
+      assert.equal(result.result.coverage.userFlows, 100);
+      assert.match(result.result.pages[0].probes[0].signal, /structured currentUrl/);
     });
   } finally {
     fake.cleanup();
@@ -301,13 +306,107 @@ printf '%s\n' "$@"
       const result = await executeSurfExploreOperation({ url: "https://example.com" });
 
       assert.equal(result.operationId, "surf.explore");
-      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com"]);
+      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com/"]);
       assert.match(result.result.stdout, /href/);
-      assert.equal(result.result.evidence.signal, "structured href with browser state");
+      assert.equal(result.result.evidence.coverageScore, 100);
+      assert.equal(result.result.coverage.status, "verified");
+      assert.equal(result.result.pages[0].probes[0].signal, "structured href with browser state");
     });
   } finally {
     fake.cleanup();
   }
+});
+
+test("executeSurfExploreOperation follows same-origin links for bounded depth coverage", async () => {
+  const fake = withFakeSurfGo(`
+state_file="$(dirname "$0")/current-url"
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '%s\n' "$3" > "$state_file"
+  printf '{ "success": true, "url": "%s" }\n' "$3"
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  current_url="$(cat "$state_file")"
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  if [ "$current_url" = "https://example.com/" ]; then
+    printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "%s", "title": "Home", "readyState": "complete", "links": ["https://example.com/page-2"] }\n' "$probe" "$current_url"
+  else
+    printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "%s", "title": "Page 2", "readyState": "complete", "links": [] }\n' "$probe" "$current_url"
+  fi
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await executeSurfExploreOperation({ url: "https://example.com/", depth: "2" });
+
+      assert.equal(result.result.coverage.userFlows, 100);
+      assert.equal(result.result.coverage.requestedDepth, 2);
+      assert.equal(result.result.coverage.reachedDepth, 2);
+      assert.equal(result.result.coverage.pagesVisited, 2);
+      assert.equal(result.result.coverage.pagesDiscovered, 2);
+      assert.equal(result.result.coverage.probesVerified, 5);
+      assert.equal(result.result.coverage.probesRequired, 5);
+      assert.deepEqual(
+        result.result.pages.map((page) => page.url),
+        ["https://example.com/", "https://example.com/page-2"],
+      );
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("executeSurfExploreOperation reports partial graded coverage for failed deeper pages", async () => {
+  const fake = withFakeSurfGo(`
+state_file="$(dirname "$0")/current-url"
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  if [ "$3" = "https://example.com/broken" ]; then
+    echo 'navigation failed' >&2
+    exit 7
+  fi
+  printf '%s\n' "$3" > "$state_file"
+  printf '{ "success": true, "url": "%s" }\n' "$3"
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  current_url="$(cat "$state_file")"
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "%s", "title": "Home", "readyState": "complete", "links": ["https://example.com/broken"] }\n' "$probe" "$current_url"
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await executeSurfExploreOperation({ url: "https://example.com/", depth: "2" });
+
+      assert.equal(result.result.coverage.userFlows, 60);
+      assert.equal(result.result.coverage.status, "partial");
+      assert.equal(result.result.coverage.pagesVisited, 2);
+      assert.equal(result.result.coverage.pagesVerified, 1);
+      assert.equal(result.result.coverage.probesVerified, 3);
+      assert.equal(result.result.coverage.probesRequired, 5);
+      assert.equal(result.result.pages[1].verified, false);
+      assert.match(result.result.pages[1].probes[0].error, /navigation failed/);
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("executeSurfExploreOperation rejects invalid depth values", async () => {
+  await assert.rejects(
+    async () => executeSurfExploreOperation({ url: "https://example.com", depth: "4" }),
+    /Surf explore --depth must be an integer from 1 to 3/,
+  );
 });
 
 test("executeCliOperation requires an explicit surf explore URL", async () => {

@@ -247,7 +247,7 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
         status === "implemented" && bombadilAgent
           ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built checkout from TEST_CAPABILITIES_BOMBADIL_REPO or the conventional workspace-local softwareco/contrib/bombadil, then repo-local external/bombadil, then bombadil on PATH."
           : status === "implemented" && surfAgent
-            ? "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, and verifies browser-state evidence after navigation before reporting user-flow coverage. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
+            ? "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, verifies explicit browser-state/DOM/link probes, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
             : bombadilAgent && bombadilPresent
               ? "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
               : undefined,

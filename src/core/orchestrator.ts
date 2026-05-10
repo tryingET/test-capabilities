@@ -746,7 +746,7 @@ class SurfAgent implements TestAgent {
       const envelope = await executeSurfExploreOperation({ url: targets.web });
       return {
         findings: [],
-        coverage: { userFlows: envelope.result.evidence.verified ? 100 : 0 },
+        coverage: { userFlows: envelope.result.coverage.userFlows },
       };
     } catch (error) {
       return {

@@ -96,7 +96,35 @@ export interface SurfExploreOperationResultEnvelope {
       verified: true;
       url: string;
       signal: string;
+      coverageScore: number;
+      probesVerified: number;
+      probesRequired: number;
     };
+    coverage: {
+      userFlows: number;
+      status: "verified" | "partial";
+      requestedDepth: number;
+      reachedDepth: number;
+      pagesDiscovered: number;
+      pagesVisited: number;
+      pagesVerified: number;
+      probesRequired: number;
+      probesVerified: number;
+    };
+    pages: Array<{
+      url: string;
+      depth: number;
+      verified: boolean;
+      probes: Array<{
+        kind: "state" | "dom" | "links";
+        url: string;
+        depth: number;
+        verified: boolean;
+        signal?: string;
+        error?: string;
+      }>;
+      discoveredUrls: string[];
+    }>;
   };
 }
 
