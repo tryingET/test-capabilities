@@ -2,7 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { collectFiles } from "../../healing/collect-files.js";
-import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
+import type {
+  HealingFinding,
+  HealingProposal,
+  HealingProposalVerification,
+} from "../../healing/self-healing.js";
 import { TestFileHealer } from "../../healing/self-healing.js";
 import type {
   HealOperationInput,
@@ -16,6 +20,7 @@ export const HealOperationInputSchema = z.object({
   proposalOutput: z.string().min(1).optional(),
   verificationOutput: z.string().min(1).optional(),
   checkpointRef: z.string().min(1).optional(),
+  findingsInput: z.string().min(1).optional(),
 });
 
 type NormalizedHealOperationInput = z.output<typeof HealOperationInputSchema>;
@@ -151,12 +156,26 @@ async function runHealOperation(
     );
   }
 
+  // Load diagnostic findings when evidence-backed mode is requested.
+  let findings: HealingFinding[] | undefined;
+  if (normalized.findingsInput) {
+    const findingsPath = path.resolve(normalized.findingsInput);
+    const raw = await fs.readFile(findingsPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error(
+        `findings-input must be a JSON array of finding objects, got ${typeof parsed}.`,
+      );
+    }
+    findings = parsed as HealingFinding[];
+  }
+
   const healer = new TestFileHealer();
   const files = collectFiles(path.resolve(normalized.dir));
   const proposals: HealingProposal[] = [];
 
   for (const file of files) {
-    const fileProposals = await healer.analyzeFile(file);
+    const fileProposals = await healer.analyzeFile(file, findings);
     proposals.push(...fileProposals);
   }
 

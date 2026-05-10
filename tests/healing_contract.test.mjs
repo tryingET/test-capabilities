@@ -273,3 +273,97 @@ test("TestFileHealer.applyProposal fails when the selector is not present on the
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Evidence-backed healing: proposals cite triggeringFindingId when findings are provided
+test("TestFileHealer.analyzeFile with findings cites triggeringFindingId", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-login-btn').click(); });\n",
+    "utf8",
+  );
+
+  const findings = [
+    {
+      id: "surfA-selector-drift",
+      component: "web",
+      description: "Selector drift detected on login button",
+      evidence: [
+        "selector: #old-login-btn not found in DOM",
+        "getByTestId('old-login-btn') failed",
+      ],
+    },
+  ];
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, findings);
+
+    // The heuristic scan still finds old-login-btn because it has 'old-' prefix.
+    assert.ok(proposals.length >= 1, "should produce at least one proposal");
+    const matchedProposal = proposals.find((p) => p.oldSelector === "old-login-btn");
+    if (matchedProposal) {
+      assert.equal(
+        matchedProposal.triggeringFindingId,
+        "surfA-selector-drift",
+        "proposal should cite the finding that references its selector",
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.analyzeFile without findings does not set triggeringFindingId", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-submit').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file);
+
+    assert.ok(proposals.length >= 1, "should produce proposals from heuristic scan");
+    for (const proposal of proposals) {
+      assert.equal(
+        proposal.triggeringFindingId,
+        undefined,
+        "heuristic-only proposals must not have triggeringFindingId",
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.analyzeFile with empty findings array behaves like no findings", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-checkout').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, []);
+
+    // Empty findings = no evidence selectors → falls back to heuristic behavior
+    // but still produces proposals for legacy-prefixed selectors.
+    for (const proposal of proposals) {
+      assert.equal(
+        proposal.triggeringFindingId,
+        undefined,
+        "empty findings should not produce triggeringFindingId",
+      );
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

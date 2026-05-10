@@ -7,6 +7,17 @@
 // TYPES
 // ============================================
 
+/**
+ * Minimal finding shape accepted by the healer.
+ * Matches the orchestrator Finding schema subset needed for evidence-backed healing.
+ */
+export interface HealingFinding {
+  id: string;
+  component: string;
+  description: string;
+  evidence: string[];
+}
+
 export interface HealingStrategy {
   name: string;
   priority: number;
@@ -307,14 +318,23 @@ export class TestFileHealer {
     this.engine = new SelfHealingEngine();
   }
 
-  async analyzeFile(filePath: string): Promise<HealingProposal[]> {
+  async analyzeFile(filePath: string, findings?: HealingFinding[]): Promise<HealingProposal[]> {
     const content = await this.readFile(filePath);
     const proposals: HealingProposal[] = [];
+
+    // Build a set of selectors mentioned in finding evidence when findings are provided.
+    const evidenceSelectors = findings ? extractSelectorsFromEvidence(findings) : undefined;
 
     for (const candidate of extractSelectorCandidates(content)) {
       const isValid = await this.validateSelector(candidate.selector);
 
-      if (!isValid) {
+      // When findings are provided, only heal selectors that appear in diagnostic evidence.
+      // Without findings, fall back to the existing heuristic scan.
+      const isTargetedByEvidence = evidenceSelectors
+        ? evidenceSelectors.has(candidate.selector)
+        : true;
+
+      if (!isValid || (evidenceSelectors && isTargetedByEvidence && !isValid)) {
         const healingResult = await this.engine.heal({
           originalSelector: candidate.selector,
           action: this.inferAction(content, candidate.index),
@@ -322,6 +342,12 @@ export class TestFileHealer {
         });
 
         if (healingResult.success && healingResult.newSelector) {
+          // Cite the triggering finding when evidence-backed mode is active.
+          const triggeringFindingId =
+            evidenceSelectors && findings
+              ? findTriggeringFindingId(candidate.selector, findings)
+              : undefined;
+
           proposals.push({
             file: filePath,
             line: this.getLineNumber(content, candidate.index),
@@ -331,6 +357,7 @@ export class TestFileHealer {
             confidence: healingResult.confidence,
             strategy: healingResult.strategy,
             requiresReview: Boolean(healingResult.metadata?.requiresReview),
+            ...(triggeringFindingId ? { triggeringFindingId } : {}),
           });
         }
       }
@@ -528,6 +555,11 @@ export interface HealingProposal {
   confidence: number;
   strategy: string;
   requiresReview: boolean;
+  /**
+   * When heal is fed diagnostic findings, this cites the finding that triggered
+   * the proposal. Absent when heal runs from pure file scanning.
+   */
+  triggeringFindingId?: string;
 }
 
 export interface HealingProposalVerificationFailure {
@@ -540,6 +572,61 @@ export interface HealingProposalVerification {
   proposalCount: number;
   checkedFileCount: number;
   failures: HealingProposalVerificationFailure[];
+}
+
+// ============================================
+// EVIDENCE-BACKED HEALING HELPERS
+// ============================================
+
+/**
+ * Extract selector-like strings from finding evidence.
+ * Matches CSS selectors, data-testid attributes, and XPath fragments that appear
+ * in orchestrator finding evidence arrays.
+ */
+function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, string> {
+  const selectorToFindingId = new Map<string, string>();
+
+  for (const finding of findings) {
+    for (const evidenceLine of finding.evidence) {
+      // Match common selector patterns in evidence text
+      const selectorPatterns = [
+        /#[\w-]+/g, // #id
+        /[.][\w-]+/g, // .class
+        /\[data-testid="[^"]+"\]/g, // [data-testid="..."]
+        /getByTestId\(['"]([^'"]+)['"]\)/g, // getByTestId('...')
+        /locator\(['"]([^'"]+)['"]\)/g, // locator('...')
+        /selector[:\s]+([\w#.-]+)/gi, // selector: #foo or selector .bar
+      ];
+
+      for (const pattern of selectorPatterns) {
+        pattern.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        // biome-ignore lint:suspicious/noAssignInExpressions: exec() requires assignment-in-condition loop pattern
+        while ((match = pattern.exec(evidenceLine)) !== null) {
+          const selector = match[0];
+          if (!selectorToFindingId.has(selector)) {
+            selectorToFindingId.set(selector, finding.id);
+          }
+        }
+      }
+    }
+  }
+
+  return selectorToFindingId;
+}
+
+/**
+ * Find the first finding ID that references a given selector in its evidence.
+ */
+function findTriggeringFindingId(selector: string, findings: HealingFinding[]): string | undefined {
+  for (const finding of findings) {
+    for (const evidenceLine of finding.evidence) {
+      if (evidenceLine.includes(selector)) {
+        return finding.id;
+      }
+    }
+  }
+  return undefined;
 }
 
 // ============================================

@@ -58,6 +58,12 @@ export interface HealOperationInput {
   proposalOutput?: string;
   verificationOutput?: string;
   checkpointRef?: string;
+  /**
+   * Path to a JSON file containing orchestrator findings (observation.v1 Finding[]).
+   * When provided, healing proposals cite triggeringFindingId so each repair is
+   * traceable to diagnostic evidence instead of pure file scanning.
+   */
+  findingsInput?: string;
 }
 
 export interface TestOperationSummary {
