@@ -390,6 +390,54 @@ const cases = [
     },
   },
   {
+    name: "Two passing sensors linked to the same finding do not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiObserverA: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-passed-a",
+            agent: "apiObserverA",
+            kind: "runtime",
+            status: "passed",
+            subject: "api",
+            component: "api",
+            summary: "API schema probe passed for sensor A.",
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiObserverB: agentResult({
+        observations: [
+          observation({
+            id: "api-contract-passed-b",
+            agent: "apiObserverB",
+            kind: "runtime",
+            status: "passed",
+            subject: "api",
+            component: "api",
+            summary: "API schema probe passed for sensor B.",
+            findingIds: ["api-contract-drift"],
+          }),
+        ],
+      }),
+      apiFindings: agentResult({
+        findings: [
+          finding({
+            id: "api-contract-drift",
+            type: "api_contract",
+            severity: "high",
+            component: "api",
+            description: "API schema drift",
+            evidence: ["stale schema mismatch"],
+            recommendation: "Reconcile stale finding links before diagnosing.",
+          }),
+        ],
+      }),
+    },
+  },
+  {
     name: "Single sensor with multiple linked findings does not emit root_cause",
     subject: "api",
     expectRootCause: false,

@@ -615,18 +615,16 @@ export class TestCapabilitiesOrchestrator {
         (finding) => !finding.id.startsWith("corr-"),
       );
       const calibrationFindings = primaryFindings.length > 0 ? primaryFindings : componentFindings;
-      const nonPassing = componentObservations.filter(
-        (observation) => observation.status !== "passed",
-      );
+      const rootCauseSignals = componentObservations.filter(isRootCauseSignalObservation);
       const evidenceUnits = rootCauseEvidenceUnits(
         componentObservations,
         calibrationFindings,
-        nonPassing,
+        rootCauseSignals,
       );
       const calibration = calibrateRootCause(
         componentObservations,
         calibrationFindings,
-        nonPassing,
+        rootCauseSignals,
         evidenceUnits,
       );
 
@@ -951,17 +949,22 @@ interface RootCauseEvidenceUnit {
   agent?: string;
 }
 
+function isRootCauseSignalObservation(observation: Observation): boolean {
+  return observation.status === "failed" || observation.status === "errored";
+}
+
 function rootCauseEvidenceUnits(
   observations: Observation[],
   findings: Finding[],
-  nonPassingObservations: Observation[],
+  rootCauseSignals: Observation[],
 ): RootCauseEvidenceUnit[] {
   const units = new Map<string, RootCauseEvidenceUnit>();
   const findingIds = new Set(findings.map((finding) => finding.id));
 
   for (const finding of findings) {
-    const linkedObservations = observations.filter((observation) =>
-      observation.findingIds.includes(finding.id),
+    const linkedObservations = observations.filter(
+      (observation) =>
+        isRootCauseSignalObservation(observation) && observation.findingIds.includes(finding.id),
     );
 
     for (const linkedObservation of linkedObservations) {
@@ -973,7 +976,7 @@ function rootCauseEvidenceUnits(
     }
   }
 
-  for (const observation of nonPassingObservations) {
+  for (const observation of rootCauseSignals) {
     const derivedFromFinding = observation.findingIds.some((findingId) =>
       findingIds.has(findingId),
     );
@@ -994,7 +997,7 @@ function rootCauseEvidenceUnits(
 function calibrateRootCause(
   observations: Observation[],
   findings: Finding[],
-  nonPassingObservations: Observation[],
+  rootCauseSignals: Observation[],
   evidenceUnits: RootCauseEvidenceUnit[],
 ): ObservationCalibration {
   const sensorCount = new Set(
@@ -1008,7 +1011,7 @@ function calibrateRootCause(
   const observationKindsPresent = new Set(observations.map((observation) => observation.kind));
   const basis = [
     `${signalCount} independent evidence unit(s)`,
-    `${nonPassingObservations.length} non-passing observation(s)`,
+    `${rootCauseSignals.length} failed-or-errored observation(s)`,
     `${findings.length} primary finding(s)`,
     `${sensorCount} sensor(s)`,
   ];
