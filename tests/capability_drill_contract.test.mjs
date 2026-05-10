@@ -34,7 +34,8 @@ test(
       result.stdout,
       /\[pass\] surf explore exercises the shipped wrapper path \(shim\)/,
     );
-    assert.match(result.stdout, /\[pass\] capability drill complete \(11 checks, surf_mode=shim\)/);
+    assert.match(result.stdout, /\[pass\] test command exercises surf orchestrator agent \(shim\)/);
+    assert.match(result.stdout, /\[pass\] capability drill complete \(12 checks, surf_mode=shim\)/);
   },
 );
 
@@ -50,7 +51,7 @@ test("capability drill script emits machine-readable JSON", { timeout: 20000 }, 
 
   assert.equal(payload.ok, true);
   assert.equal(payload.surfMode, "shim");
-  assert.equal(payload.summary.total, 11);
+  assert.equal(payload.summary.total, 12);
   assert.equal(payload.summary.failed, 0);
   assert.equal(
     payload.checks.some(

@@ -249,13 +249,13 @@ npm run capability:drill
 ```
 
 This repo-local harness exercises the currently shipped capabilities against deterministic local fixtures.
-By default it auto-detects `surf`: if `surf` is on `PATH`, the drill uses the real command; otherwise it installs a temporary shim so the wrapper path can still be verified.
+By default it auto-detects Surf Go; `--surf-mode shim` forces a deterministic temporary `surf-go` shim so the wrapper path can be verified without a browser host. Real mode accepts `surf-go` or the workspace `softwareco/contrib/surf-cli-go` checkout.
 
 ```bash
-# Force the deterministic surf shim
+# Force the deterministic surf-go shim
 bash ./scripts/capability-drill.sh --surf-mode shim
 
-# Require a real surf install
+# Require a real Surf runtime
 bash ./scripts/capability-drill.sh --surf-mode real
 
 # Emit machine-readable JSON for CI / agent consumers

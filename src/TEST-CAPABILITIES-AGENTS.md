@@ -24,7 +24,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 ### Supported CLI/runtime surfaces
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
   - non-URL targets override `targets.cli`
-  - URL targets override `targets.web` when `quantum.enabled: true` or an enabled `bombadil` agent provides the supported web runtime path
+  - URL targets override `targets.web` when `quantum.enabled: true` or an enabled `bombadil`/`surf` agent provides the supported web runtime path
   - URL targets do not replace `targets.cli` when `cli-tester` is still enabled for the run
 - `test-capabilities surf explore --url <url>`
 - `test-capabilities quantum --target <url> [--branches <n>] [--collapse]`
@@ -32,9 +32,11 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 
 ### Supported orchestrator path today
 - `bombadil` agent
+- `surf` agent
 - `cli-tester` agent
 - `correlation: true`
 - `quantum` when `targets.web` is present
+- Surf Go runtime resolution: `TEST_CAPABILITIES_SURF_GO_BIN` → `TEST_CAPABILITIES_SURF_GO_REPO` → workspace `surf-cli-go` checkout → `surf-go` on `PATH`
 - Bombadil binary resolution: `TEST_CAPABILITIES_BOMBADIL_BIN` → built `TEST_CAPABILITIES_BOMBADIL_REPO` / local `softwareco/contrib/bombadil` → repo-local `external/bombadil` → `bombadil` on `PATH`
 
 ### Unsupported in the current CLI wrapper

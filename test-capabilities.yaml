@@ -1,7 +1,7 @@
 # TEST-CAPABILITIES configuration template
 # Capability-backed contract (current orchestrator support):
-# - implemented: bombadil + cli-tester agents, correlation, quantum simulation
-# - unsupported when enabled: surf, api-fuzzer, prediction, self-healing, collective, chaos
+# - implemented: bombadil + surf + cli-tester agents, correlation, quantum simulation
+# - unsupported when enabled: api-fuzzer, prediction, self-healing, collective, chaos
 
 version: '2.0'
 name: 'CLI Smoke Suite'
@@ -9,6 +9,8 @@ name: 'CLI Smoke Suite'
 targets:
   # Replace with the command or executable you want the orchestrator to validate.
   cli: './bin/myapp'
+  # Required when enabling the surf or Bombadil web agents.
+  # web: 'https://example.com'
 
 agents:
   cli:
@@ -16,12 +18,15 @@ agents:
     type: cli-tester
     intensity: normal
 
-  # Unsupported roadmap placeholders — keep disabled until the orchestrator supports them.
+  # Supported Surf web exploration path; enable it only when targets.web is set and
+  # Surf Go is resolvable (TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO,
+  # the workspace surf-cli-go checkout, or surf-go on PATH).
   web:
     enabled: false
     type: surf
     intensity: normal
 
+  # Unsupported roadmap placeholder — keep disabled until the orchestrator supports it.
   api:
     enabled: false
     type: api-fuzzer

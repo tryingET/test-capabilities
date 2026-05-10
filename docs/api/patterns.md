@@ -109,7 +109,7 @@ If you cloned the Bombadil source repo, build it first so `target/release|debug/
 test-capabilities surf explore --url https://example.com
 ```
 
-Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside the installed `surf` binary.
+Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside Surf Go. The CLI/orchestrator exploration path resolves `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the workspace `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`; the broader `SurfClient` library uses the same Surf Go runtime standard and fails closed for unmapped methods.
 
 ---
 

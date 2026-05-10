@@ -4,6 +4,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { resolveSurfRuntimeCommand } from "../core/surf-runtime.js";
 
 // ============================================
 // TYPES
@@ -619,7 +620,8 @@ export class SurfClient {
 
   private async run(command: string, args: string[] = []): Promise<SurfActionResult> {
     return new Promise((resolve, reject) => {
-      const proc = spawn("surf", [command, ...args], {
+      const runtime = resolveSurfRuntimeCommand(command, args);
+      const proc = spawn(runtime.command, runtime.args, {
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -643,11 +645,16 @@ export class SurfClient {
           return;
         }
 
-        reject(new Error((stderr || stdout).trim() || `surf ${command} exited with code ${code}`));
+        reject(
+          new Error(
+            (stderr || stdout).trim() ||
+              `${runtime.commandDisplay.join(" ")} exited with code ${code}`,
+          ),
+        );
       });
 
       proc.on("error", (err) => {
-        reject(new Error(`Failed to run surf ${command}: ${err.message}`));
+        reject(new Error(`Failed to run ${runtime.commandDisplay.join(" ")}: ${err.message}`));
       });
     });
   }

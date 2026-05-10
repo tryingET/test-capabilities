@@ -63,6 +63,17 @@ test("assertMeaningfulTestTargetOverride fails closed only for inert URL targets
       },
     },
   };
+  const surfEnabled = {
+    ...quantumDisabled,
+    targets: { ...quantumDisabled.targets, web: "https://example.com" },
+    agents: {
+      web: {
+        enabled: true,
+        type: "surf",
+        intensity: "normal",
+      },
+    },
+  };
 
   assert.doesNotThrow(() => assertMeaningfulTestTargetOverride(process.execPath, quantumDisabled));
   assert.doesNotThrow(() =>
@@ -71,6 +82,7 @@ test("assertMeaningfulTestTargetOverride fails closed only for inert URL targets
   assert.doesNotThrow(() =>
     assertMeaningfulTestTargetOverride("https://example.com", bombadilEnabled),
   );
+  assert.doesNotThrow(() => assertMeaningfulTestTargetOverride("https://example.com", surfEnabled));
   assert.throws(
     () => assertMeaningfulTestTargetOverride("https://example.com", quantumDisabled),
     /URL targets for 'test' require a real web-consuming runtime path/,

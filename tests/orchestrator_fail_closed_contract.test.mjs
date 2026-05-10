@@ -21,6 +21,42 @@ function withFakeBombadil(script) {
   };
 }
 
+function withFakeSurfGo(script) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-surf-go-"));
+  const surfGoPath = path.join(dir, "surf-go");
+  writeFileSync(surfGoPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+
+  return {
+    path: surfGoPath,
+    dir,
+    cleanup() {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+function withSurfGoEnv(binaryPath, callback) {
+  const previousBin = process.env.TEST_CAPABILITIES_SURF_GO_BIN;
+  const previousRepo = process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+  process.env.TEST_CAPABILITIES_SURF_GO_BIN = binaryPath;
+  delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+
+  return Promise.resolve()
+    .then(callback)
+    .finally(() => {
+      if (previousBin === undefined) {
+        delete process.env.TEST_CAPABILITIES_SURF_GO_BIN;
+      } else {
+        process.env.TEST_CAPABILITIES_SURF_GO_BIN = previousBin;
+      }
+      if (previousRepo === undefined) {
+        delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+      } else {
+        process.env.TEST_CAPABILITIES_SURF_GO_REPO = previousRepo;
+      }
+    });
+}
+
 test("orchestrator rejects configs with no enabled agents", async () => {
   await assert.rejects(
     async () =>
@@ -41,9 +77,9 @@ test("orchestrator rejects enabled unsupported agent types", () => {
         name: "Unsupported Agent",
         targets: { web: "https://example.com", cli: process.execPath },
         agents: {
-          web: {
+          api: {
             enabled: true,
-            type: "surf",
+            type: "api-fuzzer",
             intensity: "normal",
           },
         },
@@ -68,6 +104,25 @@ test("bombadil agent requires targets.web", () => {
         },
       }),
     /The enabled 'bombadil' agent requires targets\.web/,
+  );
+});
+
+test("surf agent requires targets.web", () => {
+  assert.throws(
+    () =>
+      new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Missing Surf Target",
+        targets: { cli: process.execPath },
+        agents: {
+          web: {
+            enabled: true,
+            type: "surf",
+            intensity: "normal",
+          },
+        },
+      }),
+    /The enabled 'surf' agent requires targets\.web/,
   );
 });
 
@@ -256,6 +311,188 @@ test(
       } else {
         process.env.TEST_CAPABILITIES_BOMBADIL_BIN = previousBinary;
       }
+    }
+  },
+);
+
+test(
+  "surf agent reports successful exploration as measured user-flow coverage",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurfGo(`
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '{ "success": true, "url": "https://example.com" }\n'
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
+
+    try {
+      await withSurfGoEnv(fake.path, async () => {
+        const result = await new TestCapabilitiesOrchestrator({
+          version: "2.0",
+          name: "Surf Success",
+          targets: { web: "https://example.com" },
+          agents: {
+            web: {
+              enabled: true,
+              type: "surf",
+              intensity: "normal",
+            },
+          },
+          intelligence: {
+            selfHealing: false,
+            prediction: false,
+            correlation: true,
+            collective: false,
+          },
+          quantum: { enabled: false },
+          chaos: { enabled: false },
+        }).run();
+
+        assert.equal(result.passed, true);
+        assert.equal(result.findings.length, 0);
+        assert.equal(result.coverage.userFlows, 100);
+        assert.equal(result.coverage.overall, 100);
+        assert.deepEqual(result.coverage.measuredDimensions, ["userFlows"]);
+      });
+    } finally {
+      fake.cleanup();
+    }
+  },
+);
+
+test(
+  "surf agent rejects empty successful processes as fake coverage",
+  { concurrency: false },
+  async () => {
+    await withSurfGoEnv("/bin/true", async () => {
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Surf Empty Success",
+        targets: { web: "https://example.com" },
+        agents: {
+          web: {
+            enabled: true,
+            type: "surf",
+            intensity: "normal",
+          },
+        },
+        intelligence: {
+          selfHealing: false,
+          prediction: false,
+          correlation: true,
+          collective: false,
+        },
+        quantum: { enabled: false },
+        chaos: { enabled: false },
+      }).run();
+
+      assert.equal(result.passed, false);
+      assert.equal(result.coverage.overall, 0);
+      assert.equal(
+        result.findings.some((finding) =>
+          finding.evidence.some((entry) => /produced no runtime evidence/.test(entry)),
+        ),
+        true,
+      );
+    });
+  },
+);
+
+test("surf agent rejects non-browser stdout as fake coverage", { concurrency: false }, async () => {
+  const fake = withFakeSurfGo('echo surf-go fake "$@"');
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Surf Non Evidence",
+        targets: { web: "https://example.com" },
+        agents: {
+          web: {
+            enabled: true,
+            type: "surf",
+            intensity: "normal",
+          },
+        },
+        intelligence: {
+          selfHealing: false,
+          prediction: false,
+          correlation: true,
+          collective: false,
+        },
+        quantum: { enabled: false },
+        chaos: { enabled: false },
+      }).run();
+
+      assert.equal(result.passed, false);
+      assert.equal(result.coverage.overall, 0);
+      assert.equal(
+        result.findings.some((finding) =>
+          finding.evidence.some((entry) => /produced no verified browser evidence/.test(entry)),
+        ),
+        true,
+      );
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test(
+  "surf agent surfaces runtime failures as critical findings",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeSurfGo("echo surf-go exploded >&2\nexit 9");
+
+    try {
+      await withSurfGoEnv(fake.path, async () => {
+        const result = await new TestCapabilitiesOrchestrator({
+          version: "2.0",
+          name: "Surf Failure",
+          targets: { web: "https://example.com" },
+          agents: {
+            web: {
+              enabled: true,
+              type: "surf",
+              intensity: "normal",
+            },
+          },
+          intelligence: {
+            selfHealing: false,
+            prediction: false,
+            correlation: true,
+            collective: false,
+          },
+          quantum: { enabled: false },
+          chaos: { enabled: false },
+        }).run();
+
+        assert.equal(result.passed, false);
+        assert.equal(result.coverage.overall, 0);
+        assert.equal(
+          result.findings.some((finding) =>
+            /Surf runtime could not complete/.test(finding.description),
+          ),
+          true,
+        );
+        assert.equal(
+          result.findings.some((finding) =>
+            finding.evidence.some((entry) => /surf-go exploded/.test(entry)),
+          ),
+          true,
+        );
+      });
+    } finally {
+      fake.cleanup();
     }
   },
 );

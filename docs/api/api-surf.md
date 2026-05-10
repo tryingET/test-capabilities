@@ -10,7 +10,7 @@ type: "reference"
 
 > Browser automation via surf-cli.
 
-`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, while richer browser behavior is exposed programmatically through this surface.
+`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, while richer browser behavior is exposed programmatically through this surface. Surf Go is the standard runtime for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the workspace `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`. Only commands with explicit Surf Go adapter mappings are routed, and unmapped methods fail closed until verified.
 
 ---
 
@@ -98,7 +98,7 @@ await surf.click("//button[@type='submit']");
 await surf.click(100, 200);
 ```
 
-Any string that is **not** a surf element ref like `e5` is now routed through surf's explicit `--selector` channel so generic CSS selectors and XPath-style selectors are not misclassified as positional click arguments.
+Any string that is **not** a surf element ref like `e5` is now routed through Surf Go's explicit selector payload so generic CSS selectors and XPath-style selectors are not misclassified as positional click arguments.
 
 ### `type(text, options?)`
 

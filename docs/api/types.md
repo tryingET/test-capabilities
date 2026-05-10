@@ -97,7 +97,8 @@ Schema note:
 - all four `type` values are valid at parse time
 
 Runtime capability note:
-- `bombadil` and `cli-tester` are currently supported by the fail-closed orchestrator path
+- `bombadil`, `surf`, and `cli-tester` are currently supported by the fail-closed orchestrator path
+- `surf` requires `targets.web` plus a resolvable Surf Go runtime (`TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, workspace `surf-cli-go`, or `surf-go` on `PATH`)
 - `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout pointed to by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH`
 
 ### `IntelligenceConfig`
@@ -460,15 +461,26 @@ interface SurfExploreOperationResultEnvelope {
     file?: string;
   };
   result: {
-    command: 'surf';
+    command: string;
     args: string[];
+    runtime?: {
+      flavor: 'surf-go';
+      provider: string;
+      resolutionNotes: string[];
+    };
     stdout: string;
     stderr: string;
     code: number;
+    evidence: {
+      verified: true;
+      url: string;
+      signal: string;
+    };
   };
 }
 ```
 
 Runtime note:
 - `url` is required and is the only implemented `surf explore` option today
+- the operation navigates with Surf Go and then verifies a browser-state probe containing the target URL before returning `evidence.verified: true`
 - `depth`, `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path

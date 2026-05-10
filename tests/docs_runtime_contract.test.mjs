@@ -14,8 +14,9 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
-  assert.match(cliDoc, /enabled `bombadil` agent/);
+  assert.match(cliDoc, /enabled `bombadil` or `surf` agent/);
   assert.match(cliDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
+  assert.match(cliDoc, /surf-go/);
   assert.match(cliDoc, /softwareco\/contrib\/bombadil/);
   assert.match(
     cliDoc,
@@ -45,8 +46,9 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   const configDoc = load("docs/api/config.md");
 
   assert.match(configDoc, /Rejected top-level keys/);
-  assert.match(configDoc, /Runtime-supported types:\s*- `bombadil`\s*- `cli-tester`/s);
+  assert.match(configDoc, /Runtime-supported types:\s*- `bombadil`\s*- `surf`\s*- `cli-tester`/s);
   assert.match(configDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
+  assert.match(configDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
   assert.doesNotMatch(configDoc, /^reporting:/m);
   assert.doesNotMatch(configDoc, /^alerts:/m);
   assert.doesNotMatch(configDoc, /^execution:/m);
@@ -115,7 +117,8 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
-  assert.match(apiReferenceDoc, /`bombadil` and\/or `cli-tester`/);
+  assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);
+  assert.match(apiReferenceDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 
@@ -143,6 +146,7 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
   assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
+  assert.match(surfDoc, /softwareco\/contrib\/surf-cli-go/);
   assert.match(surfDoc, /warning-prefixed output/i);
 });
 

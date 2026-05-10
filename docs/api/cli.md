@@ -62,13 +62,13 @@ Supported options:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--config <file>` | Path to `test-capabilities.yaml` | `test-capabilities.yaml` |
-| `--target <url-or-path>` | Override one target. Non-URLs map to `targets.cli`. URLs map to `targets.web` and are only accepted when a real web consumer is enabled for the run (currently: `quantum.enabled: true` or an enabled `bombadil` agent). | none |
+| `--target <url-or-path>` | Override one target. Non-URLs map to `targets.cli`. URLs map to `targets.web` and are only accepted when a real web consumer is enabled for the run (currently: `quantum.enabled: true` or an enabled `bombadil` or `surf` agent). | none |
 | `--quick` | Disable quantum and prediction overlays for a deterministic smoke run | `false` |
 
 Important:
-- the current supported orchestrator agents are `bombadil` and `cli-tester`
+- the current supported orchestrator agents are `bombadil`, `surf`, and `cli-tester`
 - a URL `--target` does **not** replace `targets.cli` when `cli-tester` is still enabled for the run
-- `test --quick --target https://...` still works when an enabled `bombadil` agent is the active web consumer
+- `test --quick --target https://...` still works when an enabled `bombadil` or `surf` agent is the active web consumer
 - Bombadil resolution order is `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`
 - an unbuilt contrib/source checkout does not override the fallback chain; the runtime reports that you still need a built `target/release|debug/bombadil` plus upstream `trunk`/`esbuild` prerequisites (or the Bombadil Nix shell)
 
@@ -87,8 +87,8 @@ Accepted but currently unsupported options:
 
 ### `test-capabilities surf explore`
 
-Run the real surf CLI through the supported `explore` action.
-An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs.
+Run the resolved Surf Go (`surf-go`) runtime through the supported `explore` action. `test-capabilities surf explore --url <url>` invokes Surf Go as `navigate --url <url>`, then runs a browser-state JavaScript probe and verifies that the observed page state matches the target URL before reporting coverage.
+An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs. Non-empty stdout is not evidence by itself: help text, warnings, and target URLs without a matching browser-state probe fail closed as unverified coverage.
 
 ```bash
 test-capabilities surf explore --url https://example.com

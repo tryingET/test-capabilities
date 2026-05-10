@@ -106,7 +106,7 @@ program
   .description("Run autonomous testing suite")
   .option(
     "-t, --target <target>",
-    "CLI command/path target, or a URL when a real web consumer is enabled (currently: quantum or an enabled bombadil agent)",
+    "CLI command/path target, or a URL when a real web consumer is enabled (currently: quantum or an enabled bombadil/surf agent)",
   )
   .option("-c, --config <file>", "Configuration file", "test-capabilities.yaml")
   .option("-a, --autonomous", "Enable full autonomous mode")

@@ -32,17 +32,40 @@ const {
   throwUnsupportedCommand,
 } = await importRuntimeModule("core/operations/dispatch-execution.js");
 
-function withFakeSurf(script) {
+function withFakeSurfGo(script) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-operation-kernel-"));
-  const surfPath = path.join(dir, "surf");
-  writeFileSync(surfPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+  const surfGoPath = path.join(dir, "surf-go");
+  writeFileSync(surfGoPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
 
   return {
     dir,
+    path: surfGoPath,
     cleanup() {
       rmSync(dir, { recursive: true, force: true });
     },
   };
+}
+
+function withSurfGoEnv(binaryPath, callback) {
+  const previousBin = process.env.TEST_CAPABILITIES_SURF_GO_BIN;
+  const previousRepo = process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+  process.env.TEST_CAPABILITIES_SURF_GO_BIN = binaryPath;
+  delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+
+  return Promise.resolve()
+    .then(callback)
+    .finally(() => {
+      if (previousBin === undefined) {
+        delete process.env.TEST_CAPABILITIES_SURF_GO_BIN;
+      } else {
+        process.env.TEST_CAPABILITIES_SURF_GO_BIN = previousBin;
+      }
+      if (previousRepo === undefined) {
+        delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
+      } else {
+        process.env.TEST_CAPABILITIES_SURF_GO_REPO = previousRepo;
+      }
+    });
 }
 
 test("operation kernel registry and capability matrix stay aligned", () => {
@@ -123,22 +146,99 @@ test("direct executeTestOperation export stays wired to the same runtime path", 
 });
 
 test("executeCliOperation routes surf explore through the typed operation kernel", async () => {
-  const fake = withFakeSurf('printf "surf:%s\\n" "$1"\nprintf "%s\\n" "$2"');
-  const previousPath = process.env.PATH;
-  process.env.PATH = `${fake.dir}:${process.env.PATH ?? ""}`;
+  const fake = withFakeSurfGo(`
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '{ "success": true, "url": "https://example.com" }\n'
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
 
   try {
-    const result = await executeCliOperation(
-      { command: "surf", action: "explore" },
-      { url: "https://example.com" },
-    );
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await executeCliOperation(
+        { command: "surf", action: "explore" },
+        { url: "https://example.com" },
+      );
 
-    assert.equal(result.operationId, "surf.explore");
-    assert.deepEqual(result.result.args, ["go", "https://example.com"]);
-    assert.match(result.result.stdout, /surf:go/);
-    assert.match(result.result.stdout, /https:\/\/example\.com/);
+      assert.equal(result.operationId, "surf.explore");
+      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com"]);
+      assert.match(result.result.stdout, /"href": "https:\/\/example\.com"/);
+      assert.match(result.result.stdout, /"title": "Example Domain"/);
+      assert.equal(result.result.evidence.verified, true);
+    });
   } finally {
-    process.env.PATH = previousPath;
+    fake.cleanup();
+  }
+});
+
+test("executeSurfExploreOperation rejects empty successful surf-go processes", async () => {
+  await withSurfGoEnv("/bin/true", async () => {
+    await assert.rejects(
+      async () => executeSurfExploreOperation({ url: "https://example.com" }),
+      /Surf explore produced no runtime evidence/,
+    );
+  });
+});
+
+test("executeSurfExploreOperation rejects non-evidence surf stdout", async () => {
+  const fake = withFakeSurfGo('printf "%s\\n" "$@"');
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      await assert.rejects(
+        async () => executeSurfExploreOperation({ url: "https://example.com" }),
+        /produced no verified browser evidence/,
+      );
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("executeSurfExploreOperation rejects success plus target URL without browser state", async () => {
+  const fake = withFakeSurfGo(`printf '{ "success": true, "url": "https://example.com" }\n'`);
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      await assert.rejects(
+        async () => executeSurfExploreOperation({ url: "https://example.com" }),
+        /produced no verified browser evidence/,
+      );
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("executeSurfExploreOperation accepts Surf Go YAML probe browser state evidence", async () => {
+  const fake = withFakeSurfGo(`
+cmd="$1"
+if [ "$cmd" = "js" ]; then
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf -- '---\n__testCapabilitiesSurfExploreProbe: %s\ncurrentUrl: https://example.com\ntitle: Example Domain\n---\n' "$probe"
+  exit 0
+fi
+printf '{ "success": true, "url": "https://example.com" }\n'
+`);
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await executeSurfExploreOperation({ url: "https://example.com" });
+
+      assert.equal(result.operationId, "surf.explore");
+      assert.equal(result.result.evidence.verified, true);
+      assert.match(result.result.evidence.signal, /structured currentUrl/);
+    });
+  } finally {
     fake.cleanup();
   }
 });
@@ -154,19 +254,58 @@ test("executeCliOperation rejects surf explore flags that are not wired to runti
   );
 });
 
-test("direct executeSurfExploreOperation export stays wired to the surf runtime helper", async () => {
-  const fake = withFakeSurf('printf "surf:%s\\n" "$1"\nprintf "%s\\n" "$2"');
-  const previousPath = process.env.PATH;
-  process.env.PATH = `${fake.dir}:${process.env.PATH ?? ""}`;
+test("executeSurfExploreOperation rejects navigate success when the browser-state probe has no URL", async () => {
+  const fake = withFakeSurfGo(`
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '{ "success": true, "url": "https://example.com" }\n'
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  printf 'loading: false\ntitle: Example Domain\n'
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
 
   try {
-    const result = await executeSurfExploreOperation({ url: "https://example.com" });
-
-    assert.equal(result.operationId, "surf.explore");
-    assert.deepEqual(result.result.args, ["go", "https://example.com"]);
-    assert.match(result.result.stdout, /surf:go/);
+    await withSurfGoEnv(fake.path, async () => {
+      await assert.rejects(
+        async () => executeSurfExploreOperation({ url: "https://example.com" }),
+        /produced no verified browser evidence/,
+      );
+    });
   } finally {
-    process.env.PATH = previousPath;
+    fake.cleanup();
+  }
+});
+
+test("direct executeSurfExploreOperation export stays wired to the surf-go runtime helper", async () => {
+  const fake = withFakeSurfGo(`
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '{ "success": true, "url": "https://example.com" }\n'
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
+  exit 0
+fi
+printf '%s\n' "$@"
+`);
+
+  try {
+    await withSurfGoEnv(fake.path, async () => {
+      const result = await executeSurfExploreOperation({ url: "https://example.com" });
+
+      assert.equal(result.operationId, "surf.explore");
+      assert.deepEqual(result.result.args, ["navigate", "--url", "https://example.com"]);
+      assert.match(result.result.stdout, /href/);
+      assert.equal(result.result.evidence.signal, "structured href with browser state");
+    });
+  } finally {
     fake.cleanup();
   }
 });

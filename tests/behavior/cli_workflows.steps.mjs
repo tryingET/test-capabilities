@@ -69,9 +69,10 @@ chaos:
 Given("a fake surf executable is on PATH that prints:", function (scriptBody) {
   const binDir = path.join(this.cwd, "bin");
   mkdirSync(binDir, { recursive: true });
-  const surfPath = path.join(binDir, "surf");
-  writeFileSync(surfPath, `#!/bin/sh\n${scriptBody.trim()}\n`, { mode: 0o755 });
+  const surfGoPath = path.join(binDir, "surf-go");
+  writeFileSync(surfGoPath, `#!/bin/sh\n${scriptBody.trim()}\n`, { mode: 0o755 });
   this.env.PATH = `${binDir}${path.delimiter}${this.env.PATH ?? ""}`;
+  this.env.TEST_CAPABILITIES_SURF_GO_BIN = surfGoPath;
 });
 
 When("I run the TEST-CAPABILITIES CLI with:", function (dataTable) {

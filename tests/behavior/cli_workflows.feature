@@ -19,8 +19,17 @@ Feature: documented CLI workflows stay executable
     And the docs file "docs/api/cli.md" contains "test-capabilities surf explore --url https://example.com"
     And a fake surf executable is on PATH that prints:
       """
-      printf "surf:%s\n" "$1"
-      printf "%s\n" "$2"
+      cmd="$1"
+      if [ "$cmd" = "navigate" ]; then
+        printf '{ "success": true, "url": "https://example.com" }\n'
+        exit 0
+      fi
+      if [ "$cmd" = "js" ]; then
+        probe=$(printf '%s' "$*" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n 1)
+        printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
+        exit 0
+      fi
+      printf '%s\n' "$@"
       """
     When I run the TEST-CAPABILITIES CLI with:
       | surf |
@@ -29,7 +38,7 @@ Feature: documented CLI workflows stay executable
       | https://example.com |
     Then the command exits with code 0
     And the combined output contains "Surf explore complete."
-    And the combined output contains "surf:go"
+    And the combined output contains "href"
     And the combined output contains "https://example.com"
 
   Scenario: quantum requires an explicit target

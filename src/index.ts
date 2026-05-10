@@ -67,6 +67,7 @@ export {
   TestCapabilitiesOrchestrator,
   TestCapabilitiesOrchestrator as NexusOrchestrator,
 } from "./core/orchestrator.js";
+export { resolveSurfRuntimeCommand, resolveSurfRuntimeResolution } from "./core/surf-runtime.js";
 export type {
   ElementSnapshot,
   HealingContext,

@@ -52,6 +52,72 @@ test("CLI test command rejects URL overrides when no supported web consumer is e
   );
 });
 
+test("CLI test command accepts URL overrides when surf is the supported web consumer", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-surf-"));
+  const fakeSurfGo = path.join(tempDir, "surf-go");
+  const configPath = path.join(tempDir, "surf-config.yaml");
+
+  writeFileSync(
+    fakeSurfGo,
+    `#!/bin/sh
+cmd="$1"
+if [ "$cmd" = "navigate" ]; then
+  printf '{ "success": true, "url": "https://example.com" }\n'
+  exit 0
+fi
+if [ "$cmd" = "js" ]; then
+  probe=\${2#*\\"}
+  probe=\${probe%%\\"*}
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
+  exit 0
+fi
+printf '%s\n' "$@"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    configPath,
+    [
+      "version: '2.0'",
+      "name: 'Surf CLI Contract'",
+      "targets:",
+      "  web: 'https://placeholder.example.com'",
+      "agents:",
+      "  web:",
+      "    enabled: true",
+      "    type: surf",
+      "    intensity: normal",
+      "intelligence:",
+      "  self_healing: false",
+      "  prediction: false",
+      "  correlation: true",
+      "  collective: false",
+      "quantum:",
+      "  enabled: false",
+      "chaos:",
+      "  enabled: false",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(
+      ["test", "--config", configPath, "--target", "https://example.com", "--quick"],
+      {
+        PATH: `${tempDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        TEST_CAPABILITIES_SURF_GO_BIN: fakeSurfGo,
+      },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Health:\s+pass/);
+    assert.match(`${result.stdout}\n${result.stderr}`, /user=100%/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("CLI test command accepts URL overrides when bombadil is the supported web consumer", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-bombadil-"));
   const fakeBombadil = path.join(tempDir, "bombadil");

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { QuantumTestRunner } from "../quantum/simulator.js";
 import { runBombadil } from "./bombadil-runtime.js";
 import { validateCapabilityContract } from "./capabilities.js";
+import { executeSurfExploreOperation } from "./operations/surf-explore-operation.js";
 
 // ============================================
 // TYPES & SCHEMAS
@@ -338,6 +339,10 @@ export class TestCapabilitiesOrchestrator {
           this.agents.set(name, new BombadilAgent(name, durationMs));
           break;
         }
+        case "surf": {
+          this.agents.set(name, new SurfAgent(name));
+          break;
+        }
         case "cli-tester": {
           const timeoutMs = parseDurationToMs(agentConfig.duration, DEFAULT_CLI_TESTER_TIMEOUT_MS);
           this.agents.set(name, new CliTesterAgent(name, timeoutMs));
@@ -345,7 +350,7 @@ export class TestCapabilitiesOrchestrator {
         }
         default:
           throw new Error(
-            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'bombadil' and 'cli-tester' are currently backed by the orchestrator runtime.`,
+            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'bombadil', 'surf', and 'cli-tester' are currently backed by the orchestrator runtime.`,
           );
       }
     }
@@ -707,6 +712,60 @@ class BombadilAgent implements TestAgent {
       ],
       coverage: { edgeCases: 0 },
     };
+  }
+}
+
+class SurfAgent implements TestAgent {
+  private readonly agentName: string;
+
+  constructor(agentName: string) {
+    this.agentName = agentName;
+  }
+
+  async execute(targets: Target): Promise<AgentResult> {
+    if (!targets.web) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-missing-web-target`,
+            type: "bug",
+            severity: "critical",
+            component: "web",
+            description: "Web target is missing for the surf agent",
+            evidence: ["targets.web was not configured"],
+            recommendation:
+              "Set targets.web to a valid URL before running the surf-backed orchestrator path.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { userFlows: 0 },
+      };
+    }
+
+    try {
+      const envelope = await executeSurfExploreOperation({ url: targets.web });
+      return {
+        findings: [],
+        coverage: { userFlows: envelope.result.evidence.verified ? 100 : 0 },
+      };
+    } catch (error) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-runtime-failed`,
+            type: "bug",
+            severity: "critical",
+            component: "web",
+            description: `Surf runtime could not complete against ${targets.web}`,
+            evidence: [error instanceof Error ? error.message : String(error)],
+            recommendation:
+              "Ensure Surf Go is resolvable through TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, then re-run the suite.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { userFlows: 0 },
+      };
+    }
   }
 }
 

@@ -234,14 +234,16 @@ base_url="http://127.0.0.1:${server_port}"
 
 case "$surf_mode" in
   auto)
-    if command -v surf >/dev/null 2>&1; then
+    if command -v surf-go >/dev/null 2>&1 || [[ -f "$repo_root/../../contrib/surf-cli-go/go/cmd/surf-go/main.go" ]]; then
       surf_mode="real"
     else
       surf_mode="shim"
     fi
     ;;
   real)
-    command -v surf >/dev/null 2>&1 || die "surf setup" "surf_mode=real requested but 'surf' is not on PATH"
+    if ! command -v surf-go >/dev/null 2>&1 && [[ ! -f "$repo_root/../../contrib/surf-cli-go/go/cmd/surf-go/main.go" ]]; then
+      die "surf setup" "surf_mode=real requested but neither 'surf-go' nor the workspace contrib surf-cli-go checkout is available"
+    fi
     ;;
   shim)
     ;;
@@ -249,23 +251,67 @@ esac
 
 if [[ "$surf_mode" == "shim" ]]; then
   mkdir -p "$tmpdir/shim-bin"
-  cat >"$tmpdir/shim-bin/surf" <<'SH'
+  export TEST_CAPABILITIES_SURF_SHIM_STATE="$tmpdir/shim-surf-url"
+  cat >"$tmpdir/shim-bin/surf-go" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 cmd="${1-}"
 shift || true
-case "$cmd" in
-  go)
-    printf 'surf-shim go %s\n' "${1-}"
-    ;;
-  *)
-    printf 'surf-shim %s %s\n' "$cmd" "$*"
-    ;;
-esac
+if [[ "$cmd" == "navigate" ]]; then
+  target_url=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --url)
+        target_url="${2-}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  printf '%s' "$target_url" >"${TEST_CAPABILITIES_SURF_SHIM_STATE:?}"
+  printf '{ "success": true, "url": "%s" }\n' "$target_url"
+  exit 0
+fi
+if [[ "$cmd" == "js" ]]; then
+  target_url="$(cat "${TEST_CAPABILITIES_SURF_SHIM_STATE:?}" 2>/dev/null || true)"
+  probe_id="$(printf '%s' "$*" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n 1)"
+  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "%s", "title": "surf-go shim page", "readyState": "complete" }\n' "$probe_id" "$target_url"
+  exit 0
+fi
+printf '%s\n' "$cmd" "$@"
 SH
-  chmod +x "$tmpdir/shim-bin/surf"
+  chmod +x "$tmpdir/shim-bin/surf-go"
+  export TEST_CAPABILITIES_SURF_GO_BIN="$tmpdir/shim-bin/surf-go"
   export PATH="$tmpdir/shim-bin:$PATH"
 fi
+
+cat >"$tmpdir/surf-smoke.yaml" <<YAML
+version: '2.0'
+name: 'Capability Drill Surf Smoke'
+
+targets:
+  web: '$base_url'
+
+agents:
+  web:
+    enabled: true
+    type: surf
+    intensity: normal
+
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false
+YAML
 
 run_success \
   "test command succeeds on a real CLI smoke target" \
@@ -354,6 +400,12 @@ run_success \
 if [[ "$surf_mode" == "shim" ]]; then
   assert_last_output_contains "surf explore exercises the shipped wrapper path (${surf_mode})" "$base_url"
 fi
+
+run_success \
+  "test command exercises surf orchestrator agent (${surf_mode})" \
+  node "$repo_root/bin/test-capabilities" test --config "$tmpdir/surf-smoke.yaml" --quick
+assert_last_output_contains "test command exercises surf orchestrator agent (${surf_mode})" "Health:  pass"
+assert_last_output_contains "test command exercises surf orchestrator agent (${surf_mode})" "user=100%"
 
 run_failure_contains \
   "surf explore rejects invalid URLs" \

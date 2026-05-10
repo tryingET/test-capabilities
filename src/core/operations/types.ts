@@ -82,11 +82,21 @@ export interface SurfExploreOperationResultEnvelope {
   operationId: "surf.explore";
   input: Required<Pick<SurfExploreOperationInput, "url">> & Omit<SurfExploreOperationInput, "url">;
   result: {
-    command: "surf";
+    command: string;
     args: string[];
+    runtime?: {
+      flavor: "surf-go";
+      provider: string;
+      resolutionNotes: string[];
+    };
     stdout: string;
     stderr: string;
     code: number;
+    evidence: {
+      verified: true;
+      url: string;
+      signal: string;
+    };
   };
 }
 
