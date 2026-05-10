@@ -176,7 +176,7 @@ What it checks today:
 - finding-only, mixed-class evidence, all-passing linked sensors, single-sensor multi-finding, unobserved conflicting findings, and partially observed evidence pairs do not emit `root_cause`
 - root-cause output excludes prediction language and synthetic `corr-*` IDs
 
-Machine-readable mode emits per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:
+Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:
 
 ```bash
 npm run --silent root-cause:corpus -- --json

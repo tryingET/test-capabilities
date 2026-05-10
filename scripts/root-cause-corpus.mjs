@@ -510,6 +510,73 @@ function apiSchemaExceptionAgent(agent) {
   });
 }
 
+function summarizeCoverage(entries) {
+  const increment = (map, key) => {
+    map[key] = (map[key] ?? 0) + 1;
+  };
+  const expectedClasses = {};
+  const actualClasses = {};
+  const subjects = {};
+
+  for (const entry of entries) {
+    increment(expectedClasses, entry.expected);
+    increment(actualClasses, entry.actual);
+    if (entry.subject) {
+      increment(subjects, entry.subject);
+    }
+  }
+
+  return {
+    total: entries.length,
+    positiveRootCauseCases: entries.filter((entry) => entry.expected !== "none").length,
+    noRootCauseCases: entries.filter((entry) => entry.expected === "none").length,
+    highCalibrationRootCauseCases: entries.filter(
+      (entry) => entry.expected !== "none" && entry.calibration?.level === "high",
+    ).length,
+    expectedClasses,
+    actualClasses,
+    subjects,
+  };
+}
+
+function assertCoverageFloors(coverage) {
+  const requiredExpectedClasses = [
+    "none",
+    "browser_coverage_gap",
+    "command_resolution",
+    "component_failure_surface",
+    "contract_mismatch",
+    "property_violation",
+    "selector_or_dom_drift",
+    "timeout_or_latency",
+  ];
+
+  assert.equal(coverage.total, cases.length, "coverage summary must account for every case");
+  assert.ok(coverage.total >= 35, "root-cause corpus must keep at least 35 cases");
+  assert.ok(
+    coverage.positiveRootCauseCases >= 20,
+    "root-cause corpus must keep at least 20 positive root-cause cases",
+  );
+  assert.ok(
+    coverage.noRootCauseCases >= 8,
+    "root-cause corpus must keep at least 8 no-root-cause guardrail cases",
+  );
+  assert.equal(
+    coverage.highCalibrationRootCauseCases,
+    coverage.positiveRootCauseCases,
+    "every positive root-cause case must remain highly calibrated",
+  );
+  for (const expectedClass of requiredExpectedClasses) {
+    assert.ok(
+      coverage.expectedClasses[expectedClass] > 0,
+      `root-cause corpus must include expected class ${expectedClass}`,
+    );
+  }
+  for (const subject of ["api", "cli", "web"]) {
+    assert.ok(coverage.subjects[subject] > 0, `root-cause corpus must include subject ${subject}`);
+  }
+}
+
 async function executeCase(definition) {
   const orchestrator = new TestCapabilitiesOrchestrator(baseConfig(definition.name));
   orchestrator.agents = new Map(Object.entries(definition.agents));
@@ -1429,11 +1496,15 @@ try {
     await executeCase(testCase);
   }
 
+  const coverage = summarizeCoverage(results);
+  assertCoverageFloors(coverage);
+
   const payload = {
     ok: true,
     total: results.length,
     passed: results.length,
     failed: 0,
+    coverage,
     cases: results,
   };
 

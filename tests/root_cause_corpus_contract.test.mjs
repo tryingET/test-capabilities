@@ -137,6 +137,16 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   assert.equal(payload.total, 35);
   assert.equal(payload.failed, 0);
+  assert.equal(payload.coverage.total, 35);
+  assert.equal(payload.coverage.noRootCauseCases, 12);
+  assert.equal(payload.coverage.positiveRootCauseCases, 23);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 23);
+  assert.equal(payload.coverage.expectedClasses.none, 12);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 7);
+  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 6);
+  assert.equal(payload.coverage.subjects.api, 17);
+  assert.equal(payload.coverage.subjects.cli, 5);
+  assert.equal(payload.coverage.subjects.web, 13);
   assert.equal(
     payload.cases.some(
       (entry) =>
