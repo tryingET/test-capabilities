@@ -53,6 +53,7 @@
     "docs:list:json": "bash ./scripts/docs-list.sh --json",
     "tech-stack": "bash ./scripts/tech-stack.sh",
     "capability:drill": "bash ./scripts/capability-drill.sh",
+    "root-cause:corpus": "npm run build --silent && node ./scripts/root-cause-corpus.mjs",
     "bombadil:smoke": "bash ./scripts/bombadil-rich-smoke.sh",
     "capability:passport": "npm run build --silent && node ./scripts/generate-capability-passport.mjs",
     "screening:witness-refresh": "bash ./scripts/screening/ts-quality-witness-refresh.sh",

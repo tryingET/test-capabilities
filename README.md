@@ -109,6 +109,7 @@ npm run test:property     # fast-check invariant lane for config, route selectio
 npm run test:behavior     # cucumber-backed CLI workflow scenarios mapped to docs/examples
 npm run test:ci-targeted  # CI-targeted smoke tests
 npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
+npm run root-cause:corpus # Dogfood calibrated root-cause diagnosis invariants
 npm run bombadil:smoke    # Richer Bombadil regression smoke against a deterministic local fixture
 
 # Docs discovery
@@ -155,6 +156,28 @@ bash ./scripts/capability-drill.sh --json --surf-mode shim --skip-build
 ```
 
 The JSON mode returns a structured summary with `ok`, `surfMode`, `summary`, and per-check status entries so CI or agent tooling can consume the drill result without scraping terminal text.
+
+## Root-cause calibration corpus
+
+To dogfood the calibrated diagnostic layer against deterministic fixture cases, use:
+
+```bash
+npm run root-cause:corpus
+```
+
+What it checks today:
+- single-agent CLI or Surf failures do not emit `root_cause`
+- two independent observed CLI failures classify as `command_resolution` or `timeout_or_latency`
+- two independent observed Surf failures classify as `browser_coverage_gap`
+- two independent observed Bombadil failures classify as `property_violation`
+- finding-only and partially observed evidence pairs do not emit `root_cause`
+- root-cause output excludes prediction language and synthetic `corr-*` IDs
+
+Machine-readable mode:
+
+```bash
+node ./scripts/root-cause-corpus.mjs --json
+```
 
 ## Bombadil richer smoke fixture
 
