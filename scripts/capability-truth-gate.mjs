@@ -91,7 +91,7 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 50, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 53, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
     10,
@@ -273,6 +273,29 @@ function assertRootCauseCorpusExecutes() {
   assert.ok(
     propagationNoPredictionCase,
     "root-cause corpus should verify propagation does not make prediction claims",
+  );
+
+  const cliToApiCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "CLI command resolution plus API component failure emits propagation via cli-to-api",
+  );
+  assert.ok(cliToApiCase, "root-cause corpus should cover cli-to-api propagation");
+
+  const cliToWebCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "CLI command resolution plus web component failure emits propagation via cli-to-web",
+  );
+  assert.ok(cliToWebCase, "root-cause corpus should cover cli-to-web propagation");
+
+  const customTopologyCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "Custom propagation topology emits web-to-api when defaults are disabled",
+  );
+  assert.ok(
+    customTopologyCase,
+    "root-cause corpus should cover operator-configurable propagation topology",
   );
 }
 

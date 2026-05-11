@@ -528,6 +528,64 @@ function apiSchemaExceptionAgent(agent) {
   });
 }
 
+function componentFailureAgent(agent, component, findingId) {
+  const evidence = [`${component} runtime raised TypeError during component health check`];
+  return agentResult({
+    findings: [
+      finding({
+        id: findingId,
+        component,
+        description: `${component} component health check failed during runtime probe`,
+        evidence,
+        recommendation: `Investigate ${component} runtime health before trusting downstream signals.`,
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-${component}-component-failed`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: component,
+        component,
+        summary: `${component} runtime failed during component health check.`,
+        evidence,
+        findingIds: [findingId],
+      }),
+    ],
+    coverage: component === "web" ? { userFlows: 0 } : { edgeCases: 0 },
+  });
+}
+
+function componentTimeoutAgent(agent, component, findingId) {
+  const evidence = [`${component} health check timed out after 5000ms`];
+  return agentResult({
+    findings: [
+      finding({
+        id: findingId,
+        component,
+        description: `${component} component timed out during health check`,
+        evidence,
+        recommendation: `Investigate ${component} latency before treating the timeout as isolated.`,
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-${component}-timeout`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: component,
+        component,
+        summary: `${component} runtime timed out during component health check.`,
+        evidence,
+        findingIds: [findingId],
+      }),
+    ],
+    coverage: component === "web" ? { userFlows: 0 } : { edgeCases: 0 },
+  });
+}
+
 function summarizeCoverage(entries) {
   const increment = (map, key) => {
     map[key] = (map[key] ?? 0) + 1;
@@ -613,7 +671,10 @@ function assertCoverageFloors(coverage) {
 }
 
 async function executeCase(definition) {
-  const orchestrator = new TestCapabilitiesOrchestrator(baseConfig(definition.name));
+  const orchestrator = new TestCapabilitiesOrchestrator({
+    ...baseConfig(definition.name),
+    ...(definition.config ?? {}),
+  });
   orchestrator.agents = new Map(Object.entries(definition.agents));
   const run = await orchestrator.run();
   const rootCauses = (run.observations ?? []).filter((entry) => entry.kind === "root_cause");
@@ -2291,6 +2352,114 @@ const cases = [
         ],
         coverage: { userFlows: 0 },
       }),
+    },
+  },
+  {
+    name: "CLI command resolution plus API component failure emits propagation via cli-to-api",
+    expectedRootCauses: [
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+      {
+        subject: "api",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-component-a", "api-component-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "cli-to-api",
+      link: "cli-tool-failure-blocks-api-check",
+    },
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      apiComponentA: componentFailureAgent("apiComponentA", "api", "api-component-a"),
+      apiComponentB: componentFailureAgent("apiComponentB", "api", "api-component-b"),
+    },
+  },
+  {
+    name: "CLI command resolution plus web component failure emits propagation via cli-to-web",
+    expectedRootCauses: [
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["cliA-missing", "cliB-missing"],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-component-a", "web-component-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "cli-to-web",
+      link: "cli-tool-failure-blocks-web-check",
+    },
+    agents: {
+      cliA: cliFailureAgent("cliA", "command_resolution"),
+      cliB: cliFailureAgent("cliB", "command_resolution"),
+      webComponentA: componentFailureAgent("webComponentA", "web", "web-component-a"),
+      webComponentB: componentFailureAgent("webComponentB", "web", "web-component-b"),
+    },
+  },
+  {
+    name: "Custom propagation topology emits web-to-api when defaults are disabled",
+    config: {
+      intelligence: {
+        correlation: true,
+        propagationTopology: {
+          includeDefaults: false,
+          edges: [{ upstream: "web", downstream: "api" }],
+        },
+      },
+    },
+    expectedRootCauses: [
+      {
+        subject: "web",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-config-timeout-a", "web-config-timeout-b"],
+      },
+      {
+        subject: "api",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-config-timeout-a", "api-config-timeout-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "web-to-api",
+      link: "shared-infra",
+    },
+    agents: {
+      webTimeoutA: componentTimeoutAgent("webTimeoutA", "web", "web-config-timeout-a"),
+      webTimeoutB: componentTimeoutAgent("webTimeoutB", "web", "web-config-timeout-b"),
+      apiTimeoutA: componentTimeoutAgent("apiTimeoutA", "api", "api-config-timeout-a"),
+      apiTimeoutB: componentTimeoutAgent("apiTimeoutB", "api", "api-config-timeout-b"),
     },
   },
 ];

@@ -59,14 +59,36 @@ export const AgentConfigSchema = z
   })
   .strict();
 
+const PropagationEdgeSchema = z
+  .object({
+    upstream: z.string().min(1),
+    downstream: z.string().min(1),
+  })
+  .strict();
+
+const PropagationTopologySchema = z.preprocess(
+  (value) => withAliases(value, { include_defaults: "includeDefaults" }),
+  z
+    .object({
+      edges: z.array(PropagationEdgeSchema).default([]),
+      includeDefaults: z.boolean().default(true),
+    })
+    .strict(),
+);
+
 const IntelligenceSchema = z.preprocess(
-  (value) => withAliases(value, { self_healing: "selfHealing" }),
+  (value) =>
+    withAliases(value, {
+      self_healing: "selfHealing",
+      propagation_topology: "propagationTopology",
+    }),
   z
     .object({
       selfHealing: z.boolean().default(false),
       prediction: z.boolean().default(false),
       correlation: z.boolean().default(true),
       collective: z.boolean().default(false),
+      propagationTopology: PropagationTopologySchema.optional(),
     })
     .strict(),
 );
@@ -110,6 +132,8 @@ export const TestCapabilitiesConfigSchema = z
 export type TestCapabilitiesConfig = z.infer<typeof TestCapabilitiesConfigSchema>;
 export type Target = z.infer<typeof TargetSchema>;
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
+export type PropagationEdge = z.infer<typeof PropagationEdgeSchema>;
+export type PropagationTopology = z.infer<typeof PropagationTopologySchema>;
 
 export interface Finding {
   id: string;
@@ -430,7 +454,10 @@ export class TestCapabilitiesOrchestrator {
       ? this.synthesizeRootCauses(agentObservations, correlatedFindings)
       : [];
     const propagationObservations = correlationEnabled
-      ? synthesizePropagationChains(rootCauseObservations)
+      ? synthesizePropagationChains(
+          rootCauseObservations,
+          this.config.intelligence?.propagationTopology,
+        )
       : [];
     const observations = ensureUniqueObservationIds(
       correlationEnabled
@@ -1234,11 +1261,27 @@ function getFailureClassFromRootCause(observation: Observation): string | undefi
  * They are non-authoritative and produce no output when both components lack
  * high-calibration root_cause observations.
  */
-const KNOWN_DEPENDENCY_PAIRS: [string, string][] = [
-  ["api", "web"],
-  ["cli", "api"],
-  ["cli", "web"],
+const DEFAULT_DEPENDENCY_EDGES: PropagationEdge[] = [
+  { upstream: "api", downstream: "web" },
+  { upstream: "cli", downstream: "api" },
+  { upstream: "cli", downstream: "web" },
 ];
+
+function resolvePropagationEdges(topology: PropagationTopology | undefined): PropagationEdge[] {
+  const configuredEdges = topology?.edges ?? [];
+  const edges = topology?.includeDefaults === false ? [] : [...DEFAULT_DEPENDENCY_EDGES];
+  const seen = new Set(edges.map((edge) => `${edge.upstream}\u0000${edge.downstream}`));
+
+  for (const edge of configuredEdges) {
+    const key = `${edge.upstream}\u0000${edge.downstream}`;
+    if (!seen.has(key)) {
+      edges.push(edge);
+      seen.add(key);
+    }
+  }
+
+  return edges;
+}
 
 /**
  * Infer whether an upstream failure plausibly explains a downstream failure.
@@ -1299,7 +1342,10 @@ function inferPropagationLink(
  *
  * This is non-authoritative heuristic reasoning — it does not constitute causal proof.
  */
-function synthesizePropagationChains(rootCauseObservations: Observation[]): Observation[] {
+function synthesizePropagationChains(
+  rootCauseObservations: Observation[],
+  topology?: PropagationTopology,
+): Observation[] {
   if (rootCauseObservations.length < 2) {
     return [];
   }
@@ -1316,7 +1362,7 @@ function synthesizePropagationChains(rootCauseObservations: Observation[]): Obse
     }
   }
 
-  for (const [upstream, downstream] of KNOWN_DEPENDENCY_PAIRS) {
+  for (const { upstream, downstream } of resolvePropagationEdges(topology)) {
     const upstreamObs = byComponent.get(upstream);
     const downstreamObs = byComponent.get(downstream);
     if (!upstreamObs || !downstreamObs) {

@@ -63,7 +63,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow; `--findings-input` accepts orchestrator findings JSON so proposals cite diagnostic evidence as `triggeringFindingId` |
-| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, and deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class |
+| normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class, and low-calibration non-authoritative `propagation` observations across configured dependency edges |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
 
 ### Explicitly unsupported for now
@@ -179,7 +179,8 @@ What it checks today:
 - three-sensor agreement produces high-calibration `root_cause` with signalCount and sensorCount reflecting all three observers
 - independent Bombadil + CLI failures emit two component-scoped `root_cause` observations (property_violation + command_resolution)
 - three-way simultaneous Surf + CLI + API failures emit three component-scoped `root_cause` observations
-- root-cause output excludes prediction language and synthetic `corr-*` IDs
+- propagation synthesis covers default `api -> web`, `cli -> api`, and `cli -> web` edges, supports `intelligence.propagationTopology` overrides for custom edges, and stays low-calibration/non-authoritative
+- root-cause and propagation output exclude prediction language and synthetic `corr-*` IDs
 
 Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:
 
