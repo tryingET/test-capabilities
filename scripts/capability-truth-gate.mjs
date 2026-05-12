@@ -181,6 +181,7 @@ function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, 
   const surfaces = {
     "README.md": readme,
     "docs/project/product_posture.md": productPosture,
+    "docs/project/vision.md": readText("docs/project/vision.md"),
     "docs/api/config.md": readText("docs/api/config.md"),
     "docs/api/types.md": readText("docs/api/types.md"),
     "src/core/orchestrator.ts": readText("src/core/orchestrator.ts"),

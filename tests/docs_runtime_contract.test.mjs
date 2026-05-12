@@ -15,6 +15,10 @@ test("vision current-runtime section aligns with supported observation protocol 
   assert.match(visionDoc, /guardrails against causal, predictive, or repair-order overclaims/);
   assert.doesNotMatch(visionDoc, /Current supported runtime surfaces[^\n]+Prediction/s);
   assert.doesNotMatch(visionDoc, /Current supported runtime surfaces[^\n]+collective learning/s);
+  assert.doesNotMatch(
+    visionDoc,
+    /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i,
+  );
 });
 
 test("CLI docs reflect the fail-closed capability contract", () => {
