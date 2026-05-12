@@ -31,7 +31,17 @@ function typecheckCommandArgs(extraArgs) {
     "bin",
     "tsgo.js",
   );
-  assert.equal(existsSync(tsgoEntrypoint), true, "tsgo must be installed for type fixtures");
+  assert.equal(
+    existsSync(tsgoEntrypoint),
+    true,
+    "tsgo wrapper must be installed for type fixtures",
+  );
+  const smoke = run(process.execPath, [tsgoEntrypoint, "--version"]);
+  assert.equal(
+    smoke.status,
+    0,
+    `tsgo native compiler must be executable for type fixtures. Install optional native dependencies without --omit=optional. ${smoke.stdout}\n${smoke.stderr}`,
+  );
   return [process.execPath, [tsgoEntrypoint, "--ignoreConfig", ...extraArgs]];
 }
 
@@ -450,7 +460,7 @@ function assertRootCauseCorpusExecutes() {
       {
         subject: "api-to-web",
         link: "api-latency-cascade",
-        calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+        calibration: { level: "low", signalCount: 2, sensorCount: 4, findingCount: 4 },
       },
     ],
     "root-cause corpus should expose positive propagation details per case",
@@ -525,7 +535,7 @@ function assertRootCauseCorpusExecutes() {
     {
       subject: "web-to-api",
       link: "shared-infra (timeout_or_latency on both)",
-      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+      calibration: { level: "low", signalCount: 2, sensorCount: 4, findingCount: 4 },
     },
     "root-cause corpus should report custom topology propagation details",
   );

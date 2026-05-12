@@ -65,7 +65,17 @@ function typecheckCommandArgs(extraArgs) {
     "bin",
     "tsgo.js",
   );
-  assert.equal(existsSync(tsgoEntrypoint), true, "tsgo must be installed for type fixtures");
+  assert.equal(
+    existsSync(tsgoEntrypoint),
+    true,
+    "tsgo wrapper must be installed for type fixtures",
+  );
+  const smoke = runRaw(process.execPath, [tsgoEntrypoint, "--version"]);
+  assert.equal(
+    smoke.status,
+    0,
+    `tsgo native compiler must be executable for type fixtures. Install optional native dependencies without --omit=optional. ${smoke.stdout}\n${smoke.stderr}`,
+  );
   return [process.execPath, [tsgoEntrypoint, "--ignoreConfig", ...extraArgs]];
 }
 
@@ -596,7 +606,7 @@ try {
     assert.match(propagation.evidence.join("\\n"), /link:api-latency-cascade/);
     assert.equal(propagation.semantics.calibration.level, "low");
     assert.equal(propagation.semantics.calibration.signalCount, 2);
-    assert.equal(propagation.semantics.calibration.sensorCount, 2);
+    assert.equal(propagation.semantics.calibration.sensorCount, 4);
     assert.equal(propagation.semantics.calibration.findingCount, 4);
     assert.match(propagation.evidence.join("\\n"), /non-authoritative heuristic/);
     const operatorText = [propagation.summary, propagation.evidence.join("\\n"), propagation.semantics.interpretation, propagation.semantics.nextStep].join("\\n");

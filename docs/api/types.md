@@ -277,7 +277,7 @@ Runtime note:
 - known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
 - when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; derived observations do not count separately from their source findings, and the result identifies an evidence-bounded current failure class, not a forecast or probability claim
-- when dependent components both have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches the configured topology, the orchestrator can emit low-calibration `propagation` observations; these declare non-authoritative heuristic status, expose calibration metadata, and must not be treated as causal proof
+- when dependent components both have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches the configured topology, the orchestrator can emit low-calibration `propagation` observations; these declare non-authoritative heuristic status, expose calibration metadata, report `sensorCount` as the sum of the two linked root-cause sensor counts, and must not be treated as causal proof
 
 ### `CoverageReport`
 

@@ -54,6 +54,11 @@ run_typecheck() {
   fi
 
   if [[ -x "$ROOT_DIR/node_modules/.bin/tsgo" ]]; then
+    if ! "$ROOT_DIR/node_modules/.bin/tsgo" --version >/dev/null 2>&1; then
+      echo "typecheck: tsgo native compiler is unavailable or incomplete." >&2
+      echo "Run 'npm install' without '--omit=optional' so @typescript/native-preview can install its platform package." >&2
+      exit 1
+    fi
     "$ROOT_DIR/node_modules/.bin/tsgo" --noEmit
     return 0
   fi

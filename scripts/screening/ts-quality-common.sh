@@ -40,15 +40,29 @@ run_ts_quality() {
   fi
 }
 
+is_tsgo_executable() {
+  local candidate="$1"
+  "$candidate" --version >/dev/null 2>&1
+}
+
 resolve_typescript_compiler() {
   if [[ -x "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo" ]]; then
-    printf '%s\n' "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo"
-    return 0
+    if is_tsgo_executable "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo"; then
+      printf '%s\n' "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo"
+      return 0
+    fi
+    echo "TypeScript native compiler is unavailable or incomplete." >&2
+    echo "Run npm install without '--omit=optional' so @typescript/native-preview can install its platform package." >&2
+    exit 1
   fi
 
   if command -v tsgo >/dev/null 2>&1; then
-    command -v tsgo
-    return 0
+    local tsgo_path
+    tsgo_path="$(command -v tsgo)"
+    if is_tsgo_executable "$tsgo_path"; then
+      printf '%s\n' "$tsgo_path"
+      return 0
+    fi
   fi
 
   echo "TypeScript native compiler not found. Run npm install or ensure 'tsgo' is on PATH." >&2

@@ -15,10 +15,30 @@ const tsgoEntrypoint = path.join(
   "tsgo.js",
 );
 
-if (!existsSync(tsgoEntrypoint)) {
-  console.error(`build: missing tsgo CLI at ${tsgoEntrypoint}`);
-  process.exit(1);
+function assertTsgoExecutable() {
+  if (!existsSync(tsgoEntrypoint)) {
+    console.error(`build: missing tsgo CLI at ${tsgoEntrypoint}`);
+    process.exit(1);
+  }
+
+  const smoke = spawnSync(process.execPath, [tsgoEntrypoint, "--version"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  if (smoke.status !== 0) {
+    console.error(
+      [
+        "build: tsgo native compiler is unavailable or incomplete.",
+        "Install optional native dependencies with `npm ci` / `npm install` without `--omit=optional`.",
+      ].join("\n"),
+    );
+    process.exit(typeof smoke.status === "number" ? smoke.status : 1);
+  }
 }
+
+assertTsgoExecutable();
 
 rmSync(distDir, { recursive: true, force: true });
 

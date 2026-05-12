@@ -375,7 +375,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
     {
       subject: "api-to-web",
       link: "api-latency-cascade",
-      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+      calibration: { level: "low", signalCount: 2, sensorCount: 4, findingCount: 4 },
     },
   ]);
 
@@ -396,7 +396,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
     {
       subject: "api-to-web",
       link: "shared-infra (timeout_or_latency on both)",
-      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+      calibration: { level: "low", signalCount: 2, sensorCount: 4, findingCount: 4 },
     },
   ]);
 
@@ -408,7 +408,7 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.deepEqual(customTopologyCase?.actualPropagations?.[0], {
     subject: "web-to-api",
     link: "shared-infra (timeout_or_latency on both)",
-    calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+    calibration: { level: "low", signalCount: 2, sensorCount: 4, findingCount: 4 },
   });
 
   const sameClassExtraCase = payload.cases.find(

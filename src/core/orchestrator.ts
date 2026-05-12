@@ -1425,19 +1425,25 @@ function synthesizePropagationChains(
     const downstreamFindingIds = downstreamObs.findingIds ?? [];
     const allFindingIds = [...new Set([...upstreamFindingIds, ...downstreamFindingIds])];
 
-    // Use actual sensor counts from each root cause's calibration.
+    // Sum each root cause's supporting sensor count so propagation calibration reflects
+    // the evidence on both sides of the heuristic link. The source root_cause observations
+    // currently expose counts, not distinct agent IDs, so this is a supporting-sensor total
+    // rather than a de-duplicated sensor identity set.
     const upstreamSensorCount = upstreamObs.semantics?.calibration?.sensorCount ?? 0;
     const downstreamSensorCount = downstreamObs.semantics?.calibration?.sensorCount ?? 0;
+    const propagationSensorCount = upstreamSensorCount + downstreamSensorCount;
     const totalSignals = 2; // two root_cause observations form the chain
     const propagationCalibration: ObservationCalibration = {
       level: "low",
       signalCount: totalSignals,
-      sensorCount: Math.max(upstreamSensorCount, downstreamSensorCount),
+      sensorCount: propagationSensorCount,
       findingCount: allFindingIds.length,
       basis: [
         `heuristic dependency topology (${upstream}-to-${downstream})`,
         `upstream failureClass:${upstreamClass}`,
         `downstream failureClass:${downstreamClass}`,
+        `${upstreamSensorCount} upstream sensor(s)`,
+        `${downstreamSensorCount} downstream sensor(s)`,
         `link:${link}`,
         `non-authoritative — verify independently`,
       ],

@@ -129,7 +129,11 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
   assert.match(typesDoc, /self-edges are rejected/);
   assert.match(typesDoc, /observation\.v1/);
   assert.match(typesDoc, /'propagation'/);
-  assert.match(typesDoc, /low-calibration `propagation` observations/);
+  assert.match(
+    typesDoc,
+    /propagation topology only enables low-calibration non-authoritative `propagation` observations/,
+  );
+  assert.match(typesDoc, /sensorCount` as the sum of the two linked root-cause sensor counts/);
   assert.match(typesDoc, /must not be treated as causal proof/);
   assert.match(typesDoc, /column\?: number;/);
 });

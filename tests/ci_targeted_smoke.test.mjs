@@ -15,7 +15,20 @@ function typecheckCommandArgs(repoRoot, extraArgs) {
     "bin",
     "tsgo.js",
   );
-  assert.equal(existsSync(tsgoEntrypoint), true, "tsgo must be installed for type fixtures");
+  assert.equal(
+    existsSync(tsgoEntrypoint),
+    true,
+    "tsgo wrapper must be installed for type fixtures",
+  );
+  const smoke = spawnSync(process.execPath, [tsgoEntrypoint, "--version"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  assert.equal(
+    smoke.status,
+    0,
+    `tsgo native compiler must be executable for type fixtures. Install optional native dependencies without --omit=optional. ${smoke.stdout}\n${smoke.stderr}`,
+  );
   return [process.execPath, [tsgoEntrypoint, "--ignoreConfig", ...extraArgs]];
 }
 

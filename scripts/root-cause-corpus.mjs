@@ -841,43 +841,54 @@ async function executeCase(definition) {
       `${definition.name}: unexpected propagation ${propagations.map((e) => e.summary).join("; ")}`,
     );
   }
-  if (definition.expectPropagation) {
-    const ep = definition.expectPropagation;
-    assert.ok(
-      propagations.some((p) => p.subject === ep.subject),
-      `${definition.name}: expected propagation with subject ${ep.subject}, got subjects: ${propagations.map((p) => p.subject).join(", ")}`,
+  const expectedPropagations =
+    definition.expectedPropagations ??
+    (definition.expectPropagation ? [definition.expectPropagation] : undefined);
+  if (expectedPropagations) {
+    assert.equal(
+      propagations.length,
+      expectedPropagations.length,
+      `${definition.name}: expected exactly ${expectedPropagations.length} propagation observation(s), got ${propagations.length}: ${propagations.map((p) => p.subject).join(", ")}`,
     );
-    const propObs = propagations.find((p) => p.subject === ep.subject);
-    if (ep.link) {
-      assert.match(propObs.summary, new RegExp(ep.link, "i"));
+    for (const ep of expectedPropagations) {
+      const matchingPropagations = propagations.filter((p) => p.subject === ep.subject);
+      assert.equal(
+        matchingPropagations.length,
+        1,
+        `${definition.name}: expected exactly one propagation with subject ${ep.subject}, got ${matchingPropagations.length}; subjects: ${propagations.map((p) => p.subject).join(", ")}`,
+      );
+      const propObs = matchingPropagations[0];
+      if (ep.link) {
+        assert.match(propObs.summary, new RegExp(ep.link, "i"));
+        assert.match(
+          propagationLinkFor(propObs) ?? "",
+          new RegExp(ep.link, "i"),
+          `${definition.name}: expected propagation link ${ep.link}`,
+        );
+      }
+      assert.equal(
+        propObs.semantics?.calibration?.level,
+        "low",
+        `${definition.name}: propagation calibration must be low (heuristic)`,
+      );
       assert.match(
-        propagationLinkFor(propObs) ?? "",
-        new RegExp(ep.link, "i"),
-        `${definition.name}: expected propagation link ${ep.link}`,
+        propObs.evidence.join("\n"),
+        /non-authoritative/i,
+        `${definition.name}: propagation evidence must declare non-authoritative status`,
+      );
+      const propagationOperatorText = [
+        propObs.summary,
+        propObs.evidence.join("\n"),
+        propObs.semantics?.interpretation ?? "",
+        propObs.semantics?.nextStep ?? "",
+      ].join("\n");
+      assert.doesNotMatch(propagationOperatorText, /predict|probability|horizon|future|will fail/i);
+      assert.doesNotMatch(
+        propagationOperatorText,
+        /\blikely caused\b|\bcaused\b|\bcausing\b|\bcascaded\b|\brepair\b.{0,40}\bfirst\b/i,
+        `${definition.name}: propagation wording must not overclaim causality or repair order`,
       );
     }
-    assert.equal(
-      propObs.semantics?.calibration?.level,
-      "low",
-      `${definition.name}: propagation calibration must be low (heuristic)`,
-    );
-    assert.match(
-      propObs.evidence.join("\n"),
-      /non-authoritative/i,
-      `${definition.name}: propagation evidence must declare non-authoritative status`,
-    );
-    const propagationOperatorText = [
-      propObs.summary,
-      propObs.evidence.join("\n"),
-      propObs.semantics?.interpretation ?? "",
-      propObs.semantics?.nextStep ?? "",
-    ].join("\n");
-    assert.doesNotMatch(propagationOperatorText, /predict|probability|horizon|future|will fail/i);
-    assert.doesNotMatch(
-      propagationOperatorText,
-      /\blikely caused\b|\bcaused\b|\bcausing\b|\bcascaded\b|\brepair\b.{0,40}\bfirst\b/i,
-      `${definition.name}: propagation wording must not overclaim causality or repair order`,
-    );
   }
 
   results.push({
