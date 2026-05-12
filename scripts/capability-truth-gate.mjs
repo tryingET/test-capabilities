@@ -66,7 +66,11 @@ function assertDirectionDocsTrackAk(productPosture) {
   assert.match(output, /IW1\s+work_wave\s+done/, "AK direction should keep IW1 done");
   assert.match(output, /IW2\s+work_wave\s+done/, "AK direction should keep IW2 done");
   assert.match(output, /IW3\s+work_wave\s+done/, "AK direction should keep IW3 done");
-  assert.match(output, /IW4\s+work_wave\s+active/, "AK direction should keep IW4 active");
+  assert.match(
+    output,
+    /IW4\s+work_wave\s+done/,
+    "AK direction should keep IW4 done after the validated propagation-linkage slice",
+  );
   for (const directionId of ["SF1", "IW1", "IW2", "IW3", "IW4"]) {
     assert.match(
       productPosture,
