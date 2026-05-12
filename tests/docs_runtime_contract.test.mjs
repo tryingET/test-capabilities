@@ -6,6 +6,17 @@ function load(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
 }
 
+test("vision current-runtime section aligns with supported observation protocol boundaries", () => {
+  const visionDoc = load("docs/project/vision.md");
+
+  assert.match(visionDoc, /low-calibration non-authoritative `propagation` observations/);
+  assert.match(visionDoc, /bounded dependency-topology links/);
+  assert.match(visionDoc, /not causal proof, prediction, or repair-order authority/);
+  assert.match(visionDoc, /guardrails against causal, predictive, or repair-order overclaims/);
+  assert.doesNotMatch(visionDoc, /Current supported runtime surfaces[^\n]+Prediction/s);
+  assert.doesNotMatch(visionDoc, /Current supported runtime surfaces[^\n]+collective learning/s);
+});
+
 test("CLI docs reflect the fail-closed capability contract", () => {
   const cliDoc = load("docs/api/cli.md");
 
@@ -49,6 +60,11 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   assert.match(configDoc, /Runtime-supported types:\s*- `bombadil`\s*- `surf`\s*- `cli-tester`/s);
   assert.match(configDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.match(configDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
+  assert.match(configDoc, /propagation_topology/);
+  assert.match(configDoc, /propagationTopology\.includeDefaults/);
+  assert.match(configDoc, /`api -> web`, `cli -> api`, and `cli -> web`/);
+  assert.match(configDoc, /self-edges are rejected/);
+  assert.match(configDoc, /must not be treated as causal proof/);
   assert.doesNotMatch(configDoc, /^reporting:/m);
   assert.doesNotMatch(configDoc, /^alerts:/m);
   assert.doesNotMatch(configDoc, /^execution:/m);
@@ -106,7 +122,15 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
   assert.match(typesDoc, /status: CoverageStatus;/);
   assert.match(typesDoc, /observations\?: Observation\[\];/);
+  assert.match(typesDoc, /propagationTopology\?: PropagationTopology;/);
+  assert.match(typesDoc, /interface PropagationEdge/);
+  assert.match(typesDoc, /includeDefaults\?: boolean;/);
+  assert.match(typesDoc, /`api -> web`, `cli -> api`, `cli -> web`/);
+  assert.match(typesDoc, /self-edges are rejected/);
   assert.match(typesDoc, /observation\.v1/);
+  assert.match(typesDoc, /'propagation'/);
+  assert.match(typesDoc, /low-calibration `propagation` observations/);
+  assert.match(typesDoc, /must not be treated as causal proof/);
   assert.match(typesDoc, /column\?: number;/);
 });
 

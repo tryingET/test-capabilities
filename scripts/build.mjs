@@ -6,10 +6,17 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const distDir = path.join(repoRoot, "dist");
-const tscEntrypoint = path.join(repoRoot, "node_modules", "typescript", "bin", "tsc");
+const tsgoEntrypoint = path.join(
+  repoRoot,
+  "node_modules",
+  "@typescript",
+  "native-preview",
+  "bin",
+  "tsgo.js",
+);
 
-if (!existsSync(tscEntrypoint)) {
-  console.error(`build: missing TypeScript CLI at ${tscEntrypoint}`);
+if (!existsSync(tsgoEntrypoint)) {
+  console.error(`build: missing tsgo CLI at ${tsgoEntrypoint}`);
   process.exit(1);
 }
 
@@ -17,7 +24,7 @@ rmSync(distDir, { recursive: true, force: true });
 
 const result = spawnSync(
   process.execPath,
-  [tscEntrypoint, "-p", path.join(repoRoot, "tsconfig.json")],
+  [tsgoEntrypoint, "-p", path.join(repoRoot, "tsconfig.json")],
   {
     cwd: repoRoot,
     stdio: "inherit",
@@ -29,9 +36,9 @@ if (typeof result.status === "number") {
 }
 
 if (result.signal) {
-  console.error(`build: TypeScript exited via signal ${result.signal}`);
+  console.error(`build: tsgo exited via signal ${result.signal}`);
   process.exit(1);
 }
 
-console.error("build: TypeScript exited without a status code");
+console.error("build: tsgo exited without a status code");
 process.exit(1);

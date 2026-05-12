@@ -109,11 +109,25 @@ interface IntelligenceConfig {
   prediction?: boolean;
   correlation?: boolean;
   collective?: boolean;
+  propagationTopology?: PropagationTopology;
+}
+
+interface PropagationTopology {
+  edges?: PropagationEdge[];
+  includeDefaults?: boolean;
+}
+
+interface PropagationEdge {
+  upstream: string;
+  downstream: string;
 }
 ```
 
 Runtime capability note:
 - `correlation` may be enabled
+- `propagationTopology.includeDefaults` controls whether default edges (`api -> web`, `cli -> api`, `cli -> web`) are included
+- `propagationTopology.edges[]` can add custom dependency edges with non-empty, distinct `upstream` and `downstream` component names; self-edges are rejected
+- propagation topology only enables low-calibration non-authoritative `propagation` observations after both dependent components already have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches
 - `selfHealing`, `prediction`, and `collective` must currently remain `false` or omitted for the orchestrator path
 
 ### `QuantumConfig`
@@ -220,7 +234,8 @@ type ObservationKind =
   | 'smoke'
   | 'correlation'
   | 'synthesis'
-  | 'root_cause';
+  | 'root_cause'
+  | 'propagation';
 type ObservationStatus = 'passed' | 'failed' | 'skipped' | 'errored';
 type ObservationCalibrationLevel = 'low' | 'medium' | 'high';
 
@@ -262,6 +277,7 @@ Runtime note:
 - known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
 - when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; derived observations do not count separately from their source findings, and the result identifies an evidence-bounded current failure class, not a forecast or probability claim
+- when dependent components both have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches the configured topology, the orchestrator can emit low-calibration `propagation` observations; these declare non-authoritative heuristic status, expose calibration metadata, and must not be treated as causal proof
 
 ### `CoverageReport`
 

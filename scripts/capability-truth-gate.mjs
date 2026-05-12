@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,19 @@ function run(command, args) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function typecheckCommandArgs(extraArgs) {
+  const tsgoEntrypoint = path.join(
+    repoRoot,
+    "node_modules",
+    "@typescript",
+    "native-preview",
+    "bin",
+    "tsgo.js",
+  );
+  assert.equal(existsSync(tsgoEntrypoint), true, "tsgo must be installed for type fixtures");
+  return [process.execPath, [tsgoEntrypoint, "--ignoreConfig", ...extraArgs]];
 }
 
 function assertNoStaleDirectionClaims(productPosture) {
@@ -51,10 +64,121 @@ function assertDirectionDocsTrackAk(productPosture) {
   const output = result.stdout;
   assert.match(output, /SF1\s+strategic_frame\s+active/, "AK direction should keep SF1 active");
   assert.match(output, /IW1\s+work_wave\s+done/, "AK direction should keep IW1 done");
-  assert.match(output, /IW2\s+work_wave\s+next/, "AK direction should keep IW2 next");
-  assert.match(productPosture, /SF1/, "product_posture.md should mention AK direction SF1");
-  assert.match(productPosture, /IW1/, "product_posture.md should mention AK direction IW1");
-  assert.match(productPosture, /IW2/, "product_posture.md should mention AK direction IW2");
+  assert.match(output, /IW2\s+work_wave\s+done/, "AK direction should keep IW2 done");
+  assert.match(output, /IW3\s+work_wave\s+done/, "AK direction should keep IW3 done");
+  assert.match(output, /IW4\s+work_wave\s+active/, "AK direction should keep IW4 active");
+  for (const directionId of ["SF1", "IW1", "IW2", "IW3", "IW4"]) {
+    assert.match(
+      productPosture,
+      new RegExp(`\\b${directionId}\\b`),
+      `product_posture.md should mention AK direction ${directionId}`,
+    );
+  }
+}
+
+function assertPackedTypeSurface() {
+  const sourceIndex = readText("src/index.ts");
+  const distTypes = readText("dist/index.d.ts");
+  const docsTypes = readText("docs/api/types.md");
+
+  for (const typeName of [
+    "AgentConfig",
+    "IntelligenceConfig",
+    "PropagationEdge",
+    "PropagationTopology",
+    "TestCapabilitiesConfig",
+  ]) {
+    assert.match(
+      sourceIndex,
+      new RegExp(`\\b${typeName}\\b`),
+      `src/index.ts should re-export ${typeName}`,
+    );
+    assert.match(
+      distTypes,
+      new RegExp(`\\b${typeName}\\b`),
+      `dist/index.d.ts should expose ${typeName}`,
+    );
+    assert.match(
+      docsTypes,
+      new RegExp(`\\b${typeName}\\b`),
+      `docs/api/types.md should document ${typeName}`,
+    );
+  }
+
+  assert.match(docsTypes, /propagationTopology\?: PropagationTopology;/);
+
+  const tempRoot = path.join(repoRoot, ".tmp");
+  mkdirSync(tempRoot, { recursive: true });
+  const tempDir = mkdtempSync(path.join(tempRoot, "truth-gate-types-"));
+  const fixture = path.join(tempDir, "consumer.ts");
+  try {
+    writeFileSync(
+      fixture,
+      [
+        'import { createTestCapabilities } from "../../dist/index.js";',
+        'import type { IntelligenceConfig, PropagationEdge, PropagationTopology, TestCapabilitiesConfig } from "../../dist/index.js";',
+        'const edge: PropagationEdge = { upstream: "api", downstream: "web" };',
+        "const topology: PropagationTopology = { edges: [edge] };",
+        "const intelligence: IntelligenceConfig = { correlation: true, propagationTopology: topology };",
+        'const config: TestCapabilitiesConfig = { version: "2.0", name: "typed", targets: { cli: "node" }, agents: { cli: { type: "cli-tester" } }, intelligence };',
+        "createTestCapabilities(config);",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const [typecheckCommand, typecheckArgs] = typecheckCommandArgs([
+      "--noEmit",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--target",
+      "ES2022",
+      "--skipLibCheck",
+      fixture,
+    ]);
+    const result = run(typecheckCommand, typecheckArgs);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function assertVisionCurrentRuntimeAlignment() {
+  const vision = readText("docs/project/vision.md");
+  assert.match(
+    vision,
+    /Current supported runtime surfaces[^\n]+low-calibration non-authoritative `propagation` observations/,
+    "vision current-runtime section should mention supported propagation observations",
+  );
+  assert.match(
+    vision,
+    /Propagation output is diagnostic linkage, not causal proof, prediction, or repair-order authority/,
+    "vision should preserve propagation authority boundaries",
+  );
+  assert.match(
+    vision,
+    /guardrails against causal, predictive, or repair-order overclaims/,
+    "vision Phase 1 deliverables should include propagation overclaim guardrails",
+  );
+}
+
+function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, passport }) {
+  const surfaces = {
+    "README.md": readme,
+    "docs/project/product_posture.md": productPosture,
+    "docs/api/config.md": readText("docs/api/config.md"),
+    "docs/api/types.md": readText("docs/api/types.md"),
+    "src/core/orchestrator.ts": readText("src/core/orchestrator.ts"),
+    "governance/capability-passport.json": JSON.stringify(passport),
+  };
+  for (const [surface, text] of Object.entries(surfaces)) {
+    assert.doesNotMatch(
+      text,
+      /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i,
+      `${surface} should describe propagation as non-authoritative linkage, not causal proof`,
+    );
+  }
 }
 
 function assertPassportVocabulary(passport) {
@@ -91,11 +215,37 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 53, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 58, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
-    10,
+    12,
     "root-cause corpus should preserve API contract ambiguity coverage",
+  );
+  assert.equal(
+    payload.coverage?.positivePropagationCases,
+    7,
+    "root-cause corpus should preserve positive propagation coverage",
+  );
+  assert.equal(
+    payload.coverage?.noPropagationGuardrailCases,
+    6,
+    "root-cause corpus should preserve no-propagation guardrail coverage",
+  );
+  assert.deepEqual(
+    payload.coverage?.propagationSubjects,
+    { "api-to-web": 4, "cli-to-api": 1, "cli-to-web": 1, "web-to-api": 1 },
+    "root-cause corpus should expose propagation subject coverage in machine-readable output",
+  );
+  assert.deepEqual(
+    payload.coverage?.propagationLinks,
+    {
+      "api-latency-cascade": 2,
+      "api-schema-drift-to-ui": 1,
+      "shared-infra (timeout_or_latency on both)": 2,
+      "cli-tool-failure-blocks-api-check": 1,
+      "cli-tool-failure-blocks-web-check": 1,
+    },
+    "root-cause corpus should expose propagation link coverage in machine-readable output",
   );
   assert.equal(
     payload.cases?.some(
@@ -257,6 +407,25 @@ function assertRootCauseCorpusExecutes() {
     "root-cause corpus should include an unrelated-components-no-propagation guardrail case",
   );
 
+  const genericComponentNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "Generic API and web component failures do not emit shared-infra propagation",
+  );
+  assert.ok(
+    genericComponentNoPropagationCase,
+    "root-cause corpus should guard against generic component-failure propagation overclaim",
+  );
+
+  const samePropertyNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "Same property violations across api and web do not emit shared-infra propagation",
+  );
+  assert.ok(
+    samePropertyNoPropagationCase,
+    "root-cause corpus should guard against non-latency same-class shared-infra propagation overclaim",
+  );
+
   const propagationCascadeCase = payload.cases?.find(
     (entry) =>
       entry.name ===
@@ -265,6 +434,56 @@ function assertRootCauseCorpusExecutes() {
   assert.ok(
     propagationCascadeCase,
     "root-cause corpus should include a positive propagation cascade case",
+  );
+  assert.equal(
+    propagationCascadeCase?.propagationCount,
+    1,
+    "root-cause corpus should report positive propagation counts per case",
+  );
+  assert.deepEqual(
+    propagationCascadeCase?.actualPropagations,
+    [
+      {
+        subject: "api-to-web",
+        link: "api-latency-cascade",
+        calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+      },
+    ],
+    "root-cause corpus should expose positive propagation details per case",
+  );
+
+  const latencySurfNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "API timeout + Surf browser coverage gap does not emit latency propagation",
+  );
+  assert.ok(
+    latencySurfNoPropagationCase,
+    "root-cause corpus should guard against latency propagation into Surf evidence gaps",
+  );
+  assert.equal(
+    latencySurfNoPropagationCase?.propagationCount,
+    0,
+    "root-cause corpus should report zero propagation for Surf evidence-gap guardrails",
+  );
+
+  const schemaDriftPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "API contract mismatch + web component failure emits propagation via api-schema-drift-to-ui",
+  );
+  assert.ok(
+    schemaDriftPropagationCase,
+    "root-cause corpus should cover api-schema-drift-to-ui propagation",
+  );
+
+  const schemaDriftSurfNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "API contract mismatch + Surf browser coverage gap does not emit schema-drift propagation",
+  );
+  assert.ok(
+    schemaDriftSurfNoPropagationCase,
+    "root-cause corpus should guard against schema-drift propagation into Surf evidence gaps",
   );
 
   const propagationNoPredictionCase = payload.cases?.find(
@@ -297,9 +516,19 @@ function assertRootCauseCorpusExecutes() {
     customTopologyCase,
     "root-cause corpus should cover operator-configurable propagation topology",
   );
+  assert.deepEqual(
+    customTopologyCase?.actualPropagations?.[0],
+    {
+      subject: "web-to-api",
+      link: "shared-infra (timeout_or_latency on both)",
+      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+    },
+    "root-cause corpus should report custom topology propagation details",
+  );
 }
 
 function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport) {
+  const consumerSmoke = readText("scripts/consumer_contract_smoke.mjs");
   assert.match(
     packageJson.scripts?.["root-cause:corpus"] ?? "",
     /root-cause-corpus\.mjs/,
@@ -310,6 +539,24 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
     /root-cause:corpus/,
     "release:check should run the root-cause corpus dogfood lane explicitly",
   );
+  assert.match(
+    packageJson.scripts?.["consumer:smoke"] ?? "",
+    /consumer_contract_smoke\.mjs/,
+    "package.json should expose the packed-consumer smoke",
+  );
+  assert.match(
+    packageJson.scripts?.["release:check:quick"] ?? "",
+    /consumer:smoke/,
+    "release:check:quick should run the packed-consumer smoke",
+  );
+  assert.match(
+    packageJson.scripts?.["release:check"] ?? "",
+    /release:check:quick/,
+    "release:check should include packed-consumer smoke through release:check:quick",
+  );
+  assert.match(consumerSmoke, /packed-root-cause-invariant/);
+  assert.match(consumerSmoke, /packed-propagation-invariant/);
+  assert.match(consumerSmoke, /kind === "propagation"/);
   assert.match(readme, /root-cause:corpus/);
   assert.match(productPosture, /root-cause:corpus/);
 
@@ -326,6 +573,11 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
     observationProtocol.evidence?.commands?.includes("npm run root-cause:corpus"),
     true,
     "observation protocol passport evidence should include npm run root-cause:corpus",
+  );
+  assert.equal(
+    observationProtocol.evidence?.commands?.includes("npm run consumer:smoke"),
+    true,
+    "observation protocol passport evidence should include npm run consumer:smoke",
   );
 }
 
@@ -346,7 +598,10 @@ const productPosture = readText("docs/project/product_posture.md");
 
 assertNoStaleDirectionClaims(productPosture);
 assertDirectionDocsTrackAk(productPosture);
+assertPackedTypeSurface();
+assertVisionCurrentRuntimeAlignment();
 const passport = readJson("governance/capability-passport.json");
+assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, passport });
 
 assertPackedBombadilContract(packageJson, readme, productPosture);
 assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport);

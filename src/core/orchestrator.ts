@@ -64,7 +64,11 @@ const PropagationEdgeSchema = z
     upstream: z.string().min(1),
     downstream: z.string().min(1),
   })
-  .strict();
+  .strict()
+  .refine((edge) => edge.upstream !== edge.downstream, {
+    message: "Propagation topology edges must connect distinct upstream and downstream components.",
+    path: ["downstream"],
+  });
 
 const PropagationTopologySchema = z.preprocess(
   (value) => withAliases(value, { include_defaults: "includeDefaults" }),
@@ -129,11 +133,49 @@ export const TestCapabilitiesConfigSchema = z
   })
   .strict();
 
-export type TestCapabilitiesConfig = z.infer<typeof TestCapabilitiesConfigSchema>;
+type ParsedTestCapabilitiesConfig = z.output<typeof TestCapabilitiesConfigSchema>;
+
 export type Target = z.infer<typeof TargetSchema>;
-export type AgentConfig = z.infer<typeof AgentConfigSchema>;
-export type PropagationEdge = z.infer<typeof PropagationEdgeSchema>;
-export type PropagationTopology = z.infer<typeof PropagationTopologySchema>;
+export interface AgentConfig {
+  type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester";
+  enabled?: boolean;
+  intensity?: "gentle" | "normal" | "aggressive";
+  duration?: string;
+  focus?: string[];
+}
+export interface PropagationEdge {
+  upstream: string;
+  downstream: string;
+}
+export interface PropagationTopology {
+  edges?: PropagationEdge[];
+  includeDefaults?: boolean;
+}
+export interface IntelligenceConfig {
+  selfHealing?: boolean;
+  prediction?: boolean;
+  correlation?: boolean;
+  collective?: boolean;
+  propagationTopology?: PropagationTopology;
+}
+export interface TestCapabilitiesConfig {
+  version: "2.0";
+  name: string;
+  targets: Target;
+  agents?: Record<string, AgentConfig>;
+  intelligence?: IntelligenceConfig;
+  quantum?: {
+    enabled?: boolean;
+    branches?: number;
+    collapseStrategy?: "significance" | "diversity" | "coverage";
+    maxDepth?: number;
+    timeout?: number | string;
+  };
+  chaos?: {
+    enabled?: boolean;
+    experiments?: unknown[];
+  };
+}
 
 export interface Finding {
   id: string;
@@ -378,7 +420,7 @@ function getBombadilBudgetMs(intensity: AgentConfig["intensity"] | undefined): n
 }
 
 export class TestCapabilitiesOrchestrator {
-  private config: TestCapabilitiesConfig;
+  private config: ParsedTestCapabilitiesConfig;
   private agents: Map<string, TestAgent> = new Map();
   private predictions: Prediction[] = [];
 
@@ -1288,10 +1330,11 @@ function resolvePropagationEdges(topology: PropagationTopology | undefined): Pro
  * Returns a human-readable link description or undefined if no plausible link exists.
  *
  * Heuristic rules:
- * - api timeout_or_latency → web component_failure_surface or browser_coverage_gap: API latency cascades to UI timeouts
+ * - api timeout_or_latency → web component_failure_surface: API latency is paired with UI runtime failures
  * - api contract_mismatch → web component_failure_surface: API schema drift breaks client rendering
+ *   (not Surf/browser coverage gaps, which may be sensor evidence failures)
  * - cli command_resolution → api component_failure_surface: CLI tooling failure prevents API health checks
- * - Same failure class across dependent components: suggests shared infrastructure cause
+ * - Same timeout_or_latency across dependent components: suggests shared infrastructure latency
  */
 function inferPropagationLink(
   upstream: string,
@@ -1299,18 +1342,16 @@ function inferPropagationLink(
   downstream: string,
   downstreamClass: string,
 ): string | undefined {
-  // Same failure class across dependent components suggests shared infrastructure
-  if (upstreamClass === downstreamClass) {
+  // Shared-infra propagation is intentionally narrow: same generic or semantic failure classes
+  // can co-occur without implying infrastructure coupling. Latency/timeout is the bounded
+  // same-class signal this diagnostic layer currently treats as a plausible shared-infra link.
+  if (upstreamClass === downstreamClass && upstreamClass === "timeout_or_latency") {
     return `shared-infra (${upstreamClass} on both)`;
   }
 
   // API→web propagation patterns
   if (upstream === "api" && downstream === "web") {
-    if (
-      upstreamClass === "timeout_or_latency" &&
-      (downstreamClass === "component_failure_surface" ||
-        downstreamClass === "browser_coverage_gap")
-    ) {
+    if (upstreamClass === "timeout_or_latency" && downstreamClass === "component_failure_surface") {
       return "api-latency-cascade";
     }
     if (upstreamClass === "contract_mismatch" && downstreamClass === "component_failure_surface") {
@@ -1408,7 +1449,7 @@ function synthesizePropagationChains(
         kind: "propagation",
         status: "failed",
         subject: `${upstream}-to-${downstream}`,
-        summary: `Propagation synthesis: ${upstream} (${upstreamClass}) likely caused ${downstream} (${downstreamClass}) via ${link}. Non-authoritative heuristic.`,
+        summary: `Propagation synthesis: ${upstream} (${upstreamClass}) may be linked to ${downstream} (${downstreamClass}) via ${link}. Non-authoritative heuristic.`,
         evidence: [
           `upstream:${upstream}:${upstreamClass}`,
           `downstream:${downstream}:${downstreamClass}`,
@@ -1418,8 +1459,8 @@ function synthesizePropagationChains(
         ],
         semantics: {
           component: `${upstream}-to-${downstream}`,
-          interpretation: `Heuristic propagation analysis suggests ${upstream} failure (${upstreamClass}) may have cascaded to ${downstream} (${downstreamClass}) via ${link}. This is a non-authoritative inference from co-occurring root causes and known dependency topology; it does not constitute causal proof.`,
-          nextStep: `Repair ${upstream} first, then rerun sensors for both ${upstream} and ${downstream} to confirm whether the ${downstream} failure was dependent or independent.`,
+          interpretation: `Heuristic propagation analysis suggests ${upstream} failure (${upstreamClass}) may be linked to ${downstream} (${downstreamClass}) via ${link}. This is a non-authoritative inference from co-occurring root causes and known dependency topology; it does not constitute causal proof.`,
+          nextStep: `Investigate ${upstream} and ${downstream} independently, then rerun sensors for both components to confirm whether the observed link persists after any repair.`,
           calibration: propagationCalibration,
         },
         findingIds: allFindingIds,

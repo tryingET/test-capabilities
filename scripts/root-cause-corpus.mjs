@@ -374,6 +374,36 @@ function bombadilRequiredPropertyAgent(agent) {
   });
 }
 
+function apiPropertyViolationAgent(agent) {
+  const id = `${agent}-api-property-violation`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "api",
+        description: "API property probe surfaced an invariant violation",
+        evidence: ["bombadil invariant failed for API response consistency"],
+        recommendation: "Review API property evidence before linking it to downstream failures.",
+        severity: "high",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-api-property-violation`,
+        agent,
+        kind: "property",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API property probe surfaced a Bombadil invariant violation.",
+        evidence: ["bombadil invariant failed for API response consistency"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 100 },
+  });
+}
+
 function apiContractViolationAgent(agent) {
   return agentResult({
     observations: [
@@ -593,6 +623,8 @@ function summarizeCoverage(entries) {
   const expectedClasses = {};
   const actualClasses = {};
   const subjects = {};
+  const propagationSubjects = {};
+  const propagationLinks = {};
 
   for (const entry of entries) {
     const expectedRootCauses = entry.expectedRootCauses ?? [
@@ -611,6 +643,10 @@ function summarizeCoverage(entries) {
     for (const actualRootCause of actualRootCauses) {
       increment(actualClasses, actualRootCause.failureClass);
     }
+    for (const propagation of entry.actualPropagations ?? []) {
+      increment(propagationSubjects, propagation.subject);
+      increment(propagationLinks, propagation.link);
+    }
   }
 
   return {
@@ -626,9 +662,14 @@ function summarizeCoverage(entries) {
         calibrations.length > 0 && calibrations.every((calibration) => calibration.level === "high")
       );
     }).length,
+    positivePropagationCases: entries.filter((entry) => entry.propagationCount > 0).length,
+    noPropagationGuardrailCases: entries.filter((entry) => entry.expectNoPropagation === true)
+      .length,
     expectedClasses,
     actualClasses,
     subjects,
+    propagationSubjects,
+    propagationLinks,
   };
 }
 
@@ -668,6 +709,32 @@ function assertCoverageFloors(coverage) {
   for (const subject of ["api", "cli", "web"]) {
     assert.ok(coverage.subjects[subject] > 0, `root-cause corpus must include subject ${subject}`);
   }
+  assert.ok(
+    coverage.positivePropagationCases >= 5,
+    "root-cause corpus must keep at least 5 positive propagation cases",
+  );
+  assert.ok(
+    coverage.noPropagationGuardrailCases >= 5,
+    "root-cause corpus must keep at least 5 no-propagation guardrail cases",
+  );
+  for (const propagationSubject of ["api-to-web", "cli-to-api", "cli-to-web", "web-to-api"]) {
+    assert.ok(
+      coverage.propagationSubjects[propagationSubject] > 0,
+      `root-cause corpus must include propagation subject ${propagationSubject}`,
+    );
+  }
+  for (const propagationLink of [
+    "api-latency-cascade",
+    "api-schema-drift-to-ui",
+    "cli-tool-failure-blocks-api-check",
+    "cli-tool-failure-blocks-web-check",
+    "shared-infra (timeout_or_latency on both)",
+  ]) {
+    assert.ok(
+      coverage.propagationLinks[propagationLink] > 0,
+      `root-cause corpus must include propagation link ${propagationLink}`,
+    );
+  }
 }
 
 async function executeCase(definition) {
@@ -690,6 +757,13 @@ async function executeCase(definition) {
     signalCount: calibration.signalCount,
     sensorCount: calibration.sensorCount,
     findingCount: calibration.findingCount,
+  });
+  const propagationLinkFor = (entry) =>
+    entry?.evidence?.find((item) => item.startsWith("link:"))?.replace("link:", "");
+  const summarizePropagation = (entry) => ({
+    subject: entry.subject,
+    link: propagationLinkFor(entry),
+    calibration: summarizeCalibration(entry.semantics.calibration),
   });
   const assertRootCause = (entry, expectation) => {
     assert.ok(entry, `${definition.name}: expected ${expectation.subject} root_cause`);
@@ -757,6 +831,7 @@ async function executeCase(definition) {
   const calibrations = definition.expectedRootCauses
     ? rootCauses.map((entry) => summarizeCalibration(entry.semantics.calibration))
     : undefined;
+  const actualPropagations = propagations.map((entry) => summarizePropagation(entry));
 
   // Propagation assertions
   if (definition.expectNoPropagation === true) {
@@ -775,6 +850,11 @@ async function executeCase(definition) {
     const propObs = propagations.find((p) => p.subject === ep.subject);
     if (ep.link) {
       assert.match(propObs.summary, new RegExp(ep.link, "i"));
+      assert.match(
+        propagationLinkFor(propObs) ?? "",
+        new RegExp(ep.link, "i"),
+        `${definition.name}: expected propagation link ${ep.link}`,
+      );
     }
     assert.equal(
       propObs.semantics?.calibration?.level,
@@ -786,9 +866,17 @@ async function executeCase(definition) {
       /non-authoritative/i,
       `${definition.name}: propagation evidence must declare non-authoritative status`,
     );
+    const propagationOperatorText = [
+      propObs.summary,
+      propObs.evidence.join("\n"),
+      propObs.semantics?.interpretation ?? "",
+      propObs.semantics?.nextStep ?? "",
+    ].join("\n");
+    assert.doesNotMatch(propagationOperatorText, /predict|probability|horizon|future|will fail/i);
     assert.doesNotMatch(
-      `${propObs.summary}\n${propObs.semantics?.interpretation ?? ""}`,
-      /predict|probability|horizon|future|will fail/i,
+      propagationOperatorText,
+      /\blikely caused\b|\bcaused\b|\bcausing\b|\bcascaded\b|\brepair\b.{0,40}\bfirst\b/i,
+      `${definition.name}: propagation wording must not overclaim causality or repair order`,
     );
   }
 
@@ -808,6 +896,10 @@ async function executeCase(definition) {
         ? (actualFailureClass ?? "root_cause")
         : "none",
     rootCauseCount: rootCauses.length,
+    propagationCount: propagations.length,
+    ...(definition.expectNoPropagation ? { expectNoPropagation: true } : {}),
+    ...(definition.expectPropagation ? { expectedPropagation: definition.expectPropagation } : {}),
+    ...(actualPropagations.length > 0 ? { actualPropagations } : {}),
     ...(expectedRootCauses ? { expectedRootCauses } : {}),
     ...(actualRootCauses ? { actualRootCauses } : {}),
     ...(calibrations ? { calibrations } : {}),
@@ -1969,6 +2061,36 @@ const cases = [
     },
   },
   {
+    name: "Generic API and web component failures do not emit shared-infra propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-component-a", "api-component-b"],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-component-a", "web-component-b"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiComponentA: componentFailureAgent("apiComponentA", "api", "api-component-a"),
+      apiComponentB: componentFailureAgent("apiComponentB", "api", "api-component-b"),
+      webComponentA: componentFailureAgent("webComponentA", "web", "web-component-a"),
+      webComponentB: componentFailureAgent("webComponentB", "web", "web-component-b"),
+    },
+  },
+  {
     name: "API timeout + web component_failure emits propagation via api-latency-cascade",
     expectedRootCauses: [
       {
@@ -2095,6 +2217,147 @@ const cases = [
         ],
         coverage: { userFlows: 0 },
       }),
+    },
+  },
+  {
+    name: "API timeout + Surf browser coverage gap does not emit latency propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "timeout_or_latency",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["api-timeout-a", "api-timeout-b"],
+      },
+      {
+        subject: "web",
+        failureClass: "browser_coverage_gap",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["surfA-surf-empty", "surfB-surf-empty"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiTimeoutA: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-a",
+            component: "api",
+            description: "API endpoint timed out during health check",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-a",
+            agent: "apiTimeoutA",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out before health could be established.",
+            evidence: ["timed out after 5000ms (SIGTERM)"],
+            findingIds: ["api-timeout-a"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      apiTimeoutB: agentResult({
+        findings: [
+          finding({
+            id: "api-timeout-b",
+            component: "api",
+            description: "API endpoint timed out on second probe",
+            evidence: ["timed out after 5000ms"],
+            recommendation: "Investigate API latency.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: "api-timeout-obs-b",
+            agent: "apiTimeoutB",
+            kind: "runtime",
+            status: "failed",
+            subject: "api",
+            component: "api",
+            summary: "API smoke timed out on second probe.",
+            evidence: ["timed out after 5000ms"],
+            findingIds: ["api-timeout-b"],
+          }),
+        ],
+        coverage: { edgeCases: 0 },
+      }),
+      surfA: surfFailureAgent("surfA"),
+      surfB: surfFailureAgent("surfB"),
+    },
+  },
+  {
+    name: "API contract mismatch + web component failure emits propagation via api-schema-drift-to-ui",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "contract_mismatch",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-component-a", "web-component-b"],
+      },
+    ],
+    expectPropagation: {
+      subject: "api-to-web",
+      link: "api-schema-drift-to-ui",
+    },
+    agents: {
+      apiContractA: apiContractViolationAgent("apiContractA"),
+      apiContractB: apiContractViolationAgent("apiContractB"),
+      webComponentA: componentFailureAgent("webComponentA", "web", "web-component-a"),
+      webComponentB: componentFailureAgent("webComponentB", "web", "web-component-b"),
+    },
+  },
+  {
+    name: "API contract mismatch + Surf browser coverage gap does not emit schema-drift propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "contract_mismatch",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "browser_coverage_gap",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["surfA-surf-empty", "surfB-surf-empty"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiContractA: apiContractViolationAgent("apiContractA"),
+      apiContractB: apiContractViolationAgent("apiContractB"),
+      surfA: surfFailureAgent("surfA"),
+      surfB: surfFailureAgent("surfB"),
     },
   },
   {
@@ -2226,7 +2489,37 @@ const cases = [
     },
   },
   {
-    name: "Same failure class across api and web emits propagation via shared-infra",
+    name: "Same property violations across api and web do not emit shared-infra propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "property_violation",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["apiPropertyA-api-property-violation", "apiPropertyB-api-property-violation"],
+      },
+      {
+        subject: "web",
+        failureClass: "property_violation",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["bombadilA-property-violation", "bombadilB-property-violation"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiPropertyA: apiPropertyViolationAgent("apiPropertyA"),
+      apiPropertyB: apiPropertyViolationAgent("apiPropertyB"),
+      bombadilA: bombadilFailureAgent("bombadilA"),
+      bombadilB: bombadilFailureAgent("bombadilB"),
+    },
+  },
+  {
+    name: "Same timeout class across api and web emits propagation via shared-infra",
     expectedRootCauses: [
       {
         subject: "api",

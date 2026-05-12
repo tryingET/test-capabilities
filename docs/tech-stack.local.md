@@ -22,6 +22,7 @@ Repo-local emphasis:
 - Runtime now targets `node >=22`, matching the current pi-ts lane baseline.
 - Testing surface currently emphasizes `node --test` plus repo-specific tooling such as bombadil and agent-browser.
 - Quality baseline remains Biome-centered and is enforced through `npm run check` plus local hooks/CI.
+- TypeScript validation and declaration-emitting package builds now use `tsgo` via `@typescript/native-preview`; the previous `tsc` fallback was removed after replacing the lone TypeScript compiler-API fixture with a static source-map fixture.
 - Release preflight is now explicit via `npm run release:check` and `npm run release:check:quick`, including packed-artifact consumer-contract smoke validation.
 - Auxiliary Python-style utility execution should go through `uv run ...` rather than bare `python -m ...`.
 - Optional pi-ts companions (add only when the repo actually benefits):

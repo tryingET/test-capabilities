@@ -145,18 +145,27 @@ intelligence:
   prediction: false
   correlation: true
   collective: false
+  propagation_topology:
+    include_defaults: true
+    edges:
+      - upstream: api
+        downstream: web
 ```
 
 Alias mapping:
 - `self_healing` → `selfHealing`
+- `propagation_topology` → `propagationTopology`
+- `include_defaults` → `includeDefaults`
 
 Supported current runtime state:
-- `correlation: true`, including non-authoritative synthesis, suite correlation, and deterministic `root_cause` observations when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class
+- `correlation: true`, including non-authoritative synthesis, suite correlation, deterministic `root_cause` observations when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, and low-calibration non-authoritative `propagation` observations when configured dependency edges have bounded propagation-link support
+- `propagationTopology.includeDefaults: true|false`, where defaults are `api -> web`, `cli -> api`, and `cli -> web`
+- `propagationTopology.edges[]` custom edges with non-empty, distinct `upstream` and `downstream` strings; self-edges are rejected
 - `selfHealing: false`
 - `prediction: false`
 - `collective: false`
 
-`root_cause` observations are diagnostic and evidence-bounded. Derived observations do not count separately from their source findings, and root-cause output does not use probability, time horizon, or later-failure claims.
+`root_cause` observations are diagnostic and evidence-bounded. Derived observations do not count separately from their source findings, and root-cause output does not use probability, time horizon, or later-failure claims. `propagation` observations are also diagnostic: they stay low-calibration, declare non-authoritative heuristic status, and must not be treated as causal proof.
 
 If `selfHealing`, `prediction`, or `collective` are enabled, runtime validation fails clearly.
 

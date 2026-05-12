@@ -50,7 +50,7 @@ That registry owns the supported routes, their input schemas, their executors, a
 For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, an explicit `TEST_CAPABILITIES_SURF_GO_REPO`, the conventional workspace-local `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
 For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
 A Bombadil contrib checkout only overrides the vendored binary once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil currently needs `trunk` and `esbuild` for local builds, or its Nix shell.
-Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass.
+Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass. The same packed-consumer smoke also proves calibrated `root_cause` and low-calibration non-authoritative `propagation` observations survive through the distributed library API.
 
 ### Implemented today
 
@@ -179,10 +179,10 @@ What it checks today:
 - three-sensor agreement produces high-calibration `root_cause` with signalCount and sensorCount reflecting all three observers
 - independent Bombadil + CLI failures emit two component-scoped `root_cause` observations (property_violation + command_resolution)
 - three-way simultaneous Surf + CLI + API failures emit three component-scoped `root_cause` observations
-- propagation synthesis covers default `api -> web`, `cli -> api`, and `cli -> web` edges, supports `intelligence.propagationTopology` overrides for custom edges, and stays low-calibration/non-authoritative
+- propagation synthesis covers default `api -> web`, `cli -> api`, and `cli -> web` edges, including API latency links with web runtime failures, same-timeout shared-infra links, and API schema-drift-to-UI links with web runtime failures; it supports `intelligence.propagationTopology` overrides for custom edges, suppresses generic component-failure-only, non-latency same-class, and Surf evidence-gap overclaims, and stays low-calibration/non-authoritative
 - root-cause and propagation output exclude prediction language and synthetic `corr-*` IDs
 
-Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, and linked finding IDs for automation without scraping terminal text:
+Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, linked finding IDs, propagation counts, propagation subjects, propagation links, and no-propagation guardrail markers for automation without scraping terminal text:
 
 ```bash
 npm run --silent root-cause:corpus -- --json

@@ -35,6 +35,31 @@ test("config schema accepts bounded propagation topology overrides", () => {
   ]);
 });
 
+test("config schema rejects self-referential propagation topology edges", () => {
+  assert.throws(
+    () =>
+      TestCapabilitiesConfigSchema.parse({
+        version: "2.0",
+        name: "Invalid Topology",
+        targets: { cli: process.execPath },
+        agents: {
+          cli: {
+            enabled: true,
+            type: "cli-tester",
+          },
+        },
+        intelligence: {
+          correlation: true,
+          propagationTopology: {
+            includeDefaults: false,
+            edges: [{ upstream: "api", downstream: "api" }],
+          },
+        },
+      }),
+    /distinct upstream and downstream components/,
+  );
+});
+
 test("canonical YAML config parses through the fail-closed schema", async () => {
   const raw = yaml.load(
     readFileSync(new URL("../test-capabilities.yaml", import.meta.url), "utf8"),

@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -53,6 +54,19 @@ function runFailure(command, args, expected, options = {}) {
 
   assert.match(output, expected);
   return result;
+}
+
+function typecheckCommandArgs(extraArgs) {
+  const tsgoEntrypoint = path.join(
+    repoRoot,
+    "node_modules",
+    "@typescript",
+    "native-preview",
+    "bin",
+    "tsgo.js",
+  );
+  assert.equal(existsSync(tsgoEntrypoint), true, "tsgo must be installed for type fixtures");
+  return [process.execPath, [tsgoEntrypoint, "--ignoreConfig", ...extraArgs]];
 }
 
 function sanitizedExternalToolEnv(packageRoot, nodeBinDir) {
@@ -128,6 +142,47 @@ try {
     "test-capabilities.yaml",
   );
   assert.ok(existsSync(installedConfig), `installed config missing: ${installedConfig}`);
+
+  const installedTypes = path.join(
+    tempDir,
+    "node_modules",
+    "test-capabilities",
+    "dist",
+    "index.d.ts",
+  );
+  assert.ok(existsSync(installedTypes), `installed type entrypoint missing: ${installedTypes}`);
+  const installedTypeSurface = readFileSync(installedTypes, "utf8");
+  assert.match(installedTypeSurface, /IntelligenceConfig/);
+  assert.match(installedTypeSurface, /PropagationEdge/);
+  assert.match(installedTypeSurface, /PropagationTopology/);
+
+  const typeConsumer = path.join(tempDir, "consumer-types.ts");
+  writeFileSync(
+    typeConsumer,
+    [
+      'import { createTestCapabilities } from "test-capabilities";',
+      'import type { IntelligenceConfig, PropagationEdge, PropagationTopology, TestCapabilitiesConfig } from "test-capabilities";',
+      'const edge: PropagationEdge = { upstream: "api", downstream: "web" };',
+      "const topology: PropagationTopology = { edges: [edge] };",
+      "const intelligence: IntelligenceConfig = { correlation: true, propagationTopology: topology };",
+      'const config: TestCapabilitiesConfig = { version: "2.0", name: "typed", targets: { cli: "node" }, agents: { cli: { type: "cli-tester" } }, intelligence };',
+      "createTestCapabilities(config);",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  const [typecheckCommand, typecheckArgs] = typecheckCommandArgs([
+    "--noEmit",
+    "--module",
+    "NodeNext",
+    "--moduleResolution",
+    "NodeNext",
+    "--target",
+    "ES2022",
+    "--skipLibCheck",
+    typeConsumer,
+  ]);
+  run(typecheckCommand, typecheckArgs, { cwd: tempDir });
 
   const binPath = path.join(
     tempDir,
@@ -420,6 +475,147 @@ try {
   `;
 
   run("node", ["--input-type=module", "-e", rootCauseProgram], { cwd: tempDir });
+
+  // Verify packed dist/ also preserves propagation synthesis invariants. This guards
+  // against distribution drift where root_cause survives but dependent-component
+  // linkage disappears or starts making causal/predictive claims.
+  const propagationProgram = `
+    import assert from "node:assert/strict";
+    import process from "node:process";
+    import { TestCapabilitiesOrchestrator } from "test-capabilities";
+
+    const observedAt = new Date("2026-01-01T00:00:00.000Z");
+
+    const finding = ({ id, component, description, evidence, recommendation }) => ({
+      id,
+      type: "bug",
+      severity: "critical",
+      component,
+      description,
+      evidence,
+      recommendation,
+      timestamp: observedAt,
+    });
+
+    const observation = ({ id, agent, component, summary, evidence, findingId }) => ({
+      protocol: "observation.v1",
+      id,
+      agent,
+      kind: "runtime",
+      status: "failed",
+      subject: component,
+      summary,
+      evidence,
+      semantics: { component, interpretation: summary },
+      findingIds: [findingId],
+      timestamp: observedAt,
+    });
+
+    const agentResult = ({ findings, observations, coverage }) => ({
+      execute: async () => ({ findings, observations, coverage }),
+    });
+
+    const timeoutAgent = (agent, component, findingId) => {
+      const evidence = [component + " health check timed out after 5000ms"];
+      return agentResult({
+        findings: [
+          finding({
+            id: findingId,
+            component,
+            description: component + " component timed out during health check",
+            evidence,
+            recommendation: "Investigate " + component + " latency before treating the timeout as isolated.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: agent + "-" + component + "-timeout",
+            agent,
+            component,
+            summary: component + " runtime timed out during component health check.",
+            evidence,
+            findingId,
+          }),
+        ],
+        coverage: component === "web" ? { userFlows: 0 } : { edgeCases: 0 },
+      });
+    };
+
+    const componentFailureAgent = (agent, component, findingId) => {
+      const evidence = [component + " runtime raised TypeError during component health check"];
+      return agentResult({
+        findings: [
+          finding({
+            id: findingId,
+            component,
+            description: component + " component health check failed during runtime probe",
+            evidence,
+            recommendation: "Investigate " + component + " runtime health before trusting downstream signals.",
+          }),
+        ],
+        observations: [
+          observation({
+            id: agent + "-" + component + "-component-failed",
+            agent,
+            component,
+            summary: component + " runtime failed during component health check.",
+            evidence,
+            findingId,
+          }),
+        ],
+        coverage: component === "web" ? { userFlows: 0 } : { edgeCases: 0 },
+      });
+    };
+
+    const orchestrator = new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name: "Packed Propagation Proof",
+      targets: { cli: process.execPath },
+      agents: { seed: { enabled: true, type: "cli-tester" } },
+      intelligence: { correlation: true },
+    });
+
+    // Replace agents with mock implementations that force two high-calibration
+    // dependent-component root causes through the packed library API.
+    orchestrator.agents = new Map([
+      ["apiA", timeoutAgent("apiA", "api", "api-timeout-a")],
+      ["apiB", timeoutAgent("apiB", "api", "api-timeout-b")],
+      ["webA", componentFailureAgent("webA", "web", "web-component-a")],
+      ["webB", componentFailureAgent("webB", "web", "web-component-b")],
+    ]);
+
+    const result = await orchestrator.run();
+    const rootCauses = result.observations.filter((o) => o.kind === "root_cause");
+    const propagations = result.observations.filter((o) => o.kind === "propagation");
+
+    assert.equal(rootCauses.length, 2, "packed dist must produce component-scoped root_causes before propagation");
+    assert.equal(propagations.length, 1, "packed dist must produce exactly one bounded propagation observation");
+
+    const propagation = propagations[0];
+    assert.equal(propagation.subject, "api-to-web");
+    assert.match(propagation.evidence.join("\\n"), /link:api-latency-cascade/);
+    assert.equal(propagation.semantics.calibration.level, "low");
+    assert.equal(propagation.semantics.calibration.signalCount, 2);
+    assert.equal(propagation.semantics.calibration.sensorCount, 2);
+    assert.equal(propagation.semantics.calibration.findingCount, 4);
+    assert.match(propagation.evidence.join("\\n"), /non-authoritative heuristic/);
+    const operatorText = [propagation.summary, propagation.evidence.join("\\n"), propagation.semantics.interpretation, propagation.semantics.nextStep].join("\\n");
+    assert.doesNotMatch(operatorText, /predict|probability|horizon|future|will fail/i);
+    assert.doesNotMatch(operatorText, /likely caused|caused|causing|cascaded|repair.{0,40}first/i);
+    assert.deepEqual([...propagation.findingIds].sort(), [
+      "api-timeout-a",
+      "api-timeout-b",
+      "web-component-a",
+      "web-component-b",
+    ]);
+
+    console.log("packed-propagation-invariant: ok");
+  `;
+
+  const propagationProgramResult = run("node", ["--input-type=module", "-e", propagationProgram], {
+    cwd: tempDir,
+  });
+  assert.match(propagationProgramResult.stdout, /packed-propagation-invariant: ok/);
 
   console.log("consumer-contract: ok");
 } finally {

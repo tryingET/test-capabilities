@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
 
-const require = createRequire(import.meta.url);
-const ts = require("typescript");
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
 function parseLcovLineNumbers(lcovText) {
@@ -25,13 +22,21 @@ test("remap-lcov-to-src remaps generated line hits through source maps instead o
   mkdirSync(distDir, { recursive: true });
 
   const sourceText = [
-    "export async function decide(flag: boolean): Promise<string> {",
+    "export function decide(flag: boolean): string {",
     "  if (flag) {",
     '    return "yes";',
     "  }",
     '  return "no";',
     "}",
-    "",
+  ].join("\n");
+  const generatedText = [
+    "export function decide(flag) {",
+    "  // generated helper line mapped to the function declaration",
+    "  if (flag) {",
+    '    return "yes";',
+    "  }",
+    '  return "no";',
+    "}",
   ].join("\n");
   const sourcePath = path.join(srcDir, "sample.ts");
   const generatedPath = path.join(distDir, "sample.js");
@@ -40,23 +45,24 @@ test("remap-lcov-to-src remaps generated line hits through source maps instead o
   const remappedLcovPath = path.join(fixtureRoot, "lcov.info");
 
   writeFileSync(sourcePath, sourceText, "utf8");
-  const transpiled = ts.transpileModule(sourceText, {
-    fileName: sourcePath,
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2015,
-      module: ts.ModuleKind.ES2020,
-      sourceMap: true,
-      inlineSourceMap: false,
-      inlineSources: false,
-    },
-  });
-  const rawSourceMap = JSON.parse(transpiled.sourceMapText);
-  rawSourceMap.sources = ["../src/sample.ts"];
-  writeFileSync(generatedPath, transpiled.outputText, "utf8");
-  writeFileSync(mapPath, `${JSON.stringify(rawSourceMap)}\n`, "utf8");
+  writeFileSync(generatedPath, generatedText, "utf8");
+  writeFileSync(
+    mapPath,
+    `${JSON.stringify({
+      version: 3,
+      file: "sample.js",
+      sources: ["../src/sample.ts"],
+      names: [],
+      // One segment per generated line. The second generated line intentionally
+      // maps back to source line 1, proving the remapper uses source-map line
+      // mappings rather than path rewriting or generated line numbers.
+      mappings: "AAAA;AAAA;AACA;AACA;AACA;AACA;AAAA",
+    })}\n`,
+    "utf8",
+  );
 
-  const generatedLineCount = transpiled.outputText.split(/\r?\n/u).length - 1;
-  const sourceLineCount = sourceText.split(/\r?\n/u).length - 1;
+  const generatedLineCount = generatedText.split(/\r?\n/u).length;
+  const sourceLineCount = sourceText.split(/\r?\n/u).length;
   const rawLcov = [
     `SF:${path.relative(repoRoot, generatedPath).replace(/\\/g, "/")}`,
     ...Array.from({ length: generatedLineCount }, (_, index) => `DA:${index + 1},1`),

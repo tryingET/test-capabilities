@@ -161,7 +161,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(53 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(58 cases\)/);
   // Propagation synthesis assertions
   assert.match(result.stdout, /\[pass\] Single root_cause does not emit propagation/);
   assert.match(
@@ -170,12 +170,32 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   );
   assert.match(
     result.stdout,
+    /\[pass\] Generic API and web component failures do not emit shared-infra propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Same property violations across api and web do not emit shared-infra propagation/,
+  );
+  assert.match(
+    result.stdout,
     /\[pass\] API timeout \+ web component_failure emits propagation via api-latency-cascade/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API timeout \+ Surf browser coverage gap does not emit latency propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract mismatch \+ web component failure emits propagation via api-schema-drift-to-ui/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract mismatch \+ Surf browser coverage gap does not emit schema-drift propagation/,
   );
   assert.match(result.stdout, /\[pass\] Propagation observations do not make prediction claims/);
   assert.match(
     result.stdout,
-    /\[pass\] Same failure class across api and web emits propagation via shared-infra/,
+    /\[pass\] Same timeout class across api and web emits propagation via shared-infra/,
   );
   assert.match(
     result.stdout,
@@ -204,23 +224,38 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   // Exact corpus counts are intentional truth locks: fixture changes must update both
   // machine-readable coverage expectations and named guardrail assertions.
-  assert.equal(payload.total, 53);
+  assert.equal(payload.total, 58);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 53);
+  assert.equal(payload.coverage.total, 58);
   assert.equal(payload.coverage.noRootCauseCases, 15);
-  assert.equal(payload.coverage.positiveRootCauseCases, 38);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 38);
+  assert.equal(payload.coverage.positiveRootCauseCases, 43);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 43);
   assert.equal(payload.coverage.expectedClasses.none, 15);
   assert.equal(payload.coverage.expectedClasses.command_resolution, 12);
-  assert.equal(payload.coverage.expectedClasses.timeout_or_latency, 7);
-  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 10);
-  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 10);
-  assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 3);
+  assert.equal(payload.coverage.expectedClasses.timeout_or_latency, 8);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 12);
+  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 13);
+  assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 5);
   assert.equal(payload.coverage.expectedClasses.selector_or_dom_drift, 3);
-  assert.equal(payload.coverage.expectedClasses.property_violation, 4);
-  assert.equal(payload.coverage.subjects.api, 27);
+  assert.equal(payload.coverage.expectedClasses.property_violation, 6);
+  assert.equal(payload.coverage.subjects.api, 32);
   assert.equal(payload.coverage.subjects.cli, 16);
-  assert.equal(payload.coverage.subjects.web, 21);
+  assert.equal(payload.coverage.subjects.web, 26);
+  assert.equal(payload.coverage.positivePropagationCases, 7);
+  assert.equal(payload.coverage.noPropagationGuardrailCases, 6);
+  assert.deepEqual(payload.coverage.propagationSubjects, {
+    "api-to-web": 4,
+    "cli-to-api": 1,
+    "cli-to-web": 1,
+    "web-to-api": 1,
+  });
+  assert.deepEqual(payload.coverage.propagationLinks, {
+    "api-latency-cascade": 2,
+    "api-schema-drift-to-ui": 1,
+    "shared-infra (timeout_or_latency on both)": 2,
+    "cli-tool-failure-blocks-api-check": 1,
+    "cli-tool-failure-blocks-web-check": 1,
+  });
   const mixedCliCase = payload.cases.find(
     (entry) =>
       entry.name === "Mixed CLI command-resolution and timeout evidence does not emit root_cause",
@@ -325,6 +360,56 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
     { level: "high", signalCount: 2, sensorCount: 2, findingCount: 2 },
     { level: "high", signalCount: 2, sensorCount: 2, findingCount: 2 },
   ]);
+
+  const propagationCascadeCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "API timeout + web component_failure emits propagation via api-latency-cascade",
+  );
+  assert.equal(propagationCascadeCase?.propagationCount, 1);
+  assert.deepEqual(propagationCascadeCase?.expectedPropagation, {
+    subject: "api-to-web",
+    link: "api-latency-cascade",
+  });
+  assert.deepEqual(propagationCascadeCase?.actualPropagations, [
+    {
+      subject: "api-to-web",
+      link: "api-latency-cascade",
+      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+    },
+  ]);
+
+  const genericNoPropagationCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Generic API and web component failures do not emit shared-infra propagation",
+  );
+  assert.equal(genericNoPropagationCase?.propagationCount, 0);
+  assert.equal(genericNoPropagationCase?.expectNoPropagation, true);
+  assert.equal(Object.hasOwn(genericNoPropagationCase ?? {}, "actualPropagations"), false);
+
+  const sharedInfraCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Same timeout class across api and web emits propagation via shared-infra",
+  );
+  assert.equal(sharedInfraCase?.propagationCount, 1);
+  assert.deepEqual(sharedInfraCase?.actualPropagations, [
+    {
+      subject: "api-to-web",
+      link: "shared-infra (timeout_or_latency on both)",
+      calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+    },
+  ]);
+
+  const customTopologyCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Custom propagation topology emits web-to-api when defaults are disabled",
+  );
+  assert.equal(customTopologyCase?.propagationCount, 1);
+  assert.deepEqual(customTopologyCase?.actualPropagations?.[0], {
+    subject: "web-to-api",
+    link: "shared-infra (timeout_or_latency on both)",
+    calibration: { level: "low", signalCount: 2, sensorCount: 2, findingCount: 4 },
+  });
 
   const sameClassExtraCase = payload.cases.find(
     (entry) => entry.name === "Extra same-class unlinked API finding preserves contract_mismatch",

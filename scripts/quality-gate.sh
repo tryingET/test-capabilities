@@ -53,13 +53,13 @@ run_typecheck() {
     return 0
   fi
 
-  if [[ -x "$ROOT_DIR/node_modules/.bin/tsc" ]]; then
-    "$ROOT_DIR/node_modules/.bin/tsc" --noEmit
+  if [[ -x "$ROOT_DIR/node_modules/.bin/tsgo" ]]; then
+    "$ROOT_DIR/node_modules/.bin/tsgo" --noEmit
     return 0
   fi
 
-  echo "typecheck: tsconfig.json found but local tsc binary is unavailable." >&2
-  echo "Run 'npm install' (or add typescript to devDependencies)." >&2
+  echo "typecheck: tsconfig.json found but local tsgo binary is unavailable." >&2
+  echo "Run 'npm install' (or add @typescript/native-preview to devDependencies)." >&2
   exit 1
 }
 

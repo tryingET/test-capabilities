@@ -41,26 +41,26 @@ run_ts_quality() {
 }
 
 resolve_typescript_compiler() {
-  if [[ -x "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsc" ]]; then
-    printf '%s\n' "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsc"
+  if [[ -x "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo" ]]; then
+    printf '%s\n' "$TEST_CAPABILITIES_ROOT/node_modules/.bin/tsgo"
     return 0
   fi
 
-  if command -v tsc >/dev/null 2>&1; then
-    command -v tsc
+  if command -v tsgo >/dev/null 2>&1; then
+    command -v tsgo
     return 0
   fi
 
-  echo "TypeScript compiler not found. Run npm install or ensure 'tsc' is on PATH." >&2
+  echo "TypeScript native compiler not found. Run npm install or ensure 'tsgo' is on PATH." >&2
   exit 1
 }
 
 build_isolated_runtime_dist() {
   local dist_root="$1"
-  local tsc
-  tsc="$(resolve_typescript_compiler)"
+  local tsgo
+  tsgo="$(resolve_typescript_compiler)"
   mkdir -p "$dist_root"
-  "$tsc" -p "$TEST_CAPABILITIES_ROOT/tsconfig.json" --outDir "$dist_root"
+  "$tsgo" -p "$TEST_CAPABILITIES_ROOT/tsconfig.json" --outDir "$dist_root"
 }
 
 join_csv_unique() {
