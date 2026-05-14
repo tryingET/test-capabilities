@@ -21,7 +21,7 @@ test-capabilities demo
 test-capabilities demo --json
 ```
 
-`doctor` proves required package/runtime basics, config shape, and optional target executability without running the target. `demo` then runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
+`doctor` proves required package/runtime basics, config shape, and optional target executability without running the target. `demo` then runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets. Its JSON envelope includes `coreUseCase.id = 'cli-smoke-observation'`, which is the first public release's polished zero-external flow.
 
 ---
 

@@ -90,6 +90,15 @@ Runtime note:
 ### `DemoOperationResultEnvelope`
 
 ```typescript
+interface CoreUseCaseGuide {
+  id: 'cli-smoke-observation';
+  title: string;
+  purpose: string;
+  proves: string[];
+  commands: string[];
+  nextSteps: string[];
+}
+
 interface DemoOperationResultEnvelope {
   operationId: 'demo';
   input: { json: boolean };
@@ -99,6 +108,7 @@ interface DemoOperationResultEnvelope {
     cliFixture: string;
     configFixture: string;
   };
+  coreUseCase: CoreUseCaseGuide;
   effectiveConfig: TestCapabilitiesConfig;
   summary: TestOperationSummary;
   result: TestResult;
@@ -107,6 +117,7 @@ interface DemoOperationResultEnvelope {
 
 Runtime note:
 - `demo` is the zero-external-dependency functional happy path; it runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path real CLI targets use
+- `coreUseCase` names the polished release identity: CLI smoke plus `observation.v1` diagnostics, with concrete follow-up commands for replacing the demo target with a real CLI
 - `demo --json` returns the full operation envelope for agents and CI probes
 
 ---

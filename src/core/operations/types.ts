@@ -134,6 +134,15 @@ export interface DoctorOperationResultEnvelope {
   checks: DoctorCheck[];
 }
 
+export interface CoreUseCaseGuide {
+  id: "cli-smoke-observation";
+  title: string;
+  purpose: string;
+  proves: string[];
+  commands: string[];
+  nextSteps: string[];
+}
+
 export interface DemoOperationResultEnvelope {
   operationId: "demo";
   input: Required<DemoOperationInput>;
@@ -143,6 +152,7 @@ export interface DemoOperationResultEnvelope {
     cliFixture: string;
     configFixture: string;
   };
+  coreUseCase: CoreUseCaseGuide;
   effectiveConfig: TestCapabilitiesConfig;
   summary: TestOperationSummary;
   result: TestResult;

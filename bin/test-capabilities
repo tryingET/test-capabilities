@@ -167,8 +167,10 @@ program
         console.log(JSON.stringify(output, null, 2));
       } else {
         spinner?.succeed(`Demo complete (${output.summary.health}).`);
+        console.log(`Core use case: ${output.coreUseCase.title}`);
         console.log(`Fixture: ${output.demo.cliFixture}`);
         printSuiteSummary(output.summary);
+        console.log(chalk.dim(`Try next: ${output.coreUseCase.commands[2]}`));
       }
 
       if (output.summary.health !== "pass") {

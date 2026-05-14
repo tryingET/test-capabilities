@@ -180,6 +180,15 @@ test("executeCliOperation routes demo through the built-in zero-external-depende
   assert.equal(result.result.findings.length, 0);
   assert.match(result.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
   assert.match(result.demo.configFixture, /examples\/demo\/test-capabilities\.yaml$/);
+  assert.equal(result.coreUseCase.id, "cli-smoke-observation");
+  assert.match(result.coreUseCase.title, /CLI smoke/);
+  assert.equal(
+    result.coreUseCase.proves.includes(
+      "the orchestrator records a passing observation.v1 smoke signal",
+    ),
+    true,
+  );
+  assert.equal(result.coreUseCase.commands.includes("test-capabilities demo --json"), true);
   assert.match(result.effectiveConfig.targets.cli, /examples\/demo\/cli-demo\.mjs/);
 });
 

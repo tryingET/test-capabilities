@@ -42,7 +42,7 @@ node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 ```
 
-The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application.
+The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application. This is the polished `cli-smoke-observation` use case for the first public release: prove CLI smoke execution and `observation.v1` diagnostics first, then replace the demo target with your own safe CLI command.
 
 Machine-readable output is available for agents and CI probes:
 

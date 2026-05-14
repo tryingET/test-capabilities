@@ -24,6 +24,7 @@ export type {
   CliOperationResult,
   CliRoute,
   CliRouteManifestEntry,
+  CoreUseCaseGuide,
   DemoOperationInput,
   DemoOperationResultEnvelope,
   DoctorCheck,

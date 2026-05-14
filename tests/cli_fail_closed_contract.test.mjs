@@ -103,6 +103,13 @@ test("CLI demo command passes as zero-external-dependency functional path", () =
   assert.equal(payload.summary.health, "pass");
   assert.equal(payload.result.passed, true);
   assert.match(payload.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
+  assert.equal(payload.coreUseCase.id, "cli-smoke-observation");
+  assert.equal(
+    payload.coreUseCase.commands.includes(
+      "test-capabilities test --target <your-cli-command> --quick",
+    ),
+    true,
+  );
 });
 
 test("CLI test command fails when the config file is missing", () => {

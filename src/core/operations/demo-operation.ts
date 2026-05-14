@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
 import { TestCapabilitiesOrchestrator } from "../orchestrator.js";
 import type {
+  CoreUseCaseGuide,
   DemoOperationInput,
   DemoOperationResultEnvelope,
   OperationDefinition,
@@ -32,6 +33,32 @@ function summarizeTestResult(result: TestResult): TestOperationSummary {
     coverage: result.coverage,
     predictions: result.predictions?.length ?? 0,
     quantumUniverses: result.quantumInsights?.universesSimulated,
+  };
+}
+
+function buildCoreUseCaseGuide(): CoreUseCaseGuide {
+  return {
+    id: "cli-smoke-observation",
+    title: "CLI smoke + observation diagnostics",
+    purpose:
+      "Prove the package can run a real CLI command through the fail-closed cli-tester path and emit observation.v1 diagnostic evidence without Surf, Bombadil, network access, or a target app.",
+    proves: [
+      "the installed CLI can load the built runtime",
+      "the shipped demo fixture resolves and runs with --help",
+      "the orchestrator records a passing observation.v1 smoke signal",
+      "the JSON envelope is stable enough for agents and CI smoke probes",
+    ],
+    commands: [
+      "test-capabilities doctor --json",
+      "test-capabilities demo --json",
+      "test-capabilities doctor --target <your-cli-command>",
+      "test-capabilities test --target <your-cli-command> --quick",
+    ],
+    nextSteps: [
+      "replace the demo target with a safe CLI command that supports --help",
+      "keep Surf Go and Bombadil-compatible runtimes optional until you need web exploration",
+      "treat root_cause and propagation observations as diagnostic evidence, not pass/fail authority",
+    ],
   };
 }
 
@@ -81,6 +108,7 @@ async function runDemoOperation(
       cliFixture: path.join(packageRoot, "examples", "demo", "cli-demo.mjs"),
       configFixture: path.join(packageRoot, "examples", "demo", "test-capabilities.yaml"),
     },
+    coreUseCase: buildCoreUseCaseGuide(),
     effectiveConfig: config,
     summary: summarizeTestResult(result),
     result,

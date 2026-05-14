@@ -85,7 +85,7 @@ test-capabilities demo
 test-capabilities demo --json
 ```
 
-The demo uses `examples/demo/cli-demo.mjs` and an equivalent checked-in config at `examples/demo/test-capabilities.yaml`. It requires only Node.js and the installed package files; Surf Go and Bombadil-compatible runtimes remain optional.
+The demo uses `examples/demo/cli-demo.mjs` and an equivalent checked-in config at `examples/demo/test-capabilities.yaml`. It requires only Node.js and the installed package files; Surf Go and Bombadil-compatible runtimes remain optional. The text and JSON output both identify the polished core use case as `cli-smoke-observation`: CLI smoke plus `observation.v1` diagnostics, with next commands for replacing the demo target with a real CLI.
 
 ### `test-capabilities test`
 

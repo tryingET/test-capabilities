@@ -31,6 +31,7 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /zero-external-dependency package and environment diagnostics/);
   assert.match(cliDoc, /built-in zero-external-dependency demo fixture/);
   assert.match(cliDoc, /examples\/demo\/cli-demo\.mjs/);
+  assert.match(cliDoc, /cli-smoke-observation/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
@@ -55,6 +56,7 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
   assert.match(gettingStartedDoc, /node \.\/bin\/test-capabilities demo/);
   assert.match(gettingStartedDoc, /does not require Surf Go, Bombadil, network access/);
+  assert.match(gettingStartedDoc, /cli-smoke-observation/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
   assert.match(
@@ -139,6 +141,8 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
 
   assert.match(typesDoc, /DoctorOperationResultEnvelope/);
   assert.match(typesDoc, /DemoOperationResultEnvelope/);
+  assert.match(typesDoc, /CoreUseCaseGuide/);
+  assert.match(typesDoc, /cli-smoke-observation/);
   assert.match(typesDoc, /zero-external-dependency diagnostic happy path/);
   assert.match(typesDoc, /zero-external-dependency functional happy path/);
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
@@ -195,6 +199,7 @@ test("examples docs include the repo-local capability drill", () => {
 
   assert.match(examplesDoc, /test-capabilities demo --json/);
   assert.match(examplesDoc, /examples\/demo\/cli-demo\.mjs/);
+  assert.match(examplesDoc, /coreUseCase\.id = 'cli-smoke-observation'/);
   assert.match(examplesDoc, /npm run capability:drill/);
   assert.match(examplesDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.match(examplesDoc, /npm run bombadil:smoke/);

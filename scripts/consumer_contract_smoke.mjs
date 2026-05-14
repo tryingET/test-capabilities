@@ -116,6 +116,10 @@ try {
     packedFiles.includes("examples/demo/test-capabilities.yaml"),
     "packed artifact missing built-in demo config fixture",
   );
+  assert.ok(
+    packedFiles.includes("examples/demo/README.md"),
+    "packed artifact missing built-in demo first-use guide",
+  );
   assert.equal(
     packedFiles.some((packedPath) => packedPath.startsWith("external/")),
     false,
@@ -260,7 +264,15 @@ try {
   assert.equal(demoPayload.summary.health, "pass");
   assert.equal(demoPayload.result.passed, true);
   assert.match(demoPayload.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
-  run(binPath, ["demo"], { cwd: tempDir });
+  assert.equal(demoPayload.coreUseCase.id, "cli-smoke-observation");
+  assert.equal(
+    demoPayload.coreUseCase.proves.includes(
+      "the orchestrator records a passing observation.v1 smoke signal",
+    ),
+    true,
+  );
+  const demoText = run(binPath, ["demo"], { cwd: tempDir });
+  assert.match(demoText.stdout, /Core use case: CLI smoke \+ observation diagnostics/);
   run(binPath, ["test", "--quick", "--config", smokeConfig], {
     cwd: tempDir,
   });
@@ -429,6 +441,7 @@ try {
 
     assert.equal(demoResult.operationId, "demo");
     assert.equal(demoResult.summary.health, "pass");
+    assert.equal(demoResult.coreUseCase.id, "cli-smoke-observation");
     assert.equal(first.passed, true);
     assert.equal(first.coverage.overall > 0, true);
     assert.equal(kernelResult.operationId, "test");
