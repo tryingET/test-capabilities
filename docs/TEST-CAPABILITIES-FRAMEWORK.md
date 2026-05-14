@@ -823,7 +823,7 @@ test-capabilities extension publish
 
 ## 📜 License
 
-MIT License - Use it, improve it, share it.
+See [`../LICENSE`](../LICENSE): MIT-style terms with the same restricted-party rider used by the pi-extensions packages.
 
 ---
 

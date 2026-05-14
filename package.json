@@ -1,8 +1,20 @@
 {
   "name": "test-capabilities",
   "version": "0.1.0",
-  "description": "Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, autonomous quality assurance",
-  "private": true,
+  "description": "Fail-closed testing capability framework with CLI, browser, property, healing, and diagnostic root-cause surfaces",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tryingET/test-capabilities.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tryingET/test-capabilities/issues"
+  },
+  "homepage": "https://github.com/tryingET/test-capabilities#readme",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -64,9 +76,9 @@
   "keywords": [
     "testing",
     "ai",
-    "autonomous",
-    "self-healing",
-    "predictive",
+    "fail-closed",
+    "self-healing-tests",
+    "root-cause-analysis",
     "browser-automation",
     "fuzzing",
     "quantum-testing",

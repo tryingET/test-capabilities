@@ -134,7 +134,7 @@ Library surface
 
 ## License
 
-MIT
+See [`../LICENSE`](../LICENSE): MIT-style terms with the same restricted-party rider used by the pi-extensions packages.
 
 ---
 
