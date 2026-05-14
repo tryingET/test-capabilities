@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "c785b5a420f6c7db5824745a606c76d1d832b862"
+created_at: "2026-05-14T10:07:10Z"
+intent: "Keep root README DRY by linking detailed doctor/init/demo adoption walkthroughs"
+files:
+  - "README.md"
+validation:
+  fast_gate:
+    command: "npm run docs:list -- --docs . --strict"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check:quick"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Root README should be a concise entrypoint and delegate detailed how-to content"
