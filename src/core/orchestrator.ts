@@ -200,6 +200,20 @@ export type ObservationKind =
   | "propagation";
 export type ObservationStatus = "passed" | "failed" | "skipped" | "errored";
 export type ObservationCalibrationLevel = "low" | "medium" | "high";
+export const ROOT_CAUSE_FAILURE_CLASSES = [
+  "auth_or_permission",
+  "browser_coverage_gap",
+  "command_resolution",
+  "component_failure_surface",
+  "configuration_error",
+  "contract_mismatch",
+  "network_connectivity",
+  "property_violation",
+  "resource_exhaustion",
+  "selector_or_dom_drift",
+  "timeout_or_latency",
+] as const;
+export type RootCauseFailureClass = (typeof ROOT_CAUSE_FAILURE_CLASSES)[number];
 
 export interface ObservationCalibration {
   level: ObservationCalibrationLevel;
@@ -214,6 +228,8 @@ export interface ObservationSemantics {
   interpretation: string;
   nextStep?: string;
   calibration?: ObservationCalibration;
+  failureClass?: RootCauseFailureClass;
+  propagationLink?: string;
 }
 
 export interface Observation {
@@ -330,6 +346,19 @@ function parseDurationToMs(value: number | string | undefined, fallback: number)
   }
 }
 
+function appendCappedProcessOutput(current: string, chunk: string): string {
+  if (current.length >= MAX_CLI_TESTER_OUTPUT_CHARS) {
+    return current;
+  }
+
+  const remaining = MAX_CLI_TESTER_OUTPUT_CHARS - current.length;
+  if (chunk.length <= remaining) {
+    return current + chunk;
+  }
+
+  return `${current}${chunk.slice(0, remaining)}\n[output truncated after ${MAX_CLI_TESTER_OUTPUT_CHARS} characters]`;
+}
+
 function parseCommandLine(commandLine: string): { command: string; args: string[] } {
   const tokens: string[] = [];
   let current = "";
@@ -409,6 +438,7 @@ function getHighestSeverity(findings: Finding[]): Severity {
 }
 
 const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
+const MAX_CLI_TESTER_OUTPUT_CHARS = 64_000;
 const DEFAULT_BOMBADIL_DURATION_MS: Record<NonNullable<AgentConfig["intensity"]>, number> = {
   gentle: 5_000,
   normal: 10_000,
@@ -769,6 +799,7 @@ export class TestCapabilitiesOrchestrator {
             interpretation: `Evidence-bounded root-cause synthesis identifies ${failureClass} as the current ${component} failure class with ${calibration.level} support from the observed run. No later-time claim is made.`,
             nextStep: `Inspect ${component} evidence for ${failureClass}, repair the smallest confirmed cause, then rerun the same sensor set for calibration comparison.`,
             calibration,
+            failureClass,
           },
           findingIds: [...selectedFindingIds],
         }),
@@ -1024,7 +1055,6 @@ function rootCauseCorpus(observations: Observation[], findings: Finding[]): stri
       finding.type,
       finding.severity,
       finding.description,
-      finding.recommendation,
       ...finding.evidence,
     ]),
   ]
@@ -1032,41 +1062,88 @@ function rootCauseCorpus(observations: Observation[], findings: Finding[]): stri
     .toLowerCase();
 }
 
-function inferRootCauseClass(observations: Observation[], findings: Finding[]): string {
-  if (findings.some((finding) => finding.type === "api_contract")) {
+function inferRootCauseClass(
+  observations: Observation[],
+  findings: Finding[],
+): RootCauseFailureClass {
+  const corpus = rootCauseCorpus(observations, findings);
+  const hasCliContext =
+    observations.some(
+      (observation) => observation.subject === "cli" || observation.semantics?.component === "cli",
+    ) || findings.some((finding) => finding.component === "cli");
+  const hasApiContext =
+    observations.some(
+      (observation) => observation.subject === "api" || observation.semantics?.component === "api",
+    ) || findings.some((finding) => finding.component === "api" || finding.type === "api_contract");
+  const hasWebContext =
+    observations.some(
+      (observation) => observation.subject === "web" || observation.semantics?.component === "web",
+    ) || findings.some((finding) => finding.component === "web");
+
+  const hasApiContractEvidence =
+    (hasApiContext || findings.some((finding) => finding.type === "api_contract")) &&
+    /api[_ -]?contract|contract|openapi|schema[^\n]*(mismatch|drift|contract|validation)|schema[ -]?validation|contract[ -]?validation|response[^\n]*(body|payload|field|element|property)|payload[^\n]*(field|element|property|missing|required)|required[^\n]*(field|property|element)/.test(
+      corpus,
+    );
+  if (findings.some((finding) => finding.type === "api_contract") || hasApiContractEvidence) {
     return "contract_mismatch";
   }
 
-  const corpus = rootCauseCorpus(observations, findings);
+  const hasCliCommandResolutionEvidence =
+    hasCliContext &&
+    (/\bspawn\s+[^\n]+\s+enoent\b/.test(corpus) ||
+      /command not found|executable[^\n]*not found|binary[^\n]*not found/.test(corpus) ||
+      /(^|\n)(sh: \d+: [^\s:]+|[./\w-]+): not found(\n|$)/.test(corpus));
+  if (hasCliCommandResolutionEvidence) {
+    return "command_resolution";
+  }
+
+  const hasConfigurationErrorEvidence =
+    /missing (?:required )?(?:env|environment variable|config(?:uration)? file|config(?:uration)? value)|(?:env|environment variable) [a-z0-9_]+ (?:is )?(?:missing|required|not set)|required (?:env|environment variable|config(?:uration)? value) [a-z0-9_]+|\bconfig(?:uration)?\b[^\n]*(?:enoent|no such file|not found)|enoent[^\n]*(?:\.env\b|\.toml\b|\.ini\b|\.conf\b|\.ya?ml\b|\.json\b|\bconfig(?:uration)?\b)|failed to load config(?:uration)?|invalid config(?:uration)? value|yaml parse error|json parse error|config(?:uration)? parse error/.test(
+      corpus,
+    );
+  if (hasConfigurationErrorEvidence) {
+    return "configuration_error";
+  }
+
+  const hasResourceExhaustionEvidence =
+    /out of memory|heap out of memory|oomkilled|heap oom|\boom\b|enospc|emfile|too many open files|disk full|no space left|connection pool (?:exhausted|depleted)|pool exhausted|resource exhausted|quota exceeded|rate limit|throttl|\b(?:http\s*)?429\b|too many requests/.test(
+      corpus,
+    );
+  if (hasResourceExhaustionEvidence) {
+    return "resource_exhaustion";
+  }
+
+  const hasNetworkConnectivityEvidence =
+    (hasApiContext || hasWebContext) &&
+    /\b(?:econnrefused|econnreset|enetunreach|ehostunreach|enotfound|eai_again)\b|\bdns\b[^\n]*(?:resolution|lookup|failure|failed|error|timeout|timed out)|(?:resolution|lookup|failure|failed|error|timeout|timed out)[^\n]*\bdns\b|connection refused|connection reset|network unreachable|host unreachable|name resolution|could not resolve host|tls handshake|certificate (?:verify|validation|expired|error)|net::err_(?:connection_refused|name_not_resolved|internet_disconnected|cert_)/.test(
+      corpus,
+    );
+  if (hasNetworkConnectivityEvidence) {
+    return "network_connectivity";
+  }
 
   if (/timeout|timed out|latency|duration|slow|sigterm|sigkill/.test(corpus)) {
     return "timeout_or_latency";
   }
 
-  const hasCliContext =
-    observations.some(
-      (observation) => observation.subject === "cli" || observation.semantics?.component === "cli",
-    ) || findings.some((finding) => finding.component === "cli");
   if (
-    /enoent|spawn|command not found|executable[^\n]*not found|binary[^\n]*not found|no such file/.test(
+    hasCliContext &&
+    (/enoent|spawn|command not found|executable[^\n]*not found|binary[^\n]*not found|no such file/.test(
       corpus,
     ) ||
-    (hasCliContext && /(^|\n)(sh: \d+: [^\s:]+|[./\w-]+): not found(\n|$)/.test(corpus))
+      /(^|\n)(sh: \d+: [^\s:]+|[./\w-]+): not found(\n|$)/.test(corpus))
   ) {
     return "command_resolution";
   }
 
-  const hasApiContext =
-    observations.some(
-      (observation) => observation.subject === "api" || observation.semantics?.component === "api",
-    ) || findings.some((finding) => finding.component === "api" || finding.type === "api_contract");
-  const hasApiContractEvidence =
-    hasApiContext &&
-    /api[_ -]?contract|contract|openapi|schema[^\n]*(mismatch|drift|contract|validation)|schema[ -]?validation|contract[ -]?validation|response[^\n]*(body|payload|field|element|property)|payload[^\n]*(field|element|property|missing|required)|required[^\n]*(field|property|element)/.test(
+  const hasAuthBoundaryEvidence =
+    (hasApiContext || hasWebContext) &&
+    /\b(?:http\s*)?(?:401|403)\b|unauthori[sz]ed|forbidden|permission denied|access denied|authentication required|not authenticated|invalid (?:token|credentials)|expired (?:token|session)|missing (?:authorization|auth) header/.test(
       corpus,
     );
-  if (hasApiContractEvidence) {
-    return "contract_mismatch";
+  if (hasAuthBoundaryEvidence) {
+    return "auth_or_permission";
   }
 
   const hasPropertyEvidence =
@@ -1105,7 +1182,7 @@ function inferRootCauseClass(observations: Observation[], findings: Finding[]): 
 interface RootCauseEvidenceUnit {
   id: string;
   source: "finding" | "observation";
-  failureClass: string;
+  failureClass: RootCauseFailureClass;
   observationId: string;
   findingId?: string;
   agent?: string;
@@ -1176,7 +1253,7 @@ function rootCauseEvidenceUnits(
 function strongestAgreedRootCauseUnits(
   evidenceUnits: RootCauseEvidenceUnit[],
 ): RootCauseEvidenceUnit[] {
-  const byFailureClass = new Map<string, RootCauseEvidenceUnit[]>();
+  const byFailureClass = new Map<RootCauseFailureClass, RootCauseEvidenceUnit[]>();
 
   for (const unit of evidenceUnits) {
     byFailureClass.set(unit.failureClass, [...(byFailureClass.get(unit.failureClass) ?? []), unit]);
@@ -1276,25 +1353,32 @@ function rootCauseEvidence(
  * Extract the failure class string from a root_cause observation's semantics.
  * Returns undefined if the observation is not a root_cause or has no interpretable class.
  */
-function getFailureClassFromRootCause(observation: Observation): string | undefined {
+function isRootCauseFailureClass(value: string | undefined): value is RootCauseFailureClass {
+  return ROOT_CAUSE_FAILURE_CLASSES.includes(value as RootCauseFailureClass);
+}
+
+function getFailureClassFromRootCause(observation: Observation): RootCauseFailureClass | undefined {
   if (observation.kind !== "root_cause") {
     return undefined;
   }
+  if (isRootCauseFailureClass(observation.semantics?.failureClass)) {
+    return observation.semantics.failureClass;
+  }
   const calibration = observation.semantics?.calibration;
   if (calibration) {
-    // The failure class is embedded in the first evidence line: "failureClass:<class>"
+    // Backward-compatible fallback for older root_cause observations that only exposed evidence.
     for (const ev of observation.evidence) {
       const match = ev.match(/^failureClass:(.+)$/);
-      if (match) {
+      if (isRootCauseFailureClass(match?.[1])) {
         return match[1];
       }
     }
   }
-  // Fallback: extract from summary text
+  // Fallback: extract from summary text.
   const summaryMatch = observation.summary.match(
     /has\s+\w+\s+evidence support for (\S+) as the current/,
   );
-  return summaryMatch ? summaryMatch[1] : undefined;
+  return isRootCauseFailureClass(summaryMatch?.[1]) ? summaryMatch[1] : undefined;
 }
 
 /**
@@ -1338,9 +1422,9 @@ function resolvePropagationEdges(topology: PropagationTopology | undefined): Pro
  */
 function inferPropagationLink(
   upstream: string,
-  upstreamClass: string,
+  upstreamClass: RootCauseFailureClass,
   downstream: string,
-  downstreamClass: string,
+  downstreamClass: RootCauseFailureClass,
 ): string | undefined {
   // Shared-infra propagation is intentionally narrow: same generic or semantic failure classes
   // can co-occur without implying infrastructure coupling. Latency/timeout is the bounded
@@ -1468,6 +1552,7 @@ function synthesizePropagationChains(
           interpretation: `Heuristic propagation analysis suggests ${upstream} failure (${upstreamClass}) may be linked to ${downstream} (${downstreamClass}) via ${link}. This is a non-authoritative inference from co-occurring root causes and known dependency topology; it does not constitute causal proof.`,
           nextStep: `Investigate ${upstream} and ${downstream} independently, then rerun sensors for both components to confirm whether the observed link persists after any repair.`,
           calibration: propagationCalibration,
+          propagationLink: link,
         },
         findingIds: allFindingIds,
       }),
@@ -1960,10 +2045,10 @@ class CliTesterAgent implements TestAgent {
       }, timeoutMs);
 
       proc.stdout.on("data", (data) => {
-        stdout += String(data);
+        stdout = appendCappedProcessOutput(stdout, String(data));
       });
       proc.stderr.on("data", (data) => {
-        stderr += String(data);
+        stderr = appendCappedProcessOutput(stderr, String(data));
       });
 
       proc.on("close", (code, signal) => {

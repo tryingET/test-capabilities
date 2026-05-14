@@ -64,6 +64,7 @@ export type {
   PropagationEdge,
   PropagationTopology,
   QuantumInsights,
+  RootCauseFailureClass,
   Severity,
   Target,
   TestCapabilitiesConfig,
@@ -72,6 +73,7 @@ export type {
 } from "./core/orchestrator.js";
 export {
   AgentConfigSchema,
+  ROOT_CAUSE_FAILURE_CLASSES,
   TargetSchema,
   TestCapabilitiesConfigSchema,
   TestCapabilitiesOrchestrator,
