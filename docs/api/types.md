@@ -245,11 +245,13 @@ interface TestResult {
 
 ### `TestOperationResultEnvelope`
 
+`test-capabilities test --json` prints this full envelope without the banner or spinner output, so agents and CI can consume the same structured result that the operation kernel returns.
+
 ```typescript
 interface TestOperationResultEnvelope {
   operationId: 'test';
   mode: 'quick' | 'standard';
-  input: TestOperationInput;
+  input: TestOperationInput & { config: string; quick: boolean; json: boolean };
   effectiveConfig: TestCapabilitiesConfig;
   summary: {
     health: 'pass' | 'fail';

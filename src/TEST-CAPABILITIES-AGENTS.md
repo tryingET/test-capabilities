@@ -26,7 +26,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
   - zero-external-dependency first-run diagnostics; missing Surf/Bombadil runtimes warn but do not fail
 - `test-capabilities demo [--json]`
   - zero-external-dependency functional demo; runs the shipped `examples/demo/cli-demo.mjs` fixture through `cli-tester`
-- `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
+- `test-capabilities test --config <file> [--target <url-or-path>] [--quick] [--json]`
   - non-URL targets override `targets.cli`
   - URL targets override `targets.web` when `quantum.enabled: true` or an enabled `bombadil`/`surf` agent provides the supported web runtime path
   - URL targets do not replace `targets.cli` when `cli-tester` is still enabled for the run
@@ -64,7 +64,7 @@ What does the user want?
 │
 ├─ "Run built-in demo" ───────────→ test-capabilities demo [--json]
 │
-├─ "Run the supported suite" ─────→ test-capabilities test --config <file> [--quick]
+├─ "Run the supported suite" ─────→ test-capabilities test --config <file> [--quick] [--json]
 │
 ├─ "Quick CLI smoke" ─────────────→ test-capabilities test --quick --target node --config <file>
 │
@@ -132,7 +132,7 @@ Programmatic usage returns either a `TestResult` (via the orchestrator) or a typ
 
 ```bash
 test-capabilities doctor [--json]
-test-capabilities test --config <file> [--target <url-or-path>] [--quick]
+test-capabilities test --config <file> [--target <url-or-path>] [--quick] [--json]
 test-capabilities surf explore --url <url>
 test-capabilities quantum --target <url> [--branches N] [--collapse]
 test-capabilities heal --dir <path> [--dry-run] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]

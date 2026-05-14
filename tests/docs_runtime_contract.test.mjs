@@ -26,6 +26,8 @@ test("CLI docs reflect the fail-closed capability contract", () => {
 
   assert.match(cliDoc, /Runtime capability summary/);
   assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
+  assert.match(cliDoc, /--json/);
+  assert.match(cliDoc, /TestOperationResultEnvelope/);
   assert.match(cliDoc, /`doctor` \| implemented/);
   assert.match(cliDoc, /`demo` \| implemented/);
   assert.match(cliDoc, /zero-external-dependency package and environment diagnostics/);
@@ -145,6 +147,8 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
   assert.match(typesDoc, /cli-smoke-observation/);
   assert.match(typesDoc, /zero-external-dependency diagnostic happy path/);
   assert.match(typesDoc, /zero-external-dependency functional happy path/);
+  assert.match(typesDoc, /test-capabilities test --json/);
+  assert.match(typesDoc, /json: boolean/);
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
   assert.match(typesDoc, /status: CoverageStatus;/);
   assert.match(typesDoc, /observations\?: Observation\[\];/);

@@ -207,6 +207,7 @@ test("executeCliOperation routes the test verb through the typed operation kerne
   assert.equal(result.result.passed, true);
   assert.equal(result.result.coverage.status, "partial");
   assert.equal(result.input.quick, true);
+  assert.equal(result.input.json, false);
   assert.equal(result.effectiveConfig.targets.cli, process.execPath);
 });
 

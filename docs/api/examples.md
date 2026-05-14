@@ -82,6 +82,8 @@ chaos:
 
 ```bash
 test-capabilities test --quick --config test-capabilities.yaml
+# Machine-readable envelope for CI/agents:
+test-capabilities test --quick --config test-capabilities.yaml --json
 ```
 
 ---

@@ -93,6 +93,7 @@ Run the capability-backed orchestrator path.
 
 ```bash
 test-capabilities test [options]
+test-capabilities test --config examples/demo/test-capabilities.yaml --json
 ```
 
 Supported options:
@@ -102,8 +103,10 @@ Supported options:
 | `--config <file>` | Path to `test-capabilities.yaml` | `test-capabilities.yaml` |
 | `--target <url-or-path>` | Override one target. Non-URLs map to `targets.cli`. URLs map to `targets.web` and are only accepted when a real web consumer is enabled for the run (currently: `quantum.enabled: true` or an enabled `bombadil` or `surf` agent). | none |
 | `--quick` | Disable quantum and prediction overlays for a deterministic smoke run | `false` |
+| `--json` | Print the full machine-readable operation envelope for agents/CI instead of the banner and human summary | `false` |
 
 Important:
+- `--json` emits the same `TestOperationResultEnvelope` returned by `executeCliOperation({ command: 'test' }, input)`, including `operationId`, normalized `input`, `effectiveConfig`, `summary`, and the full orchestrator `result`
 - the current supported orchestrator agents are `bombadil`, `surf`, and `cli-tester`
 - a URL `--target` does **not** replace `targets.cli` when `cli-tester` is still enabled for the run
 - `test --quick --target https://...` still works when an enabled `bombadil` or `surf` agent is the active web consumer

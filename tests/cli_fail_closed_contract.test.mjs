@@ -112,6 +112,30 @@ test("CLI demo command passes as zero-external-dependency functional path", () =
   );
 });
 
+test("CLI test command emits machine-readable JSON for the primary run path", () => {
+  const result = runCli(["test", "--config", "examples/demo/test-capabilities.yaml", "--json"], {
+    PATH: path.dirname(process.execPath),
+    TEST_CAPABILITIES_SURF_GO_BIN: "",
+    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_BOMBADIL_BIN: "",
+    TEST_CAPABILITIES_BOMBADIL_REPO: "",
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(result.stdout.trim().startsWith("{"), true);
+  assert.equal(result.stderr.trim(), "");
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.operationId, "test");
+  assert.equal(payload.input.json, true);
+  assert.equal(payload.input.config, "examples/demo/test-capabilities.yaml");
+  assert.equal(payload.summary.health, "pass");
+  assert.equal(payload.result.passed, true);
+  assert.equal(
+    payload.result.observations.some((entry) => entry.protocol === "observation.v1"),
+    true,
+  );
+});
+
 test("CLI test command fails when the config file is missing", () => {
   const result = runCli(["test", "--config", "/tmp/definitely-missing-test-capabilities.yaml"]);
 

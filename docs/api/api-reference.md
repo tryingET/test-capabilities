@@ -87,6 +87,7 @@ import {
 | Run zero-external-dependency diagnostics | `executeCliOperation({ command: 'doctor' }, {})` |
 | Run built-in zero-external-dependency functional demo | `executeCliOperation({ command: 'demo' }, {})` or `executeDemoOperation({})` |
 | Run the supported orchestrator path | `createNexus(config).run()` |
+| Run the primary CLI suite with machine-readable output | `test-capabilities test --config <file> --json` / `executeCliOperation({ command: 'test' }, { config, json: true })` |
 | Inspect bounded root-cause class vocabulary | `ROOT_CAUSE_FAILURE_CLASSES` / `RootCauseFailureClass` |
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
 | Browser control | `new SurfClient()` |
@@ -143,7 +144,7 @@ console.log(doctor.summary.optionalWarnings); // optional Surf/Bombadil runtime 
 console.log(demo.summary.health); // 'pass' when the built-in CLI fixture succeeds
 ```
 
-`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. It validates package/runtime basics, package version metadata, config shape, and optional CLI target executability without running the target. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
+`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. It validates package/runtime basics, package version metadata, config shape, and optional CLI target executability without running the target. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets. For the primary suite path, `test-capabilities test --json` prints the full `TestOperationResultEnvelope` returned by `executeCliOperation({ command: 'test' }, input)`.
 
 ---
 

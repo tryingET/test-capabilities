@@ -130,6 +130,7 @@ npm run build          # TypeScript build
 npm run test-capabilities                # Run TEST-CAPABILITIES CLI
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities test --config ./test-capabilities.yaml
+node ./bin/test-capabilities test --config examples/demo/test-capabilities.yaml --json
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com
 node ./bin/test-capabilities heal --dir ./tests --dry-run

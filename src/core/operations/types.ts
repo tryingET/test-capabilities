@@ -36,6 +36,7 @@ export interface CliRouteManifestEntry {
 }
 
 export interface TestOperationInput {
+  json?: boolean;
   target?: string;
   config?: string;
   autonomous?: boolean;
@@ -114,8 +115,8 @@ export interface TestOperationSummary {
 export interface TestOperationResultEnvelope {
   operationId: "test";
   mode: "quick" | "standard";
-  input: Required<Pick<TestOperationInput, "config" | "quick">> &
-    Omit<TestOperationInput, "config" | "quick">;
+  input: Required<Pick<TestOperationInput, "config" | "quick" | "json">> &
+    Omit<TestOperationInput, "config" | "quick" | "json">;
   effectiveConfig: TestCapabilitiesConfig;
   summary: TestOperationSummary;
   result: TestResult;

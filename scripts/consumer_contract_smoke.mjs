@@ -276,6 +276,14 @@ try {
   run(binPath, ["test", "--quick", "--config", smokeConfig], {
     cwd: tempDir,
   });
+  const testJsonSmoke = run(binPath, ["test", "--quick", "--config", smokeConfig, "--json"], {
+    cwd: tempDir,
+  });
+  const testJsonPayload = JSON.parse(testJsonSmoke.stdout);
+  assert.equal(testJsonPayload.operationId, "test");
+  assert.equal(testJsonPayload.input.json, true);
+  assert.equal(testJsonPayload.summary.health, "pass");
+  assert.equal(testJsonPayload.result.passed, true);
 
   const installedPackageRoot = path.join(tempDir, "node_modules", "test-capabilities");
   const nodeOnlyBin = path.join(tempDir, "node-only-bin");

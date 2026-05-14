@@ -17,6 +17,7 @@ import type {
 
 export const TestOperationInputSchema = z
   .object({
+    json: z.boolean().optional().default(false),
     target: z.string().optional(),
     config: z.string().default("test-capabilities.yaml"),
     autonomous: z.boolean().optional().default(false),

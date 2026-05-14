@@ -49,6 +49,7 @@ Machine-readable output is available for agents and CI probes:
 ```bash
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities demo --json
+node ./bin/test-capabilities test --config examples/demo/test-capabilities.yaml --json
 ```
 
 ---
@@ -87,6 +88,7 @@ Run it:
 
 ```bash
 test-capabilities test --quick --config test-capabilities.yaml
+# add --json for the full TestOperationResultEnvelope
 ```
 
 Expected shape of output:

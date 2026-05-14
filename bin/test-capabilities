@@ -196,19 +196,31 @@ program
   .option("--fail-threshold <level>", "Fail threshold (low|medium|high|critical)")
   .option("--upload-artifacts", "Upload artifacts to cloud")
   .option("--report <dir>", "Report output directory")
+  .option("--json", "Print the full machine-readable operation envelope")
   .action(async (options) => {
-    showBanner();
-    const spinner = ora("Initializing TEST-CAPABILITIES operation kernel...").start();
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson
+      ? undefined
+      : ora("Initializing TEST-CAPABILITIES operation kernel...").start();
 
     try {
       assertSupportedCliCommand("test");
-      spinner.text = options.quick
-        ? "Executing registered test operation (quick)..."
-        : "Executing registered test operation...";
+      if (spinner) {
+        spinner.text = options.quick
+          ? "Executing registered test operation (quick)..."
+          : "Executing registered test operation...";
+      }
 
       const output = await executeCliOperation({ command: "test" }, options);
-      spinner.succeed(`Testing complete (${output.summary.health}).`);
-      printSuiteSummary(output.summary);
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        spinner?.succeed(`Testing complete (${output.summary.health}).`);
+        printSuiteSummary(output.summary);
+      }
 
       if (output.summary.health !== "pass") {
         process.exit(1);
