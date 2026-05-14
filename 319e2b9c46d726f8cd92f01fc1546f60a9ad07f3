@@ -1,0 +1,20 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "319e2b9c46d726f8cd92f01fc1546f60a9ad07f3"
+created_at: "2026-05-14T11:48:25Z"
+intent: "Draft v0.1.0 first-public-alpha release notes with supported, unsupported, and external-runtime boundaries"
+files:
+  - "docs/releases/2026-05-14-v0.1.0-github-release.md"
+validation:
+  fast_gate:
+    command: "npm run docs:list -- --docs . --strict && npm run release:intent:check"
+    status: "pass"
+  full_gate:
+    command: "pending full release gate before tag"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "Release notes are the remaining public-intent artifact before repo creation and publishing"
