@@ -26,8 +26,8 @@
     }
   },
   "bin": {
-    "tc": "./bin/test-capabilities",
-    "test-capabilities": "./bin/test-capabilities"
+    "tc": "bin/test-capabilities",
+    "test-capabilities": "bin/test-capabilities"
   },
   "files": [
     "bin/",

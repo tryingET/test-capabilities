@@ -97,7 +97,7 @@ test("baseline: node22 + required scripts are present", () => {
   assert.equal(pkg.exports?.["."]?.import, "./dist/index.js");
   assert.equal(pkg.exports?.["."]?.default, "./dist/index.js");
   assert.equal(pkg.exports?.["."]?.types, "./dist/index.d.ts");
-  assert.equal(pkg.bin?.["test-capabilities"], "./bin/test-capabilities");
+  assert.equal(pkg.bin?.["test-capabilities"], "bin/test-capabilities");
   assert.deepEqual(pkg.files, [
     "bin/",
     "dist/",
