@@ -167,6 +167,9 @@ Use this when you want direct simulator output instead of the orchestrator CLI-s
 
 ## Next steps
 
+- [Minimal CLI smoke walkthrough](../adoption/minimal-cli-smoke-walkthrough.md)
+- [Greenfield bootstrap how-to](../adoption/greenfield-bootstrap-how-to.md)
+- [Brownfield integration how-to](../adoption/brownfield-integration-how-to.md)
 - [CLI Reference](cli.md)
 - [Configuration](config.md)
 - [Examples](examples.md)

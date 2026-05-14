@@ -38,6 +38,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 | [docs/TEST-CAPABILITIES-FRAMEWORK.md](docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
 | [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
+| [docs/adoption/](docs/adoption/) | Greenfield, brownfield, and minimal first-run adoption guides |
 | [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md) | Repo-local deterministic screening proof path via `ts-quality` |
 | [docs/npm-publishing-checklist.md](docs/npm-publishing-checklist.md) | Public npm release readiness checklist |
 | [docs/releases/release-workflow.md](docs/releases/release-workflow.md) | GitHub Release → npm Trusted Publishing workflow |
