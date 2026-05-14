@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
@@ -141,9 +141,11 @@ test("loadConfig parses the canonical YAML, tolerates empty YAML, and fails clea
   assert.equal(parsed.intelligence?.correlation, true);
   assert.equal(parsed.quantum?.collapseStrategy, "significance");
 
+  const emptyConfigDir = new URL("../tmp/", import.meta.url);
   const emptyConfigPath = new URL("../tmp/test-capabilities-empty-config.yaml", import.meta.url)
     .pathname;
   try {
+    mkdirSync(emptyConfigDir, { recursive: true });
     writeFileSync(emptyConfigPath, "\n", "utf8");
     assert.throws(() => loadConfig(emptyConfigPath), /Required/);
   } finally {
