@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -84,10 +92,12 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.deepEqual(CAPABILITY_MATRIX.cli.surfExploreOptions, SURF_EXPLORE_OPTION_SUPPORT);
   assert.equal(CAPABILITY_MATRIX.cli.commands.doctor, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.demo, "implemented");
+  assert.equal(CAPABILITY_MATRIX.cli.commands.init, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
   assert.equal(getCliCommandStatus("test"), "implemented");
   assert.equal(getCliCommandStatus("doctor"), "implemented");
   assert.equal(getCliCommandStatus("demo"), "implemented");
+  assert.equal(getCliCommandStatus("init"), "implemented");
   assert.equal(getCliCommandStatus("predict"), "unsupported");
   assert.equal(getSurfActionStatus("explore"), "implemented");
   assert.equal(getSurfActionStatus("flow"), "unsupported");
@@ -101,6 +111,7 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   );
   assert.equal(resolveCliRoute({ command: "doctor" })?.operationId, "doctor");
   assert.equal(resolveCliRoute({ command: "demo" })?.operationId, "demo");
+  assert.equal(resolveCliRoute({ command: "init" })?.operationId, "init");
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
 });
 
@@ -169,6 +180,66 @@ test("executeCliOperation doctor validates URL targets without requiring CLI exe
     result.checks.some((check) => check.id === "target.web" && check.status === "pass"),
     true,
   );
+});
+
+test("executeCliOperation init writes a minimal fail-closed config", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-init-"));
+  const output = path.join(tempDir, "test-capabilities.yaml");
+
+  try {
+    const result = await executeCliOperation(
+      { command: "init" },
+      { output, target: "node", force: false },
+    );
+
+    assert.equal(result.operationId, "init");
+    assert.equal(result.template, "cli-smoke");
+    assert.equal(result.written, true);
+    assert.equal(result.outputPath, output);
+    assert.match(readFileSync(output, "utf8"), /type: cli-tester/);
+    assert.match(result.configText, /cli: 'node'/);
+    assert.equal(
+      result.nextCommands.includes(`test-capabilities test --config ${output} --quick`),
+      true,
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation init refuses to overwrite without force", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-init-overwrite-"));
+  const output = path.join(tempDir, "test-capabilities.yaml");
+  writeFileSync(output, "existing", "utf8");
+
+  try {
+    await assert.rejects(
+      async () => executeCliOperation({ command: "init" }, { output }),
+      /Refusing to overwrite existing config/,
+    );
+    assert.equal(readFileSync(output, "utf8"), "existing");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation init can print without writing", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-init-print-"));
+  const output = path.join(tempDir, "printed.yaml");
+
+  try {
+    const result = await executeCliOperation(
+      { command: "init" },
+      { output, target: "custom 'cli'", print: true },
+    );
+
+    assert.equal(result.operationId, "init");
+    assert.equal(result.written, false);
+    assert.equal(result.configText.includes("cli: 'custom ''cli'''"), true);
+    assert.equal(existsSync(output), false);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("executeCliOperation routes demo through the built-in zero-external-dependency fixture", async () => {

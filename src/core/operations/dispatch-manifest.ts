@@ -1,6 +1,7 @@
 import { DEMO_OPERATION, executeDemoOperation } from "./demo-operation.js";
 import { DOCTOR_OPERATION, executeDoctorOperation } from "./doctor-operation.js";
 import { executeHealOperation, HEAL_OPERATION } from "./heal-operation.js";
+import { executeInitOperation, INIT_OPERATION } from "./init-operation.js";
 import { executeQuantumOperation, QUANTUM_OPERATION } from "./quantum-operation.js";
 import { executeSurfExploreOperation, SURF_EXPLORE_OPERATION } from "./surf-explore-operation.js";
 import { executeTestOperation, TEST_OPERATION } from "./test-operation.js";
@@ -19,6 +20,7 @@ export const CLI_OPERATION_REGISTRY = {
   test: TEST_OPERATION,
   doctor: DOCTOR_OPERATION,
   demo: DEMO_OPERATION,
+  init: INIT_OPERATION,
   "surf.explore": SURF_EXPLORE_OPERATION,
   quantum: QUANTUM_OPERATION,
   heal: HEAL_OPERATION,
@@ -42,6 +44,12 @@ export const CLI_ROUTE_MANIFEST = [
     status: "implemented",
     operationId: "demo",
     description: DEMO_OPERATION.description,
+  },
+  {
+    command: "init",
+    status: "implemented",
+    operationId: "init",
+    description: INIT_OPERATION.description,
   },
   {
     command: "surf",
@@ -147,6 +155,7 @@ export {
   executeDemoOperation,
   executeDoctorOperation,
   executeHealOperation,
+  executeInitOperation,
   executeQuantumOperation,
   executeSurfExploreOperation,
   executeTestOperation,

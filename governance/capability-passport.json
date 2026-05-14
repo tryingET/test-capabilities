@@ -151,6 +151,17 @@
       "activation_requirements": []
     },
     {
+      "id": "cli:init",
+      "name": "init command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {},
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
       "id": "cli:predict",
       "name": "predict command",
       "surface_kind": "cli-command",

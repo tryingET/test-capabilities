@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -86,6 +86,61 @@ test("CLI doctor command fails when requested target cannot be resolved", () => 
     payload.checks.some((check) => check.id === "target.cli" && check.status === "fail"),
     true,
   );
+});
+
+test("CLI init command writes a minimal config without external runtimes", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-init-"));
+  const output = path.join(tempDir, "test-capabilities.yaml");
+
+  try {
+    const result = runCli(["init", "--output", output, "--target", "node", "--json"], {
+      PATH: path.dirname(process.execPath),
+    });
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.operationId, "init");
+    assert.equal(payload.written, true);
+    assert.equal(payload.outputPath, output);
+    assert.match(readFileSync(output, "utf8"), /type: cli-tester/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI init command refuses to overwrite without --force", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-init-refuse-"));
+  const output = path.join(tempDir, "test-capabilities.yaml");
+  writeFileSync(output, "existing", "utf8");
+
+  try {
+    const result = runCli(["init", "--output", output], {
+      PATH: path.dirname(process.execPath),
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Refusing to overwrite existing config/);
+    assert.equal(readFileSync(output, "utf8"), "existing");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI init command can print a config without writing", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-init-print-"));
+  const output = path.join(tempDir, "printed.yaml");
+
+  try {
+    const result = runCli(["init", "--output", output, "--target", "custom-cli", "--print"], {
+      PATH: path.dirname(process.execPath),
+    });
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stderr.trim(), "");
+    assert.match(result.stdout, /cli: 'custom-cli'/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("CLI demo command passes as zero-external-dependency functional path", () => {

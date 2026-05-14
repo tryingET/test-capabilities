@@ -258,6 +258,18 @@ try {
   assert.equal(doctorPayload.operationId, "doctor");
   assert.equal(doctorPayload.status, "pass");
   assert.equal(doctorPayload.summary.requiredFailed, 0);
+  const initPath = path.join(tempDir, "generated-test-capabilities.yaml");
+  const initSmoke = run(binPath, ["init", "--output", initPath, "--target", "node", "--json"], {
+    cwd: tempDir,
+  });
+  const initPayload = JSON.parse(initSmoke.stdout);
+  assert.equal(initPayload.operationId, "init");
+  assert.equal(initPayload.written, true);
+  assert.match(readFileSync(initPath, "utf8"), /type: cli-tester/);
+  const initPrintSmoke = run(binPath, ["init", "--output", initPath, "--print"], {
+    cwd: tempDir,
+  });
+  assert.match(initPrintSmoke.stdout, /version: '2.0'/);
   const demoSmoke = run(binPath, ["demo", "--json"], { cwd: tempDir });
   const demoPayload = JSON.parse(demoSmoke.stdout);
   assert.equal(demoPayload.operationId, "demo");
@@ -391,6 +403,7 @@ try {
       createTestCapabilities,
       executeCliOperation,
       executeDemoOperation,
+      executeInitOperation,
     } from "test-capabilities";
 
     const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
@@ -430,11 +443,13 @@ try {
     assert.equal(typeof NexusOrchestrator, "function");
     assert.equal(CLI_OPERATION_REGISTRY.test.id, "test");
     assert.equal(CLI_OPERATION_REGISTRY.demo.id, "demo");
+    assert.equal(CLI_OPERATION_REGISTRY.init.id, "init");
     assert.equal(
       CLI_ROUTE_MANIFEST.some((entry) => entry.command === "surf" && entry.action === "explore"),
       true,
     );
 
+    const initResult = await executeInitOperation({ output: "generated-from-api.yaml", print: true });
     const demoResult = await executeDemoOperation({});
     const first = await createTestCapabilities(effectiveConfig).run();
     const second = await createNexus(effectiveConfig).run();
@@ -447,6 +462,9 @@ try {
       },
     );
 
+    assert.equal(initResult.operationId, "init");
+    assert.equal(initResult.written, false);
+    assert.match(initResult.configText, /type: cli-tester/);
     assert.equal(demoResult.operationId, "demo");
     assert.equal(demoResult.summary.health, "pass");
     assert.equal(demoResult.coreUseCase.id, "cli-smoke-observation");

@@ -41,6 +41,7 @@ const result = await executeCliOperation(
 
 This registry currently owns the shipped verbs:
 - `doctor`
+- `init`
 - `demo`
 - `test`
 - `surf explore`
@@ -75,6 +76,29 @@ Optional checks:
 - Bombadil-compatible runtime via `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`
 
 Missing optional runtimes do not fail `doctor`.
+
+### `test-capabilities init`
+
+Generate a minimal valid `test-capabilities.yaml` for the zero-external-dependency `cli-tester` path.
+
+```bash
+test-capabilities init
+test-capabilities init --output ./test-capabilities.local.yaml --target node
+test-capabilities init --print
+test-capabilities init --force
+```
+
+Supported options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--output <file>` | Config file to write | `test-capabilities.yaml` |
+| `--target <command>` | CLI command/path for `targets.cli` | `node` |
+| `--force` | Overwrite an existing output file | `false` |
+| `--print` | Print the generated YAML instead of writing a file | `false` |
+| `--json` | Print the full machine-readable init envelope | `false` |
+
+The generated config enables only `cli-tester`, disables unsupported intelligence/autonomy flags, and validates against the same config schema used by `test`. It refuses to overwrite an existing file unless `--force` is present.
 
 ### `test-capabilities demo`
 
@@ -238,6 +262,7 @@ These route statuses are mirrored by the exported operation registry / route man
 | Surface | Status |
 |---------|--------|
 | `doctor` | implemented |
+| `init` | implemented |
 | `demo` | implemented |
 | `test` | implemented |
 | `surf explore` | implemented |

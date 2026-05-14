@@ -29,8 +29,11 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /--json/);
   assert.match(cliDoc, /TestOperationResultEnvelope/);
   assert.match(cliDoc, /`doctor` \| implemented/);
+  assert.match(cliDoc, /`init` \| implemented/);
   assert.match(cliDoc, /`demo` \| implemented/);
   assert.match(cliDoc, /zero-external-dependency package and environment diagnostics/);
+  assert.match(cliDoc, /minimal valid `test-capabilities\.yaml`/);
+  assert.match(cliDoc, /refuses to overwrite/);
   assert.match(cliDoc, /built-in zero-external-dependency demo fixture/);
   assert.match(cliDoc, /examples\/demo\/cli-demo\.mjs/);
   assert.match(cliDoc, /cli-smoke-observation/);
@@ -56,6 +59,8 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   const gettingStartedDoc = load("docs/api/getting-started.md");
 
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
+  assert.match(gettingStartedDoc, /test-capabilities init --output/);
+  assert.match(gettingStartedDoc, /refuses to overwrite existing files/);
   assert.match(gettingStartedDoc, /node \.\/bin\/test-capabilities demo/);
   assert.match(gettingStartedDoc, /does not require Surf Go, Bombadil, network access/);
   assert.match(gettingStartedDoc, /cli-smoke-observation/);
@@ -143,6 +148,9 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
 
   assert.match(typesDoc, /DoctorOperationResultEnvelope/);
   assert.match(typesDoc, /DemoOperationResultEnvelope/);
+  assert.match(typesDoc, /InitOperationResultEnvelope/);
+  assert.match(typesDoc, /template: 'cli-smoke'/);
+  assert.match(typesDoc, /writes refuse to overwrite existing files/);
   assert.match(typesDoc, /CoreUseCaseGuide/);
   assert.match(typesDoc, /cli-smoke-observation/);
   assert.match(typesDoc, /zero-external-dependency diagnostic happy path/);
@@ -184,6 +192,8 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /executeCliOperation/);
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /executeCliOperation\(\{ command: 'doctor' \}, \{\}\)/);
+  assert.match(apiReferenceDoc, /command: 'init'/);
+  assert.match(apiReferenceDoc, /minimal valid `cli-tester` config/);
   assert.match(apiReferenceDoc, /executeCliOperation\(\{ command: 'demo' \}, \{\}\)/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);

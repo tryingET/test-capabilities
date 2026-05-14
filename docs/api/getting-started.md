@@ -34,19 +34,22 @@ For packaged-consumer verification, use the tarball flow exercised by `npm run c
 
 ## First functional proof
 
-Run diagnostics first, then the built-in zero-external-dependency demo fixture:
+Run diagnostics, generate a minimal config, then run the built-in zero-external-dependency demo fixture:
 
 ```bash
 node ./bin/test-capabilities doctor
+node ./bin/test-capabilities init --print
+node ./bin/test-capabilities init --output ./test-capabilities.local.yaml --target node
 node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 ```
 
-The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application. This is the polished `cli-smoke-observation` use case for the first public release: prove CLI smoke execution and `observation.v1` diagnostics first, then replace the demo target with your own safe CLI command.
+The generated config enables only `cli-tester`, disables unsupported autonomy/intelligence modes, and refuses to overwrite existing files unless you pass `--force`. The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application. This is the polished `cli-smoke-observation` use case for the first public release: prove config generation, CLI smoke execution, and `observation.v1` diagnostics first, then replace the demo target with your own safe CLI command.
 
 Machine-readable output is available for agents and CI probes:
 
 ```bash
+node ./bin/test-capabilities init --output ./test-capabilities.yaml --target node --force
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities demo --json
 node ./bin/test-capabilities test --config examples/demo/test-capabilities.yaml --json

@@ -8,6 +8,7 @@ export type CliCommand =
   | "test"
   | "doctor"
   | "demo"
+  | "init"
   | "surf"
   | "predict"
   | "quantum"
@@ -15,11 +16,12 @@ export type CliCommand =
   | "visualize"
   | "report";
 export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
-export type OperationId = "test" | "doctor" | "demo" | "surf.explore" | "quantum" | "heal";
+export type OperationId = "test" | "doctor" | "demo" | "init" | "surf.explore" | "quantum" | "heal";
 export type CliRoute =
   | { command: "test" }
   | { command: "doctor" }
   | { command: "demo" }
+  | { command: "init" }
   | { command: "surf"; action: SurfAction }
   | { command: "predict" }
   | { command: "quantum" }
@@ -96,6 +98,14 @@ export interface DemoOperationInput {
   json?: boolean;
 }
 
+export interface InitOperationInput {
+  output?: string;
+  target?: string;
+  force?: boolean;
+  print?: boolean;
+  json?: boolean;
+}
+
 export interface DoctorCheck {
   id: string;
   label: string;
@@ -157,6 +167,16 @@ export interface DemoOperationResultEnvelope {
   effectiveConfig: TestCapabilitiesConfig;
   summary: TestOperationSummary;
   result: TestResult;
+}
+
+export interface InitOperationResultEnvelope {
+  operationId: "init";
+  input: Required<InitOperationInput>;
+  template: "cli-smoke";
+  outputPath: string;
+  written: boolean;
+  configText: string;
+  nextCommands: string[];
 }
 
 export interface SurfExploreOperationResultEnvelope {
@@ -244,6 +264,7 @@ export type CliOperationResult =
   | TestOperationResultEnvelope
   | DoctorOperationResultEnvelope
   | DemoOperationResultEnvelope
+  | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
@@ -252,6 +273,7 @@ export type CliOperationInputUnion =
   | TestOperationInput
   | DoctorOperationInput
   | DemoOperationInput
+  | InitOperationInput
   | SurfExploreOperationInput
   | QuantumOperationInput
   | HealOperationInput;

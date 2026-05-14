@@ -49,12 +49,14 @@ The first public release is centered on one zero-external-dependency flow: **CLI
 
 ```bash
 node ./bin/test-capabilities doctor --json
+node ./bin/test-capabilities init --print
+node ./bin/test-capabilities init --output ./test-capabilities.local.yaml --target node
 node ./bin/test-capabilities demo --json
 node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities test --target node --quick
 ```
 
-This proves the package can load, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application. See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
+This proves the package can load, generate a valid starting config, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application. See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
 
 ## Capability Contract
 
@@ -83,7 +85,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | Surface | Status | Notes |
 |---------|--------|-------|
 | `doctor` command | Implemented | Zero-external-dependency package and environment diagnostics; optional Surf Go/Bombadil-compatible runtimes warn when absent instead of failing |
-| `doctor` command | Implemented | Zero-external-dependency environment/package diagnostic path; optional Surf Go and Bombadil-compatible runtimes report warnings when absent |
+| `init` command | Implemented | Generates a minimal valid `test-capabilities.yaml` for the zero-external-dependency `cli-tester` path and refuses overwrites without `--force` |
 | `demo` command | Implemented | Built-in zero-external-dependency functional demo for the polished `cli-smoke-observation` use case |
 | `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil`/`surf` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
 | `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built source checkout, repo-local parked fallback, or `PATH` |
@@ -119,6 +121,8 @@ npm run release:check    # Release preflight (quality + root-cause corpus + trut
 
 # First-run proof
 node ./bin/test-capabilities doctor
+node ./bin/test-capabilities init --print
+node ./bin/test-capabilities init --output ./test-capabilities.local.yaml --target node
 node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 node ./bin/test-capabilities demo --json
@@ -128,6 +132,7 @@ npm run build          # TypeScript build
 
 # TEST-CAPABILITIES CLI
 npm run test-capabilities                # Run TEST-CAPABILITIES CLI
+node ./bin/test-capabilities init --output ./test-capabilities.yaml --target node --force
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities test --config ./test-capabilities.yaml
 node ./bin/test-capabilities test --config examples/demo/test-capabilities.yaml --json

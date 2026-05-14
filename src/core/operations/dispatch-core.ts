@@ -13,6 +13,7 @@ export {
   executeDemoOperation,
   executeDoctorOperation,
   executeHealOperation,
+  executeInitOperation,
   executeQuantumOperation,
   executeSurfExploreOperation,
   executeTestOperation,

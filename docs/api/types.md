@@ -23,6 +23,7 @@ type CliRoute =
   | { command: 'test' }
   | { command: 'doctor' }
   | { command: 'demo' }
+  | { command: 'init' }
   | { command: 'surf'; action: 'explore' | 'flow' | 'assert' | 'compare' | 'replay' }
   | { command: 'predict' }
   | { command: 'quantum' }
@@ -38,7 +39,7 @@ interface CliRouteManifestEntry {
   command: CliCommand;
   action?: SurfAction;
   status: 'implemented' | 'unsupported';
-  operationId?: 'test' | 'doctor' | 'demo' | 'surf.explore' | 'quantum' | 'heal';
+  operationId?: 'test' | 'doctor' | 'demo' | 'init' | 'surf.explore' | 'quantum' | 'heal';
   description: string;
 }
 ```
@@ -50,6 +51,7 @@ type CliOperationResult =
   | TestOperationResultEnvelope
   | DoctorOperationResultEnvelope
   | DemoOperationResultEnvelope
+  | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
@@ -119,6 +121,31 @@ Runtime note:
 - `demo` is the zero-external-dependency functional happy path; it runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path real CLI targets use
 - `coreUseCase` names the polished release identity: CLI smoke plus `observation.v1` diagnostics, with concrete follow-up commands for replacing the demo target with a real CLI
 - `demo --json` returns the full operation envelope for agents and CI probes
+
+### `InitOperationResultEnvelope`
+
+```typescript
+interface InitOperationResultEnvelope {
+  operationId: 'init';
+  input: {
+    output: string;
+    target: string;
+    force: boolean;
+    print: boolean;
+    json: boolean;
+  };
+  template: 'cli-smoke';
+  outputPath: string;
+  written: boolean;
+  configText: string;
+  nextCommands: string[];
+}
+```
+
+Runtime note:
+- `init` generates a minimal valid `test-capabilities.yaml` for the zero-external-dependency `cli-tester` path
+- the generated config enables only `cli-tester`, disables unsupported autonomy/intelligence modes, and validates against the same config schema used by `test`
+- writes refuse to overwrite existing files unless `force` / `--force` is set; `print` / `--print` emits YAML without writing
 
 ---
 

@@ -147,6 +147,39 @@ program
   });
 
 program
+  .command("init")
+  .description("Generate a minimal fail-closed test-capabilities.yaml config")
+  .option("-o, --output <file>", "Config file to write", "test-capabilities.yaml")
+  .option("-t, --target <command>", "CLI command/path for the generated cli-tester target", "node")
+  .option("--force", "Overwrite an existing output file")
+  .option("--print", "Print the generated YAML instead of writing a file")
+  .option("--json", "Print a machine-readable init envelope")
+  .action(async (options) => {
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson && !options.print) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson || options.print ? undefined : ora("Generating config...").start();
+
+    try {
+      assertSupportedCliCommand("init");
+      const output = await executeCliOperation({ command: "init" }, options);
+
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else if (options.print) {
+        process.stdout.write(output.configText);
+      } else {
+        spinner?.succeed(`Wrote ${output.outputPath}`);
+        console.log(chalk.dim(`Next: ${output.nextCommands[0]}`));
+        console.log(chalk.dim(`Then: ${output.nextCommands[1]}`));
+      }
+    } catch (error) {
+      exitWithError(error, spinner, "Init failed!");
+    }
+  });
+
+program
   .command("demo")
   .description("Run the built-in zero-external-dependency demo fixture")
   .option("--json", "Print machine-readable demo results")

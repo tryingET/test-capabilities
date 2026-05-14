@@ -24,6 +24,8 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 ### Supported CLI/runtime surfaces
 - `test-capabilities doctor [--json]`
   - zero-external-dependency first-run diagnostics; missing Surf/Bombadil runtimes warn but do not fail
+- `test-capabilities init [--output <file>] [--target <command>] [--force] [--print] [--json]`
+  - generates a minimal valid `cli-tester` config and refuses overwrites unless `--force` is present
 - `test-capabilities demo [--json]`
   - zero-external-dependency functional demo; runs the shipped `examples/demo/cli-demo.mjs` fixture through `cli-tester`
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick] [--json]`
@@ -61,6 +63,8 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 What does the user want?
 │
 ├─ "Check installation" ──────────→ test-capabilities doctor [--json]
+│
+├─ "Create starting config" ──────→ test-capabilities init [--output test-capabilities.yaml]
 │
 ├─ "Run built-in demo" ───────────→ test-capabilities demo [--json]
 │
@@ -132,6 +136,7 @@ Programmatic usage returns either a `TestResult` (via the orchestrator) or a typ
 
 ```bash
 test-capabilities doctor [--json]
+test-capabilities init [--output <file>] [--target <command>] [--force] [--print] [--json]
 test-capabilities test --config <file> [--target <url-or-path>] [--quick] [--json]
 test-capabilities surf explore --url <url>
 test-capabilities quantum --target <url> [--branches N] [--collapse]
