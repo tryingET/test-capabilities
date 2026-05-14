@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "9642eb334e0fa0fec1c4ec38bd1804b9e7bc7e03"
+created_at: "2026-05-14T03:42:31Z"
+intent: "Align test-capabilities license and npm package metadata with pi-extensions public-package pattern"
+files:
+  - "LICENSE"
+  - "package.json"
+  - "package-lock.json"
+  - "docs/TEST-CAPABILITIES-FRAMEWORK.md"
+  - "docs/TEST-CAPABILITIES-README.md"
+validation:
+  fast_gate:
+    command: "npm run build --silent"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Package publication metadata and license are one cohesive public-surface change"
