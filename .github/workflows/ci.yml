@@ -70,7 +70,7 @@ jobs:
         run: npm install
 
       - name: Run full lane
-        run: bash ./scripts/ci/full.sh
+        run: npm run release:check
 
   deep:
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'deep') }}
@@ -95,4 +95,6 @@ jobs:
         run: npm install
 
       - name: Run deep lane
-        run: bash ./scripts/ci/full.sh --deep
+        run: |
+          npm run release:check
+          npm run docs:list -- --docs . --strict
