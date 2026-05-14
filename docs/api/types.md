@@ -238,6 +238,20 @@ type ObservationKind =
   | 'propagation';
 type ObservationStatus = 'passed' | 'failed' | 'skipped' | 'errored';
 type ObservationCalibrationLevel = 'low' | 'medium' | 'high';
+const ROOT_CAUSE_FAILURE_CLASSES = [
+  'auth_or_permission',
+  'browser_coverage_gap',
+  'command_resolution',
+  'component_failure_surface',
+  'configuration_error',
+  'contract_mismatch',
+  'network_connectivity',
+  'property_violation',
+  'resource_exhaustion',
+  'selector_or_dom_drift',
+  'timeout_or_latency',
+] as const;
+type RootCauseFailureClass = (typeof ROOT_CAUSE_FAILURE_CLASSES)[number];
 
 interface ObservationCalibration {
   level: ObservationCalibrationLevel;
@@ -252,6 +266,8 @@ interface ObservationSemantics {
   interpretation: string;
   nextStep?: string;
   calibration?: ObservationCalibration;
+  failureClass?: RootCauseFailureClass;
+  propagationLink?: string;
 }
 
 interface Observation {
@@ -277,7 +293,8 @@ Runtime note:
 - known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
 - when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; derived observations do not count separately from their source findings, and the result identifies an evidence-bounded current failure class, not a forecast or probability claim
-- when dependent components both have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches the configured topology, the orchestrator can emit low-calibration `propagation` observations; these declare non-authoritative heuristic status, expose calibration metadata, report `sensorCount` as the sum of the two linked root-cause sensor counts, and must not be treated as causal proof
+- root-cause failure classes are emitted as `semantics.failureClass` and retained in evidence as `failureClass:<class>` for backward-compatible text inspection; the class vocabulary is exposed as the typed `RootCauseFailureClass` plus runtime `ROOT_CAUSE_FAILURE_CLASSES`; the current bounded vocabulary includes `auth_or_permission`, `browser_coverage_gap`, `command_resolution`, `component_failure_surface`, `configuration_error`, `contract_mismatch`, `network_connectivity`, `property_violation`, `resource_exhaustion`, `selector_or_dom_drift`, and `timeout_or_latency`; finding recommendations are not treated as classifying evidence; precedence is evidence-scoped so API contract evidence wins over incidental auth/network/timeout-like wording, CLI executable-resolution evidence wins over config-like executable names, and real config-file/value evidence remains `configuration_error`
+- when dependent components both have high-calibration `root_cause` observations and a bounded propagation-link heuristic matches the configured topology, the orchestrator can emit low-calibration `propagation` observations; these declare non-authoritative heuristic status, expose calibration metadata plus `semantics.propagationLink`, report `sensorCount` as the sum of the two linked root-cause sensor counts, and must not be treated as causal proof
 
 ### `CoverageReport`
 

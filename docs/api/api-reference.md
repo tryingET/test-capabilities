@@ -35,6 +35,7 @@ import {
   CAPABILITY_MATRIX,
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
+  ROOT_CAUSE_FAILURE_CLASSES,
   assertSupportedCliCommand,
   createNexus,
   createTestCapabilities,
@@ -69,6 +70,7 @@ import {
   Observation,
   Prediction,
   QuantumResult,
+  RootCauseFailureClass,
   VERSION,
 } from 'test-capabilities';
 ```
@@ -82,6 +84,7 @@ import {
 | Dispatch a shipped CLI verb through the shared operation kernel | `executeCliOperation(route, input)` |
 | Inspect the shipped CLI/kernel surface | `CLI_OPERATION_REGISTRY` / `CLI_ROUTE_MANIFEST` |
 | Run the supported orchestrator path | `createNexus(config).run()` |
+| Inspect bounded root-cause class vocabulary | `ROOT_CAUSE_FAILURE_CLASSES` / `RootCauseFailureClass` |
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
 | Browser control | `new SurfClient()` |
 | Build flows | `new SurfFlowBuilder(client)` |
@@ -187,6 +190,16 @@ interface TestResult {
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }
+```
+
+When correlation is enabled, `observations` can include diagnostic `root_cause` and `propagation` entries. These are evidence-bounded and non-authoritative: root-cause observations expose the selected bounded class as `semantics.failureClass`, and propagation observations expose the bounded heuristic link as `semantics.propagationLink`.
+
+```typescript
+import { ROOT_CAUSE_FAILURE_CLASSES } from 'test-capabilities';
+import type { RootCauseFailureClass } from 'test-capabilities';
+
+const knownClass: RootCauseFailureClass = 'command_resolution';
+console.log(ROOT_CAUSE_FAILURE_CLASSES.includes(knownClass)); // true
 ```
 
 ---

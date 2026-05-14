@@ -168,7 +168,10 @@ npm run root-cause:corpus
 What it checks today:
 - single-agent CLI or Surf failures do not emit `root_cause`
 - two independent observed CLI command-resolution or timeout failures classify as `command_resolution` or `timeout_or_latency`, including shell not-found wording, while app crashes do not masquerade as command resolution
-- two independent observation-only API signals can classify as `contract_mismatch`, including API contract violation, property-kind payload evidence, and response-payload/required-field wording that must not masquerade as Bombadil/property failure or selector drift; generic API runtime, property-kind runtime, stack-trace, validation, or schema exceptions without contract evidence remain `component_failure_surface`
+- two independent observation-only API signals can classify as `contract_mismatch`, including API contract violation, property-kind payload evidence, and response-payload/required-field wording that must not masquerade as Bombadil/property failure or selector drift
+- bounded non-contract classes include API authentication/authorization evidence as `auth_or_permission`, API/web connection/DNS/TLS evidence as `network_connectivity`, API/CLI/web rate-limit/quota/memory/disk/file-descriptor/pool-exhaustion evidence as `resource_exhaustion`, and API/CLI/web missing environment/configuration evidence as `configuration_error`
+- executable-resolution evidence still classifies as `command_resolution` even when the missing executable is named `config` or `app-config`; real config-file/value evidence remains `configuration_error`
+- generic API runtime, property-kind runtime, stack-trace, validation, or schema exceptions without contract/auth/network/resource/configuration evidence remain `component_failure_surface`; recommendation-only keywords are not classifying evidence
 - two independent observed Surf failures classify as `browser_coverage_gap`, including generic DOM coverage wording that must not masquerade as selector drift
 - two independent observed selector/DOM drift failures classify as `selector_or_dom_drift`, including selector-contract wording, while single-sensor or unobserved selector drift does not emit `root_cause`
 - two independent observed Bombadil failures classify as `property_violation`, including required-property validation wording that must not masquerade as API contract mismatch
@@ -180,9 +183,9 @@ What it checks today:
 - independent Bombadil + CLI failures emit two component-scoped `root_cause` observations (property_violation + command_resolution)
 - three-way simultaneous Surf + CLI + API failures emit three component-scoped `root_cause` observations
 - propagation synthesis covers default `api -> web`, `cli -> api`, and `cli -> web` edges, including API latency links with web runtime failures, same-timeout shared-infra links, and API schema-drift-to-UI links with web runtime failures; it supports `intelligence.propagationTopology` overrides for custom edges, suppresses generic component-failure-only, non-latency same-class, and Surf evidence-gap overclaims, and stays low-calibration/non-authoritative
-- root-cause and propagation output exclude prediction language and synthetic `corr-*` IDs
+- root-cause and propagation output exclude prediction language and synthetic `corr-*` IDs; auth-boundary, network-connectivity, resource-exhaustion, or configuration failures do not imply downstream propagation without a separately promoted bounded link
 
-Machine-readable mode emits aggregate coverage floors plus per-case expected/actual classification, root-cause count, calibration counts, linked finding IDs, propagation counts, propagation subjects, propagation links, and no-propagation guardrail markers for automation without scraping terminal text:
+Machine-readable mode emits aggregate coverage floors, exact release truth-lock counts, per-case expected/actual classification, root-cause count, calibration counts, linked finding IDs, propagation counts, propagation subjects, propagation links, and no-propagation guardrail markers for automation without scraping terminal text. Runtime observations also expose structured `semantics.failureClass` for `root_cause` and `semantics.propagationLink` for `propagation` while retaining evidence strings for backward-compatible inspection:
 
 ```bash
 npm run --silent root-cause:corpus -- --json
