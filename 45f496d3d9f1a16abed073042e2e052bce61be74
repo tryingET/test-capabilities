@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "45f496d3d9f1a16abed073042e2e052bce61be74"
-created_at: "2026-05-14T12:00:19Z"
+created_at: "2026-05-14T12:00:40Z"
 intent: "Normalize npm bin manifest paths before public alpha publish."
 files:
   - "package.json"
@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run release:check --silent && RELEASE_TAG=v0.1.0 npm run release:intent:check --silent"
-    status: "pending"
+    status: "fail"
 group:
   index: 1
   total: 1
