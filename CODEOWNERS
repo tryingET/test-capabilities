@@ -1,16 +1,17 @@
-# Core + org context snapshots
-docs/_core/** @holding-owner
-docs/org_context/** @software-owner
+# Default maintainership
+* @tryingET
 
-# Project + system4d
-docs/project/** @software-owner
-docs/system4d/** @software-owner
-docs/learnings/** @software-owner
-policy/** @software-owner
+# Public package/release surfaces
+README.md @tryingET
+LICENSE @tryingET
+package.json @tryingET
+.github/workflows/** @tryingET
 
-# Code
-scripts/** @software-owner
-src/** @software-owner
-tests/** @software-owner
-prompts/** @software-owner
-examples/** @software-owner
+# Code and contracts
+src/** @tryingET
+scripts/** @tryingET
+tests/** @tryingET
+docs/** @tryingET
+examples/** @tryingET
+prompts/** @tryingET
+policy/** @tryingET

@@ -139,7 +139,7 @@ TEST_CAPABILITIES_BOMBADIL_REPO=/path/to/bombadil-source \
   test-capabilities test --config test-capabilities.yaml --target https://example.com --quick
 ```
 
-If you are running inside this repo checkout, the orchestrator also checks for a built `softwareco/contrib/bombadil/target/release|debug/bombadil` before falling back to repo-local `external/bombadil` and then `bombadil` on `PATH`.
+If you are running inside this repo checkout, the orchestrator can use a built Bombadil-compatible source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` before falling back to repo-local `external/bombadil` and then `bombadil` on `PATH`.
 A source checkout only overrides the vendored fallback after it has a built binary; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
 For a richer deterministic local regression, use the checked-in fixture runner:
@@ -249,7 +249,7 @@ npm run capability:drill
 ```
 
 This repo-local harness exercises the currently shipped capabilities against deterministic local fixtures.
-By default it auto-detects Surf Go; `--surf-mode shim` forces a deterministic temporary `surf-go` shim so the wrapper path can be verified without a browser host. Real mode accepts `surf-go` or the workspace `softwareco/contrib/surf-cli-go` checkout.
+By default it auto-detects Surf Go; `--surf-mode shim` forces a deterministic temporary `surf-go` shim so the wrapper path can be verified without a browser host. Real mode accepts `surf-go` or a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`.
 
 ```bash
 # Force the deterministic surf-go shim

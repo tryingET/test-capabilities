@@ -10,11 +10,11 @@ type: "how-to"
 
 This repo is the first real TypeScript brownfield proving ground for `ts-quality`.
 
-Canonical `ts-quality` semantics live upstream in:
-- `~/ai-society/softwareco/owned/ts-quality/README.md`
-- `~/ai-society/softwareco/owned/ts-quality/docs/invariant-dsl.md`
-- `~/ai-society/softwareco/owned/ts-quality/docs/config-reference.md`
-- `~/ai-society/softwareco/owned/ts-quality/docs/ci-integration.md`
+Canonical `ts-quality` semantics live upstream in the public `tryingET/ts-quality` repository and npm package. In a local sibling checkout, the same docs are usually available at:
+- `../ts-quality/README.md`
+- `../ts-quality/docs/invariant-dsl.md`
+- `../ts-quality/docs/config-reference.md`
+- `../ts-quality/docs/ci-integration.md`
 
 This doc records only the repo-local integration truth.
 

@@ -10,7 +10,7 @@ type: "reference"
 
 > Browser automation via surf-cli.
 
-`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. Surf Go is the standard runtime for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the workspace `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`. Only commands with explicit Surf Go adapter mappings are routed, and unmapped methods fail closed until verified.
+`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. Surf Go is the standard runtime for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. Only commands with explicit Surf Go adapter mappings are routed, and unmapped methods fail closed until verified.
 
 ---
 

@@ -8,7 +8,7 @@ type: "reference"
 
 # test-capabilities
 
-Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LLM-driven testing guides, and autonomous quality assurance tooling.
+Fail-closed testing capability framework for CLI, browser, property, healing, and diagnostic root-cause workflows.
 
 > Previously tracked in this workspace as `testers`.
 
@@ -38,6 +38,8 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 | [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
 | [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md) | Repo-local deterministic screening proof path via `ts-quality` |
+| [docs/npm-publishing-checklist.md](docs/npm-publishing-checklist.md) | Public npm release readiness checklist |
+| [docs/releases/release-workflow.md](docs/releases/release-workflow.md) | GitHub Release → npm Trusted Publishing workflow |
 | [docs/api/](docs/api/) | TEST-CAPABILITIES API reference docs |
 
 ## Capability Contract
@@ -47,9 +49,9 @@ If a config section, agent, command, or flag is not wired to a real implementati
 
 The shipped CLI verbs now run through a typed **operation kernel** exposed at `src/core/operations.ts` and implemented in trust-sized modules under `src/core/operations/`.
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
-For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, an explicit `TEST_CAPABILITIES_SURF_GO_REPO`, the conventional workspace-local `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
-For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
-A Bombadil contrib checkout only overrides the vendored binary once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil currently needs `trunk` and `esbuild` for local builds, or its Nix shell.
+For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
+For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
+A Bombadil-compatible source checkout only overrides the parked repo-local fallback once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream-style builds may need project-specific prerequisites such as `trunk`, `esbuild`, or a Nix shell.
 Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass. The same packed-consumer smoke also proves calibrated `root_cause` and low-calibration non-authoritative `propagation` observations survive through the distributed library API.
 
 ### Implemented today
@@ -57,8 +59,8 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | Surface | Status | Notes |
 |---------|--------|-------|
 | `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil`/`surf` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
-| `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built contrib checkout, vendored repo asset, or `PATH` |
-| `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves Surf Go from env/workspace or `surf-go` on `PATH`, then reports graded user-flow coverage from verified browser-state/DOM probes |
+| `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built source checkout, repo-local parked fallback, or `PATH` |
+| `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves Surf Go from explicit env, a source checkout, or `surf-go` on `PATH`, then reports graded user-flow coverage from verified browser-state/DOM probes |
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
@@ -86,7 +88,6 @@ npm run lint           # Lint check
 npm run fix            # Auto-fix lint issues
 npm run consumer:smoke # Packed-artifact consumer contract smoke
 npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
-npm run truth:gate:local # Repo-local truth gate that also requires AK direction state
 npm run release:check    # Release preflight (quality + root-cause corpus + truth gate + packed-artifact verification)
 
 # Build
@@ -148,7 +149,7 @@ npm run capability:drill
 # Force the deterministic shim path
 bash ./scripts/capability-drill.sh --surf-mode shim
 
-# Require a real Surf Go runtime (surf-go or workspace contrib surf-cli-go)
+# Require a real Surf Go runtime (surf-go or source-checkout Surf Go)
 bash ./scripts/capability-drill.sh --surf-mode real
 
 # Emit machine-readable JSON for automation

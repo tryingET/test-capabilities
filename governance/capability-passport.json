@@ -40,7 +40,7 @@
       },
       "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
       "activation_requirements": [],
-      "notes": "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built checkout from TEST_CAPABILITIES_BOMBADIL_REPO or the conventional workspace-local softwareco/contrib/bombadil, then repo-local external/bombadil, then bombadil on PATH."
+      "notes": "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH."
     },
     {
       "id": "agent:cli-tester",
@@ -407,7 +407,7 @@
       "activation_requirements": [
         "Intentionally include the vendored Bombadil binary in packed artifacts before treating this vendored tool itself as a consumer-facing supported surface; the current packed-consumer contract treats Bombadil as an external binary requirement."
       ],
-      "notes": "Repo-local external/bombadil is one binary provider for the supported Bombadil agent in this checkout; a built softwareco/contrib/bombadil checkout can override it locally, while packed consumers still need TEST_CAPABILITIES_BOMBADIL_BIN, TEST_CAPABILITIES_BOMBADIL_REPO, or bombadil on PATH."
+      "notes": "Repo-local external/bombadil is one binary provider for the supported Bombadil agent in this checkout; a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO can override it locally, while packed consumers still need TEST_CAPABILITIES_BOMBADIL_BIN, TEST_CAPABILITIES_BOMBADIL_REPO, or bombadil on PATH."
     }
   ]
 }

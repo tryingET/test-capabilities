@@ -16,7 +16,7 @@ Use it to answer:
 - what is only a later candidate
 - what the target screening shape is for this repo
 
-The central cross-repo catalog in `../ts-quality/` is a downstream overview, not the authority for this repo.
+The central catalog in a sibling `../ts-quality/` checkout, when present, is a downstream overview, not the authority for this repo.
 
 ## Current live slices
 
@@ -70,10 +70,10 @@ When adding the next slice:
 
 The upstream `ts-quality` repo keeps a downstream cross-repo catalog for visibility across projects.
 
-Current registration command for this repo family:
+Optional local registration command when a sibling `ts-quality` checkout is available:
 
 ```bash
-cd ~/ai-society/softwareco/owned/ts-quality
+cd ../ts-quality
 node scripts/register-screening-catalog.mjs \
   --entry docs/adoption/entries/test-capabilities.json
 ```
@@ -81,6 +81,6 @@ node scripts/register-screening-catalog.mjs \
 To verify the central markdown view still matches the machine-readable catalog:
 
 ```bash
-cd ~/ai-society/softwareco/owned/ts-quality
+cd ../ts-quality
 node scripts/register-screening-catalog.mjs --check
 ```

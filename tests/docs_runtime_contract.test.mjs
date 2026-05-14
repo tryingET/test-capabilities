@@ -32,7 +32,7 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /enabled `bombadil` or `surf` agent/);
   assert.match(cliDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.match(cliDoc, /surf-go/);
-  assert.match(cliDoc, /softwareco\/contrib\/bombadil/);
+  assert.match(cliDoc, /built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`/);
   assert.match(
     cliDoc,
     /does \*\*not\*\* replace `targets\.cli` when `cli-tester` is still enabled/,
@@ -200,7 +200,7 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
   assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
-  assert.match(surfDoc, /softwareco\/contrib\/surf-cli-go/);
+  assert.match(surfDoc, /source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`/);
   assert.match(surfDoc, /warning-prefixed output/i);
 });
 

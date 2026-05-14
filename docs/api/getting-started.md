@@ -16,9 +16,8 @@ type: "guide"
 
 - Node.js 22+
 - A CLI command or executable you can safely run with `--help`
-- Optional: a Surf Go runtime if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the conventional workspace-local `softwareco/contrib/surf-cli-go` checkout, then `surf-go` on `PATH`.
-- Optional: a Bombadil binary exposed through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` if you want Bombadil-backed web exploration outside this repo checkout
-- Optional for local ai-society workspace development: a built `softwareco/contrib/bombadil/target/release|debug/bombadil`; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell
+- Optional: a Surf Go runtime if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, then `surf-go` on `PATH`.
+- Optional for Bombadil-backed web exploration: a Bombadil-compatible binary exposed through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`; source builds may require their own toolchain such as `trunk`, `esbuild`, or a project-provided Nix shell
 
 ---
 

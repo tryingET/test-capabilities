@@ -98,7 +98,7 @@ async function runBombadilExploration(origin: string) {
 }
 ```
 
-Use this when you want a supported, bounded Bombadil run through the orchestrator instead of calling the binary ad hoc. The runtime resolves `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built checkout from `TEST_CAPABILITIES_BOMBADIL_REPO` or the conventional workspace-local `softwareco/contrib/bombadil`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
+Use this when you want a supported, bounded Bombadil run through the orchestrator instead of calling the binary ad hoc. The runtime resolves `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` or a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
 If you cloned the Bombadil source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
 
 ---
@@ -109,7 +109,7 @@ If you cloned the Bombadil source repo, build it first so `target/release|debug/
 test-capabilities surf explore --url https://example.com
 ```
 
-Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside Surf Go. The CLI/orchestrator exploration path resolves `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the workspace `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`; the broader `SurfClient` library uses the same Surf Go runtime standard and fails closed for unmapped methods.
+Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside Surf Go. The CLI/orchestrator exploration path resolves `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`; the broader `SurfClient` library uses the same Surf Go runtime standard and fails closed for unmapped methods.
 
 ---
 

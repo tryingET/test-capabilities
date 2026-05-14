@@ -33,7 +33,12 @@ test("capability passport projection records supported Bombadil runtime separate
   assert.equal(bombadilTool?.presence_state, "present");
   assert.equal(bombadilTool?.support_state, "parked");
   assert.equal(bombadilTool?.notes?.includes("packed consumers still need"), true);
-  assert.equal(bombadilTool?.notes?.includes("softwareco/contrib/bombadil"), true);
+  assert.equal(
+    bombadilTool?.notes?.includes(
+      "built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO",
+    ),
+    true,
+  );
 
   assert.equal(testCommand?.support_state, "supported");
   assert.equal(testCommand?.verification_state, "verified");

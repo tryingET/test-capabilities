@@ -1,9 +1,11 @@
 ---
-summary: "Placeholder for core docs snapshot (vendored)."
+summary: "Core documentation placeholder for public repo consumers."
 read_when:
-  - "When setting up docs/_core for an owned repo"
+  - "When setting up or auditing docs/_core in this repo"
 ---
 
 # Core Docs (`docs/_core/`)
 
-Preferred source: `ai-society/holdingco/governance-kernel`.
+This directory is reserved for stable core reference material that may be copied or vendored into this repository.
+
+Public consumers should treat the repository `README.md`, `docs/api/`, and generated capability passport as the current package/runtime contract.

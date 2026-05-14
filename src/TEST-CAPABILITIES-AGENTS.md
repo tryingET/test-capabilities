@@ -37,7 +37,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 - `correlation: true`
 - `quantum` when `targets.web` is present
 - Surf Go runtime resolution: `TEST_CAPABILITIES_SURF_GO_BIN` → `TEST_CAPABILITIES_SURF_GO_REPO` → workspace `surf-cli-go` checkout → `surf-go` on `PATH`
-- Bombadil binary resolution: `TEST_CAPABILITIES_BOMBADIL_BIN` → built `TEST_CAPABILITIES_BOMBADIL_REPO` / local `softwareco/contrib/bombadil` → repo-local `external/bombadil` → `bombadil` on `PATH`
+- Bombadil binary resolution: `TEST_CAPABILITIES_BOMBADIL_BIN` → built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` → repo-local `external/bombadil` → `bombadil` on `PATH`
 
 ### Unsupported in the current CLI wrapper
 - `test-capabilities predict`

@@ -40,5 +40,5 @@ system4d:
 ## 5) Maintain
 
 - Review the most central edited file for complexity debt.
-- Either refactor immediately or record a concrete follow-up in AK; use `docs/project/product_posture.md` only when the gap changes product maturity or strategic selection.
+- Either refactor immediately or record a concrete maintainer follow-up; use `docs/project/product_posture.md` only when the gap changes product maturity or strategic selection.
 - Keep `README.md`, `docs/api/*`, `docs/learnings/`, and `docs/project/product_posture.md` current when they are affected.

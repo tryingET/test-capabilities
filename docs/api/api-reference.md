@@ -173,8 +173,8 @@ For the current supported orchestrator path, you must configure:
 - currently that means `bombadil`, `surf`, and/or `cli-tester`
 - `targets.cli` when `cli-tester` is enabled
 - `targets.web` when `bombadil` or `surf` is enabled or `quantum.enabled` is true
-- a resolvable Surf Go runtime when the supported Surf agent is enabled: `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, the conventional workspace-local `softwareco/contrib/surf-cli-go` checkout, or `surf-go` on `PATH`
-- a Bombadil binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built checkout pointed to by `TEST_CAPABILITIES_BOMBADIL_REPO`, the conventional workspace-local `softwareco/contrib/bombadil`, repo-local `external/bombadil`, or `bombadil` on `PATH` when the supported Bombadil agent is enabled
+- a resolvable Surf Go runtime when the supported Surf agent is enabled: `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`
+- a Bombadil binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH` when the supported Bombadil agent is enabled
 
 ---
 
