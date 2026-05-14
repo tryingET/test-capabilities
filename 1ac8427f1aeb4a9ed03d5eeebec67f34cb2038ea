@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "1ac8427f1aeb4a9ed03d5eeebec67f34cb2038ea"
+created_at: "2026-05-14T12:23:41Z"
+intent: "Normalize npm bin manifest paths and update smoke contract before public alpha publish."
+files:
+  - "package.json"
+  - "tests/ci_targeted_smoke.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run release:intent:check --silent && node --test tests/ci_targeted_smoke.test.mjs && npm run release:check:quick --silent"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check --silent && RELEASE_TAG=v0.1.0 npm run release:intent:check --silent"
+    status: "pending"
+group:
+  index: 1
+  total: 1
+  rationale: "npm publish normalized bin paths; smoke test now asserts the packed manifest shape."
