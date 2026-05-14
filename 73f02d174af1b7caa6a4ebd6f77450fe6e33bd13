@@ -1,0 +1,33 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "73f02d174af1b7caa6a4ebd6f77450fe6e33bd13"
+created_at: "2026-05-14T09:00:45Z"
+intent: "Define and prove the polished zero-external CLI smoke plus observation diagnostics core use case"
+files:
+  - "README.md"
+  - "bin/test-capabilities"
+  - "docs/api/cli.md"
+  - "docs/api/examples.md"
+  - "docs/api/getting-started.md"
+  - "docs/api/types.md"
+  - "examples/demo/README.md"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "src/core/operations.ts"
+  - "src/core/operations/demo-operation.ts"
+  - "src/core/operations/types.ts"
+  - "tests/cli_fail_closed_contract.test.mjs"
+  - "tests/docs_runtime_contract.test.mjs"
+  - "tests/operation_kernel_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build --silent && npm run docs:list -- --docs . --strict"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "One polished release identity is represented in runtime JSON, CLI text, packaged demo docs, and release smoke tests"
