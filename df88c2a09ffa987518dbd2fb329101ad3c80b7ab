@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "df88c2a09ffa987518dbd2fb329101ad3c80b7ab"
-created_at: "2026-05-14T12:25:42Z"
+created_at: "2026-05-14T12:26:02Z"
 intent: "Make GitHub CI portable for public alpha fresh checkouts without workspace ROCS."
 files:
   - ".github/workflows/ci.yml"
@@ -13,7 +13,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run release:check --silent && RELEASE_TAG=v0.1.0 npm run release:intent:check --silent"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
