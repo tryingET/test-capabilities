@@ -3,10 +3,16 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "6a0d4c6e181f4a42bd989406d33bc2d6b4148452"
-created_at: "2026-05-14T01:49:37Z"
-intent: "update full gate status"
+created_at: "2026-05-14T02:57:00Z"
+intent: "Align truth gate, consumer smoke, passport generator, and regression tests to expanded root-cause vocabulary and build safety"
 files:
-  []
+  - "scripts/capability-truth-gate.mjs"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "scripts/generate-capability-passport.mjs"
+  - "tests/ci_targeted_smoke.test.mjs"
+  - "tests/orchestrator_fail_closed_contract.test.mjs"
+  - "tests/docs_runtime_contract.test.mjs"
+  - "tests/root_cause_corpus_contract.test.mjs"
 validation:
   fast_gate:
     command: "npm run build --silent"
@@ -15,4 +21,6 @@ validation:
     command: "npm run release:check"
     status: "pass"
 group:
+  index: 4
   total: 5
+  rationale: "Test/gate updates must follow the runtime and corpus they verify"
