@@ -1,0 +1,21 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "a90c59fdd8eccb9ac6d13e1650f8bea7804f4039"
+created_at: "2026-05-14T01:47:08Z"
+intent: "Harden root-cause classifier precedence, add typed RootCauseFailureClass vocabulary, cap CLI tester output"
+files:
+  - "src/core/orchestrator.ts"
+  - "src/index.ts"
+validation:
+  fast_gate:
+    command: "npm run build --silent"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pending"
+group:
+  index: 1
+  total: 5
+  rationale: "Core runtime engine changes must land first"
