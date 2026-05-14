@@ -1,0 +1,42 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "a9b49d6cb30834be694fd4883b8c76e26d85946a"
+created_at: "2026-05-14T06:52:00Z"
+intent: "Add first-run zero-external-dependency doctor diagnostics and public release verification coverage"
+files:
+  - "README.md"
+  - "bin/test-capabilities"
+  - "docs/api/api-reference.md"
+  - "docs/api/cli.md"
+  - "docs/api/types.md"
+  - "docs/npm-publishing-checklist.md"
+  - "docs/releases/release-workflow.md"
+  - "governance/capability-passport.json"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "scripts/generate-capability-passport.mjs"
+  - "scripts/public-cli-contract.mjs"
+  - "src/TEST-CAPABILITIES-AGENTS.md"
+  - "src/core/capabilities.ts"
+  - "src/core/operations.ts"
+  - "src/core/operations/dispatch-core.ts"
+  - "src/core/operations/dispatch-manifest.ts"
+  - "src/core/operations/dispatch.ts"
+  - "src/core/operations/doctor-operation.ts"
+  - "src/core/operations/types.ts"
+  - "src/index.ts"
+  - "tests/cli_fail_closed_contract.test.mjs"
+  - "tests/docs_runtime_contract.test.mjs"
+  - "tests/operation_kernel_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build --silent && node --test tests/operation_kernel_contract.test.mjs tests/cli_fail_closed_contract.test.mjs tests/docs_runtime_contract.test.mjs tests/capability_passport_contract.test.mjs && npm run docs:list -- --docs . --strict"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Doctor command is the public zero-external-dependency happy path"
