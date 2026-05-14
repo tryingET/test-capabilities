@@ -55,6 +55,14 @@ function capabilityEntry({
 }
 
 const commandEvidence = {
+  demo: {
+    tests: [
+      "tests/operation_kernel_contract.test.mjs",
+      "tests/cli_fail_closed_contract.test.mjs",
+      "scripts/consumer_contract_smoke.mjs",
+    ],
+    commands: ["npm test", "npm run consumer:smoke", "test-capabilities demo --json"],
+  },
   doctor: {
     tests: [
       "tests/cli_fail_closed_contract.test.mjs",

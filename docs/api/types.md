@@ -22,6 +22,7 @@ Where schema support and runtime support differ, this document calls that out ex
 type CliRoute =
   | { command: 'test' }
   | { command: 'doctor' }
+  | { command: 'demo' }
   | { command: 'surf'; action: 'explore' | 'flow' | 'assert' | 'compare' | 'replay' }
   | { command: 'predict' }
   | { command: 'quantum' }
@@ -37,7 +38,7 @@ interface CliRouteManifestEntry {
   command: CliCommand;
   action?: SurfAction;
   status: 'implemented' | 'unsupported';
-  operationId?: 'test' | 'doctor' | 'surf.explore' | 'quantum' | 'heal';
+  operationId?: 'test' | 'doctor' | 'demo' | 'surf.explore' | 'quantum' | 'heal';
   description: string;
 }
 ```
@@ -48,6 +49,7 @@ interface CliRouteManifestEntry {
 type CliOperationResult =
   | TestOperationResultEnvelope
   | DoctorOperationResultEnvelope
+  | DemoOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
@@ -81,8 +83,30 @@ interface DoctorOperationResultEnvelope {
 ```
 
 Runtime note:
-- `doctor` is the zero-external-dependency happy path; missing Surf Go or Bombadil-compatible runtimes produce optional warnings, not failure
+- `doctor` is the zero-external-dependency diagnostic happy path; missing Surf Go or Bombadil-compatible runtimes produce optional warnings, not failure
 - required checks cover Node version, package metadata, license/readme, built runtime entrypoint, CLI entrypoint, and sample config presence
+
+### `DemoOperationResultEnvelope`
+
+```typescript
+interface DemoOperationResultEnvelope {
+  operationId: 'demo';
+  input: { json: boolean };
+  packageRoot: string;
+  demo: {
+    name: string;
+    cliFixture: string;
+    configFixture: string;
+  };
+  effectiveConfig: TestCapabilitiesConfig;
+  summary: TestOperationSummary;
+  result: TestResult;
+}
+```
+
+Runtime note:
+- `demo` is the zero-external-dependency functional happy path; it runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path real CLI targets use
+- `demo --json` returns the full operation envelope for agents and CI probes
 
 ---
 

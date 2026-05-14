@@ -145,6 +145,39 @@ program
   });
 
 program
+  .command("demo")
+  .description("Run the built-in zero-external-dependency demo fixture")
+  .option("--json", "Print machine-readable demo results")
+  .action(async (options) => {
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson
+      ? undefined
+      : ora("Running TEST-CAPABILITIES built-in demo...").start();
+
+    try {
+      assertSupportedCliCommand("demo");
+      const output = await executeCliOperation({ command: "demo" }, options);
+
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        spinner?.succeed(`Demo complete (${output.summary.health}).`);
+        console.log(`Fixture: ${output.demo.cliFixture}`);
+        printSuiteSummary(output.summary);
+      }
+
+      if (output.summary.health !== "pass") {
+        process.exit(1);
+      }
+    } catch (error) {
+      exitWithError(error, spinner, "Demo failed!");
+    }
+  });
+
+program
   .command("test")
   .description("Run capability-backed testing suite")
   .option(

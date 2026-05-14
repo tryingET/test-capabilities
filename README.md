@@ -24,7 +24,8 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 |------|-------------|
 | `src/` | TEST-CAPABILITIES testing framework (operation kernel, orchestrator, self-healing, quantum simulator, prediction engine) |
 | `bin/test-capabilities` | TEST-CAPABILITIES CLI |
-| `external/bombadil` | Bombadil property-based testing binary |
+| `external/bombadil` | Parked repo-local Bombadil-compatible binary fallback, intentionally excluded from packed npm artifacts |
+| `examples/demo/` | Built-in zero-external-dependency demo fixture for first functional proof |
 | `prompts/` | LLM testing prompts (cli-tester, web-tester, api-tester) |
 | `docs/` | Testing guides and frameworks |
 
@@ -69,6 +70,8 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | Surface | Status | Notes |
 |---------|--------|-------|
 | `doctor` command | Implemented | Zero-external-dependency package and environment diagnostics; optional Surf Go/Bombadil-compatible runtimes warn when absent instead of failing |
+| `doctor` command | Implemented | Zero-external-dependency environment/package diagnostic path; optional Surf Go and Bombadil-compatible runtimes report warnings when absent |
+| `demo` command | Implemented | Built-in zero-external-dependency functional demo that runs a shipped CLI fixture through the `cli-tester` orchestrator path |
 | `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil`/`surf` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
 | `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built source checkout, repo-local parked fallback, or `PATH` |
 | `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves Surf Go from explicit env, a source checkout, or `surf-go` on `PATH`, then reports graded user-flow coverage from verified browser-state/DOM probes |
@@ -100,6 +103,11 @@ npm run fix            # Auto-fix lint issues
 npm run consumer:smoke # Packed-artifact consumer contract smoke
 npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
 npm run release:check    # Release preflight (quality + root-cause corpus + truth gate + packed-artifact verification)
+
+# First-run proof
+node ./bin/test-capabilities doctor
+node ./bin/test-capabilities demo
+node ./bin/test-capabilities demo --json
 
 # Build
 npm run build          # TypeScript build

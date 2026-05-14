@@ -7,6 +7,7 @@ export type OperationStatus = "implemented" | "unsupported";
 export type CliCommand =
   | "test"
   | "doctor"
+  | "demo"
   | "surf"
   | "predict"
   | "quantum"
@@ -14,10 +15,11 @@ export type CliCommand =
   | "visualize"
   | "report";
 export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
-export type OperationId = "test" | "doctor" | "surf.explore" | "quantum" | "heal";
+export type OperationId = "test" | "doctor" | "demo" | "surf.explore" | "quantum" | "heal";
 export type CliRoute =
   | { command: "test" }
   | { command: "doctor" }
+  | { command: "demo" }
   | { command: "surf"; action: SurfAction }
   | { command: "predict" }
   | { command: "quantum" }
@@ -79,6 +81,10 @@ export interface DoctorOperationInput {
   json?: boolean;
 }
 
+export interface DemoOperationInput {
+  json?: boolean;
+}
+
 export interface DoctorCheck {
   id: string;
   label: string;
@@ -116,6 +122,20 @@ export interface DoctorOperationResultEnvelope {
     optionalWarnings: number;
   };
   checks: DoctorCheck[];
+}
+
+export interface DemoOperationResultEnvelope {
+  operationId: "demo";
+  input: Required<DemoOperationInput>;
+  packageRoot: string;
+  demo: {
+    name: string;
+    cliFixture: string;
+    configFixture: string;
+  };
+  effectiveConfig: TestCapabilitiesConfig;
+  summary: TestOperationSummary;
+  result: TestResult;
 }
 
 export interface SurfExploreOperationResultEnvelope {
@@ -202,6 +222,7 @@ export interface HealOperationResultEnvelope {
 export type CliOperationResult =
   | TestOperationResultEnvelope
   | DoctorOperationResultEnvelope
+  | DemoOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
@@ -209,6 +230,7 @@ export type CliOperationResult =
 export type CliOperationInputUnion =
   | TestOperationInput
   | DoctorOperationInput
+  | DemoOperationInput
   | SurfExploreOperationInput
   | QuantumOperationInput
   | HealOperationInput;

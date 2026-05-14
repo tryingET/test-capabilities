@@ -40,6 +40,7 @@ import {
   createNexus,
   createTestCapabilities,
   executeCliOperation,
+  executeDemoOperation,
   validateCapabilityContract,
 
   // Orchestrator
@@ -84,6 +85,7 @@ import {
 | Dispatch a shipped CLI verb through the shared operation kernel | `executeCliOperation(route, input)` |
 | Inspect the shipped CLI/kernel surface | `CLI_OPERATION_REGISTRY` / `CLI_ROUTE_MANIFEST` |
 | Run zero-external-dependency diagnostics | `executeCliOperation({ command: 'doctor' }, {})` |
+| Run built-in zero-external-dependency functional demo | `executeCliOperation({ command: 'demo' }, {})` or `executeDemoOperation({})` |
 | Run the supported orchestrator path | `createNexus(config).run()` |
 | Inspect bounded root-cause class vocabulary | `ROOT_CAUSE_FAILURE_CLASSES` / `RootCauseFailureClass` |
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
@@ -127,16 +129,18 @@ console.log(output.summary.health);
 
 Use this when you want the fail-closed shipped command surface without shelling out to `bin/test-capabilities`.
 
-### Zero-external-dependency doctor
+### Zero-external-dependency doctor and demo
 
 ```typescript
 const doctor = await executeCliOperation({ command: 'doctor' }, {});
+const demo = await executeCliOperation({ command: 'demo' }, {});
 
 console.log(doctor.status); // 'pass' when required package/runtime checks pass
 console.log(doctor.summary.optionalWarnings); // optional Surf/Bombadil runtime warnings
+console.log(demo.summary.health); // 'pass' when the built-in CLI fixture succeeds
 ```
 
-`doctor` is the recommended first-run path for public consumers because it does not require Surf Go or Bombadil-compatible external tools.
+`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
 
 ---
 

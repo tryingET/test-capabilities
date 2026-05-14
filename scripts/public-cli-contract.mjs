@@ -73,6 +73,10 @@ await retry("public CLI", attempts, () => {
   assert.equal(doctorPayload.status, "pass");
   const alias = run("npx", ["-y", "-p", packageSpec, "tc", "--help"]);
   assert.match(alias.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
+  const demo = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "demo", "--json"]);
+  const payload = JSON.parse(demo.stdout);
+  assert.equal(payload.operationId, "demo");
+  assert.equal(payload.summary.health, "pass");
 });
 
 console.log(JSON.stringify({ ok: true, packageSpec }, null, 2));

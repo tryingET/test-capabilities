@@ -19,8 +19,8 @@ agents:
     intensity: normal
 
   # Supported Surf web exploration path; enable it only when targets.web is set and
-  # Surf Go is resolvable (TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO,
-  # the workspace surf-cli-go checkout, or surf-go on PATH).
+  # Surf Go is resolvable (TEST_CAPABILITIES_SURF_GO_BIN,
+  # TEST_CAPABILITIES_SURF_GO_REPO, or surf-go on PATH).
   web:
     enabled: false
     type: surf

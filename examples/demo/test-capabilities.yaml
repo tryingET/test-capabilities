@@ -1,0 +1,23 @@
+version: '2.0'
+name: 'TEST-CAPABILITIES built-in demo'
+
+targets:
+  cli: 'node ./examples/demo/cli-demo.mjs'
+
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    intensity: normal
+
+intelligence:
+  self_healing: false
+  prediction: false
+  correlation: true
+  collective: false
+
+quantum:
+  enabled: false
+
+chaos:
+  enabled: false

@@ -32,6 +32,25 @@ For packaged-consumer verification, use the tarball flow exercised by `npm run c
 
 ---
 
+## First functional proof
+
+Run diagnostics first, then the built-in zero-external-dependency demo fixture:
+
+```bash
+node ./bin/test-capabilities doctor
+node ./bin/test-capabilities demo
+```
+
+The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application.
+
+Machine-readable output is available for agents and CI probes:
+
+```bash
+node ./bin/test-capabilities demo --json
+```
+
+---
+
 ## Your first successful run
 
 Create `test-capabilities.yaml`:

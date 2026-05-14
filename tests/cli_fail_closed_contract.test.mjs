@@ -40,6 +40,23 @@ test("CLI doctor command passes as zero-external-dependency happy path", () => {
   );
 });
 
+test("CLI demo command passes as zero-external-dependency functional path", () => {
+  const result = runCli(["demo", "--json"], {
+    PATH: path.dirname(process.execPath),
+    TEST_CAPABILITIES_SURF_GO_BIN: "",
+    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_BOMBADIL_BIN: "",
+    TEST_CAPABILITIES_BOMBADIL_REPO: "",
+  });
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.operationId, "demo");
+  assert.equal(payload.summary.health, "pass");
+  assert.equal(payload.result.passed, true);
+  assert.match(payload.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
+});
+
 test("CLI test command fails when the config file is missing", () => {
   const result = runCli(["test", "--config", "/tmp/definitely-missing-test-capabilities.yaml"]);
 

@@ -27,7 +27,10 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /Runtime capability summary/);
   assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(cliDoc, /`doctor` \| implemented/);
+  assert.match(cliDoc, /`demo` \| implemented/);
   assert.match(cliDoc, /zero-external-dependency package and environment diagnostics/);
+  assert.match(cliDoc, /built-in zero-external-dependency demo fixture/);
+  assert.match(cliDoc, /examples\/demo\/cli-demo\.mjs/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
@@ -50,6 +53,8 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   const gettingStartedDoc = load("docs/api/getting-started.md");
 
   assert.match(gettingStartedDoc, /Node\.js 22\+/);
+  assert.match(gettingStartedDoc, /node \.\/bin\/test-capabilities demo/);
+  assert.match(gettingStartedDoc, /does not require Surf Go, Bombadil, network access/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
   assert.match(
@@ -133,7 +138,9 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
   const typesDoc = load("docs/api/types.md");
 
   assert.match(typesDoc, /DoctorOperationResultEnvelope/);
-  assert.match(typesDoc, /zero-external-dependency happy path/);
+  assert.match(typesDoc, /DemoOperationResultEnvelope/);
+  assert.match(typesDoc, /zero-external-dependency diagnostic happy path/);
+  assert.match(typesDoc, /zero-external-dependency functional happy path/);
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
   assert.match(typesDoc, /status: CoverageStatus;/);
   assert.match(typesDoc, /observations\?: Observation\[\];/);
@@ -169,6 +176,7 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /executeCliOperation/);
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
   assert.match(apiReferenceDoc, /executeCliOperation\(\{ command: 'doctor' \}, \{\}\)/);
+  assert.match(apiReferenceDoc, /executeCliOperation\(\{ command: 'demo' \}, \{\}\)/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
   assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);
@@ -185,6 +193,8 @@ test("examples docs include the repo-local capability drill", () => {
   const examplesDoc = load("docs/api/examples.md");
   const readmeDoc = load("README.md");
 
+  assert.match(examplesDoc, /test-capabilities demo --json/);
+  assert.match(examplesDoc, /examples\/demo\/cli-demo\.mjs/);
   assert.match(examplesDoc, /npm run capability:drill/);
   assert.match(examplesDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
   assert.match(examplesDoc, /npm run bombadil:smoke/);

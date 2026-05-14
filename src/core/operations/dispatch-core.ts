@@ -10,6 +10,7 @@ export {
 export {
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
+  executeDemoOperation,
   executeDoctorOperation,
   executeHealOperation,
   executeQuantumOperation,

@@ -41,6 +41,7 @@ const result = await executeCliOperation(
 
 This registry currently owns the shipped verbs:
 - `doctor`
+- `demo`
 - `test`
 - `surf explore`
 - `quantum`
@@ -70,6 +71,17 @@ Optional checks:
 - Bombadil-compatible runtime via `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`
 
 Missing optional runtimes do not fail `doctor`.
+
+### `test-capabilities demo`
+
+Run the built-in zero-external-dependency demo fixture. This is the first functional proof path after `doctor`: it executes a shipped demo CLI through the same `cli-tester` orchestrator path that user targets use.
+
+```bash
+test-capabilities demo
+test-capabilities demo --json
+```
+
+The demo uses `examples/demo/cli-demo.mjs` and an equivalent checked-in config at `examples/demo/test-capabilities.yaml`. It requires only Node.js and the installed package files; Surf Go and Bombadil-compatible runtimes remain optional.
 
 ### `test-capabilities test`
 
@@ -219,6 +231,7 @@ These route statuses are mirrored by the exported operation registry / route man
 | Surface | Status |
 |---------|--------|
 | `doctor` | implemented |
+| `demo` | implemented |
 | `test` | implemented |
 | `surf explore` | implemented |
 | `quantum` | implemented |

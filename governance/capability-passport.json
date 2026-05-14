@@ -97,6 +97,24 @@
       "notes": "Writes dry-run-only JSON healing proposal and in-memory verification artifacts for review or future replay-ledger artifact follow-through, and requires an externally-owned checkpoint ref before apply-mode healing mutates files. It does not create checkpoints, emit Replay Fabric milestones, or execute rollback."
     },
     {
+      "id": "cli:demo",
+      "name": "demo command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/operation_kernel_contract.test.mjs",
+          "tests/cli_fail_closed_contract.test.mjs",
+          "scripts/consumer_contract_smoke.mjs"
+        ],
+        "commands": ["npm test", "npm run consumer:smoke", "test-capabilities demo --json"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
       "id": "cli:doctor",
       "name": "doctor command",
       "surface_kind": "cli-command",

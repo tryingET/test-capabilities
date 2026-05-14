@@ -108,6 +108,14 @@ try {
     packedFiles.includes("test-capabilities.yaml"),
     "packed artifact missing sample config",
   );
+  assert.ok(
+    packedFiles.includes("examples/demo/cli-demo.mjs"),
+    "packed artifact missing built-in demo CLI fixture",
+  );
+  assert.ok(
+    packedFiles.includes("examples/demo/test-capabilities.yaml"),
+    "packed artifact missing built-in demo config fixture",
+  );
   assert.equal(
     packedFiles.some((packedPath) => packedPath.startsWith("external/")),
     false,
@@ -246,6 +254,13 @@ try {
   assert.equal(doctorPayload.operationId, "doctor");
   assert.equal(doctorPayload.status, "pass");
   assert.equal(doctorPayload.summary.requiredFailed, 0);
+  const demoSmoke = run(binPath, ["demo", "--json"], { cwd: tempDir });
+  const demoPayload = JSON.parse(demoSmoke.stdout);
+  assert.equal(demoPayload.operationId, "demo");
+  assert.equal(demoPayload.summary.health, "pass");
+  assert.equal(demoPayload.result.passed, true);
+  assert.match(demoPayload.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
+  run(binPath, ["demo"], { cwd: tempDir });
   run(binPath, ["test", "--quick", "--config", smokeConfig], {
     cwd: tempDir,
   });
@@ -355,6 +370,7 @@ try {
       createNexus,
       createTestCapabilities,
       executeCliOperation,
+      executeDemoOperation,
     } from "test-capabilities";
 
     const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
@@ -393,11 +409,13 @@ try {
     assert.equal(createNexus, createTestCapabilities);
     assert.equal(typeof NexusOrchestrator, "function");
     assert.equal(CLI_OPERATION_REGISTRY.test.id, "test");
+    assert.equal(CLI_OPERATION_REGISTRY.demo.id, "demo");
     assert.equal(
       CLI_ROUTE_MANIFEST.some((entry) => entry.command === "surf" && entry.action === "explore"),
       true,
     );
 
+    const demoResult = await executeDemoOperation({});
     const first = await createTestCapabilities(effectiveConfig).run();
     const second = await createNexus(effectiveConfig).run();
     const kernelResult = await executeCliOperation(
@@ -409,6 +427,8 @@ try {
       },
     );
 
+    assert.equal(demoResult.operationId, "demo");
+    assert.equal(demoResult.summary.health, "pass");
     assert.equal(first.passed, true);
     assert.equal(first.coverage.overall > 0, true);
     assert.equal(kernelResult.operationId, "test");

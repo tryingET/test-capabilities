@@ -83,9 +83,11 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.deepEqual(CAPABILITY_MATRIX.cli.testOptions, TEST_OPTION_SUPPORT);
   assert.deepEqual(CAPABILITY_MATRIX.cli.surfExploreOptions, SURF_EXPLORE_OPTION_SUPPORT);
   assert.equal(CAPABILITY_MATRIX.cli.commands.doctor, "implemented");
+  assert.equal(CAPABILITY_MATRIX.cli.commands.demo, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
   assert.equal(getCliCommandStatus("test"), "implemented");
   assert.equal(getCliCommandStatus("doctor"), "implemented");
+  assert.equal(getCliCommandStatus("demo"), "implemented");
   assert.equal(getCliCommandStatus("predict"), "unsupported");
   assert.equal(getSurfActionStatus("explore"), "implemented");
   assert.equal(getSurfActionStatus("flow"), "unsupported");
@@ -98,6 +100,7 @@ test("operation kernel registry and capability matrix stay aligned", () => {
     "surf.explore",
   );
   assert.equal(resolveCliRoute({ command: "doctor" })?.operationId, "doctor");
+  assert.equal(resolveCliRoute({ command: "demo" })?.operationId, "demo");
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
 });
 
@@ -119,6 +122,18 @@ test("executeCliOperation routes doctor through a zero-external-dependency happy
     result.checks.some((check) => check.id === "external.bombadil" && check.required === false),
     true,
   );
+});
+
+test("executeCliOperation routes demo through the built-in zero-external-dependency fixture", async () => {
+  const result = await executeCliOperation({ command: "demo" }, {});
+
+  assert.equal(result.operationId, "demo");
+  assert.equal(result.summary.health, "pass");
+  assert.equal(result.result.passed, true);
+  assert.equal(result.result.findings.length, 0);
+  assert.match(result.demo.cliFixture, /examples\/demo\/cli-demo\.mjs$/);
+  assert.match(result.demo.configFixture, /examples\/demo\/test-capabilities\.yaml$/);
+  assert.match(result.effectiveConfig.targets.cli, /examples\/demo\/cli-demo\.mjs/);
 });
 
 test("executeCliOperation routes the test verb through the typed operation kernel", async () => {

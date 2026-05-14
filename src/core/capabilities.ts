@@ -31,6 +31,7 @@ export const CAPABILITY_MATRIX = {
     commands: {
       test: getCliCommandStatus("test") ?? "unsupported",
       doctor: getCliCommandStatus("doctor") ?? "unsupported",
+      demo: getCliCommandStatus("demo") ?? "unsupported",
       surf: getCliCommandStatus("surf") ?? "unsupported",
       heal: getCliCommandStatus("heal") ?? "unsupported",
       quantum: getCliCommandStatus("quantum") ?? "unsupported",

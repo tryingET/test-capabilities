@@ -1,3 +1,4 @@
+import { DEMO_OPERATION, executeDemoOperation } from "./demo-operation.js";
 import { DOCTOR_OPERATION, executeDoctorOperation } from "./doctor-operation.js";
 import { executeHealOperation, HEAL_OPERATION } from "./heal-operation.js";
 import { executeQuantumOperation, QUANTUM_OPERATION } from "./quantum-operation.js";
@@ -17,6 +18,7 @@ import type {
 export const CLI_OPERATION_REGISTRY = {
   test: TEST_OPERATION,
   doctor: DOCTOR_OPERATION,
+  demo: DEMO_OPERATION,
   "surf.explore": SURF_EXPLORE_OPERATION,
   quantum: QUANTUM_OPERATION,
   heal: HEAL_OPERATION,
@@ -34,6 +36,12 @@ export const CLI_ROUTE_MANIFEST = [
     status: "implemented",
     operationId: "doctor",
     description: DOCTOR_OPERATION.description,
+  },
+  {
+    command: "demo",
+    status: "implemented",
+    operationId: "demo",
+    description: DEMO_OPERATION.description,
   },
   {
     command: "surf",
@@ -136,6 +144,7 @@ export function getSurfActionStatus(action: SurfAction): OperationStatus | undef
 export type RegisteredOperation = OperationDefinition<CliOperationInputUnion, CliOperationResult>;
 
 export {
+  executeDemoOperation,
   executeDoctorOperation,
   executeHealOperation,
   executeQuantumOperation,

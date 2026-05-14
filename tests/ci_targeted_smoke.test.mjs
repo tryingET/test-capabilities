@@ -98,7 +98,13 @@ test("baseline: node22 + required scripts are present", () => {
   assert.equal(pkg.exports?.["."]?.default, "./dist/index.js");
   assert.equal(pkg.exports?.["."]?.types, "./dist/index.d.ts");
   assert.equal(pkg.bin?.["test-capabilities"], "./bin/test-capabilities");
-  assert.deepEqual(pkg.files, ["bin/", "dist/", "README.md", "test-capabilities.yaml"]);
+  assert.deepEqual(pkg.files, [
+    "bin/",
+    "dist/",
+    "examples/demo/",
+    "README.md",
+    "test-capabilities.yaml",
+  ]);
 
   assert.equal(typeof pkg.scripts?.lint, "string");
   assert.equal(typeof pkg.scripts?.test, "string");

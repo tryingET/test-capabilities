@@ -24,6 +24,8 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 ### Supported CLI/runtime surfaces
 - `test-capabilities doctor [--json]`
   - zero-external-dependency first-run diagnostics; missing Surf/Bombadil runtimes warn but do not fail
+- `test-capabilities demo [--json]`
+  - zero-external-dependency functional demo; runs the shipped `examples/demo/cli-demo.mjs` fixture through `cli-tester`
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
   - non-URL targets override `targets.cli`
   - URL targets override `targets.web` when `quantum.enabled: true` or an enabled `bombadil`/`surf` agent provides the supported web runtime path
@@ -59,6 +61,8 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 What does the user want?
 │
 ├─ "Check installation" ──────────→ test-capabilities doctor [--json]
+│
+├─ "Run built-in demo" ───────────→ test-capabilities demo [--json]
 │
 ├─ "Run the supported suite" ─────→ test-capabilities test --config <file> [--quick]
 │

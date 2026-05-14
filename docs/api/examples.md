@@ -12,10 +12,25 @@ type: "reference"
 
 ---
 
-## Example 1: operation-kernel dispatch
+## Example 1: built-in demo fixture
+
+```bash
+test-capabilities doctor
+test-capabilities demo
+test-capabilities demo --json
+```
+
+`doctor` proves required package/runtime basics. `demo` then runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
+
+---
+
+## Example 2: operation-kernel dispatch
 
 ```typescript
 import { executeCliOperation } from 'test-capabilities';
+
+const demo = await executeCliOperation({ command: 'demo' }, {});
+console.log(demo.operationId, demo.summary.health);
 
 const output = await executeCliOperation(
   { command: 'test' },
@@ -31,7 +46,7 @@ console.log(output.operationId, output.summary.health);
 
 ---
 
-## Example 2: CLI smoke through the orchestrator
+## Example 3: CLI smoke through the orchestrator
 
 ```yaml
 # test-capabilities.yaml
@@ -66,7 +81,7 @@ test-capabilities test --quick --config test-capabilities.yaml
 
 ---
 
-## Example 3: Programmatic orchestrator usage
+## Example 4: Programmatic orchestrator usage
 
 ```typescript
 import { createTestCapabilities } from 'test-capabilities';
@@ -98,7 +113,7 @@ console.log(result.passed, result.coverage);
 
 ---
 
-## Example 4: Bombadil-backed web exploration
+## Example 5: Bombadil-backed web exploration
 
 ```yaml
 version: '2.0'

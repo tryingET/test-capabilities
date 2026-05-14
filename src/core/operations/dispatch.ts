@@ -3,6 +3,7 @@ export {
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
   executeCliOperation,
+  executeDemoOperation,
   executeDoctorOperation,
   executeHealOperation,
   executeQuantumOperation,
