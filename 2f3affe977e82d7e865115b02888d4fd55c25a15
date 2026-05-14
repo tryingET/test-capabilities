@@ -1,0 +1,25 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "2f3affe977e82d7e865115b02888d4fd55c25a15"
+created_at: "2026-05-14T10:05:10Z"
+intent: "Add public adoption guides for init-backed greenfield, brownfield, and minimal CLI-smoke flows"
+files:
+  - "README.md"
+  - "docs/api/getting-started.md"
+  - "docs/adoption/README.md"
+  - "docs/adoption/greenfield-bootstrap-how-to.md"
+  - "docs/adoption/brownfield-integration-how-to.md"
+  - "docs/adoption/minimal-cli-smoke-walkthrough.md"
+validation:
+  fast_gate:
+    command: "npm run docs:list -- --docs . --strict && npm run release:intent:check"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Adoption docs now need to center the implemented doctor/init/demo flow before release"
