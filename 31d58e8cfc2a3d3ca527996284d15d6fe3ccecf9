@@ -1,0 +1,33 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "31d58e8cfc2a3d3ca527996284d15d6fe3ccecf9"
+created_at: "2026-05-14T09:44:42Z"
+intent: "Add machine-readable JSON output to the primary test CLI command"
+files:
+  - "README.md"
+  - "bin/test-capabilities"
+  - "docs/api/api-reference.md"
+  - "docs/api/cli.md"
+  - "docs/api/examples.md"
+  - "docs/api/getting-started.md"
+  - "docs/api/types.md"
+  - "scripts/consumer_contract_smoke.mjs"
+  - "src/TEST-CAPABILITIES-AGENTS.md"
+  - "src/core/operations/test-operation.ts"
+  - "src/core/operations/types.ts"
+  - "tests/cli_fail_closed_contract.test.mjs"
+  - "tests/docs_runtime_contract.test.mjs"
+  - "tests/operation_kernel_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build --silent && node --test tests/cli_fail_closed_contract.test.mjs tests/operation_kernel_contract.test.mjs tests/docs_runtime_contract.test.mjs && npm run consumer:smoke && npm run docs:list -- --docs . --strict"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Primary public CLI path now has stable agent/CI JSON output"
