@@ -3,18 +3,16 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "7ebad293e4fd0c84f0b5a15a783982830a28e3f5"
-created_at: "2026-05-14T01:47:34Z"
-intent: "Expand root-cause corpus to 92 cases covering auth, network, resource, and config classes"
+created_at: "2026-05-14T01:49:37Z"
+intent: "update full gate status"
 files:
-  - "scripts/root-cause-corpus.mjs"
+  []
 validation:
   fast_gate:
     command: "npm run build --silent"
     status: "pass"
   full_gate:
     command: "npm run release:check"
-    status: "pending"
+    status: "pass"
 group:
-  index: 2
   total: 5
-  rationale: "Corpus fixtures depend on runtime types but are independent of gates/docs"
