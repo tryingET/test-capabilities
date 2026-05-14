@@ -47,6 +47,16 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 The runtime is now fail-closed.
 If a config section, agent, command, or flag is not wired to a real implementation path, the CLI errors instead of pretending success.
 
+First public happy path:
+
+```bash
+npx test-capabilities doctor
+# or from a checkout
+node ./bin/test-capabilities doctor --json
+```
+
+`doctor` has no Surf/Bombadil requirement: missing optional external runtimes are reported as warnings while package/runtime readiness checks remain required.
+
 The shipped CLI verbs now run through a typed **operation kernel** exposed at `src/core/operations.ts` and implemented in trust-sized modules under `src/core/operations/`.
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
 For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
@@ -58,6 +68,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 
 | Surface | Status | Notes |
 |---------|--------|-------|
+| `doctor` command | Implemented | Zero-external-dependency package and environment diagnostics; optional Surf Go/Bombadil-compatible runtimes warn when absent instead of failing |
 | `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil`/`surf` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
 | `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built source checkout, repo-local parked fallback, or `PATH` |
 | `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves Surf Go from explicit env, a source checkout, or `surf-go` on `PATH`, then reports graded user-flow coverage from verified browser-state/DOM probes |
@@ -95,6 +106,7 @@ npm run build          # TypeScript build
 
 # TEST-CAPABILITIES CLI
 npm run test-capabilities                # Run TEST-CAPABILITIES CLI
+node ./bin/test-capabilities doctor --json
 node ./bin/test-capabilities test --config ./test-capabilities.yaml
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com

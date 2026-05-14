@@ -82,8 +82,10 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.deepEqual(implementedOperationIds, registryOperationIds);
   assert.deepEqual(CAPABILITY_MATRIX.cli.testOptions, TEST_OPTION_SUPPORT);
   assert.deepEqual(CAPABILITY_MATRIX.cli.surfExploreOptions, SURF_EXPLORE_OPTION_SUPPORT);
+  assert.equal(CAPABILITY_MATRIX.cli.commands.doctor, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
   assert.equal(getCliCommandStatus("test"), "implemented");
+  assert.equal(getCliCommandStatus("doctor"), "implemented");
   assert.equal(getCliCommandStatus("predict"), "unsupported");
   assert.equal(getSurfActionStatus("explore"), "implemented");
   assert.equal(getSurfActionStatus("flow"), "unsupported");
@@ -95,7 +97,28 @@ test("operation kernel registry and capability matrix stay aligned", () => {
     resolveCliRouteCore({ command: "surf", action: "explore" })?.operationId,
     "surf.explore",
   );
+  assert.equal(resolveCliRoute({ command: "doctor" })?.operationId, "doctor");
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
+});
+
+test("executeCliOperation routes doctor through a zero-external-dependency happy path", async () => {
+  const result = await executeCliOperation({ command: "doctor" }, {});
+
+  assert.equal(result.operationId, "doctor");
+  assert.equal(result.status, "pass");
+  assert.equal(result.summary.requiredFailed, 0);
+  assert.equal(
+    result.checks.some((check) => check.id === "node.version" && check.status === "pass"),
+    true,
+  );
+  assert.equal(
+    result.checks.some((check) => check.id === "external.surf_go" && check.required === false),
+    true,
+  );
+  assert.equal(
+    result.checks.some((check) => check.id === "external.bombadil" && check.required === false),
+    true,
+  );
 });
 
 test("executeCliOperation routes the test verb through the typed operation kernel", async () => {

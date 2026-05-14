@@ -40,6 +40,7 @@ const result = await executeCliOperation(
 ```
 
 This registry currently owns the shipped verbs:
+- `doctor`
 - `test`
 - `surf explore`
 - `quantum`
@@ -48,6 +49,27 @@ This registry currently owns the shipped verbs:
 ---
 
 ## Implemented commands
+
+### `test-capabilities doctor`
+
+Run zero-external-dependency package and environment diagnostics. This is the public first-run happy path: it verifies required package/runtime basics and reports optional external Surf Go or Bombadil-compatible runtimes as warnings when absent.
+
+```bash
+test-capabilities doctor
+test-capabilities doctor --json
+```
+
+Required checks:
+- Node.js 22+
+- package metadata is present and publishable
+- `LICENSE` and `README.md` are present
+- `dist/index.js`, `bin/test-capabilities`, and `test-capabilities.yaml` are present
+
+Optional checks:
+- Surf Go runtime via `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`
+- Bombadil-compatible runtime via `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`
+
+Missing optional runtimes do not fail `doctor`.
 
 ### `test-capabilities test`
 
@@ -196,6 +218,7 @@ These route statuses are mirrored by the exported operation registry / route man
 
 | Surface | Status |
 |---------|--------|
+| `doctor` | implemented |
 | `test` | implemented |
 | `surf explore` | implemented |
 | `quantum` | implemented |

@@ -99,4 +99,4 @@ After the workflow succeeds:
 npm run release:verify-public -- --version <released-version>
 ```
 
-The verifier waits for exact-version npm visibility and checks public `npx` installability for both `test-capabilities` and `tc` CLI names.
+The verifier waits for exact-version npm visibility and checks public `npx` installability for `test-capabilities --help`, `test-capabilities doctor --json`, and the `tc` CLI alias.

@@ -96,7 +96,7 @@ The release workflow:
 6. creates the proven npm tarball with `npm pack --json`
 7. uploads the tarball as a workflow artifact
 8. publishes from the repo root through Trusted Publishing/OIDC
-9. waits for npm registry visibility and runs public `npx` checks for both `test-capabilities --help` and `tc --help`
+9. waits for npm registry visibility and runs public `npx` checks for `test-capabilities --help`, `test-capabilities doctor --json`, and `tc --help`
 10. attaches the proven tarball to the GitHub Release once npm publish succeeds
 
 Prerelease GitHub Releases publish to npm dist-tag `next`; normal releases publish to `latest`.
@@ -109,4 +109,4 @@ After the workflow succeeds, local verification is:
 npm run release:verify-public -- --version <released-version>
 ```
 
-This checks npm package visibility and public CLI installability through `npx -p test-capabilities@<version>`.
+This checks npm package visibility and public CLI installability through `npx -p test-capabilities@<version>`, including the zero-external-dependency `doctor --json` path.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * TEST-CAPABILITIES - Autonomous Testing Framework
+ * TEST-CAPABILITIES - Fail-closed testing capability framework
  */
 
 import path from "node:path";
@@ -39,7 +39,7 @@ function showBanner() {
       }),
     ),
   );
-  console.log(chalk.dim(`  Autonomous Testing Framework v${VERSION}`));
+  console.log(chalk.dim(`  Fail-closed Testing Capability Framework v${VERSION}`));
   console.log();
 }
 
@@ -99,11 +99,54 @@ function exitWithError(error, spinner, message) {
   process.exit(1);
 }
 
-program.name("test-capabilities").description("The Future of AI-Driven Testing").version(VERSION);
+program.name("test-capabilities").description("Fail-closed testing capability framework").version(VERSION);
+
+program
+  .command("doctor")
+  .description("Run zero-external-dependency package and environment diagnostics")
+  .option("--json", "Print machine-readable diagnostics")
+  .action(async (options) => {
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson
+      ? undefined
+      : ora("Running TEST-CAPABILITIES doctor...").start();
+
+    try {
+      assertSupportedCliCommand("doctor");
+      const output = await executeCliOperation({ command: "doctor" }, options);
+
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        const requiredText = `${output.summary.requiredPassed} required passed, ${output.summary.requiredFailed} failed`;
+        if (output.status === "pass") {
+          spinner?.succeed(`Doctor passed (${requiredText}).`);
+        } else {
+          spinner?.fail(`Doctor failed (${requiredText}).`);
+        }
+
+        for (const check of output.checks) {
+          const marker =
+            check.status === "pass" ? chalk.green("pass") : check.status === "warn" ? chalk.yellow("warn") : chalk.red("fail");
+          const required = check.required ? "required" : "optional";
+          console.log(`${marker} ${check.label} (${required}): ${check.detail}`);
+        }
+      }
+
+      if (output.status !== "pass") {
+        process.exit(1);
+      }
+    } catch (error) {
+      exitWithError(error, spinner, "Doctor failed!");
+    }
+  });
 
 program
   .command("test")
-  .description("Run autonomous testing suite")
+  .description("Run capability-backed testing suite")
   .option(
     "-t, --target <target>",
     "CLI command/path target, or a URL when a real web consumer is enabled (currently: quantum or an enabled bombadil/surf agent)",

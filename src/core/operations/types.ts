@@ -4,11 +4,20 @@ import type { QuantumResult } from "../../quantum/simulator.js";
 import type { CoverageReport, TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
 
 export type OperationStatus = "implemented" | "unsupported";
-export type CliCommand = "test" | "surf" | "predict" | "quantum" | "heal" | "visualize" | "report";
+export type CliCommand =
+  | "test"
+  | "doctor"
+  | "surf"
+  | "predict"
+  | "quantum"
+  | "heal"
+  | "visualize"
+  | "report";
 export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
-export type OperationId = "test" | "surf.explore" | "quantum" | "heal";
+export type OperationId = "test" | "doctor" | "surf.explore" | "quantum" | "heal";
 export type CliRoute =
   | { command: "test" }
+  | { command: "doctor" }
   | { command: "surf"; action: SurfAction }
   | { command: "predict" }
   | { command: "quantum" }
@@ -66,6 +75,18 @@ export interface HealOperationInput {
   findingsInput?: string;
 }
 
+export interface DoctorOperationInput {
+  json?: boolean;
+}
+
+export interface DoctorCheck {
+  id: string;
+  label: string;
+  status: "pass" | "warn" | "fail";
+  required: boolean;
+  detail: string;
+}
+
 export interface TestOperationSummary {
   health: "pass" | "fail";
   findings: number;
@@ -82,6 +103,19 @@ export interface TestOperationResultEnvelope {
   effectiveConfig: TestCapabilitiesConfig;
   summary: TestOperationSummary;
   result: TestResult;
+}
+
+export interface DoctorOperationResultEnvelope {
+  operationId: "doctor";
+  input: Required<DoctorOperationInput>;
+  packageRoot: string;
+  status: "pass" | "fail";
+  summary: {
+    requiredPassed: number;
+    requiredFailed: number;
+    optionalWarnings: number;
+  };
+  checks: DoctorCheck[];
 }
 
 export interface SurfExploreOperationResultEnvelope {
@@ -167,12 +201,14 @@ export interface HealOperationResultEnvelope {
 
 export type CliOperationResult =
   | TestOperationResultEnvelope
+  | DoctorOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
 
 export type CliOperationInputUnion =
   | TestOperationInput
+  | DoctorOperationInput
   | SurfExploreOperationInput
   | QuantumOperationInput
   | HealOperationInput;

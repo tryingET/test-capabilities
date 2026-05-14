@@ -22,6 +22,8 @@ TEST-CAPABILITIES exposes a mix of:
 The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATION_REGISTRY` + `executeCliOperation(...)`).
 
 ### Supported CLI/runtime surfaces
+- `test-capabilities doctor [--json]`
+  - zero-external-dependency first-run diagnostics; missing Surf/Bombadil runtimes warn but do not fail
 - `test-capabilities test --config <file> [--target <url-or-path>] [--quick]`
   - non-URL targets override `targets.cli`
   - URL targets override `targets.web` when `quantum.enabled: true` or an enabled `bombadil`/`surf` agent provides the supported web runtime path
@@ -36,7 +38,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 - `cli-tester` agent
 - `correlation: true`
 - `quantum` when `targets.web` is present
-- Surf Go runtime resolution: `TEST_CAPABILITIES_SURF_GO_BIN` → `TEST_CAPABILITIES_SURF_GO_REPO` → workspace `surf-cli-go` checkout → `surf-go` on `PATH`
+- Surf Go runtime resolution: `TEST_CAPABILITIES_SURF_GO_BIN` → source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO` → `surf-go` on `PATH`
 - Bombadil binary resolution: `TEST_CAPABILITIES_BOMBADIL_BIN` → built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` → repo-local `external/bombadil` → `bombadil` on `PATH`
 
 ### Unsupported in the current CLI wrapper
@@ -55,6 +57,8 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 
 ```text
 What does the user want?
+│
+├─ "Check installation" ──────────→ test-capabilities doctor [--json]
 │
 ├─ "Run the supported suite" ─────→ test-capabilities test --config <file> [--quick]
 │
@@ -123,6 +127,7 @@ Programmatic usage returns either a `TestResult` (via the orchestrator) or a typ
 ## One-line reference
 
 ```bash
+test-capabilities doctor [--json]
 test-capabilities test --config <file> [--target <url-or-path>] [--quick]
 test-capabilities surf explore --url <url>
 test-capabilities quantum --target <url> [--branches N] [--collapse]

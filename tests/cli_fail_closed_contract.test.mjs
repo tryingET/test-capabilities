@@ -16,6 +16,30 @@ function runCli(args, extraEnv = {}) {
   });
 }
 
+test("CLI doctor command passes as zero-external-dependency happy path", () => {
+  const result = runCli(["doctor", "--json"], {
+    PATH: path.dirname(process.execPath),
+    TEST_CAPABILITIES_SURF_GO_BIN: "",
+    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_BOMBADIL_BIN: "",
+    TEST_CAPABILITIES_BOMBADIL_REPO: "",
+  });
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.operationId, "doctor");
+  assert.equal(payload.status, "pass");
+  assert.equal(payload.summary.requiredFailed, 0);
+  assert.equal(
+    payload.checks.some((check) => check.id === "external.surf_go" && check.required === false),
+    true,
+  );
+  assert.equal(
+    payload.checks.some((check) => check.id === "external.bombadil" && check.required === false),
+    true,
+  );
+});
+
 test("CLI test command fails when the config file is missing", () => {
   const result = runCli(["test", "--config", "/tmp/definitely-missing-test-capabilities.yaml"]);
 

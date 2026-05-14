@@ -1,6 +1,6 @@
 /**
  * TEST-CAPABILITIES Testing Framework
- * The Future of AI-Driven Testing
+ * Fail-closed testing capability framework
  */
 
 export {
@@ -15,6 +15,9 @@ export type {
   CliOperationResult,
   CliRoute,
   CliRouteManifestEntry,
+  DoctorCheck,
+  DoctorOperationInput,
+  DoctorOperationResultEnvelope,
   HealOperationInput,
   HealOperationResultEnvelope,
   HealProposalArtifactRef,
@@ -35,6 +38,7 @@ export {
   CLI_OPERATION_REGISTRY,
   CLI_ROUTE_MANIFEST,
   executeCliOperation,
+  executeDoctorOperation,
   executeHealOperation,
   executeQuantumOperation,
   executeSurfExploreOperation,

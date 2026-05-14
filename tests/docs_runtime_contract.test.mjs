@@ -26,6 +26,8 @@ test("CLI docs reflect the fail-closed capability contract", () => {
 
   assert.match(cliDoc, /Runtime capability summary/);
   assert.match(cliDoc, /CLI_OPERATION_REGISTRY/);
+  assert.match(cliDoc, /`doctor` \| implemented/);
+  assert.match(cliDoc, /zero-external-dependency package and environment diagnostics/);
   assert.match(cliDoc, /`predict` \| unsupported/);
   assert.match(cliDoc, /`surf explore` \| implemented/);
   assert.match(cliDoc, /quantum\.enabled: true/);
@@ -130,6 +132,8 @@ test("quantum API docs avoid unsupported CLI flags and document target/branch va
 test("types docs reflect the tightened quantum and healing contracts", () => {
   const typesDoc = load("docs/api/types.md");
 
+  assert.match(typesDoc, /DoctorOperationResultEnvelope/);
+  assert.match(typesDoc, /zero-external-dependency happy path/);
   assert.match(typesDoc, /target` is required and must be a valid URL/i);
   assert.match(typesDoc, /status: CoverageStatus;/);
   assert.match(typesDoc, /observations\?: Observation\[\];/);
@@ -164,6 +168,7 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.doesNotMatch(apiReferenceDoc, /npm install test-capabilities/);
   assert.match(apiReferenceDoc, /executeCliOperation/);
   assert.match(apiReferenceDoc, /CLI_OPERATION_REGISTRY/);
+  assert.match(apiReferenceDoc, /executeCliOperation\(\{ command: 'doctor' \}, \{\}\)/);
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
   assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);

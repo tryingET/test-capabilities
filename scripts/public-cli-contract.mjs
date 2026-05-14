@@ -67,6 +67,10 @@ await retry("npm view", attempts, () => {
 await retry("public CLI", attempts, () => {
   const help = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "--help"]);
   assert.match(help.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
+  const doctor = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "doctor", "--json"]);
+  const doctorPayload = JSON.parse(doctor.stdout);
+  assert.equal(doctorPayload.operationId, "doctor");
+  assert.equal(doctorPayload.status, "pass");
   const alias = run("npx", ["-y", "-p", packageSpec, "tc", "--help"]);
   assert.match(alias.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
 });

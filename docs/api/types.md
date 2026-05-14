@@ -21,6 +21,7 @@ Where schema support and runtime support differ, this document calls that out ex
 ```typescript
 type CliRoute =
   | { command: 'test' }
+  | { command: 'doctor' }
   | { command: 'surf'; action: 'explore' | 'flow' | 'assert' | 'compare' | 'replay' }
   | { command: 'predict' }
   | { command: 'quantum' }
@@ -36,7 +37,7 @@ interface CliRouteManifestEntry {
   command: CliCommand;
   action?: SurfAction;
   status: 'implemented' | 'unsupported';
-  operationId?: 'test' | 'surf.explore' | 'quantum' | 'heal';
+  operationId?: 'test' | 'doctor' | 'surf.explore' | 'quantum' | 'heal';
   description: string;
 }
 ```
@@ -46,12 +47,42 @@ interface CliRouteManifestEntry {
 ```typescript
 type CliOperationResult =
   | TestOperationResultEnvelope
+  | DoctorOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope;
 ```
 
 These shapes back the exported `CLI_OPERATION_REGISTRY`, `CLI_ROUTE_MANIFEST`, and `executeCliOperation(...)` kernel.
+
+### `DoctorOperationResultEnvelope`
+
+```typescript
+interface DoctorCheck {
+  id: string;
+  label: string;
+  status: 'pass' | 'warn' | 'fail';
+  required: boolean;
+  detail: string;
+}
+
+interface DoctorOperationResultEnvelope {
+  operationId: 'doctor';
+  input: { json: boolean };
+  packageRoot: string;
+  status: 'pass' | 'fail';
+  summary: {
+    requiredPassed: number;
+    requiredFailed: number;
+    optionalWarnings: number;
+  };
+  checks: DoctorCheck[];
+}
+```
+
+Runtime note:
+- `doctor` is the zero-external-dependency happy path; missing Surf Go or Bombadil-compatible runtimes produce optional warnings, not failure
+- required checks cover Node version, package metadata, license/readme, built runtime entrypoint, CLI entrypoint, and sample config presence
 
 ---
 

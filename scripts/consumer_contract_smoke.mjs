@@ -241,6 +241,11 @@ try {
   );
 
   run(binPath, ["--help"], { cwd: tempDir });
+  const doctorSmoke = run(binPath, ["doctor", "--json"], { cwd: tempDir });
+  const doctorPayload = JSON.parse(doctorSmoke.stdout);
+  assert.equal(doctorPayload.operationId, "doctor");
+  assert.equal(doctorPayload.status, "pass");
+  assert.equal(doctorPayload.summary.requiredFailed, 0);
   run(binPath, ["test", "--quick", "--config", smokeConfig], {
     cwd: tempDir,
   });
