@@ -50,14 +50,11 @@ The first public release is centered on one zero-external-dependency flow: **CLI
 
 ```bash
 node ./bin/test-capabilities doctor --json
-node ./bin/test-capabilities init --print
-node ./bin/test-capabilities init --output ./test-capabilities.local.yaml --target node
 node ./bin/test-capabilities demo --json
-node ./bin/test-capabilities doctor --target node
-node ./bin/test-capabilities test --target node --quick
 ```
 
-This proves the package can load, generate a valid starting config, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application. See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
+This proves the package can load, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application.
+For the full `doctor -> init -> demo -> test --json` path, use [Minimal CLI smoke walkthrough](docs/adoption/minimal-cli-smoke-walkthrough.md). For adoption strategy, use [Greenfield bootstrap](docs/adoption/greenfield-bootstrap-how-to.md) or [Brownfield integration](docs/adoption/brownfield-integration-how-to.md). See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
 
 ## Capability Contract
 
@@ -120,12 +117,8 @@ npm run consumer:smoke # Packed-artifact consumer contract smoke
 npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
 npm run release:check    # Release preflight (quality + root-cause corpus + truth gate + packed-artifact verification)
 
-# First-run proof
+# First-run proof (full walkthrough: docs/adoption/minimal-cli-smoke-walkthrough.md)
 node ./bin/test-capabilities doctor
-node ./bin/test-capabilities init --print
-node ./bin/test-capabilities init --output ./test-capabilities.local.yaml --target node
-node ./bin/test-capabilities doctor --target node
-node ./bin/test-capabilities demo
 node ./bin/test-capabilities demo --json
 
 # Build
@@ -135,8 +128,7 @@ npm run build          # TypeScript build
 npm run test-capabilities                # Run TEST-CAPABILITIES CLI
 node ./bin/test-capabilities init --output ./test-capabilities.yaml --target node --force
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
-node ./bin/test-capabilities test --config ./test-capabilities.yaml
-node ./bin/test-capabilities test --config examples/demo/test-capabilities.yaml --json
+node ./bin/test-capabilities test --config ./test-capabilities.yaml --json
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com
 node ./bin/test-capabilities heal --dir ./tests --dry-run
