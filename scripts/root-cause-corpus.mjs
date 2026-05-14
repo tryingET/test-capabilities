@@ -157,6 +157,36 @@ function cliShellNotFoundAgent(agent) {
   });
 }
 
+function cliMissingExecutableAgent(agent, executable) {
+  const id = `${agent}-missing-executable`;
+  const evidence = [`spawn ${executable} ENOENT`];
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "cli",
+        description: `CLI smoke command failed: ${executable} --help`,
+        evidence,
+        recommendation: "Ensure the CLI command resolves and --help exits successfully.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-missing-executable-errored`,
+        agent,
+        kind: "smoke",
+        status: "errored",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI smoke could not resolve the configured executable.",
+        evidence,
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
 function surfFailureAgent(agent) {
   const id = `${agent}-surf-empty`;
   return agentResult({
@@ -438,6 +468,71 @@ function apiPayloadElementAgent(agent) {
   });
 }
 
+function apiContractAuthConflictAgent(agent) {
+  const id = `${agent}-api-contract-auth-conflict`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        type: "api_contract",
+        severity: "high",
+        component: "api",
+        description: "OpenAPI contract expected response body but got HTTP 401 unauthorized",
+        evidence: ["contract validation failed: got HTTP 401 unauthorized"],
+        recommendation:
+          "Separate auth fixture failure from API contract validation before diagnosis.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-api-contract-auth-conflict`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API contract validation failed with HTTP 401 unauthorized.",
+        evidence: ["OpenAPI response schema mismatch: HTTP 401 unauthorized"],
+        findingIds: [id],
+      }),
+    ],
+  });
+}
+
+function apiContractDurationFieldAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-contract-duration-field`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "OpenAPI schema mismatch: required property durationMs missing.",
+        evidence: ["response payload required field durationMs missing from JSON response"],
+      }),
+    ],
+  });
+}
+
+function apiContractDnsFieldAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-contract-dns-field`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "OpenAPI schema mismatch: required field dns missing from response payload.",
+        evidence: ["response payload required field dns missing from JSON response"],
+      }),
+    ],
+  });
+}
+
 function apiPropertyKindContractAgent(agent) {
   return agentResult({
     observations: [
@@ -555,6 +650,428 @@ function apiSchemaExceptionAgent(agent) {
         evidence: ["SchemaError: invalid schema configuration"],
       }),
     ],
+  });
+}
+
+function apiAuthBoundaryAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-auth-boundary`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API authentication boundary rejected the request with HTTP 401 unauthorized.",
+        evidence: ["HTTP 401 unauthorized: invalid token"],
+      }),
+    ],
+  });
+}
+
+function apiNetworkConnectivityAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-network-connectivity`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API probe could not connect to the target service.",
+        evidence: ["ECONNREFUSED connect 127.0.0.1:8080"],
+      }),
+    ],
+  });
+}
+
+function webNetworkConnectivityAgent(agent) {
+  const id = `${agent}-web-network-connectivity`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Browser navigation failed before page state could be observed",
+        evidence: ["net::ERR_CONNECTION_REFUSED while navigating to checkout"],
+        recommendation: "Repair network reachability before trusting browser coverage.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-web-network-connectivity`,
+        agent,
+        kind: "coverage",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Browser navigation failed with network connectivity evidence.",
+        evidence: ["net::ERR_CONNECTION_REFUSED while navigating to checkout"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function apiDnsNotFoundAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-dns-not-found`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API probe failed DNS resolution for the target service.",
+        evidence: ["ENOTFOUND api.example.test"],
+      }),
+    ],
+  });
+}
+
+function apiTlsHandshakeTimeoutAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-tls-handshake-timeout`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API probe failed during TLS handshake.",
+        evidence: ["TLS handshake timeout while connecting to api.example.test"],
+      }),
+    ],
+  });
+}
+
+function webDnsLookupTimeoutAgent(agent) {
+  const id = `${agent}-web-dns-lookup-timeout`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Browser navigation failed during DNS lookup",
+        evidence: ["DNS lookup timed out while navigating to checkout"],
+        recommendation: "Repair DNS reachability before trusting browser coverage.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-web-dns-lookup-timeout`,
+        agent,
+        kind: "coverage",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Browser navigation failed with DNS lookup timeout evidence.",
+        evidence: ["DNS lookup timed out while navigating to checkout"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function apiResourceExhaustionAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-resource-exhaustion`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API gateway rejected the request with HTTP 429 too many requests.",
+        evidence: ["HTTP 429 too many requests: rate limit exceeded"],
+      }),
+    ],
+  });
+}
+
+function cliResourceExhaustionAgent(agent) {
+  const id = `${agent}-cli-resource-exhaustion`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "cli",
+        description: "CLI smoke command failed: app --help",
+        evidence: ["ENOSPC: no space left on device while writing temp file"],
+        recommendation:
+          "Free disk space or redirect temporary output before rerunning the CLI smoke.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-resource-exhaustion-failed`,
+        agent,
+        kind: "smoke",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI smoke hit local resource exhaustion.",
+        evidence: ["ENOSPC: no space left on device while writing temp file"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
+function webResourceExhaustionAgent(agent) {
+  const id = `${agent}-web-resource-exhaustion`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Browser runtime failed after renderer memory exhaustion",
+        evidence: ["heap out of memory while rendering checkout page"],
+        recommendation: "Reduce renderer memory pressure before trusting browser coverage.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-web-resource-exhaustion`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Web runtime failed from resource exhaustion.",
+        evidence: ["heap out of memory while rendering checkout page"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function apiConfigurationErrorAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-configuration-error`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API boot failed because required environment variable DATABASE_URL is missing.",
+        evidence: ["missing required environment variable DATABASE_URL"],
+      }),
+    ],
+  });
+}
+
+function apiOomKilledAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-oomkilled`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API worker process was OOMKilled by cgroup memory limit.",
+        evidence: ["worker process OOMKilled by cgroup memory limit"],
+      }),
+    ],
+  });
+}
+
+function apiOomSigkillAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-api-oom-sigkill`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API worker exited after OOMKilled SIGKILL from the container runtime.",
+        evidence: ["worker OOMKilled: out of memory; process terminated by SIGKILL"],
+      }),
+    ],
+  });
+}
+
+function apiRecommendationOnlyAgent(agent, recommendation) {
+  const id = `${agent}-api-generic-recommendation-only`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "api",
+        description: "API runtime raised TypeError during component health check",
+        evidence: ["TypeError during API health check"],
+        recommendation,
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-api-generic-recommendation-only`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "api",
+        component: "api",
+        summary: "API runtime raised TypeError during component health check.",
+        evidence: ["TypeError during API health check"],
+        findingIds: [id],
+      }),
+    ],
+  });
+}
+
+function cliConfigurationErrorAgent(agent) {
+  const id = `${agent}-cli-configuration-error`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "cli",
+        description: "CLI smoke command failed before startup",
+        evidence: ["config file not found: ./test-capabilities.yaml"],
+        recommendation: "Provide the required config file before rerunning the CLI smoke.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-configuration-error-failed`,
+        agent,
+        kind: "smoke",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI smoke failed before startup due to a missing configuration file.",
+        evidence: ["config file not found: ./test-capabilities.yaml"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
+function cliConfigNoSuchFileAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-cli-config-no-such-file`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI failed while loading its config file.",
+        evidence: ["Config file ./app.yml: no such file or directory"],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
+function cliConfigEnoentAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-cli-config-enoent`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI failed while loading configuration.",
+        evidence: ["ENOENT: no such file or directory, open ./test-capabilities.yaml"],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
+function cliEnvFileEnoentAgent(agent) {
+  return agentResult({
+    observations: [
+      observation({
+        id: `${agent}-cli-env-file-enoent`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI failed while loading environment configuration.",
+        evidence: ["ENOENT: no such file or directory, open .env"],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
+  });
+}
+
+function webConfigurationErrorAgent(agent) {
+  const id = `${agent}-web-configuration-error`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description: "Web app boot failed before route rendering",
+        evidence: ["missing configuration value PUBLIC_API_BASE_URL"],
+        recommendation: "Set PUBLIC_API_BASE_URL before trusting browser coverage.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-web-configuration-error`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Web runtime failed from a missing configuration value.",
+        evidence: ["missing configuration value PUBLIC_API_BASE_URL"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+function cliPermissionDeniedAgent(agent) {
+  const id = `${agent}-cli-permission-denied`;
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "cli",
+        description: "CLI smoke command failed: app --help",
+        evidence: ["Permission denied while executing app --help"],
+        recommendation: "Fix executable permissions or run the command under an allowed user.",
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-permission-denied-failed`,
+        agent,
+        kind: "smoke",
+        status: "failed",
+        subject: "cli",
+        component: "cli",
+        summary: "CLI smoke hit a local process permission error.",
+        evidence: ["Permission denied while executing app --help"],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { edgeCases: 0 },
   });
 }
 
@@ -676,11 +1193,15 @@ function summarizeCoverage(entries) {
 function assertCoverageFloors(coverage) {
   const requiredExpectedClasses = [
     "none",
+    "auth_or_permission",
     "browser_coverage_gap",
     "command_resolution",
     "component_failure_surface",
+    "configuration_error",
     "contract_mismatch",
+    "network_connectivity",
     "property_violation",
+    "resource_exhaustion",
     "selector_or_dom_drift",
     "timeout_or_latency",
   ];
@@ -751,6 +1272,7 @@ async function executeCase(definition) {
     : rootCauses[0];
 
   const failureClassFor = (entry) =>
+    entry?.semantics?.failureClass ??
     entry?.evidence?.find((item) => item.startsWith("failureClass:"))?.replace("failureClass:", "");
   const summarizeCalibration = (calibration) => ({
     level: calibration.level,
@@ -759,6 +1281,7 @@ async function executeCase(definition) {
     findingCount: calibration.findingCount,
   });
   const propagationLinkFor = (entry) =>
+    entry?.semantics?.propagationLink ??
     entry?.evidence?.find((item) => item.startsWith("link:"))?.replace("link:", "");
   const summarizePropagation = (entry) => ({
     subject: entry.subject,
@@ -772,6 +1295,7 @@ async function executeCase(definition) {
       new RegExp(`${expectation.failureClass} as the current failure surface`),
     );
     assert.equal(failureClassFor(entry), expectation.failureClass);
+    assert.equal(entry.semantics?.failureClass, expectation.failureClass);
     assert.equal(entry.semantics?.calibration?.level, expectation.level);
     assert.equal(entry.semantics?.calibration?.signalCount, expectation.signalCount);
     assert.equal(entry.semantics?.calibration?.sensorCount, expectation.sensorCount);
@@ -799,7 +1323,7 @@ async function executeCase(definition) {
     assert.equal(
       rootCauses.length,
       definition.expectedRootCauses.length,
-      `${definition.name}: expected ${definition.expectedRootCauses.length} root_cause observations, got ${rootCauses.length}`,
+      `${definition.name}: expected ${definition.expectedRootCauses.length} root_cause observations, got ${rootCauses.length}: ${rootCauses.map((entry) => `${entry.subject}:${failureClassFor(entry)}`).join(", ")}`,
     );
     for (const expectation of definition.expectedRootCauses) {
       assertRootCause(
@@ -864,6 +1388,11 @@ async function executeCase(definition) {
           propagationLinkFor(propObs) ?? "",
           new RegExp(ep.link, "i"),
           `${definition.name}: expected propagation link ${ep.link}`,
+        );
+        assert.match(
+          propObs.semantics?.propagationLink ?? "",
+          new RegExp(ep.link, "i"),
+          `${definition.name}: expected structured propagation link ${ep.link}`,
         );
       }
       assert.equal(
@@ -958,6 +1487,45 @@ const cases = [
     agents: {
       cliA: cliShellNotFoundAgent("cliA"),
       cliB: cliShellNotFoundAgent("cliB"),
+    },
+  },
+  {
+    name: "CLI missing config-named executable classifies command_resolution",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      configToolA: cliFailureAgent("configtoolA", "command_resolution"),
+      configToolB: cliFailureAgent("configtoolB", "command_resolution"),
+    },
+  },
+  {
+    name: "CLI missing executable named config classifies command_resolution",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      configA: cliMissingExecutableAgent("configA", "/usr/local/bin/config"),
+      configB: cliMissingExecutableAgent("configB", "/usr/local/bin/config"),
+    },
+  },
+  {
+    name: "CLI missing executable named app-config classifies command_resolution",
+    subject: "cli",
+    failureClass: "command_resolution",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      appConfigA: cliMissingExecutableAgent("appConfigA", "/opt/tools/app-config"),
+      appConfigB: cliMissingExecutableAgent("appConfigB", "/opt/tools/app-config"),
     },
   },
   {
@@ -1348,6 +1916,23 @@ const cases = [
     },
   },
   {
+    name: "API contract with auth-boundary wording classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    findingIds: [
+      "apiAuthContractA-api-contract-auth-conflict",
+      "apiAuthContractB-api-contract-auth-conflict",
+    ],
+    agents: {
+      apiAuthContractA: apiContractAuthConflictAgent("apiAuthContractA"),
+      apiAuthContractB: apiContractAuthConflictAgent("apiAuthContractB"),
+    },
+  },
+  {
     name: "Observation-only API signals classify contract_mismatch",
     subject: "api",
     failureClass: "contract_mismatch",
@@ -1413,6 +1998,34 @@ const cases = [
     agents: {
       apiPayloadA: apiPayloadElementAgent("apiPayloadA"),
       apiPayloadB: apiPayloadElementAgent("apiPayloadB"),
+    },
+  },
+  {
+    name: "API contract duration field wording classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiDurationA: apiContractDurationFieldAgent("apiDurationA"),
+      apiDurationB: apiContractDurationFieldAgent("apiDurationB"),
+    },
+  },
+  {
+    name: "API contract dns field wording classifies contract_mismatch",
+    subject: "api",
+    failureClass: "contract_mismatch",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiDnsA: apiContractDnsFieldAgent("apiDnsA"),
+      apiDnsB: apiContractDnsFieldAgent("apiDnsB"),
     },
   },
   {
@@ -1497,6 +2110,337 @@ const cases = [
     agents: {
       apiSchemaA: apiSchemaExceptionAgent("apiSchemaA"),
       apiSchemaB: apiSchemaExceptionAgent("apiSchemaB"),
+    },
+  },
+  {
+    name: "API auth boundary failures classify auth_or_permission",
+    subject: "api",
+    failureClass: "auth_or_permission",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiAuthA: apiAuthBoundaryAgent("apiAuthA"),
+      apiAuthB: apiAuthBoundaryAgent("apiAuthB"),
+    },
+  },
+  {
+    name: "API network connectivity failures classify network_connectivity",
+    subject: "api",
+    failureClass: "network_connectivity",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiNetworkA: apiNetworkConnectivityAgent("apiNetworkA"),
+      apiNetworkB: apiNetworkConnectivityAgent("apiNetworkB"),
+    },
+  },
+  {
+    name: "Web navigation network failures classify network_connectivity",
+    subject: "web",
+    failureClass: "network_connectivity",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      webNetworkA: webNetworkConnectivityAgent("webNetworkA"),
+      webNetworkB: webNetworkConnectivityAgent("webNetworkB"),
+    },
+  },
+  {
+    name: "API ENOTFOUND failures classify network_connectivity",
+    subject: "api",
+    failureClass: "network_connectivity",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiDnsNotFoundA: apiDnsNotFoundAgent("apiDnsNotFoundA"),
+      apiDnsNotFoundB: apiDnsNotFoundAgent("apiDnsNotFoundB"),
+    },
+  },
+  {
+    name: "API TLS handshake timeout classifies network_connectivity",
+    subject: "api",
+    failureClass: "network_connectivity",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiTlsA: apiTlsHandshakeTimeoutAgent("apiTlsA"),
+      apiTlsB: apiTlsHandshakeTimeoutAgent("apiTlsB"),
+    },
+  },
+  {
+    name: "Web DNS lookup timeout classifies network_connectivity",
+    subject: "web",
+    failureClass: "network_connectivity",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      webDnsA: webDnsLookupTimeoutAgent("webDnsA"),
+      webDnsB: webDnsLookupTimeoutAgent("webDnsB"),
+    },
+  },
+  {
+    name: "API rate-limit failures classify resource_exhaustion",
+    subject: "api",
+    failureClass: "resource_exhaustion",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiResourceA: apiResourceExhaustionAgent("apiResourceA"),
+      apiResourceB: apiResourceExhaustionAgent("apiResourceB"),
+    },
+  },
+  {
+    name: "CLI disk exhaustion classifies resource_exhaustion",
+    subject: "cli",
+    failureClass: "resource_exhaustion",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliResourceA: cliResourceExhaustionAgent("cliResourceA"),
+      cliResourceB: cliResourceExhaustionAgent("cliResourceB"),
+    },
+  },
+  {
+    name: "API OOMKilled wording classifies resource_exhaustion",
+    subject: "api",
+    failureClass: "resource_exhaustion",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiOomA: apiOomKilledAgent("apiOomA"),
+      apiOomB: apiOomKilledAgent("apiOomB"),
+    },
+  },
+  {
+    name: "API OOM plus SIGKILL wording classifies resource_exhaustion",
+    subject: "api",
+    failureClass: "resource_exhaustion",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiOomSigkillA: apiOomSigkillAgent("apiOomSigkillA"),
+      apiOomSigkillB: apiOomSigkillAgent("apiOomSigkillB"),
+    },
+  },
+  {
+    name: "API missing env var classifies configuration_error",
+    subject: "api",
+    failureClass: "configuration_error",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      apiConfigA: apiConfigurationErrorAgent("apiConfigA"),
+      apiConfigB: apiConfigurationErrorAgent("apiConfigB"),
+    },
+  },
+  {
+    name: "CLI missing config file classifies configuration_error",
+    subject: "cli",
+    failureClass: "configuration_error",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliConfigA: cliConfigurationErrorAgent("cliConfigA"),
+      cliConfigB: cliConfigurationErrorAgent("cliConfigB"),
+    },
+  },
+  {
+    name: "CLI config no-such-file wording classifies configuration_error",
+    subject: "cli",
+    failureClass: "configuration_error",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      cliConfigNoSuchA: cliConfigNoSuchFileAgent("cliConfigNoSuchA"),
+      cliConfigNoSuchB: cliConfigNoSuchFileAgent("cliConfigNoSuchB"),
+    },
+  },
+  {
+    name: "CLI config ENOENT wording classifies configuration_error",
+    subject: "cli",
+    failureClass: "configuration_error",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      cliConfigEnoentA: cliConfigEnoentAgent("cliConfigEnoentA"),
+      cliConfigEnoentB: cliConfigEnoentAgent("cliConfigEnoentB"),
+    },
+  },
+  {
+    name: "CLI env-file ENOENT wording classifies configuration_error",
+    subject: "cli",
+    failureClass: "configuration_error",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 0,
+    findingIds: [],
+    agents: {
+      cliEnvFileA: cliEnvFileEnoentAgent("cliEnvFileA"),
+      cliEnvFileB: cliEnvFileEnoentAgent("cliEnvFileB"),
+    },
+  },
+  {
+    name: "CLI permission denied wording remains component_failure_surface",
+    subject: "cli",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      cliPermissionA: cliPermissionDeniedAgent("cliPermissionA"),
+      cliPermissionB: cliPermissionDeniedAgent("cliPermissionB"),
+    },
+  },
+  {
+    name: "Mixed API auth boundary and contract evidence does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiAuth: apiAuthBoundaryAgent("apiAuth"),
+      apiContract: apiContractViolationAgent("apiContract"),
+    },
+  },
+  {
+    name: "Mixed API network and auth evidence does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiNetwork: apiNetworkConnectivityAgent("apiNetwork"),
+      apiAuth: apiAuthBoundaryAgent("apiAuth"),
+    },
+  },
+  {
+    name: "Mixed API resource and network evidence does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiResource: apiResourceExhaustionAgent("apiResource"),
+      apiNetwork: apiNetworkConnectivityAgent("apiNetwork"),
+    },
+  },
+  {
+    name: "Mixed API configuration and auth evidence does not emit root_cause",
+    subject: "api",
+    expectRootCause: false,
+    agents: {
+      apiConfig: apiConfigurationErrorAgent("apiConfig"),
+      apiAuth: apiAuthBoundaryAgent("apiAuth"),
+    },
+  },
+  {
+    name: "API auth keyword only in recommendation remains component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      apiRecoAuthA: apiRecommendationOnlyAgent(
+        "apiRecoAuthA",
+        "Check for missing authorization header after reproducing the generic failure.",
+      ),
+      apiRecoAuthB: apiRecommendationOnlyAgent(
+        "apiRecoAuthB",
+        "Check for missing authorization header after reproducing the generic failure.",
+      ),
+    },
+  },
+  {
+    name: "API network keyword only in recommendation remains component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      apiRecoNetworkA: apiRecommendationOnlyAgent(
+        "apiRecoNetworkA",
+        "Check DNS resolution after reproducing the generic failure.",
+      ),
+      apiRecoNetworkB: apiRecommendationOnlyAgent(
+        "apiRecoNetworkB",
+        "Check DNS resolution after reproducing the generic failure.",
+      ),
+    },
+  },
+  {
+    name: "API resource keyword only in recommendation remains component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      apiRecoResourceA: apiRecommendationOnlyAgent(
+        "apiRecoResourceA",
+        "Check rate limit and quota budgets after reproducing the generic failure.",
+      ),
+      apiRecoResourceB: apiRecommendationOnlyAgent(
+        "apiRecoResourceB",
+        "Check rate limit and quota budgets after reproducing the generic failure.",
+      ),
+    },
+  },
+  {
+    name: "API configuration keyword only in recommendation remains component_failure_surface",
+    subject: "api",
+    failureClass: "component_failure_surface",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      apiRecoConfigA: apiRecommendationOnlyAgent(
+        "apiRecoConfigA",
+        "Check missing environment variable settings after reproducing the generic failure.",
+      ),
+      apiRecoConfigB: apiRecommendationOnlyAgent(
+        "apiRecoConfigB",
+        "Check missing environment variable settings after reproducing the generic failure.",
+      ),
     },
   },
   {
@@ -2102,6 +3046,132 @@ const cases = [
     },
   },
   {
+    name: "API auth boundary plus web component failure does not emit propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "auth_or_permission",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "component_failure_surface",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["web-auth-fail-a", "web-auth-fail-b"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiAuthA: apiAuthBoundaryAgent("apiAuthA"),
+      apiAuthB: apiAuthBoundaryAgent("apiAuthB"),
+      webAuthFailA: componentFailureAgent("webAuthFailA", "web", "web-auth-fail-a"),
+      webAuthFailB: componentFailureAgent("webAuthFailB", "web", "web-auth-fail-b"),
+    },
+  },
+  {
+    name: "Same network connectivity across api and web does not emit shared-infra propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "network_connectivity",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "network_connectivity",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: [
+          "webNetworkA-web-network-connectivity",
+          "webNetworkB-web-network-connectivity",
+        ],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiNetworkA: apiNetworkConnectivityAgent("apiNetworkA"),
+      apiNetworkB: apiNetworkConnectivityAgent("apiNetworkB"),
+      webNetworkA: webNetworkConnectivityAgent("webNetworkA"),
+      webNetworkB: webNetworkConnectivityAgent("webNetworkB"),
+    },
+  },
+  {
+    name: "Same resource exhaustion across api and web does not emit shared-infra propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "resource_exhaustion",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "resource_exhaustion",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: [
+          "webResourceA-web-resource-exhaustion",
+          "webResourceB-web-resource-exhaustion",
+        ],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiResourceA: apiResourceExhaustionAgent("apiResourceA"),
+      apiResourceB: apiResourceExhaustionAgent("apiResourceB"),
+      webResourceA: webResourceExhaustionAgent("webResourceA"),
+      webResourceB: webResourceExhaustionAgent("webResourceB"),
+    },
+  },
+  {
+    name: "Same configuration errors across api and web do not emit shared-infra propagation",
+    expectedRootCauses: [
+      {
+        subject: "api",
+        failureClass: "configuration_error",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 0,
+        findingIds: [],
+      },
+      {
+        subject: "web",
+        failureClass: "configuration_error",
+        level: "high",
+        signalCount: 2,
+        sensorCount: 2,
+        findingCount: 2,
+        findingIds: ["webConfigA-web-configuration-error", "webConfigB-web-configuration-error"],
+      },
+    ],
+    expectNoPropagation: true,
+    agents: {
+      apiConfigA: apiConfigurationErrorAgent("apiConfigA"),
+      apiConfigB: apiConfigurationErrorAgent("apiConfigB"),
+      webConfigA: webConfigurationErrorAgent("webConfigA"),
+      webConfigB: webConfigurationErrorAgent("webConfigB"),
+    },
+  },
+  {
     name: "API timeout + web component_failure emits propagation via api-latency-cascade",
     expectedRootCauses: [
       {
@@ -2184,7 +3254,7 @@ const cases = [
             id: "web-fail-a",
             component: "web",
             description: "Web page failed to load due to backend unavailability",
-            evidence: ["backend connection refused"],
+            evidence: ["backend service unavailable"],
             recommendation: "Check backend services.",
           }),
         ],
@@ -2197,7 +3267,7 @@ const cases = [
             subject: "web",
             component: "web",
             summary: "Web runtime failed during page load.",
-            evidence: ["backend connection refused"],
+            evidence: ["backend service unavailable"],
             findingIds: ["web-fail-a"],
           }),
         ],
@@ -2453,7 +3523,7 @@ const cases = [
             id: "web-fail-a",
             component: "web",
             description: "Web page failed to load",
-            evidence: ["backend connection refused"],
+            evidence: ["backend service unavailable"],
             recommendation: "Check backend services.",
           }),
         ],
@@ -2466,7 +3536,7 @@ const cases = [
             subject: "web",
             component: "web",
             summary: "Web runtime failed during page load.",
-            evidence: ["backend connection refused"],
+            evidence: ["backend service unavailable"],
             findingIds: ["web-fail-a"],
           }),
         ],
