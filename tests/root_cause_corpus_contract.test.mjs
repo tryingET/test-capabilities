@@ -21,6 +21,18 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   assert.match(result.stdout, /\[pass\] CLI shell not-found wording classifies command_resolution/);
   assert.match(
     result.stdout,
+    /\[pass\] CLI missing config-named executable classifies command_resolution/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI missing executable named config classifies command_resolution/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI missing executable named app-config classifies command_resolution/,
+  );
+  assert.match(
+    result.stdout,
     /\[pass\] CLI timeout with two observed agents classifies timeout_or_latency/,
   );
   assert.match(
@@ -93,6 +105,84 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] API schema exception without contract evidence classifies component_failure_surface/,
   );
+  assert.match(result.stdout, /\[pass\] API auth boundary failures classify auth_or_permission/);
+  assert.match(
+    result.stdout,
+    /\[pass\] API network connectivity failures classify network_connectivity/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Web navigation network failures classify network_connectivity/,
+  );
+  assert.match(result.stdout, /\[pass\] API ENOTFOUND failures classify network_connectivity/);
+  assert.match(result.stdout, /\[pass\] API TLS handshake timeout classifies network_connectivity/);
+  assert.match(result.stdout, /\[pass\] Web DNS lookup timeout classifies network_connectivity/);
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract with auth-boundary wording classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract duration field wording classifies contract_mismatch/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API contract dns field wording classifies contract_mismatch/,
+  );
+  assert.match(result.stdout, /\[pass\] API rate-limit failures classify resource_exhaustion/);
+  assert.match(result.stdout, /\[pass\] CLI disk exhaustion classifies resource_exhaustion/);
+  assert.match(result.stdout, /\[pass\] API OOMKilled wording classifies resource_exhaustion/);
+  assert.match(
+    result.stdout,
+    /\[pass\] API OOM plus SIGKILL wording classifies resource_exhaustion/,
+  );
+  assert.match(result.stdout, /\[pass\] API missing env var classifies configuration_error/);
+  assert.match(result.stdout, /\[pass\] CLI missing config file classifies configuration_error/);
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI config no-such-file wording classifies configuration_error/,
+  );
+  assert.match(result.stdout, /\[pass\] CLI config ENOENT wording classifies configuration_error/);
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI env-file ENOENT wording classifies configuration_error/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] CLI permission denied wording remains component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed API auth boundary and contract evidence does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed API network and auth evidence does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed API resource and network evidence does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Mixed API configuration and auth evidence does not emit root_cause/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API auth keyword only in recommendation remains component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API network keyword only in recommendation remains component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API resource keyword only in recommendation remains component_failure_surface/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API configuration keyword only in recommendation remains component_failure_surface/,
+  );
   assert.match(
     result.stdout,
     /\[pass\] API contract finding with browser-word observations classifies contract_mismatch/,
@@ -161,7 +251,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(58 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(92 cases\)/);
   // Propagation synthesis assertions
   assert.match(result.stdout, /\[pass\] Single root_cause does not emit propagation/);
   assert.match(
@@ -171,6 +261,22 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
   assert.match(
     result.stdout,
     /\[pass\] Generic API and web component failures do not emit shared-infra propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] API auth boundary plus web component failure does not emit propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Same network connectivity across api and web does not emit shared-infra propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Same resource exhaustion across api and web does not emit shared-infra propagation/,
+  );
+  assert.match(
+    result.stdout,
+    /\[pass\] Same configuration errors across api and web do not emit shared-infra propagation/,
   );
   assert.match(
     result.stdout,
@@ -224,25 +330,29 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   // Exact corpus counts are intentional truth locks: fixture changes must update both
   // machine-readable coverage expectations and named guardrail assertions.
-  assert.equal(payload.total, 58);
+  assert.equal(payload.total, 92);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 58);
-  assert.equal(payload.coverage.noRootCauseCases, 15);
-  assert.equal(payload.coverage.positiveRootCauseCases, 43);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 43);
-  assert.equal(payload.coverage.expectedClasses.none, 15);
-  assert.equal(payload.coverage.expectedClasses.command_resolution, 12);
+  assert.equal(payload.coverage.total, 92);
+  assert.equal(payload.coverage.noRootCauseCases, 19);
+  assert.equal(payload.coverage.positiveRootCauseCases, 73);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 73);
+  assert.equal(payload.coverage.expectedClasses.none, 19);
+  assert.equal(payload.coverage.expectedClasses.auth_or_permission, 2);
+  assert.equal(payload.coverage.expectedClasses.command_resolution, 15);
   assert.equal(payload.coverage.expectedClasses.timeout_or_latency, 8);
-  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 12);
-  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 13);
+  assert.equal(payload.coverage.expectedClasses.contract_mismatch, 15);
+  assert.equal(payload.coverage.expectedClasses.network_connectivity, 7);
+  assert.equal(payload.coverage.expectedClasses.resource_exhaustion, 6);
+  assert.equal(payload.coverage.expectedClasses.configuration_error, 7);
+  assert.equal(payload.coverage.expectedClasses.component_failure_surface, 19);
   assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 5);
   assert.equal(payload.coverage.expectedClasses.selector_or_dom_drift, 3);
   assert.equal(payload.coverage.expectedClasses.property_violation, 6);
-  assert.equal(payload.coverage.subjects.api, 32);
-  assert.equal(payload.coverage.subjects.cli, 16);
-  assert.equal(payload.coverage.subjects.web, 26);
+  assert.equal(payload.coverage.subjects.api, 55);
+  assert.equal(payload.coverage.subjects.cli, 25);
+  assert.equal(payload.coverage.subjects.web, 32);
   assert.equal(payload.coverage.positivePropagationCases, 7);
-  assert.equal(payload.coverage.noPropagationGuardrailCases, 6);
+  assert.equal(payload.coverage.noPropagationGuardrailCases, 10);
   assert.deepEqual(payload.coverage.propagationSubjects, {
     "api-to-web": 4,
     "cli-to-api": 1,
@@ -264,6 +374,23 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(mixedCliCase?.actual, "none");
   assert.equal(mixedCliCase?.rootCauseCount, 0);
 
+  const configNamedExecutableCase = payload.cases.find(
+    (entry) => entry.name === "CLI missing config-named executable classifies command_resolution",
+  );
+  assert.equal(configNamedExecutableCase?.expected, "command_resolution");
+  assert.equal(configNamedExecutableCase?.actual, "command_resolution");
+  assert.equal(configNamedExecutableCase?.rootCauseCount, 1);
+
+  for (const name of [
+    "CLI missing executable named config classifies command_resolution",
+    "CLI missing executable named app-config classifies command_resolution",
+  ]) {
+    const executableNameCase = payload.cases.find((entry) => entry.name === name);
+    assert.equal(executableNameCase?.expected, "command_resolution");
+    assert.equal(executableNameCase?.actual, "command_resolution");
+    assert.equal(executableNameCase?.rootCauseCount, 1);
+  }
+
   const mixedApiCase = payload.cases.find(
     (entry) => entry.name === "Mixed API contract and runtime evidence does not emit root_cause",
   );
@@ -279,6 +406,132 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(linkedApiRuntimeCase?.expected, "none");
   assert.equal(linkedApiRuntimeCase?.actual, "none");
   assert.equal(linkedApiRuntimeCase?.rootCauseCount, 0);
+
+  const apiAuthCase = payload.cases.find(
+    (entry) => entry.name === "API auth boundary failures classify auth_or_permission",
+  );
+  assert.equal(apiAuthCase?.expected, "auth_or_permission");
+  assert.equal(apiAuthCase?.actual, "auth_or_permission");
+  assert.equal(apiAuthCase?.rootCauseCount, 1);
+  assert.equal(apiAuthCase?.calibration?.level, "high");
+
+  const apiNetworkCase = payload.cases.find(
+    (entry) => entry.name === "API network connectivity failures classify network_connectivity",
+  );
+  assert.equal(apiNetworkCase?.expected, "network_connectivity");
+  assert.equal(apiNetworkCase?.actual, "network_connectivity");
+  assert.equal(apiNetworkCase?.rootCauseCount, 1);
+  assert.equal(apiNetworkCase?.calibration?.level, "high");
+
+  const webNetworkCase = payload.cases.find(
+    (entry) => entry.name === "Web navigation network failures classify network_connectivity",
+  );
+  assert.equal(webNetworkCase?.expected, "network_connectivity");
+  assert.equal(webNetworkCase?.actual, "network_connectivity");
+  assert.equal(webNetworkCase?.rootCauseCount, 1);
+
+  for (const name of [
+    "API ENOTFOUND failures classify network_connectivity",
+    "API TLS handshake timeout classifies network_connectivity",
+    "Web DNS lookup timeout classifies network_connectivity",
+  ]) {
+    const networkPrecedenceCase = payload.cases.find((entry) => entry.name === name);
+    assert.equal(networkPrecedenceCase?.expected, "network_connectivity");
+    assert.equal(networkPrecedenceCase?.actual, "network_connectivity");
+    assert.equal(networkPrecedenceCase?.rootCauseCount, 1);
+  }
+
+  const apiResourceCase = payload.cases.find(
+    (entry) => entry.name === "API rate-limit failures classify resource_exhaustion",
+  );
+  assert.equal(apiResourceCase?.expected, "resource_exhaustion");
+  assert.equal(apiResourceCase?.actual, "resource_exhaustion");
+  assert.equal(apiResourceCase?.rootCauseCount, 1);
+  assert.equal(apiResourceCase?.calibration?.level, "high");
+
+  const cliResourceCase = payload.cases.find(
+    (entry) => entry.name === "CLI disk exhaustion classifies resource_exhaustion",
+  );
+  assert.equal(cliResourceCase?.expected, "resource_exhaustion");
+  assert.equal(cliResourceCase?.actual, "resource_exhaustion");
+  assert.equal(cliResourceCase?.rootCauseCount, 1);
+
+  const apiOomSigkillCase = payload.cases.find(
+    (entry) => entry.name === "API OOM plus SIGKILL wording classifies resource_exhaustion",
+  );
+  assert.equal(apiOomSigkillCase?.expected, "resource_exhaustion");
+  assert.equal(apiOomSigkillCase?.actual, "resource_exhaustion");
+  assert.equal(apiOomSigkillCase?.rootCauseCount, 1);
+
+  const apiConfigCase = payload.cases.find(
+    (entry) => entry.name === "API missing env var classifies configuration_error",
+  );
+  assert.equal(apiConfigCase?.expected, "configuration_error");
+  assert.equal(apiConfigCase?.actual, "configuration_error");
+  assert.equal(apiConfigCase?.rootCauseCount, 1);
+  assert.equal(apiConfigCase?.calibration?.level, "high");
+
+  const cliConfigCase = payload.cases.find(
+    (entry) => entry.name === "CLI missing config file classifies configuration_error",
+  );
+  assert.equal(cliConfigCase?.expected, "configuration_error");
+  assert.equal(cliConfigCase?.actual, "configuration_error");
+  assert.equal(cliConfigCase?.rootCauseCount, 1);
+
+  const cliEnvFileCase = payload.cases.find(
+    (entry) => entry.name === "CLI env-file ENOENT wording classifies configuration_error",
+  );
+  assert.equal(cliEnvFileCase?.expected, "configuration_error");
+  assert.equal(cliEnvFileCase?.actual, "configuration_error");
+  assert.equal(cliEnvFileCase?.rootCauseCount, 1);
+
+  const cliPermissionCase = payload.cases.find(
+    (entry) => entry.name === "CLI permission denied wording remains component_failure_surface",
+  );
+  assert.equal(cliPermissionCase?.expected, "component_failure_surface");
+  assert.equal(cliPermissionCase?.actual, "component_failure_surface");
+  assert.equal(cliPermissionCase?.rootCauseCount, 1);
+
+  const mixedApiAuthContractCase = payload.cases.find(
+    (entry) =>
+      entry.name === "Mixed API auth boundary and contract evidence does not emit root_cause",
+  );
+  assert.equal(mixedApiAuthContractCase?.expected, "none");
+  assert.equal(mixedApiAuthContractCase?.actual, "none");
+  assert.equal(mixedApiAuthContractCase?.rootCauseCount, 0);
+
+  const mixedApiNetworkAuthCase = payload.cases.find(
+    (entry) => entry.name === "Mixed API network and auth evidence does not emit root_cause",
+  );
+  assert.equal(mixedApiNetworkAuthCase?.expected, "none");
+  assert.equal(mixedApiNetworkAuthCase?.actual, "none");
+  assert.equal(mixedApiNetworkAuthCase?.rootCauseCount, 0);
+
+  const mixedApiResourceNetworkCase = payload.cases.find(
+    (entry) => entry.name === "Mixed API resource and network evidence does not emit root_cause",
+  );
+  assert.equal(mixedApiResourceNetworkCase?.expected, "none");
+  assert.equal(mixedApiResourceNetworkCase?.actual, "none");
+  assert.equal(mixedApiResourceNetworkCase?.rootCauseCount, 0);
+
+  const mixedApiConfigurationAuthCase = payload.cases.find(
+    (entry) => entry.name === "Mixed API configuration and auth evidence does not emit root_cause",
+  );
+  assert.equal(mixedApiConfigurationAuthCase?.expected, "none");
+  assert.equal(mixedApiConfigurationAuthCase?.actual, "none");
+  assert.equal(mixedApiConfigurationAuthCase?.rootCauseCount, 0);
+
+  for (const name of [
+    "API auth keyword only in recommendation remains component_failure_surface",
+    "API network keyword only in recommendation remains component_failure_surface",
+    "API resource keyword only in recommendation remains component_failure_surface",
+    "API configuration keyword only in recommendation remains component_failure_surface",
+  ]) {
+    const recommendationOnlyCase = payload.cases.find((entry) => entry.name === name);
+    assert.equal(recommendationOnlyCase?.expected, "component_failure_surface");
+    assert.equal(recommendationOnlyCase?.actual, "component_failure_surface");
+    assert.equal(recommendationOnlyCase?.rootCauseCount, 1);
+  }
 
   const suppressedApiAmbiguityCase = payload.cases.find(
     (entry) => entry.name === "CLI diagnosis survives suppressed API mixed-class ambiguity",
@@ -386,6 +639,53 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(genericNoPropagationCase?.propagationCount, 0);
   assert.equal(genericNoPropagationCase?.expectNoPropagation, true);
   assert.equal(Object.hasOwn(genericNoPropagationCase ?? {}, "actualPropagations"), false);
+
+  const authNoPropagationCase = payload.cases.find(
+    (entry) =>
+      entry.name === "API auth boundary plus web component failure does not emit propagation",
+  );
+  assert.equal(authNoPropagationCase?.propagationCount, 0);
+  assert.equal(authNoPropagationCase?.expectNoPropagation, true);
+  assert.deepEqual(authNoPropagationCase?.actualRootCauses, [
+    { subject: "api", failureClass: "auth_or_permission" },
+    { subject: "web", failureClass: "component_failure_surface" },
+  ]);
+
+  const networkNoPropagationCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Same network connectivity across api and web does not emit shared-infra propagation",
+  );
+  assert.equal(networkNoPropagationCase?.propagationCount, 0);
+  assert.equal(networkNoPropagationCase?.expectNoPropagation, true);
+  assert.deepEqual(networkNoPropagationCase?.actualRootCauses, [
+    { subject: "api", failureClass: "network_connectivity" },
+    { subject: "web", failureClass: "network_connectivity" },
+  ]);
+
+  const resourceNoPropagationCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Same resource exhaustion across api and web does not emit shared-infra propagation",
+  );
+  assert.equal(resourceNoPropagationCase?.propagationCount, 0);
+  assert.equal(resourceNoPropagationCase?.expectNoPropagation, true);
+  assert.deepEqual(resourceNoPropagationCase?.actualRootCauses, [
+    { subject: "api", failureClass: "resource_exhaustion" },
+    { subject: "web", failureClass: "resource_exhaustion" },
+  ]);
+
+  const configurationNoPropagationCase = payload.cases.find(
+    (entry) =>
+      entry.name ===
+      "Same configuration errors across api and web do not emit shared-infra propagation",
+  );
+  assert.equal(configurationNoPropagationCase?.propagationCount, 0);
+  assert.equal(configurationNoPropagationCase?.expectNoPropagation, true);
+  assert.deepEqual(configurationNoPropagationCase?.actualRootCauses, [
+    { subject: "api", failureClass: "configuration_error" },
+    { subject: "web", failureClass: "configuration_error" },
+  ]);
 
   const sharedInfraCase = payload.cases.find(
     (entry) =>

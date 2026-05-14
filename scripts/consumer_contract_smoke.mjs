@@ -162,16 +162,27 @@ try {
   );
   assert.ok(existsSync(installedTypes), `installed type entrypoint missing: ${installedTypes}`);
   const installedTypeSurface = readFileSync(installedTypes, "utf8");
+  const installedOrchestratorTypes = readFileSync(
+    path.join(tempDir, "node_modules", "test-capabilities", "dist", "core", "orchestrator.d.ts"),
+    "utf8",
+  );
   assert.match(installedTypeSurface, /IntelligenceConfig/);
   assert.match(installedTypeSurface, /PropagationEdge/);
   assert.match(installedTypeSurface, /PropagationTopology/);
+  assert.match(installedTypeSurface, /ROOT_CAUSE_FAILURE_CLASSES/);
+  assert.match(installedTypeSurface, /RootCauseFailureClass/);
+  assert.match(installedOrchestratorTypes, /failureClass\?: RootCauseFailureClass/);
+  assert.match(installedOrchestratorTypes, /propagationLink\?: string/);
 
   const typeConsumer = path.join(tempDir, "consumer-types.ts");
   writeFileSync(
     typeConsumer,
     [
-      'import { createTestCapabilities } from "test-capabilities";',
-      'import type { IntelligenceConfig, PropagationEdge, PropagationTopology, TestCapabilitiesConfig } from "test-capabilities";',
+      'import { ROOT_CAUSE_FAILURE_CLASSES, createTestCapabilities } from "test-capabilities";',
+      'import type { IntelligenceConfig, ObservationSemantics, PropagationEdge, PropagationTopology, RootCauseFailureClass, TestCapabilitiesConfig } from "test-capabilities";',
+      'if (!ROOT_CAUSE_FAILURE_CLASSES.includes("auth_or_permission")) throw new Error("missing auth root-cause class");',
+      'const failureClass: RootCauseFailureClass = "auth_or_permission";',
+      'const semantics: ObservationSemantics = { component: "api", interpretation: "typed", failureClass, propagationLink: "api-latency-cascade" };',
       'const edge: PropagationEdge = { upstream: "api", downstream: "web" };',
       "const topology: PropagationTopology = { edges: [edge] };",
       "const intelligence: IntelligenceConfig = { correlation: true, propagationTopology: topology };",
@@ -475,6 +486,8 @@ try {
     const rc = rootCauses[0];
     assert.equal(rc.subject, "cli");
     assert.match(rc.summary, /command_resolution as the current failure surface/);
+    assert.equal(rc.semantics.failureClass, "command_resolution");
+    assert.match(rc.evidence.join("\\n"), /failureClass:command_resolution/);
     assert.equal(rc.semantics.calibration.level, "high");
     assert.equal(rc.semantics.calibration.signalCount, 2);
     assert.equal(rc.semantics.calibration.sensorCount, 2);
@@ -603,6 +616,7 @@ try {
 
     const propagation = propagations[0];
     assert.equal(propagation.subject, "api-to-web");
+    assert.equal(propagation.semantics.propagationLink, "api-latency-cascade");
     assert.match(propagation.evidence.join("\\n"), /link:api-latency-cascade/);
     assert.equal(propagation.semantics.calibration.level, "low");
     assert.equal(propagation.semantics.calibration.signalCount, 2);

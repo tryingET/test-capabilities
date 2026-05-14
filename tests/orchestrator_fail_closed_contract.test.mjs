@@ -1267,6 +1267,34 @@ test(
   },
 );
 
+test("cli agent caps noisy CLI smoke output in findings", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-output-"));
+  const scriptPath = path.join(tempDir, "noisy-cli.mjs");
+  writeFileSync(scriptPath, "process.stderr.write('x'.repeat(80_000)); process.exit(1);\n", "utf8");
+
+  try {
+    const result = await new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name: "Noisy CLI Target",
+      targets: { cli: `${process.execPath} ${scriptPath}` },
+      agents: {
+        cli: {
+          enabled: true,
+          type: "cli-tester",
+          intensity: "normal",
+        },
+      },
+    }).run();
+
+    const evidence = result.findings[0]?.evidence[0] ?? "";
+    assert.equal(result.passed, false);
+    assert.match(evidence, /output truncated after 64000 characters/);
+    assert.equal(evidence.length < 65_000, true);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("cli agent supports quoted commands whose executable path contains spaces", async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities cli target "));
   const scriptPath = path.join(tempDir, "fake cli.sh");

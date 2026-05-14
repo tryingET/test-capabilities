@@ -69,6 +69,13 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   assert.match(configDoc, /`api -> web`, `cli -> api`, and `cli -> web`/);
   assert.match(configDoc, /self-edges are rejected/);
   assert.match(configDoc, /must not be treated as causal proof/);
+  assert.match(
+    configDoc,
+    /CLI executable-resolution evidence wins over config-like executable names/,
+  );
+  assert.match(configDoc, /real config-file\/value evidence remains `configuration_error`/);
+  assert.match(configDoc, /`targets\.cli` is trusted local execution input/);
+  assert.match(configDoc, /output is capped/);
   assert.doesNotMatch(configDoc, /^reporting:/m);
   assert.doesNotMatch(configDoc, /^alerts:/m);
   assert.doesNotMatch(configDoc, /^execution:/m);
@@ -139,6 +146,14 @@ test("types docs reflect the tightened quantum and healing contracts", () => {
   );
   assert.match(typesDoc, /sensorCount` as the sum of the two linked root-cause sensor counts/);
   assert.match(typesDoc, /must not be treated as causal proof/);
+  assert.match(
+    typesDoc,
+    /API contract evidence wins over incidental auth\/network\/timeout-like wording/,
+  );
+  assert.match(
+    typesDoc,
+    /CLI executable-resolution evidence wins over config-like executable names/,
+  );
   assert.match(typesDoc, /column\?: number;/);
 });
 
@@ -154,6 +169,10 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);
   assert.match(apiReferenceDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
   assert.match(apiReferenceDoc, /observations\?: Observation\[\];/);
+  assert.match(apiReferenceDoc, /ROOT_CAUSE_FAILURE_CLASSES/);
+  assert.match(apiReferenceDoc, /RootCauseFailureClass/);
+  assert.match(apiReferenceDoc, /semantics\.failureClass/);
+  assert.match(apiReferenceDoc, /semantics\.propagationLink/);
   assert.match(apiReferenceDoc, /validateCapabilityContract/);
 });
 

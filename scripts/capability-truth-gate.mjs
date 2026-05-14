@@ -98,8 +98,10 @@ function assertPackedTypeSurface() {
   for (const typeName of [
     "AgentConfig",
     "IntelligenceConfig",
+    "ObservationSemantics",
     "PropagationEdge",
     "PropagationTopology",
+    "RootCauseFailureClass",
     "TestCapabilitiesConfig",
   ]) {
     assert.match(
@@ -119,7 +121,12 @@ function assertPackedTypeSurface() {
     );
   }
 
+  assert.match(sourceIndex, /ROOT_CAUSE_FAILURE_CLASSES/);
+  assert.match(distTypes, /ROOT_CAUSE_FAILURE_CLASSES/);
+  assert.match(docsTypes, /ROOT_CAUSE_FAILURE_CLASSES/);
   assert.match(docsTypes, /propagationTopology\?: PropagationTopology;/);
+  assert.match(docsTypes, /failureClass\?: RootCauseFailureClass;/);
+  assert.match(docsTypes, /propagationLink\?: string;/);
 
   const tempRoot = path.join(repoRoot, ".tmp");
   mkdirSync(tempRoot, { recursive: true });
@@ -129,8 +136,12 @@ function assertPackedTypeSurface() {
     writeFileSync(
       fixture,
       [
-        'import { createTestCapabilities } from "../../dist/index.js";',
-        'import type { IntelligenceConfig, PropagationEdge, PropagationTopology, TestCapabilitiesConfig } from "../../dist/index.js";',
+        'import { ROOT_CAUSE_FAILURE_CLASSES, createTestCapabilities } from "../../dist/index.js";',
+        'import type { IntelligenceConfig, ObservationSemantics, PropagationEdge, PropagationTopology, RootCauseFailureClass, TestCapabilitiesConfig } from "../../dist/index.js";',
+        'if (!ROOT_CAUSE_FAILURE_CLASSES.includes("network_connectivity")) throw new Error("missing network root-cause class");',
+        'const failureClass: RootCauseFailureClass = "network_connectivity";',
+        'const semantics: ObservationSemantics = { component: "api", interpretation: "typed", failureClass, propagationLink: "api-latency-cascade" };',
+        "void semantics;",
         'const edge: PropagationEdge = { upstream: "api", downstream: "web" };',
         "const topology: PropagationTopology = { edges: [edge] };",
         "const intelligence: IntelligenceConfig = { correlation: true, propagationTopology: topology };",
@@ -190,7 +201,7 @@ function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, 
   for (const [surface, text] of Object.entries(surfaces)) {
     assert.doesNotMatch(
       text,
-      /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i,
+      /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:e|es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i,
       `${surface} should describe propagation as non-authoritative linkage, not causal proof`,
     );
   }
@@ -230,11 +241,31 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 58, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 92, "root-cause corpus should include the current fixture set");
+  assert.equal(
+    payload.coverage?.expectedClasses?.auth_or_permission,
+    2,
+    "root-cause corpus should preserve auth-boundary diagnosis coverage",
+  );
   assert.equal(
     payload.coverage?.expectedClasses?.contract_mismatch,
-    12,
+    15,
     "root-cause corpus should preserve API contract ambiguity coverage",
+  );
+  assert.equal(
+    payload.coverage?.expectedClasses?.network_connectivity,
+    7,
+    "root-cause corpus should preserve network-connectivity diagnosis coverage",
+  );
+  assert.equal(
+    payload.coverage?.expectedClasses?.resource_exhaustion,
+    6,
+    "root-cause corpus should preserve resource-exhaustion diagnosis coverage",
+  );
+  assert.equal(
+    payload.coverage?.expectedClasses?.configuration_error,
+    7,
+    "root-cause corpus should preserve configuration-error diagnosis coverage",
   );
   assert.equal(
     payload.coverage?.positivePropagationCases,
@@ -243,7 +274,7 @@ function assertRootCauseCorpusExecutes() {
   );
   assert.equal(
     payload.coverage?.noPropagationGuardrailCases,
-    6,
+    10,
     "root-cause corpus should preserve no-propagation guardrail coverage",
   );
   assert.deepEqual(
@@ -341,6 +372,36 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(
     payload.cases?.some(
       (entry) =>
+        entry.name === "CLI missing config-named executable classifies command_resolution" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse config-named missing executables with configuration errors",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI missing executable named config classifies command_resolution" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse a missing executable named config with a missing config file",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI missing executable named app-config classifies command_resolution" &&
+        entry.actual === "command_resolution" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse a missing app-config executable with missing app config state",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
         entry.name === "Mixed API contract and runtime evidence does not emit root_cause" &&
         entry.actual === "none" &&
         entry.rootCauseCount === 0,
@@ -359,6 +420,239 @@ function assertRootCauseCorpusExecutes() {
     true,
     "root-cause corpus should guard linked-finding/current-run evidence disagreement",
   );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API contract with auth-boundary wording classifies contract_mismatch" &&
+        entry.actual === "contract_mismatch" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should keep api_contract precedence over auth wording",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API contract duration field wording classifies contract_mismatch" &&
+        entry.actual === "contract_mismatch" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse duration-like field names with latency",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API contract dns field wording classifies contract_mismatch" &&
+        entry.actual === "contract_mismatch" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse dns field names with network connectivity",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API auth boundary failures classify auth_or_permission" &&
+        entry.actual === "auth_or_permission" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover auth-boundary diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API network connectivity failures classify network_connectivity" &&
+        entry.actual === "network_connectivity" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover API network-connectivity diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Web navigation network failures classify network_connectivity" &&
+        entry.actual === "network_connectivity" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover web navigation network-connectivity diagnosis",
+  );
+  for (const name of [
+    "API ENOTFOUND failures classify network_connectivity",
+    "API TLS handshake timeout classifies network_connectivity",
+    "Web DNS lookup timeout classifies network_connectivity",
+  ]) {
+    assert.equal(
+      payload.cases?.some(
+        (entry) =>
+          entry.name === name &&
+          entry.actual === "network_connectivity" &&
+          entry.rootCauseCount === 1,
+      ),
+      true,
+      `root-cause corpus should preserve network precedence for ${name}`,
+    );
+  }
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API rate-limit failures classify resource_exhaustion" &&
+        entry.actual === "resource_exhaustion" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover API resource-exhaustion diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI disk exhaustion classifies resource_exhaustion" &&
+        entry.actual === "resource_exhaustion" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover CLI resource-exhaustion diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API OOMKilled wording classifies resource_exhaustion" &&
+        entry.actual === "resource_exhaustion" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover OOMKilled resource-exhaustion wording",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API OOM plus SIGKILL wording classifies resource_exhaustion" &&
+        entry.actual === "resource_exhaustion" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should prefer resource exhaustion over generic SIGKILL timeout wording when OOM evidence is present",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "API missing env var classifies configuration_error" &&
+        entry.actual === "configuration_error" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover API configuration-error diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI missing config file classifies configuration_error" &&
+        entry.actual === "configuration_error" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should cover CLI configuration-error diagnosis",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI config no-such-file wording classifies configuration_error" &&
+        entry.actual === "configuration_error" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse config no-such-file wording with command resolution",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI config ENOENT wording classifies configuration_error" &&
+        entry.actual === "configuration_error" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse config ENOENT wording with command resolution",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI env-file ENOENT wording classifies configuration_error" &&
+        entry.actual === "configuration_error" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse missing env config files with missing executables",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "CLI permission denied wording remains component_failure_surface" &&
+        entry.actual === "component_failure_surface" &&
+        entry.rootCauseCount === 1,
+    ),
+    true,
+    "root-cause corpus should not confuse local CLI permission errors with auth-boundary failures",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Mixed API auth boundary and contract evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard mixed auth/contract same-component ambiguity",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Mixed API network and auth evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard mixed network/auth same-component ambiguity",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Mixed API resource and network evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard mixed resource/network same-component ambiguity",
+  );
+  assert.equal(
+    payload.cases?.some(
+      (entry) =>
+        entry.name === "Mixed API configuration and auth evidence does not emit root_cause" &&
+        entry.actual === "none" &&
+        entry.rootCauseCount === 0,
+    ),
+    true,
+    "root-cause corpus should guard mixed configuration/auth same-component ambiguity",
+  );
+  for (const recommendationOnlyCaseName of [
+    "API auth keyword only in recommendation remains component_failure_surface",
+    "API network keyword only in recommendation remains component_failure_surface",
+    "API resource keyword only in recommendation remains component_failure_surface",
+    "API configuration keyword only in recommendation remains component_failure_surface",
+  ]) {
+    assert.equal(
+      payload.cases?.some(
+        (entry) =>
+          entry.name === recommendationOnlyCaseName &&
+          entry.actual === "component_failure_surface" &&
+          entry.rootCauseCount === 1,
+      ),
+      true,
+      `root-cause corpus should not classify from recommendation-only keywords: ${recommendationOnlyCaseName}`,
+    );
+  }
   // Three-sensor agreement
   assert.equal(
     payload.cases?.some(
@@ -439,6 +733,65 @@ function assertRootCauseCorpusExecutes() {
   assert.ok(
     samePropertyNoPropagationCase,
     "root-cause corpus should guard against non-latency same-class shared-infra propagation overclaim",
+  );
+
+  const authBoundaryNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name === "API auth boundary plus web component failure does not emit propagation",
+  );
+  assert.ok(
+    authBoundaryNoPropagationCase,
+    "root-cause corpus should guard against auth-boundary propagation overclaim",
+  );
+  assert.equal(
+    authBoundaryNoPropagationCase?.propagationCount,
+    0,
+    "root-cause corpus should not emit propagation for auth-boundary + web component failures",
+  );
+
+  const networkNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "Same network connectivity across api and web does not emit shared-infra propagation",
+  );
+  assert.ok(
+    networkNoPropagationCase,
+    "root-cause corpus should guard against network-connectivity propagation overclaim",
+  );
+  assert.equal(
+    networkNoPropagationCase?.propagationCount,
+    0,
+    "root-cause corpus should not emit propagation for same-class network-connectivity failures",
+  );
+
+  const resourceNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "Same resource exhaustion across api and web does not emit shared-infra propagation",
+  );
+  assert.ok(
+    resourceNoPropagationCase,
+    "root-cause corpus should guard against resource-exhaustion propagation overclaim",
+  );
+  assert.equal(
+    resourceNoPropagationCase?.propagationCount,
+    0,
+    "root-cause corpus should not emit propagation for same-class resource-exhaustion failures",
+  );
+
+  const configurationNoPropagationCase = payload.cases?.find(
+    (entry) =>
+      entry.name ===
+      "Same configuration errors across api and web do not emit shared-infra propagation",
+  );
+  assert.ok(
+    configurationNoPropagationCase,
+    "root-cause corpus should guard against configuration-error propagation overclaim",
+  );
+  assert.equal(
+    configurationNoPropagationCase?.propagationCount,
+    0,
+    "root-cause corpus should not emit propagation for same-class configuration errors",
   );
 
   const propagationCascadeCase = payload.cases?.find(
