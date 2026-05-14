@@ -3,10 +3,16 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "a469ba261ab5117dd68edb8ebbfbcfec554a768d"
-created_at: "2026-05-14T01:49:37Z"
-intent: "update full gate status"
+created_at: "2026-05-14T02:57:00Z"
+intent: "Align docs and passport surface to expanded diagnosis vocabulary and structured semantics"
 files:
-  []
+  - "README.md"
+  - "docs/api/api-reference.md"
+  - "docs/api/config.md"
+  - "docs/api/types.md"
+  - "docs/project/product_posture.md"
+  - "docs/project/vision.md"
+  - "governance/capability-passport.json"
 validation:
   fast_gate:
     command: "npm run build --silent"
@@ -15,4 +21,6 @@ validation:
     command: "npm run release:check"
     status: "pass"
 group:
+  index: 5
   total: 5
+  rationale: "Docs/passport follow runtime and test changes they describe"
