@@ -38,6 +38,7 @@ Run diagnostics first, then the built-in zero-external-dependency demo fixture:
 
 ```bash
 node ./bin/test-capabilities doctor
+node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 ```
 
@@ -46,6 +47,7 @@ The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchest
 Machine-readable output is available for agents and CI probes:
 
 ```bash
+node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities demo --json
 ```
 

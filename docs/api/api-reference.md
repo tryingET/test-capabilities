@@ -132,7 +132,10 @@ Use this when you want the fail-closed shipped command surface without shelling 
 ### Zero-external-dependency doctor and demo
 
 ```typescript
-const doctor = await executeCliOperation({ command: 'doctor' }, {});
+const doctor = await executeCliOperation(
+  { command: 'doctor' },
+  { config: './test-capabilities.yaml', target: 'node' },
+);
 const demo = await executeCliOperation({ command: 'demo' }, {});
 
 console.log(doctor.status); // 'pass' when required package/runtime checks pass
@@ -140,7 +143,7 @@ console.log(doctor.summary.optionalWarnings); // optional Surf/Bombadil runtime 
 console.log(demo.summary.health); // 'pass' when the built-in CLI fixture succeeds
 ```
 
-`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
+`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. It validates package/runtime basics, package version metadata, config shape, and optional CLI target executability without running the target. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
 
 ---
 

@@ -106,6 +106,7 @@ npm run release:check    # Release preflight (quality + root-cause corpus + trut
 
 # First-run proof
 node ./bin/test-capabilities doctor
+node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 node ./bin/test-capabilities demo --json
 
@@ -114,7 +115,7 @@ npm run build          # TypeScript build
 
 # TEST-CAPABILITIES CLI
 npm run test-capabilities                # Run TEST-CAPABILITIES CLI
-node ./bin/test-capabilities doctor --json
+node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities test --config ./test-capabilities.yaml
 node ./bin/test-capabilities quantum --target https://example.com
 node ./bin/test-capabilities surf explore --url https://example.com

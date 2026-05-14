@@ -79,6 +79,16 @@ export interface HealOperationInput {
 
 export interface DoctorOperationInput {
   json?: boolean;
+  /**
+   * Optional user config to validate. When omitted, doctor validates the packaged
+   * sample config so first-run diagnostics stay zero-setup.
+   */
+  config?: string;
+  /**
+   * Optional CLI target command/path to resolve without executing it.
+   * URL targets are accepted as web targets and do not require CLI executability.
+   */
+  target?: string;
 }
 
 export interface DemoOperationInput {
@@ -113,7 +123,7 @@ export interface TestOperationResultEnvelope {
 
 export interface DoctorOperationResultEnvelope {
   operationId: "doctor";
-  input: Required<DoctorOperationInput>;
+  input: Required<Pick<DoctorOperationInput, "json">> & Omit<DoctorOperationInput, "json">;
   packageRoot: string;
   status: "pass" | "fail";
   summary: {

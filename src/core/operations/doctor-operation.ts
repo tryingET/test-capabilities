@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
 import { resolveSurfRuntimeResolution } from "../surf-runtime.js";
+import { loadConfig } from "./config-overrides.js";
 import type {
   DoctorCheck,
   DoctorOperationInput,
@@ -14,6 +15,8 @@ import type {
 
 export const DoctorOperationInputSchema = z.object({
   json: z.boolean().optional().default(false),
+  config: z.string().optional(),
+  target: z.string().optional(),
 });
 
 type NormalizedDoctorOperationInput = z.output<typeof DoctorOperationInputSchema>;
@@ -57,6 +60,36 @@ function hasExecutableOnPath(binaryName: string, env: NodeJS.ProcessEnv = proces
   return false;
 }
 
+function parseCommandExecutable(commandLine: string): string | undefined {
+  const trimmed = commandLine.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const match = trimmed.match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/);
+  return match?.[1] ?? match?.[2] ?? match?.[3];
+}
+
+function isUrlTarget(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function resolveTargetExecutable(
+  executable: string,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (path.isAbsolute(executable) || executable.startsWith(".") || executable.includes(path.sep)) {
+    return existsSync(path.resolve(executable));
+  }
+
+  return hasExecutableOnPath(executable, env);
+}
+
 function pass(id: string, label: string, detail: string, required = true): DoctorCheck {
   return { id, label, status: "pass", required, detail };
 }
@@ -89,6 +122,16 @@ function checkPackageMetadata(packageRoot: string): DoctorCheck[] {
       : fail("package.name", "Package name", `Expected test-capabilities; got ${packageJson.name}`),
   );
   checks.push(
+    typeof packageJson.version === "string" &&
+      /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(packageJson.version)
+      ? pass("package.version", "Package version", `package version is ${packageJson.version}`)
+      : fail(
+          "package.version",
+          "Package version",
+          `Expected semver-like version; got ${String(packageJson.version)}`,
+        ),
+  );
+  checks.push(
     packageJson.private === true
       ? fail("package.public", "Public package flag", "package.json must not set private: true")
       : pass("package.public", "Public package flag", "package is publishable"),
@@ -119,6 +162,48 @@ function checkRuntimeFiles(packageRoot: string): DoctorCheck[] {
       ? pass("runtime.sample_config", "Sample config", "test-capabilities.yaml is present")
       : fail("runtime.sample_config", "Sample config", "test-capabilities.yaml is required"),
   ];
+}
+
+function checkConfigShape(input: NormalizedDoctorOperationInput, packageRoot: string): DoctorCheck {
+  const configPath = path.resolve(input.config ?? path.join(packageRoot, "test-capabilities.yaml"));
+  const label = input.config ? "User config" : "Packaged sample config";
+
+  try {
+    const config = loadConfig(configPath);
+    const enabledAgents = Object.values(config.agents ?? {}).filter(
+      (agent) => agent.enabled,
+    ).length;
+    return pass(
+      "config.shape",
+      label,
+      `${configPath} parses as test-capabilities config with ${enabledAgents} enabled agent(s)`,
+    );
+  } catch (error) {
+    return fail("config.shape", label, error instanceof Error ? error.message : String(error));
+  }
+}
+
+function checkTargetExecutable(input: NormalizedDoctorOperationInput): DoctorCheck | undefined {
+  if (!input.target) {
+    return undefined;
+  }
+
+  if (isUrlTarget(input.target)) {
+    return pass("target.web", "Target URL", `${input.target} is a valid web target`);
+  }
+
+  const executable = parseCommandExecutable(input.target);
+  if (!executable) {
+    return fail("target.cli", "CLI target", "Target command is empty");
+  }
+
+  return resolveTargetExecutable(executable)
+    ? pass("target.cli", "CLI target", `resolved executable '${executable}' without running it`)
+    : fail(
+        "target.cli",
+        "CLI target",
+        `could not resolve executable '${executable}' on PATH or as a file path`,
+      );
 }
 
 function checkOptionalSurf(env: NodeJS.ProcessEnv = process.env): DoctorCheck {
@@ -179,10 +264,13 @@ async function runDoctorOperation(
   normalized: NormalizedDoctorOperationInput,
 ): Promise<DoctorOperationResultEnvelope> {
   const packageRoot = resolvePackageRoot();
+  const targetCheck = checkTargetExecutable(normalized);
   const checks = [
     checkNodeVersion(),
     ...checkPackageMetadata(packageRoot),
     ...checkRuntimeFiles(packageRoot),
+    checkConfigShape(normalized, packageRoot),
+    ...(targetCheck ? [targetCheck] : []),
     checkOptionalSurf(),
     checkOptionalBombadil(),
   ];

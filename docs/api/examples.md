@@ -16,11 +16,12 @@ type: "reference"
 
 ```bash
 test-capabilities doctor
+test-capabilities doctor --target node
 test-capabilities demo
 test-capabilities demo --json
 ```
 
-`doctor` proves required package/runtime basics. `demo` then runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
+`doctor` proves required package/runtime basics, config shape, and optional target executability without running the target. `demo` then runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets.
 
 ---
 
@@ -29,6 +30,10 @@ test-capabilities demo --json
 ```typescript
 import { executeCliOperation } from 'test-capabilities';
 
+const doctor = await executeCliOperation(
+  { command: 'doctor' },
+  { target: 'node' },
+);
 const demo = await executeCliOperation({ command: 'demo' }, {});
 console.log(demo.operationId, demo.summary.health);
 

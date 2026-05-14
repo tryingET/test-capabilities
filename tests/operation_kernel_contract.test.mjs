@@ -115,11 +115,58 @@ test("executeCliOperation routes doctor through a zero-external-dependency happy
     true,
   );
   assert.equal(
+    result.checks.some((check) => check.id === "package.version" && check.status === "pass"),
+    true,
+  );
+  assert.equal(
+    result.checks.some((check) => check.id === "config.shape" && check.status === "pass"),
+    true,
+  );
+  assert.equal(
     result.checks.some((check) => check.id === "external.surf_go" && check.required === false),
     true,
   );
   assert.equal(
     result.checks.some((check) => check.id === "external.bombadil" && check.required === false),
+    true,
+  );
+});
+
+test("executeCliOperation doctor validates CLI target executability", async () => {
+  const result = await executeCliOperation({ command: "doctor" }, { target: process.execPath });
+
+  assert.equal(result.operationId, "doctor");
+  assert.equal(result.status, "pass");
+  assert.equal(
+    result.checks.some((check) => check.id === "target.cli" && check.status === "pass"),
+    true,
+  );
+});
+
+test("executeCliOperation doctor fails closed for missing CLI targets", async () => {
+  const result = await executeCliOperation(
+    { command: "doctor" },
+    { target: "definitely-missing-test-capabilities-command" },
+  );
+
+  assert.equal(result.operationId, "doctor");
+  assert.equal(result.status, "fail");
+  assert.equal(
+    result.checks.some((check) => check.id === "target.cli" && check.status === "fail"),
+    true,
+  );
+});
+
+test("executeCliOperation doctor validates URL targets without requiring CLI executability", async () => {
+  const result = await executeCliOperation(
+    { command: "doctor" },
+    { target: "https://example.com" },
+  );
+
+  assert.equal(result.operationId, "doctor");
+  assert.equal(result.status, "pass");
+  assert.equal(
+    result.checks.some((check) => check.id === "target.web" && check.status === "pass"),
     true,
   );
 });

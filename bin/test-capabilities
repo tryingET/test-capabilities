@@ -104,6 +104,8 @@ program.name("test-capabilities").description("Fail-closed testing capability fr
 program
   .command("doctor")
   .description("Run zero-external-dependency package and environment diagnostics")
+  .option("-c, --config <file>", "Validate a config file shape instead of only the packaged sample")
+  .option("-t, --target <target>", "Resolve a CLI command/path or validate a web URL without executing it")
   .option("--json", "Print machine-readable diagnostics")
   .action(async (options) => {
     const shouldPrintJson = Boolean(options.json);

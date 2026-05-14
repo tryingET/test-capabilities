@@ -31,11 +31,59 @@ test("CLI doctor command passes as zero-external-dependency happy path", () => {
   assert.equal(payload.status, "pass");
   assert.equal(payload.summary.requiredFailed, 0);
   assert.equal(
+    payload.checks.some((check) => check.id === "package.version" && check.status === "pass"),
+    true,
+  );
+  assert.equal(
+    payload.checks.some((check) => check.id === "config.shape" && check.status === "pass"),
+    true,
+  );
+  assert.equal(
     payload.checks.some((check) => check.id === "external.surf_go" && check.required === false),
     true,
   );
   assert.equal(
     payload.checks.some((check) => check.id === "external.bombadil" && check.required === false),
+    true,
+  );
+});
+
+test("CLI doctor command checks target executability without running target", () => {
+  const result = runCli(["doctor", "--json", "--target", process.execPath], {
+    PATH: path.dirname(process.execPath),
+    TEST_CAPABILITIES_SURF_GO_BIN: "",
+    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_BOMBADIL_BIN: "",
+    TEST_CAPABILITIES_BOMBADIL_REPO: "",
+  });
+
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.operationId, "doctor");
+  assert.equal(
+    payload.checks.some((check) => check.id === "target.cli" && check.status === "pass"),
+    true,
+  );
+});
+
+test("CLI doctor command fails when requested target cannot be resolved", () => {
+  const result = runCli(
+    ["doctor", "--json", "--target", "definitely-missing-test-capabilities-command"],
+    {
+      PATH: path.dirname(process.execPath),
+      TEST_CAPABILITIES_SURF_GO_BIN: "",
+      TEST_CAPABILITIES_SURF_GO_REPO: "",
+      TEST_CAPABILITIES_BOMBADIL_BIN: "",
+      TEST_CAPABILITIES_BOMBADIL_REPO: "",
+    },
+  );
+
+  assert.equal(result.status, 1);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.operationId, "doctor");
+  assert.equal(payload.status, "fail");
+  assert.equal(
+    payload.checks.some((check) => check.id === "target.cli" && check.status === "fail"),
     true,
   );
 });

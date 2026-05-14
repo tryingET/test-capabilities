@@ -58,13 +58,17 @@ Run zero-external-dependency package and environment diagnostics. This is the pu
 ```bash
 test-capabilities doctor
 test-capabilities doctor --json
+test-capabilities doctor --config ./test-capabilities.yaml
+test-capabilities doctor --target node
 ```
 
 Required checks:
 - Node.js 22+
-- package metadata is present and publishable
+- package metadata is present, versioned, and publishable
 - `LICENSE` and `README.md` are present
 - `dist/index.js`, `bin/test-capabilities`, and `test-capabilities.yaml` are present
+- the packaged sample config parses as a valid `test-capabilities` config, or `--config <file>` parses if provided
+- `--target <command-or-url>` resolves a CLI executable without running it, or validates an HTTP(S) URL target
 
 Optional checks:
 - Surf Go runtime via `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`

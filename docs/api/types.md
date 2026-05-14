@@ -70,7 +70,7 @@ interface DoctorCheck {
 
 interface DoctorOperationResultEnvelope {
   operationId: 'doctor';
-  input: { json: boolean };
+  input: { json: boolean; config?: string; target?: string };
   packageRoot: string;
   status: 'pass' | 'fail';
   summary: {
@@ -84,7 +84,8 @@ interface DoctorOperationResultEnvelope {
 
 Runtime note:
 - `doctor` is the zero-external-dependency diagnostic happy path; missing Surf Go or Bombadil-compatible runtimes produce optional warnings, not failure
-- required checks cover Node version, package metadata, license/readme, built runtime entrypoint, CLI entrypoint, and sample config presence
+- required checks cover Node version, package metadata/version, license/readme, built runtime entrypoint, CLI entrypoint, sample config presence, config shape, and optional `--target` CLI executable or URL validation
+- `target` executability is checked by resolving the executable without running the target command
 
 ### `DemoOperationResultEnvelope`
 
