@@ -44,7 +44,7 @@
     "test:property": "npm run build --silent && node --test tests/property_contract.test.mjs",
     "test:behavior": "npm run build --silent && cucumber-js --import tests/behavior/**/*.steps.mjs tests/behavior/**/*.feature",
     "test:behavior:raw": "cucumber-js --import tests/behavior/**/*.steps.mjs tests/behavior/**/*.feature",
-    "test:ci-targeted": "node ./scripts/run_ci_targeted_tests.mjs",
+    "test:ci-targeted": "npm run build --silent && node ./scripts/run_ci_targeted_tests.mjs",
     "test:runtime": "RUN_CONVEX_RUNTIME_TESTS=1 node --test tests/convex_runtime_contract_enforcement.test.mjs",
     "ci:smoke": "bash ./scripts/ci/smoke.sh",
     "ci:full": "bash ./scripts/ci/full.sh",
