@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -64,19 +65,29 @@ await retry("npm view", attempts, () => {
   assert.equal(view.stdout.trim(), version, `npm view should resolve exact ${packageSpec}`);
 });
 
-await retry("public CLI", attempts, () => {
-  const help = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "--help"]);
-  assert.match(help.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
-  const doctor = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "doctor", "--json"]);
-  const doctorPayload = JSON.parse(doctor.stdout);
-  assert.equal(doctorPayload.operationId, "doctor");
-  assert.equal(doctorPayload.status, "pass");
-  const alias = run("npx", ["-y", "-p", packageSpec, "tc", "--help"]);
-  assert.match(alias.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
-  const demo = run("npx", ["-y", "-p", packageSpec, "test-capabilities", "demo", "--json"]);
-  const payload = JSON.parse(demo.stdout);
-  assert.equal(payload.operationId, "demo");
-  assert.equal(payload.summary.health, "pass");
-});
+const publicCliTempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-public-cli-"));
+try {
+  await retry("public CLI", attempts, () => {
+    const execPackage = (binName, args) =>
+      run("npm", ["exec", "--yes", "--package", packageSpec, "--", binName, ...args], {
+        cwd: publicCliTempDir,
+      });
+
+    const help = execPackage("test-capabilities", ["--help"]);
+    assert.match(help.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
+    const doctor = execPackage("test-capabilities", ["doctor", "--json"]);
+    const doctorPayload = JSON.parse(doctor.stdout);
+    assert.equal(doctorPayload.operationId, "doctor");
+    assert.equal(doctorPayload.status, "pass");
+    const alias = execPackage("tc", ["--help"]);
+    assert.match(alias.stdout, /TEST-CAPABILITIES|Usage|Commands/i);
+    const demo = execPackage("test-capabilities", ["demo", "--json"]);
+    const payload = JSON.parse(demo.stdout);
+    assert.equal(payload.operationId, "demo");
+    assert.equal(payload.summary.health, "pass");
+  });
+} finally {
+  rmSync(publicCliTempDir, { recursive: true, force: true });
+}
 
 console.log(JSON.stringify({ ok: true, packageSpec }, null, 2));
