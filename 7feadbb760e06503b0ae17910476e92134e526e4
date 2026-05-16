@@ -1,0 +1,24 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "7feadbb760e06503b0ae17910476e92134e526e4"
+created_at: "2026-05-16T19:56:20Z"
+intent: "Prepare v0.3.0 public release with MIT license aligned to ts-quality and refreshed release intent/passport metadata"
+files:
+  - "LICENSE"
+  - "package.json"
+  - "package-lock.json"
+  - "governance/capability-passport.json"
+  - "scripts/validate-release-intent.mjs"
+validation:
+  fast_gate:
+    command: "npm run release:intent:check --silent && npm run release:check --silent"
+    status: "pass"
+  full_gate:
+    command: "npm run release:intent:check --silent && npm run release:check --silent"
+    status: "pass"
+group:
+  index: 1
+  total: 1
+  rationale: "Release metadata, public license, and generated passport must move together"
