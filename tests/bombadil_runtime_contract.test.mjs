@@ -5,9 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { resolveBombadilBinaryResolution, runBombadil } = await importRuntimeModule(
-  "core/bombadil-runtime.js",
-);
+const { resolveBombadilBinaryResolution, runBombadil, runBombadilTerminalTest } =
+  await importRuntimeModule("core/bombadil-runtime.js");
 
 function writeExecutable(filePath, script = "#!/bin/sh\nexit 0\n") {
   mkdirSync(path.dirname(filePath), { recursive: true });
@@ -216,6 +215,56 @@ test("runBombadil supports Bombadil 0.5 trace reproduction without exit-on-viola
       "--headless",
       "https://example.com",
     ]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runBombadilTerminalTest runs bombadil terminal test with a bounded target command", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-terminal-"));
+  const fakeBinary = path.join(tempDir, "bombadil");
+  writeExecutable(
+    fakeBinary,
+    "#!/bin/sh\necho 'terminal test started' >&2\necho \"args: $*\" >&2\nexit 0\n",
+  );
+
+  try {
+    const result = await runBombadilTerminalTest({
+      target: {
+        command: "node",
+        args: ["--version"],
+      },
+      durationMs: 50,
+      env: {
+        TEST_CAPABILITIES_BOMBADIL_BIN: fakeBinary,
+      },
+    });
+
+    assert.equal(result.status, "completed");
+    assert.deepEqual(result.command.slice(1), ["terminal", "test", "--", "node", "--version"]);
+    assert.deepEqual(result.targetCommand, ["node", "--version"]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runBombadilTerminalTest rejects no-op binaries that exit successfully without terminal evidence", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-terminal-noop-"));
+  const noopBinary = path.join(tempDir, "bombadil");
+  writeExecutable(noopBinary, "#!/bin/sh\nexit 0\n");
+
+  try {
+    const result = await runBombadilTerminalTest({
+      target: { command: "node", args: ["--version"] },
+      durationMs: 50,
+      env: {
+        TEST_CAPABILITIES_BOMBADIL_BIN: noopBinary,
+      },
+    });
+
+    assert.equal(result.status, "runtime_error");
+    assert.equal(result.binaryProvider, "explicit_bin");
+    assert.equal(result.exitCode, 0);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

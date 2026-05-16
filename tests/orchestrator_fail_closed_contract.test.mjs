@@ -168,6 +168,59 @@ test("cli agent fails closed when the configured command does not exist", async 
 });
 
 test(
+  "terminal-fuzzer agent emits bounded observation.v1 terminal evidence",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeBombadil(`
+      echo 'terminal test started' >&2
+      echo "args: $*" >&2
+      exit 0
+    `);
+    const previousBinary = process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+    process.env.TEST_CAPABILITIES_BOMBADIL_BIN = fake.path;
+
+    try {
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Terminal Fuzzer",
+        targets: { cli: process.execPath },
+        agents: {
+          terminal: {
+            enabled: true,
+            type: "terminal-fuzzer",
+            duration: "50ms",
+            terminal: {
+              args: ["--version"],
+            },
+          },
+        },
+        intelligence: {
+          selfHealing: false,
+          prediction: false,
+          correlation: false,
+          collective: false,
+        },
+      }).run();
+
+      assert.equal(result.passed, true);
+      assert.equal(result.findings.length, 0);
+      assert.equal(result.coverage.overall, 100);
+      assert.equal(result.observations.length, 1);
+      assert.equal(result.observations[0].protocol, "observation.v1");
+      assert.equal(result.observations[0].kind, "runtime");
+      assert.equal(result.observations[0].semantics.component, "cli");
+    } finally {
+      if (previousBinary === undefined) {
+        delete process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+      } else {
+        process.env.TEST_CAPABILITIES_BOMBADIL_BIN = previousBinary;
+      }
+      fake.cleanup();
+    }
+  },
+);
+
+test(
   "bombadil agent treats the duration budget as a bounded success when no violation is surfaced",
   { concurrency: false },
   async () => {

@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 import { z } from "zod";
 import { QuantumTestRunner } from "../quantum/simulator.js";
-import { runBombadil } from "./bombadil-runtime.js";
+import { runBombadil, runBombadilTerminalTest } from "./bombadil-runtime.js";
 import { validateCapabilityContract } from "./capabilities.js";
 import { executeSurfExploreOperation } from "./operations/surf-explore-operation.js";
 
@@ -49,6 +49,16 @@ export const TargetSchema = z
   })
   .strict();
 
+const BombadilTerminalOptionsSchema = z.preprocess(
+  (value) => withAliases(value, { command_args: "args" }),
+  z
+    .object({
+      command: z.string().min(1).optional(),
+      args: z.array(z.string().min(1)).optional(),
+    })
+    .strict(),
+);
+
 const BombadilOptionsSchema = z.preprocess(
   (value) =>
     withAliases(value, {
@@ -81,12 +91,13 @@ const BombadilOptionsSchema = z.preprocess(
 
 export const AgentConfigSchema = z
   .object({
-    type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester"]),
+    type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
     enabled: z.boolean().default(true),
     intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
     duration: z.string().optional(),
     focus: z.array(z.string()).optional(),
     bombadil: BombadilOptionsSchema.optional(),
+    terminal: BombadilTerminalOptionsSchema.optional(),
   })
   .strict();
 
@@ -167,6 +178,11 @@ export const TestCapabilitiesConfigSchema = z
 type ParsedTestCapabilitiesConfig = z.output<typeof TestCapabilitiesConfigSchema>;
 
 export type Target = z.infer<typeof TargetSchema>;
+export interface BombadilTerminalOptions {
+  command?: string;
+  args?: string[];
+}
+
 export interface BombadilOptions {
   command?: "test" | "test-external";
   outputPath?: string;
@@ -184,12 +200,13 @@ export interface BombadilOptions {
 }
 
 export interface AgentConfig {
-  type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester";
+  type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester" | "terminal-fuzzer";
   enabled?: boolean;
   intensity?: "gentle" | "normal" | "aggressive";
   duration?: string;
   focus?: string[];
   bombadil?: BombadilOptions;
+  terminal?: BombadilTerminalOptions;
 }
 export interface PropagationEdge {
   upstream: string;
@@ -536,9 +553,17 @@ export class TestCapabilitiesOrchestrator {
           this.agents.set(name, new CliTesterAgent(name, timeoutMs));
           break;
         }
+        case "terminal-fuzzer": {
+          const durationMs = parseDurationToMs(
+            agentConfig.duration,
+            getBombadilBudgetMs(agentConfig.intensity),
+          );
+          this.agents.set(name, new TerminalFuzzerAgent(name, durationMs, agentConfig.terminal));
+          break;
+        }
         default:
           throw new Error(
-            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'bombadil', 'surf', and 'cli-tester' are currently backed by the orchestrator runtime.`,
+            `Agent '${name}' uses unsupported type '${agentConfig.type}'. Only 'bombadil', 'surf', 'cli-tester', and 'terminal-fuzzer' are currently backed by the orchestrator runtime.`,
           );
       }
     }
@@ -1743,6 +1768,38 @@ function normalizeKnownAgentResult(
     };
   }
 
+  if (agent instanceof TerminalFuzzerAgent) {
+    return {
+      ...result,
+      observations: [
+        makeObservation({
+          agent: agentName,
+          kind: "runtime",
+          status,
+          subject: targets.cli ?? "targets.cli",
+          summary: failed
+            ? "Bombadil terminal fuzzer surfaced a blocking runtime or terminal finding."
+            : "Bounded Bombadil terminal fuzzer completed without a surfaced violation.",
+          evidence:
+            evidence.length > 0
+              ? evidence
+              : ["bombadil terminal test completed without surfaced violation"],
+          coverage: result.coverage,
+          semantics: {
+            component: "cli",
+            interpretation: failed
+              ? "Bombadil terminal fuzzing could not establish a stable terminal interaction signal."
+              : "Bombadil terminal fuzzing completed a bounded terminal-interaction budget.",
+            nextStep: failed
+              ? "Review Bombadil terminal evidence before relying on terminal UI behavior."
+              : "Treat this as a bounded terminal smoke/fuzz signal, not production autonomy proof.",
+          },
+          findingIds,
+        }),
+      ],
+    };
+  }
+
   if (agent instanceof CliTesterAgent) {
     return {
       ...result,
@@ -1916,6 +1973,87 @@ class BombadilAgent implements TestAgent {
           evidence: summarizeBombadilEvidence(result),
           recommendation:
             "Ensure Bombadil is available through TEST_CAPABILITIES_BOMBADIL_BIN, a built TEST_CAPABILITIES_BOMBADIL_REPO/workspace contrib checkout, repo-local external/bombadil, or bombadil on PATH, then re-run the suite.",
+          timestamp: new Date(),
+        },
+      ],
+      coverage: { edgeCases: 0 },
+    };
+  }
+}
+
+class TerminalFuzzerAgent implements TestAgent {
+  private readonly agentName: string;
+  private readonly durationMs: number;
+  private readonly options: BombadilTerminalOptions | undefined;
+
+  constructor(agentName: string, durationMs: number, options: BombadilTerminalOptions | undefined) {
+    this.agentName = agentName;
+    this.durationMs = durationMs;
+    this.options = options;
+  }
+
+  async execute(targets: Target): Promise<AgentResult> {
+    const command = this.options?.command ?? targets.cli;
+    if (!command) {
+      return {
+        findings: [
+          {
+            id: `${this.agentName}-missing-cli-target`,
+            type: "bug",
+            severity: "critical",
+            component: "cli",
+            description: "CLI target is missing for the terminal-fuzzer agent",
+            evidence: ["targets.cli or agents.<name>.terminal.command was not configured"],
+            recommendation:
+              "Set targets.cli or agents.<name>.terminal.command before running the Bombadil terminal fuzzer path.",
+            timestamp: new Date(),
+          },
+        ],
+        coverage: { edgeCases: 0 },
+      };
+    }
+
+    const result = await runBombadilTerminalTest({
+      target: {
+        command,
+        args: this.options?.args,
+      },
+      durationMs: this.durationMs,
+    });
+
+    if (result.status === "completed" || result.status === "budget_exhausted") {
+      return {
+        findings: [],
+        coverage: { edgeCases: 100 },
+      };
+    }
+
+    return {
+      findings: [
+        {
+          id:
+            result.status === "violation"
+              ? `${this.agentName}-terminal-violation`
+              : `${this.agentName}-runtime-failed`,
+          type: "bug",
+          severity: result.status === "violation" ? "high" : "critical",
+          component: "cli",
+          description:
+            result.status === "violation"
+              ? `Bombadil terminal test surfaced a violation for ${command}`
+              : `Bombadil terminal test could not complete for ${command}`,
+          evidence: summarizeBombadilEvidence({
+            binaryPath: result.binaryPath,
+            binaryProvider: result.binaryProvider,
+            resolutionNotes: result.resolutionNotes,
+            stderr: result.stderr,
+            stdout: result.stdout,
+            timedOut: result.timedOut,
+            durationMs: result.durationMs,
+            usedDefaultSpecification: false,
+          }),
+          recommendation:
+            "Ensure Bombadil 0.5+ is available and the terminal target is safe, deterministic, and bounded before relying on this experimental signal.",
           timestamp: new Date(),
         },
       ],

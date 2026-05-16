@@ -58,6 +58,7 @@ export {
 export type {
   AgentConfig,
   BombadilOptions,
+  BombadilTerminalOptions,
   CoverageDimension,
   CoverageReport,
   CoverageStatus,

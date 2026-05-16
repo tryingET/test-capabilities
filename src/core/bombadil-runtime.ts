@@ -13,6 +13,11 @@ export type BombadilRunStatus = "completed" | "budget_exhausted" | "violation" |
 
 export type BombadilCommand = "test" | "test-external";
 
+export interface BombadilTerminalRunOptions {
+  command: string;
+  args?: string[];
+}
+
 export interface BombadilRunOptions {
   command?: BombadilCommand;
   outputPath?: string;
@@ -62,6 +67,28 @@ export interface BombadilRunResult {
   stderr: string;
   tracePath?: string;
   usedDefaultSpecification: boolean;
+  timedOut: boolean;
+}
+
+export interface BombadilTerminalRunInput {
+  target: BombadilTerminalRunOptions;
+  durationMs: number;
+  env?: NodeJS.ProcessEnv;
+}
+
+export interface BombadilTerminalRunResult {
+  status: BombadilRunStatus;
+  binaryPath: string;
+  binaryProvider: BombadilBinaryResolution["provider"];
+  resolutionNotes: string[];
+  command: string[];
+  targetCommand: string[];
+  durationMs: number;
+  elapsedMs: number;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
   timedOut: boolean;
 }
 
@@ -176,6 +203,10 @@ function looksLikeBombadilRunEvidence(output: string): boolean {
   return /using default specification|storing trace in|starting test|bombadil/i.test(output);
 }
 
+function looksLikeBombadilTerminalEvidence(output: string): boolean {
+  return /terminal|pty|starting test|bombadil/i.test(output);
+}
+
 function appendBombadilOptionArgs(args: string[], options: BombadilRunOptions): void {
   if (options.outputPath) {
     args.push("--output-path", options.outputPath);
@@ -213,6 +244,142 @@ function appendBombadilOptionArgs(args: string[], options: BombadilRunOptions): 
   if (options.reproduceTracePath) {
     args.push("--reproduce", options.reproduceTracePath);
   }
+}
+
+async function runBoundedBombadilProcess(input: {
+  args: string[];
+  env?: NodeJS.ProcessEnv;
+  durationMs: number;
+}): Promise<{
+  command: string[];
+  binaryPath: string;
+  binaryProvider: BombadilBinaryResolution["provider"];
+  resolutionNotes: string[];
+  elapsedMs: number;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}> {
+  const resolution = resolveBombadilBinaryResolution(input.env);
+  const { binaryPath, provider, resolutionNotes } = resolution;
+  const command = [binaryPath, ...input.args];
+  const startedAt = Date.now();
+
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let closed = false;
+    const forceKillGraceMs = 1_000;
+    let forceKillTimer: NodeJS.Timeout | undefined;
+
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(binaryPath, input.args, {
+        env: input.env,
+        shell: false,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      const elapsedMs = Date.now() - startedAt;
+      const message = error instanceof Error ? error.message : String(error);
+      resolve({
+        binaryPath,
+        command,
+        elapsedMs,
+        exitCode: null,
+        signal: null,
+        stdout: "",
+        stderr: [`Failed to start Bombadil: ${message}`, ...resolutionNotes].join("\n"),
+        binaryProvider: provider,
+        resolutionNotes,
+        timedOut: false,
+      });
+      return;
+    }
+
+    const killProcessTree = (signal: NodeJS.Signals): void => {
+      try {
+        if (process.platform !== "win32" && typeof proc.pid === "number") {
+          process.kill(-proc.pid, signal);
+          return;
+        }
+
+        proc.kill(signal);
+      } catch (error) {
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") {
+          throw error;
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killProcessTree("SIGTERM");
+      forceKillTimer = setTimeout(() => {
+        if (!closed) {
+          killProcessTree("SIGKILL");
+        }
+      }, forceKillGraceMs);
+    }, input.durationMs);
+
+    proc.stdout?.on("data", (data) => {
+      stdout += String(data);
+    });
+
+    proc.stderr?.on("data", (data) => {
+      stderr += String(data);
+    });
+
+    proc.on("close", (code, signal) => {
+      closed = true;
+      clearTimeout(timer);
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
+
+      const renderedStdout = stdout.trim();
+      const renderedStderr = stderr.trim();
+      const elapsedMs = Date.now() - startedAt;
+      resolve({
+        binaryPath,
+        command,
+        elapsedMs,
+        exitCode: code,
+        signal,
+        stdout: renderedStdout,
+        stderr: [renderedStderr, ...resolutionNotes].filter(Boolean).join("\n"),
+        binaryProvider: provider,
+        resolutionNotes,
+        timedOut,
+      });
+    });
+
+    proc.on("error", (error) => {
+      closed = true;
+      clearTimeout(timer);
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
+
+      const elapsedMs = Date.now() - startedAt;
+      resolve({
+        binaryPath,
+        command,
+        elapsedMs,
+        exitCode: null,
+        signal: null,
+        stdout: stdout.trim(),
+        stderr: [error.message, ...resolutionNotes].join("\n"),
+        binaryProvider: provider,
+        resolutionNotes,
+        timedOut,
+      });
+    });
+  });
 }
 
 export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunResult> {
@@ -384,4 +551,35 @@ export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunR
       });
     });
   });
+}
+
+export async function runBombadilTerminalTest(
+  input: BombadilTerminalRunInput,
+): Promise<BombadilTerminalRunResult> {
+  const targetCommand = [input.target.command, ...(input.target.args ?? [])];
+  if (targetCommand.some((part) => part.trim().length === 0)) {
+    throw new Error("Bombadil terminal target command and args must be non-empty strings.");
+  }
+
+  const args = ["terminal", "test", "--", ...targetCommand];
+  const processResult = await runBoundedBombadilProcess({
+    args,
+    env: input.env,
+    durationMs: input.durationMs,
+  });
+  const combinedOutput = [processResult.stdout, processResult.stderr].filter(Boolean).join("\n");
+  const status: BombadilRunStatus = processResult.timedOut
+    ? "budget_exhausted"
+    : processResult.exitCode === 0 && looksLikeBombadilTerminalEvidence(combinedOutput)
+      ? "completed"
+      : looksLikeViolation(combinedOutput)
+        ? "violation"
+        : "runtime_error";
+
+  return {
+    status,
+    ...processResult,
+    targetCommand,
+    durationMs: input.durationMs,
+  };
 }

@@ -17,6 +17,7 @@ export const CAPABILITY_MATRIX = {
       surf: "implemented",
       "api-fuzzer": "unsupported",
       "cli-tester": "implemented",
+      "terminal-fuzzer": "implemented",
     },
     intelligence: {
       selfHealing: "unsupported",
@@ -60,6 +61,9 @@ type SurfAction = keyof typeof CAPABILITY_MATRIX.cli.surfActions;
 interface RuntimeAgentConfig {
   type: AgentType;
   enabled?: boolean;
+  terminal?: {
+    command?: string;
+  };
 }
 
 interface RuntimeIntelligenceConfig {
@@ -98,7 +102,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
 
   if (enabledAgents.length === 0) {
     throw new Error(
-      "At least one enabled agent is required. The current orchestrator capability contract supports the 'bombadil', 'surf', and 'cli-tester' agents.",
+      "At least one enabled agent is required. The current orchestrator capability contract supports the 'bombadil', 'surf', 'cli-tester', and 'terminal-fuzzer' agents.",
     );
   }
 
@@ -110,7 +114,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
     throw renderUnsupported(
       "agent type(s)",
       unsupportedAgents,
-      "Disable them or switch to the supported 'bombadil', 'surf', and/or 'cli-tester' orchestrator paths.",
+      "Disable them or switch to the supported 'bombadil', 'surf', 'cli-tester', and/or 'terminal-fuzzer' orchestrator paths.",
     );
   }
 
@@ -140,10 +144,13 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
     );
   }
 
-  const needsCli = enabledAgents.some(([, agent]) => agent.type === "cli-tester");
+  const needsCli = enabledAgents.some(
+    ([, agent]) =>
+      agent.type === "cli-tester" || (agent.type === "terminal-fuzzer" && !agent.terminal?.command),
+  );
   if (needsCli && !config.targets?.cli) {
     throw new Error(
-      "The enabled 'cli-tester' agent requires targets.cli to be configured with an executable command or path.",
+      "The enabled 'cli-tester' or 'terminal-fuzzer' agent requires targets.cli to be configured with an executable command or path unless terminal.command is configured.",
     );
   }
 

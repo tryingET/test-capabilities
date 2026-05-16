@@ -8,7 +8,7 @@ type: "how-to"
 
 # npm release checklist
 
-GitHub Release is the single release intent for `test-capabilities`. Local sessions prepare proof and release notes; npm publication happens automatically in `.github/workflows/publish.yml` through npm Trusted Publishing/OIDC after a GitHub Release is published.
+GitHub Release is the single release intent for `test-capabilities`. Local sessions prepare proof and release notes; npm publication happens automatically in `.github/workflows/publish.yml` through npm Trusted Publishing/OIDC after a GitHub Release is published. Prerelease GitHub Releases publish with npm dist-tag `next`; other releases publish with `latest`.
 
 ## 1) Confirm package metadata
 
@@ -64,7 +64,7 @@ Before publishing, re-check:
 - `docs/api/` describes implemented runtime surfaces and fail-closed unsupported modes
 - `docs/project/vision.md` is clearly north-star/roadmap, not current support
 - local maintainer or workspace-specific paths are not required for public users
-- release notes disclose external runtime requirements for Bombadil-compatible and Surf Go-compatible integrations
+- release notes disclose external runtime requirements for Bombadil-compatible browser/terminal-fuzzer and Surf Go-compatible integrations
 
 ## 5) Configure npm Trusted Publishing
 
@@ -76,7 +76,7 @@ On npmjs.com, configure Trusted Publishing for:
 - workflow filename: `publish.yml`
 - environment name: `npm-publish`
 
-Do not add an npm token to the repository for normal releases.
+Do not add an npm token to the repository for normal releases. If the workflow reaches Trusted Publishing runtime-prerequisite success but `npm publish` returns `ENEEDAUTH`, fix the npm trusted-publisher tuple (`tryingET` / `test-capabilities` / `publish.yml` / `npm-publish`) before retrying.
 
 ## 6) Create release intent
 

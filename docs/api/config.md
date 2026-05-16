@@ -124,12 +124,13 @@ Supported fields:
 
 | Field | Type |
 |-------|------|
-| `type` | `bombadil | surf | api-fuzzer | cli-tester` |
+| `type` | `bombadil | surf | api-fuzzer | cli-tester | terminal-fuzzer` |
 | `enabled` | boolean |
 | `intensity` | `gentle | normal | aggressive` |
 | `duration` | string |
 | `focus` | string[] |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
+| `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |
 
 Bombadil-specific fields under `agents.<name>.bombadil`:
 
@@ -148,11 +149,19 @@ Bombadil-specific fields under `agents.<name>.bombadil`:
 | `remote_debugger` / `remoteDebugger` | URL string | Passed as `--remote-debugger` for `command: test-external` |
 | `create_target` / `createTarget` | boolean | Passed as `--create-target` for `command: test-external` |
 
-The Bombadil 0.5 disabled-control skipping, quiescence timers, and dialog auto-accept behavior are runtime capabilities of the Bombadil binary itself; test-capabilities does not emulate or claim them unless the resolved Bombadil binary provides them. The experimental Bombadil terminal fuzzer is not yet a `test-capabilities` agent type; keep it as a direct Bombadil command until a typed terminal-observation contract lands.
+Terminal-fuzzer-specific fields under `agents.<name>.terminal`:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `command` | string | Optional command to pass after `bombadil terminal test --`; defaults to `targets.cli` |
+| `args` / `command_args` | string[] | Optional command arguments passed after the command |
+
+The Bombadil 0.5 disabled-control skipping, quiescence timers, and dialog auto-accept behavior are runtime capabilities of the Bombadil binary itself; test-capabilities does not emulate or claim them unless the resolved Bombadil binary provides them. The experimental Bombadil terminal fuzzer is a bounded `terminal-fuzzer` agent that emits `observation.v1` runtime evidence; it is not a production stability or autonomy claim.
 
 If an enabled agent uses `api-fuzzer`, runtime validation fails clearly.
 If an enabled agent uses `surf`, runtime validation requires `targets.web` and a resolvable Surf Go runtime: `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to PATH.
 If an enabled agent uses `bombadil`, runtime validation requires `targets.web` and a Bombadil binary that can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
+If an enabled agent uses `terminal-fuzzer`, runtime validation requires `targets.cli` or `agents.<name>.terminal.command`, plus a resolvable Bombadil binary.
 A source checkout only overrides the vendored fallback after it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or the project Nix shell.
 
 ---

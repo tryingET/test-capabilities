@@ -37,7 +37,9 @@ Before the first workflow-driven npm publish, configure npm Trusted Publishing f
 - workflow filename: `publish.yml` — enter only the filename in npm, not `.github/workflows/publish.yml`
 - environment name: `npm-publish`
 
-The workflow uses GitHub-hosted runners, the GitHub Actions environment `npm-publish`, `id-token: write`, Node `24`, npm `>=11.5.1`, and `npm publish --provenance --access public`. It must not require `NPM_TOKEN` or `NODE_AUTH_TOKEN`.
+The workflow uses GitHub-hosted runners, the GitHub Actions environment `npm-publish`, `id-token: write`, Node `24`, npm `>=11.5.1`, and `npm publish --provenance --access public`. It must not require `NPM_TOKEN` or `NODE_AUTH_TOKEN`, and it intentionally does not configure `actions/setup-node` with `registry-url` so npm does not prefer token auth over Trusted Publishing/OIDC.
+
+If the publish step fails with `ENEEDAUTH` after the workflow's Trusted Publishing runtime-prerequisite step passes, treat that as external npm Trusted Publisher configuration debt: the package is not configured on npmjs.com, the owner/repository/workflow filename/environment tuple does not exactly match, or npm requires bootstrap publication before package settings can be edited.
 
 ## Local preparation
 
@@ -80,6 +82,7 @@ After pushing the release commit and tag:
 git push origin main
 git push origin v<next-version>
 gh release create v<next-version> --title "test-capabilities v<next-version>" --notes-file docs/releases/<release-notes-file>.md
+# Add --prerelease when intentionally publishing to npm dist-tag next.
 ```
 
 Publishing the GitHub Release triggers `.github/workflows/publish.yml`.
@@ -107,6 +110,8 @@ After the workflow succeeds, local verification is:
 
 ```bash
 npm run release:verify-public -- --version <released-version>
+# or
+npm run release:verify-public -- --package test-capabilities@<released-version> --attempts 8
 ```
 
 This checks npm package visibility and public CLI installability through `npx -p test-capabilities@<version>`, including the zero-external-dependency `doctor --json` path.

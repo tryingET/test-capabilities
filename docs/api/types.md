@@ -179,12 +179,18 @@ interface Target {
 
 ```typescript
 interface AgentConfig {
-  type: 'bombadil' | 'surf' | 'api-fuzzer' | 'cli-tester';
+  type: 'bombadil' | 'surf' | 'api-fuzzer' | 'cli-tester' | 'terminal-fuzzer';
   enabled?: boolean;
   intensity?: 'gentle' | 'normal' | 'aggressive';
   duration?: string;
   focus?: string[];
   bombadil?: BombadilOptions;
+  terminal?: BombadilTerminalOptions;
+}
+
+interface BombadilTerminalOptions {
+  command?: string;
+  args?: string[];
 }
 
 interface BombadilOptions {
@@ -211,7 +217,8 @@ Runtime capability note:
 - `bombadil`, `surf`, and `cli-tester` are currently supported by the fail-closed orchestrator path
 - `surf` requires `targets.web` plus a resolvable Surf Go runtime (`TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`)
 - `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`
-- Bombadil 0.5 runtime options are exposed through `bombadil`: request `headers`, `outputPath`, `reproduceTrace`, viewport/instrumentation/permission knobs, and `test-external` debugger settings. Experimental Bombadil terminal fuzzing remains outside this typed agent contract for now.
+- Bombadil 0.5 runtime options are exposed through `bombadil`: request `headers`, `outputPath`, `reproduceTrace`, viewport/instrumentation/permission knobs, and `test-external` debugger settings.
+- Experimental Bombadil terminal fuzzing is exposed through the `terminal-fuzzer` agent and `terminal` options; it runs `bombadil terminal test -- <command> [args...]` and emits bounded `observation.v1` runtime evidence without production-autonomy claims.
 
 ### `IntelligenceConfig`
 
