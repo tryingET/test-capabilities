@@ -117,7 +117,7 @@ npm run lint           # Lint check
 npm run fix            # Auto-fix lint issues
 npm run consumer:smoke # Packed-artifact consumer contract smoke
 npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
-npm run release:check    # Release preflight (quality + root-cause corpus + truth gate + packed-artifact verification)
+npm run release:check    # Release preflight (quality + diagnostic corpora + truth gate + packed-artifact verification)
 
 # First-run proof (full walkthrough: docs/adoption/minimal-cli-smoke-walkthrough.md)
 node ./bin/test-capabilities doctor

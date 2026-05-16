@@ -896,6 +896,73 @@ function assertRootCauseCorpusExecutes() {
   );
 }
 
+function assertRuntimeDiagnosticCorpusExecutes() {
+  const result = run("node", ["./scripts/runtime-diagnostic-corpus.mjs", "--json"]);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.ok, true, "runtime diagnostic corpus should pass in truth gate");
+  assert.deepEqual(
+    payload.coverage,
+    {
+      cases: 5,
+      positiveRootCauseCases: 2,
+      noRootCauseGuardrailCases: 3,
+      failureClasses: ["command_resolution", "timeout_or_latency"],
+    },
+    "runtime diagnostic corpus should preserve bounded coverage counts",
+  );
+
+  const byName = new Map((payload.cases ?? []).map((entry) => [entry.name, entry]));
+  assert.equal(
+    byName.get("Real single CLI smoke failure does not emit root_cause")?.rootCauseCount,
+    0,
+    "runtime diagnostic corpus should keep the single-sensor guardrail",
+  );
+  assert.deepEqual(
+    byName.get("Real independent CLI smoke failures classify command_resolution")?.actualRootCauses,
+    [
+      {
+        subject: "cli",
+        failureClass: "command_resolution",
+        calibration: "high",
+        signalCount: 2,
+        sensorCount: 2,
+      },
+    ],
+    "runtime diagnostic corpus should keep the real command-resolution diagnosis",
+  );
+  assert.deepEqual(
+    byName.get("Real CLI timeout failures classify timeout_or_latency")?.actualRootCauses,
+    [
+      {
+        subject: "cli",
+        failureClass: "timeout_or_latency",
+        calibration: "high",
+        signalCount: 2,
+        sensorCount: 2,
+      },
+    ],
+    "runtime diagnostic corpus should keep the real timeout diagnosis",
+  );
+  assert.equal(
+    byName.get("Real same-component mixed CLI evidence suppresses root_cause")?.rootCauseCount,
+    0,
+    "runtime diagnostic corpus should keep mixed-class suppression",
+  );
+  assert.equal(
+    byName.get("Real CLI correlation disabled emits no synthesized diagnosis")?.rootCauseCount,
+    0,
+    "runtime diagnostic corpus should keep correlation-disabled suppression",
+  );
+  assert.equal(
+    /predict|probability|horizon|future|will fail|causal proof|repair order/i.test(
+      JSON.stringify(payload),
+    ),
+    false,
+    "runtime diagnostic corpus should not emit prediction, causal-proof, or repair-order wording",
+  );
+}
+
 function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport) {
   const consumerSmoke = readText("scripts/consumer_contract_smoke.mjs");
   assert.match(
@@ -999,6 +1066,7 @@ assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, passport 
 assertPackedBombadilContract(packageJson, readme, productPosture);
 assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passport);
 assertRootCauseCorpusExecutes();
+assertRuntimeDiagnosticCorpusExecutes();
 assertPassportVocabulary(passport);
 assertPassportGeneratedProjection();
 
