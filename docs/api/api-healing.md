@@ -199,6 +199,18 @@ The artifacts are only supported for dry runs. If `proposalOutput` or `verificat
 
 Mutation mode (`dryRun: false`) requires `checkpointRef` when proposals would be applied. The ref must come from an external checkpoint/restore authority; `test-capabilities` records the identity but does not create checkpoints or perform rollback.
 
+To apply a reviewed proposal artifact instead of recomputing proposals, pass `proposalInput` with the same intended mutation boundary in `dir` plus `checkpointRef`:
+
+```typescript
+await executeHealOperation({
+  dir: './tests',
+  proposalInput: './artifacts/heal-proposals.json',
+  checkpointRef: 'checkpoint/test-capabilities/heal-001',
+});
+```
+
+`proposalInput` artifacts are caller-controlled instruction packets, so the operation fails closed unless the artifact is schema v1, each proposal is non-review-required, and every target is an absolute, regular, non-symlink file inside `dir`.
+
 ### `applyProposals(proposals)`
 
 Apply a batch of proposals transactionally.

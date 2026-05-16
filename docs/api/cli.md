@@ -218,6 +218,10 @@ test-capabilities heal --dir ./tests --dry-run \
   --proposal-output artifacts/heal-proposals.json
 
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
+
+test-capabilities heal --dir ./tests \
+  --proposal-input artifacts/heal-proposals.json \
+  --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```
 
 | Option | Description | Default |
@@ -226,6 +230,7 @@ test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabiliti
 | `--dry-run` | Show proposals without applying them | `false` |
 | `--proposal-output <file>` | Write a dry-run proposal artifact as JSON for review or replay-ledger follow-through | unset |
 | `--verification-output <file>` | Write a dry-run verification artifact after checking proposals in memory | unset |
+| `--proposal-input <file>` | Apply proposals from a previously emitted proposal artifact; requires `--checkpoint-ref` and target files must stay inside `--dir` | unset |
 | `--findings-input <file>` | Read diagnostic findings JSON and cite matching evidence as `triggeringFindingId` on proposals | unset |
 | `--checkpoint-ref <ref>` | External checkpoint identity required before applying healing proposals | unset |
 
@@ -234,7 +239,7 @@ The healing scan skips common generated/dependency directories such as `node_mod
 Proposal and verification artifacts are dry-run only: requesting `--proposal-output` or `--verification-output` without `--dry-run` fails closed instead of writing misleading mutation artifacts.
 `--findings-input` is caller-supplied diagnostic evidence, not causal authority: it must be exactly one of a bounded JSON array of finding objects, an object with `findings`, or a `test --json` envelope with `result.findings`; each finding needs string `id`, `component`, `description`, and `evidence` fields, and malformed or ambiguous input fails closed before scanning or writing artifacts.
 When findings are provided, healing only proposes selector repairs for selectors cited by finding evidence and adds `triggeringFindingId`; equivalent selector spellings such as `getByTestId('old-login')` and `[data-testid="old-login"]` are normalized for matching without turning evidence into causal proof. Without findings, healing uses the heuristic file scan without provenance claims.
-When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
+When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind. `--proposal-input` applies proposals from a prior proposal artifact instead of recomputing them; proposal target paths must be absolute, regular files inside `--dir`, and non-symlinked.
 The checkpoint ref must come from an external checkpoint/restore authority; this command records the identity but does not create checkpoints or perform rollback.
 
 ---

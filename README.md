@@ -93,7 +93,7 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
 | `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
-| `heal` command | Implemented | Heuristic selector repair workflow; `--findings-input` accepts orchestrator findings JSON so proposals cite diagnostic evidence as `triggeringFindingId` |
+| `heal` command | Implemented | Heuristic selector repair workflow; `--findings-input` accepts orchestrator findings JSON so proposals cite diagnostic evidence as `triggeringFindingId`; apply mode can consume a reviewed `--proposal-input` artifact and still requires an external `--checkpoint-ref` |
 | normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class, and low-calibration non-authoritative `propagation` observations across configured dependency edges |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
 
@@ -141,6 +141,9 @@ node ./bin/test-capabilities heal --dir ./tests --dry-run \
   --findings-input artifacts/orchestrator-findings.json \
   --proposal-output artifacts/heal-proposals.json
 node ./bin/test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
+node ./bin/test-capabilities heal --dir ./tests \
+  --proposal-input artifacts/heal-proposals.json \
+  --checkpoint-ref checkpoint/test-capabilities/heal-001
 
 # Testing
 npm test                  # Run node contract tests
@@ -175,6 +178,7 @@ What it checks today:
 - `heal` proposes selector fixes without rewriting payload literals or custom-helper strings
 - `heal --dry-run --proposal-output <file> --verification-output <file>` writes durable proposal and in-memory verification artifacts for review or future replay-ledger follow-through without mutating files
 - `heal` requires `--checkpoint-ref` from an external checkpoint/restore authority before applying proposals that mutate files
+- `heal --proposal-input <artifact> --checkpoint-ref <ref>` applies proposals from a previously emitted proposal artifact instead of recomputing them during apply
 - `surf explore` runs through the shipped wrapper path and rejects invalid URLs
 - `test` runs a surf-backed orchestrator agent against a deterministic local fixture
 - library drills for orchestrator correlation and prediction input validation; contract tests cover calibrated root-cause observation synthesis

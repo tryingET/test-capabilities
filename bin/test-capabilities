@@ -358,6 +358,10 @@ program
     "Write a dry-run healing verification artifact as JSON after checking proposals in memory",
   )
   .option(
+    "--proposal-input <file>",
+    "Apply proposals from a previously emitted healing proposal artifact; requires --checkpoint-ref",
+  )
+  .option(
     "--checkpoint-ref <ref>",
     "External checkpoint identity required before applying healing proposals",
   )

@@ -614,6 +614,7 @@ interface HealOperationResultEnvelope {
     dryRun: boolean;
     proposalOutput?: string;
     verificationOutput?: string;
+    proposalInput?: string;
     checkpointRef?: string;
   };
   proposals: HealingProposal[];
