@@ -1,6 +1,6 @@
 {
   "name": "test-capabilities",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fail-closed testing capability framework with CLI, browser, property, healing, and diagnostic root-cause surfaces",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
