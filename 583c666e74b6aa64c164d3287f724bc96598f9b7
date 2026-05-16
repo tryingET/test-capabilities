@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "583c666e74b6aa64c164d3287f724bc96598f9b7"
-created_at: "2026-05-16T13:52:06Z"
+created_at: "2026-05-16T13:52:31Z"
 intent: "Expose Bombadil 0.5 browser-test options and normalize product-posture naming in repo context."
 files:
   - "AGENTS.md"
@@ -32,7 +32,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm run release:check --silent"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 1
