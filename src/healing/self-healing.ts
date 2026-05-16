@@ -334,7 +334,7 @@ export class TestFileHealer {
         ? evidenceSelectors.has(candidate.selector)
         : true;
 
-      if (!isValid || (evidenceSelectors && isTargetedByEvidence && !isValid)) {
+      if (!isValid && (!evidenceSelectors || isTargetedByEvidence)) {
         const healingResult = await this.engine.heal({
           originalSelector: candidate.selector,
           action: this.inferAction(content, candidate.index),
@@ -603,7 +603,7 @@ function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, s
         let match: RegExpExecArray | null;
         // biome-ignore lint:suspicious/noAssignInExpressions: exec() requires assignment-in-condition loop pattern
         while ((match = pattern.exec(evidenceLine)) !== null) {
-          const selector = match[0];
+          const selector = match[1] ?? match[0];
           if (!selectorToFindingId.has(selector)) {
             selectorToFindingId.set(selector, finding.id);
           }

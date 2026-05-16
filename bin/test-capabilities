@@ -361,6 +361,10 @@ program
     "--checkpoint-ref <ref>",
     "External checkpoint identity required before applying healing proposals",
   )
+  .option(
+    "--findings-input <file>",
+    "Read diagnostic findings JSON so proposals can cite triggeringFindingId evidence",
+  )
   .action(async (options) => {
     showBanner();
     const spinner = ora("Executing registered healing operation...").start();

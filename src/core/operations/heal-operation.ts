@@ -23,6 +23,19 @@ export const HealOperationInputSchema = z.object({
   findingsInput: z.string().min(1).optional(),
 });
 
+const MAX_FINDINGS_INPUT_BYTES = 5 * 1024 * 1024;
+
+const HealingFindingSchema = z
+  .object({
+    id: z.string().min(1),
+    component: z.string().min(1),
+    description: z.string().min(1),
+    evidence: z.array(z.string()).min(1),
+  })
+  .passthrough();
+
+const HealingFindingsInputSchema = z.array(HealingFindingSchema);
+
 type NormalizedHealOperationInput = z.output<typeof HealOperationInputSchema>;
 
 interface HealMutationPosture {
@@ -160,14 +173,32 @@ async function runHealOperation(
   let findings: HealingFinding[] | undefined;
   if (normalized.findingsInput) {
     const findingsPath = path.resolve(normalized.findingsInput);
-    const raw = await fs.readFile(findingsPath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
+    const stat = await fs.stat(findingsPath);
+    if (!stat.isFile()) {
+      throw new Error(`findings-input must be a file: ${findingsPath}`);
+    }
+    if (stat.size > MAX_FINDINGS_INPUT_BYTES) {
       throw new Error(
-        `findings-input must be a JSON array of finding objects, got ${typeof parsed}.`,
+        `findings-input exceeds maximum size of ${MAX_FINDINGS_INPUT_BYTES} bytes: ${findingsPath}`,
       );
     }
-    findings = parsed as HealingFinding[];
+
+    const raw = await fs.readFile(findingsPath, "utf-8");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`findings-input must be valid JSON: ${detail}`);
+    }
+
+    const result = HealingFindingsInputSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(
+        `findings-input must be a JSON array of finding objects with string id, component, description, and evidence string[]: ${result.error.message}`,
+      );
+    }
+    findings = result.data;
   }
 
   const healer = new TestFileHealer();

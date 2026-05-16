@@ -409,6 +409,141 @@ test("CLI heal command fails closed when the target directory is missing", () =>
   assert.match(`${result.stdout}\n${result.stderr}`, /Heal directory not found:/);
 });
 
+test("CLI heal command accepts findings input and writes triggering finding provenance", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const testFile = path.join(dir, "sample.test.ts");
+  const findingsFile = path.join(dir, "findings.json");
+  const proposalFile = path.join(dir, "heal-proposals.json");
+
+  writeFileSync(
+    testFile,
+    "test('login', async () => { await page.getByTestId('old-login-btn').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(
+    findingsFile,
+    JSON.stringify([
+      {
+        id: "surf-selector-drift-1",
+        component: "web",
+        description: "Selector drift detected on login button",
+        evidence: ["getByTestId('old-login-btn') failed during Surf DOM probe"],
+      },
+    ]),
+    "utf8",
+  );
+
+  try {
+    const result = runCli([
+      "heal",
+      "--dir",
+      dir,
+      "--dry-run",
+      "--findings-input",
+      findingsFile,
+      "--proposal-output",
+      proposalFile,
+    ]);
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const artifact = JSON.parse(readFileSync(proposalFile, "utf8"));
+    assert.equal(artifact.artifact_kind, "test-capabilities.heal.proposal");
+    assert.equal(artifact.input.findingsInput, findingsFile);
+    assert.equal(artifact.proposals.length, 1);
+    assert.equal(artifact.proposals[0].oldSelector, "old-login-btn");
+    assert.equal(artifact.proposals[0].triggeringFindingId, "surf-selector-drift-1");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings input is missing", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  try {
+    const result = runCli([
+      "heal",
+      "--dir",
+      dir,
+      "--dry-run",
+      "--findings-input",
+      path.join(dir, "missing-findings.json"),
+    ]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /ENOENT|no such file/i);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings input is malformed JSON", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "findings.json");
+  writeFileSync(findingsFile, "{not-json", "utf8");
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /findings-input must be valid JSON/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings input is not an array", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "findings.json");
+  writeFileSync(findingsFile, JSON.stringify({ id: "not-an-array" }), "utf8");
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /findings-input must be a JSON array/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings input entries omit required fields", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "findings.json");
+  writeFileSync(
+    findingsFile,
+    JSON.stringify([{ id: "missing-evidence", component: "web", description: "bad" }]),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /evidence/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings evidence entries are not strings", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "findings.json");
+  writeFileSync(
+    findingsFile,
+    JSON.stringify([{ id: "bad-evidence", component: "web", description: "bad", evidence: [42] }]),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /Expected string/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("unsupported CLI commands fail clearly instead of emitting placeholders", () => {
   const result = runCli(["predict"]);
 

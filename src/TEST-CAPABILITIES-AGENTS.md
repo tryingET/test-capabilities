@@ -34,7 +34,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
   - URL targets do not replace `targets.cli` when `cli-tester` is still enabled for the run
 - `test-capabilities surf explore --url <url>`
 - `test-capabilities quantum --target <url> [--branches <n>] [--collapse]`
-- `test-capabilities heal --dir <path> [--dry-run] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]`
+- `test-capabilities heal --dir <path> [--dry-run] [--findings-input <file>] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]`
 
 ### Supported orchestrator path today
 - `bombadil` agent
@@ -72,7 +72,7 @@ What does the user want?
 │
 ├─ "Quick CLI smoke" ─────────────→ test-capabilities test --quick --target node --config <file>
 │
-├─ "Fix broken tests" ────────────→ test-capabilities heal --dir <path> [--dry-run] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]
+├─ "Fix broken tests" ────────────→ test-capabilities heal --dir <path> [--dry-run] [--findings-input <file>] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]
 │
 ├─ "Explore edge cases" ──────────→ test-capabilities quantum --target <url>
 │
@@ -140,7 +140,7 @@ test-capabilities init [--output <file>] [--target <command>] [--force] [--print
 test-capabilities test --config <file> [--target <url-or-path>] [--quick] [--json]
 test-capabilities surf explore --url <url>
 test-capabilities quantum --target <url> [--branches N] [--collapse]
-test-capabilities heal --dir <path> [--dry-run] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]
+test-capabilities heal --dir <path> [--dry-run] [--findings-input <file>] [--proposal-output <file>] [--verification-output <file>] [--checkpoint-ref <ref>]
 ```
 
 ---

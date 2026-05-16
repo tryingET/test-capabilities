@@ -248,6 +248,11 @@ test-capabilities heal --dir ./tests --dry-run \
   --proposal-output artifacts/heal-proposals.json \
   --verification-output artifacts/heal-verification.json
 
+# Evidence-backed dry run: cite diagnostic findings as triggeringFindingId in proposals
+test-capabilities heal --dir ./tests --dry-run \
+  --findings-input artifacts/orchestrator-findings.json \
+  --proposal-output artifacts/heal-proposals.json
+
 # Apply proposals only after an external checkpoint exists
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```

@@ -213,6 +213,10 @@ test-capabilities heal --dir ./tests --dry-run \
   --proposal-output artifacts/heal-proposals.json \
   --verification-output artifacts/heal-verification.json
 
+test-capabilities heal --dir ./tests --dry-run \
+  --findings-input artifacts/orchestrator-findings.json \
+  --proposal-output artifacts/heal-proposals.json
+
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```
 
@@ -222,11 +226,14 @@ test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabiliti
 | `--dry-run` | Show proposals without applying them | `false` |
 | `--proposal-output <file>` | Write a dry-run proposal artifact as JSON for review or replay-ledger follow-through | unset |
 | `--verification-output <file>` | Write a dry-run verification artifact after checking proposals in memory | unset |
+| `--findings-input <file>` | Read diagnostic findings JSON and cite matching evidence as `triggeringFindingId` on proposals | unset |
 | `--checkpoint-ref <ref>` | External checkpoint identity required before applying healing proposals | unset |
 
 Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
 The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
 Proposal and verification artifacts are dry-run only: requesting `--proposal-output` or `--verification-output` without `--dry-run` fails closed instead of writing misleading mutation artifacts.
+`--findings-input` is caller-supplied diagnostic evidence, not causal authority: it must be a bounded JSON array of finding objects with string `id`, `component`, `description`, and `evidence` fields, and malformed input fails closed before scanning or writing artifacts.
+When findings are provided, healing only proposes selector repairs for selectors cited by finding evidence and adds `triggeringFindingId`; without findings, healing uses the heuristic file scan without provenance claims.
 When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
 The checkpoint ref must come from an external checkpoint/restore authority; this command records the identity but does not create checkpoints or perform rollback.
 

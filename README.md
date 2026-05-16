@@ -137,6 +137,9 @@ node ./bin/test-capabilities heal --dir ./tests --dry-run
 node ./bin/test-capabilities heal --dir ./tests --dry-run \
   --proposal-output artifacts/heal-proposals.json \
   --verification-output artifacts/heal-verification.json
+node ./bin/test-capabilities heal --dir ./tests --dry-run \
+  --findings-input artifacts/orchestrator-findings.json \
+  --proposal-output artifacts/heal-proposals.json
 node ./bin/test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 
 # Testing

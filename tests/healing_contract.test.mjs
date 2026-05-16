@@ -315,6 +315,49 @@ test("TestFileHealer.analyzeFile with findings cites triggeringFindingId", async
   }
 });
 
+test("TestFileHealer.analyzeFile with findings only heals selectors cited by evidence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    [
+      "test('login', async () => {",
+      "  await page.getByTestId('old-login-btn').click();",
+      "  await page.getByTestId('old-unrelated-btn').click();",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const findings = [
+    {
+      id: "surfA-selector-drift",
+      component: "web",
+      description: "Selector drift detected on login button",
+      evidence: ["getByTestId('old-login-btn') failed"],
+    },
+  ];
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, findings);
+
+    assert.ok(proposals.length >= 1, "should produce a proposal for the cited selector");
+    assert.equal(
+      proposals.some((proposal) => proposal.oldSelector === "old-login-btn"),
+      true,
+    );
+    assert.equal(
+      proposals.some((proposal) => proposal.oldSelector === "old-unrelated-btn"),
+      false,
+      "evidence-backed mode must not heal selectors that were not cited by findings",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.analyzeFile without findings does not set triggeringFindingId", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");
@@ -341,7 +384,7 @@ test("TestFileHealer.analyzeFile without findings does not set triggeringFinding
   }
 });
 
-test("TestFileHealer.analyzeFile with empty findings array behaves like no findings", async () => {
+test("TestFileHealer.analyzeFile with empty findings array produces no evidence-backed proposals", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");
   writeFileSync(
@@ -354,15 +397,11 @@ test("TestFileHealer.analyzeFile with empty findings array behaves like no findi
     const healer = new TestFileHealer();
     const proposals = await healer.analyzeFile(file, []);
 
-    // Empty findings = no evidence selectors → falls back to heuristic behavior
-    // but still produces proposals for legacy-prefixed selectors.
-    for (const proposal of proposals) {
-      assert.equal(
-        proposal.triggeringFindingId,
-        undefined,
-        "empty findings should not produce triggeringFindingId",
-      );
-    }
+    assert.deepEqual(
+      proposals,
+      [],
+      "empty findings should not trigger evidence-backed healing proposals",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
