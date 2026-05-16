@@ -135,6 +135,11 @@ agents:
     type: bombadil
     intensity: normal
     duration: 10s
+    bombadil:
+      output_path: .tmp/bombadil-traces/smoke
+      headers:
+        X-Test-Suite: smoke
+      instrument_javascript: [files, inline]
 
 intelligence:
   self_healing: false
@@ -162,7 +167,19 @@ TEST_CAPABILITIES_BOMBADIL_REPO=/path/to/bombadil-source \
 ```
 
 If you are running inside this repo checkout, the orchestrator can use a built Bombadil-compatible source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` before falling back to repo-local `external/bombadil` and then `bombadil` on `PATH`.
-A source checkout only overrides the vendored fallback after it has a built binary; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
+A source checkout only overrides the vendored fallback after it has a built binary; upstream Bombadil 0.5 no longer needs `esbuild`, though source builds may still expect `trunk` or the project Nix shell.
+
+To replay an existing Bombadil 0.5 trace instead of random exploration, set:
+
+```yaml
+agents:
+  web:
+    type: bombadil
+    bombadil:
+      reproduce_trace: .tmp/bombadil-traces/smoke/trace.jsonl
+```
+
+Trace reproduction omits `--exit-on-violation` because Bombadil treats those options as mutually exclusive.
 
 For a richer deterministic local regression, use the checked-in fixture runner:
 

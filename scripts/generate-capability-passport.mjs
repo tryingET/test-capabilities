@@ -261,7 +261,7 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
             : [],
       notes:
         status === "implemented" && bombadilAgent
-          ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH."
+          ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH, and exposes Bombadil 0.5 browser-test options for headers, trace output, trace reproduction, viewport/instrumentation/permission knobs, and test-external debugger settings."
           : status === "implemented" && surfAgent
             ? "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, or surf-go on PATH, verifies explicit browser-state/DOM/link probes, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
             : bombadilAgent && bombadilPresent
@@ -285,7 +285,7 @@ capabilities.push(
           commands: ["file external/bombadil", "npm run consumer:smoke"],
         }
       : {},
-    attachPoints: ["external/bombadil", "README.md", "docs/project/product_posture.md"],
+    attachPoints: ["external/bombadil", "README.md", "docs/project/product-posture.md"],
     activationRequirements: bombadilPresent
       ? [
           "Intentionally include the vendored Bombadil binary in packed artifacts before treating this vendored tool itself as a consumer-facing supported surface; the current packed-consumer contract treats Bombadil as an external binary requirement.",

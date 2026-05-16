@@ -11,10 +11,29 @@ const BUILT_BOMBADIL_RELATIVE_PATHS = [
 
 export type BombadilRunStatus = "completed" | "budget_exhausted" | "violation" | "runtime_error";
 
+export type BombadilCommand = "test" | "test-external";
+
+export interface BombadilRunOptions {
+  command?: BombadilCommand;
+  outputPath?: string;
+  headers?: Record<string, string>;
+  reproduceTracePath?: string;
+  width?: number;
+  height?: number;
+  deviceScaleFactor?: number;
+  instrumentJavaScript?: Array<"files" | "inline">;
+  chromeGrantPermissions?: string[];
+  headless?: boolean;
+  noSandbox?: boolean;
+  remoteDebugger?: string;
+  createTarget?: boolean;
+}
+
 export interface BombadilRunInput {
   origin: string;
   durationMs: number;
   env?: NodeJS.ProcessEnv;
+  options?: BombadilRunOptions;
 }
 
 export interface BombadilBinaryResolution {
@@ -73,7 +92,7 @@ function renderMissingBuildNote(repoRoot: string, contextLabel: string): string 
   const candidateList = BUILT_BOMBADIL_RELATIVE_PATHS.map((relativePath) =>
     path.join(repoRoot, relativePath),
   ).join(" or ");
-  return `${contextLabel} found at ${repoRoot}, but no built Bombadil binary exists at ${candidateList}. Build Bombadil first (for example: 'cargo build --release --bin bombadil'). Upstream Bombadil currently also expects 'trunk' and 'esbuild' for a local build, or use its Nix shell.`;
+  return `${contextLabel} found at ${repoRoot}, but no built Bombadil binary exists at ${candidateList}. Build Bombadil first (for example: 'cargo build --release --bin bombadil'). Upstream Bombadil 0.5 no longer requires esbuild, but local source builds may still need trunk or the project Nix shell.`;
 }
 
 function resolveBombadilRepoRoot(env: NodeJS.ProcessEnv = process.env): string | undefined {
@@ -157,10 +176,75 @@ function looksLikeBombadilRunEvidence(output: string): boolean {
   return /using default specification|storing trace in|starting test|bombadil/i.test(output);
 }
 
+function appendBombadilOptionArgs(args: string[], options: BombadilRunOptions): void {
+  if (options.outputPath) {
+    args.push("--output-path", options.outputPath);
+  }
+
+  for (const [key, value] of Object.entries(options.headers ?? {})) {
+    if (key.includes("=") || value.includes("\n") || value.includes("\r")) {
+      throw new Error(
+        "Bombadil headers must be KEY=VALUE pairs without '=' in the key or newlines.",
+      );
+    }
+    args.push("--header", `${key}=${value}`);
+  }
+
+  if (options.width !== undefined) {
+    args.push("--width", String(options.width));
+  }
+
+  if (options.height !== undefined) {
+    args.push("--height", String(options.height));
+  }
+
+  if (options.deviceScaleFactor !== undefined) {
+    args.push("--device-scale-factor", String(options.deviceScaleFactor));
+  }
+
+  if (options.instrumentJavaScript?.length) {
+    args.push("--instrument-javascript", options.instrumentJavaScript.join(","));
+  }
+
+  if (options.chromeGrantPermissions?.length) {
+    args.push("--chrome-grant-permissions", options.chromeGrantPermissions.join(","));
+  }
+
+  if (options.reproduceTracePath) {
+    args.push("--reproduce", options.reproduceTracePath);
+  }
+}
+
 export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunResult> {
   const resolution = resolveBombadilBinaryResolution(input.env);
   const { binaryPath, provider, resolutionNotes } = resolution;
-  const args = ["test", input.origin, "--headless", "--exit-on-violation"];
+  const options = input.options ?? {};
+  const bombadilCommand = options.command ?? "test";
+  const args: string[] = [bombadilCommand];
+  appendBombadilOptionArgs(args, options);
+
+  if (!options.reproduceTracePath) {
+    args.push("--exit-on-violation");
+  }
+
+  if (bombadilCommand === "test") {
+    if (options.headless !== false) {
+      args.push("--headless");
+    }
+    if (options.noSandbox) {
+      args.push("--no-sandbox");
+    }
+  } else {
+    if (options.remoteDebugger) {
+      args.push("--remote-debugger", options.remoteDebugger);
+    }
+    if (options.createTarget) {
+      args.push("--create-target");
+    }
+  }
+
+  args.push(input.origin);
+
   const command = [binaryPath, ...args];
   const startedAt = Date.now();
 

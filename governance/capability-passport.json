@@ -40,7 +40,7 @@
       },
       "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
       "activation_requirements": [],
-      "notes": "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH."
+      "notes": "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH, and exposes Bombadil 0.5 browser-test options for headers, trace output, trace reproduction, viewport/instrumentation/permission knobs, and test-external debugger settings."
     },
     {
       "id": "agent:cli-tester",
@@ -450,7 +450,7 @@
         "files": ["external/bombadil"],
         "commands": ["file external/bombadil", "npm run consumer:smoke"]
       },
-      "attach_points": ["external/bombadil", "README.md", "docs/project/product_posture.md"],
+      "attach_points": ["external/bombadil", "README.md", "docs/project/product-posture.md"],
       "activation_requirements": [
         "Intentionally include the vendored Bombadil binary in packed artifacts before treating this vendored tool itself as a consumer-facing supported surface; the current packed-consumer contract treats Bombadil as an external binary requirement."
       ],

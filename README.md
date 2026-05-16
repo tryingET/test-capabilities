@@ -16,7 +16,7 @@ Fail-closed testing capability framework for CLI, browser, property, healing, an
 
 > *We don't build tests. We build the immune system of software.*
 
-See [docs/project/vision.md](docs/project/vision.md) for the durable north-star vision and [docs/project/product_posture.md](docs/project/product_posture.md) for the current product maturity snapshot.
+See [docs/project/vision.md](docs/project/vision.md) for the durable north-star vision and [docs/project/product-posture.md](docs/project/product-posture.md) for the current product maturity snapshot.
 
 ## Components
 
@@ -34,7 +34,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 | Doc | Description |
 |-----|-------------|
 | [docs/project/vision.md](docs/project/vision.md) | Durable product vision and strategic direction |
-| [docs/project/product_posture.md](docs/project/product_posture.md) | Current product maturity, supported/unsupported boundary, and major gaps |
+| [docs/project/product-posture.md](docs/project/product-posture.md) | Current product maturity, supported/unsupported boundary, and major gaps |
 | [docs/TEST-CAPABILITIES-FRAMEWORK.md](docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
 | [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
 | [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
@@ -75,7 +75,8 @@ The shipped CLI verbs now run through a typed **operation kernel** exposed at `s
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
 For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
 For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
-A Bombadil-compatible source checkout only overrides the parked repo-local fallback once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream-style builds may need project-specific prerequisites such as `trunk`, `esbuild`, or a Nix shell.
+A Bombadil-compatible source checkout only overrides the parked repo-local fallback once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil 0.5 centralizes builds and no longer requires `esbuild`, though local source builds may still need project-specific prerequisites such as `trunk` or the project Nix shell.
+Bombadil 0.5 request headers, trace output paths, trace reproduction, viewport/instrumentation/permission knobs, and `test-external` debugger settings are exposed through `agents.<name>.bombadil` config. Bombadil's disabled-control skipping, quiescence timers, and dialog auto-accept behavior come from the resolved Bombadil binary itself. The experimental Bombadil terminal fuzzer is intentionally not yet wrapped as a `test-capabilities` agent type.
 Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass. The same packed-consumer smoke also proves calibrated `root_cause` and low-calibration non-authoritative `propagation` observations survive through the distributed library API.
 
 ### Implemented today

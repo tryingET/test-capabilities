@@ -184,6 +184,23 @@ interface AgentConfig {
   intensity?: 'gentle' | 'normal' | 'aggressive';
   duration?: string;
   focus?: string[];
+  bombadil?: BombadilOptions;
+}
+
+interface BombadilOptions {
+  command?: 'test' | 'test-external';
+  outputPath?: string;
+  headers?: Record<string, string>;
+  reproduceTrace?: string;
+  width?: number;
+  height?: number;
+  deviceScaleFactor?: number;
+  instrumentJavaScript?: Array<'files' | 'inline'>;
+  chromeGrantPermissions?: string[];
+  headless?: boolean;
+  noSandbox?: boolean;
+  remoteDebugger?: string;
+  createTarget?: boolean;
 }
 ```
 
@@ -194,6 +211,7 @@ Runtime capability note:
 - `bombadil`, `surf`, and `cli-tester` are currently supported by the fail-closed orchestrator path
 - `surf` requires `targets.web` plus a resolvable Surf Go runtime (`TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`)
 - `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`
+- Bombadil 0.5 runtime options are exposed through `bombadil`: request `headers`, `outputPath`, `reproduceTrace`, viewport/instrumentation/permission knobs, and `test-external` debugger settings. Experimental Bombadil terminal fuzzing remains outside this typed agent contract for now.
 
 ### `IntelligenceConfig`
 

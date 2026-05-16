@@ -49,6 +49,36 @@ export const TargetSchema = z
   })
   .strict();
 
+const BombadilOptionsSchema = z.preprocess(
+  (value) =>
+    withAliases(value, {
+      output_path: "outputPath",
+      reproduce_trace: "reproduceTrace",
+      instrument_javascript: "instrumentJavaScript",
+      chrome_grant_permissions: "chromeGrantPermissions",
+      device_scale_factor: "deviceScaleFactor",
+      remote_debugger: "remoteDebugger",
+      create_target: "createTarget",
+    }),
+  z
+    .object({
+      command: z.enum(["test", "test-external"]).default("test"),
+      outputPath: z.string().min(1).optional(),
+      headers: z.record(z.string().min(1), z.string()).optional(),
+      reproduceTrace: z.string().min(1).optional(),
+      width: z.number().int().positive().optional(),
+      height: z.number().int().positive().optional(),
+      deviceScaleFactor: z.number().positive().optional(),
+      instrumentJavaScript: z.array(z.enum(["files", "inline"])).optional(),
+      chromeGrantPermissions: z.array(z.string().min(1)).optional(),
+      headless: z.boolean().optional(),
+      noSandbox: z.boolean().optional(),
+      remoteDebugger: z.string().url().optional(),
+      createTarget: z.boolean().optional(),
+    })
+    .strict(),
+);
+
 export const AgentConfigSchema = z
   .object({
     type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester"]),
@@ -56,6 +86,7 @@ export const AgentConfigSchema = z
     intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
     duration: z.string().optional(),
     focus: z.array(z.string()).optional(),
+    bombadil: BombadilOptionsSchema.optional(),
   })
   .strict();
 
@@ -136,12 +167,29 @@ export const TestCapabilitiesConfigSchema = z
 type ParsedTestCapabilitiesConfig = z.output<typeof TestCapabilitiesConfigSchema>;
 
 export type Target = z.infer<typeof TargetSchema>;
+export interface BombadilOptions {
+  command?: "test" | "test-external";
+  outputPath?: string;
+  headers?: Record<string, string>;
+  reproduceTrace?: string;
+  width?: number;
+  height?: number;
+  deviceScaleFactor?: number;
+  instrumentJavaScript?: Array<"files" | "inline">;
+  chromeGrantPermissions?: string[];
+  headless?: boolean;
+  noSandbox?: boolean;
+  remoteDebugger?: string;
+  createTarget?: boolean;
+}
+
 export interface AgentConfig {
   type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester";
   enabled?: boolean;
   intensity?: "gentle" | "normal" | "aggressive";
   duration?: string;
   focus?: string[];
+  bombadil?: BombadilOptions;
 }
 export interface PropagationEdge {
   upstream: string;
@@ -476,7 +524,7 @@ export class TestCapabilitiesOrchestrator {
             agentConfig.duration,
             getBombadilBudgetMs(agentConfig.intensity),
           );
-          this.agents.set(name, new BombadilAgent(name, durationMs));
+          this.agents.set(name, new BombadilAgent(name, durationMs, agentConfig.bombadil));
           break;
         }
         case "surf": {
@@ -1781,10 +1829,12 @@ function summarizeBombadilEvidence(
 class BombadilAgent implements TestAgent {
   private readonly agentName: string;
   private readonly durationMs: number;
+  private readonly options: BombadilOptions | undefined;
 
-  constructor(agentName: string, durationMs: number) {
+  constructor(agentName: string, durationMs: number, options: BombadilOptions | undefined) {
     this.agentName = agentName;
     this.durationMs = durationMs;
+    this.options = options;
   }
 
   async execute(targets: Target): Promise<AgentResult> {
@@ -1810,6 +1860,23 @@ class BombadilAgent implements TestAgent {
     const result = await runBombadil({
       origin: targets.web,
       durationMs: this.durationMs,
+      options: this.options
+        ? {
+            command: this.options.command,
+            outputPath: this.options.outputPath,
+            headers: this.options.headers,
+            reproduceTracePath: this.options.reproduceTrace,
+            width: this.options.width,
+            height: this.options.height,
+            deviceScaleFactor: this.options.deviceScaleFactor,
+            instrumentJavaScript: this.options.instrumentJavaScript,
+            chromeGrantPermissions: this.options.chromeGrantPermissions,
+            headless: this.options.headless,
+            noSandbox: this.options.noSandbox,
+            remoteDebugger: this.options.remoteDebugger,
+            createTarget: this.options.createTarget,
+          }
+        : undefined,
     });
 
     if (result.status === "completed" || result.status === "budget_exhausted") {

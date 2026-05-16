@@ -13,7 +13,7 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 
 ## Guardrails
 - No secrets in git.
-- Never push to `main`; MRs only.
+- Main-first workflow for normal repo-local work; use PR/MR review gates only when the operator asks or when a release policy explicitly requires them.
 - Treat `docs/_core/**` as immutable.
 - Run `./scripts/install-hooks.sh` after cloning/scaffolding to enforce local pre-commit/pre-push CI gates.
 - Treat `governance/work-items.json` as compatibility projection only; keep current and deferred work in AK, using first-class task deferrals instead of repo-local deferred backlog files.
@@ -29,8 +29,9 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 ## Read order
 1) `docs/_core/`
 2) `docs/project/vision.md`
-3) `docs/org_context/`
-4) `docs/learnings/`
-5) `docs/system4d/`
-6) `docs/TEST-CAPABILITIES-TESTING-FRAMEWORK.md`
-7) `docs/LLM-TESTING-GUIDE.md`
+3) `docs/project/product-posture.md`
+4) `docs/org_context/`
+5) `docs/learnings/`
+6) `docs/system4d/`
+7) `docs/TEST-CAPABILITIES-TESTING-FRAMEWORK.md`
+8) `docs/LLM-TESTING-GUIDE.md`

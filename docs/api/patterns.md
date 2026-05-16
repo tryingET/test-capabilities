@@ -99,7 +99,7 @@ async function runBombadilExploration(origin: string) {
 ```
 
 Use this when you want a supported, bounded Bombadil run through the orchestrator instead of calling the binary ad hoc. The runtime resolves `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` or a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, then repo-local `external/bombadil`, then `bombadil` on `PATH`.
-If you cloned the Bombadil source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
+If you cloned the Bombadil source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or the project Nix shell.
 
 ---
 

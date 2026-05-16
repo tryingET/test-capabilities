@@ -135,7 +135,7 @@ Important:
 - a URL `--target` does **not** replace `targets.cli` when `cli-tester` is still enabled for the run
 - `test --quick --target https://...` still works when an enabled `bombadil` or `surf` agent is the active web consumer
 - Bombadil resolution order is `TEST_CAPABILITIES_BOMBADIL_BIN`, then a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, then repo-local `external/bombadil`, then `bombadil` on `PATH`
-- an unbuilt source checkout does not override the fallback chain; the runtime reports that you still need a built `target/release|debug/bombadil` plus source-project prerequisites such as `trunk`, `esbuild`, or a Nix shell
+- an unbuilt source checkout does not override the fallback chain; the runtime reports that you still need a built `target/release|debug/bombadil` plus source-project prerequisites such as `trunk` or a Nix shell
 
 Accepted but currently unsupported options:
 

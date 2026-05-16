@@ -285,7 +285,7 @@ targets:
 
 For Surf, make sure Surf Go is resolvable through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`.
 For Bombadil, make sure the binary can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
-If you only cloned the source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil currently also expects `trunk` and `esbuild` for local builds, or its Nix shell.
+If you only cloned the source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or the project Nix shell.
 
 ---
 

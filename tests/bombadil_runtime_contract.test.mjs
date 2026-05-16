@@ -122,9 +122,100 @@ test("workspace contrib Bombadil checkout without a build falls back to vendored
       true,
     );
     assert.equal(
-      resolution.resolutionNotes.some((note) => note.includes("esbuild")),
+      resolution.resolutionNotes.some((note) => note.includes("no longer requires esbuild")),
       true,
     );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runBombadil forwards Bombadil 0.5 web options fail-closed", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-options-"));
+  const fakeBinary = path.join(tempDir, "bombadil");
+  writeExecutable(
+    fakeBinary,
+    "#!/bin/sh\necho 'starting test' >&2\necho \"args: $*\" >&2\nexit 0\n",
+  );
+
+  try {
+    const result = await runBombadil({
+      origin: "https://example.com",
+      durationMs: 50,
+      env: {
+        TEST_CAPABILITIES_BOMBADIL_BIN: fakeBinary,
+      },
+      options: {
+        outputPath: path.join(tempDir, "trace-output"),
+        headers: {
+          Authorization: "Bearer test-token",
+          "X-Test-Capabilities": "bombadil-0.5",
+        },
+        width: 1280,
+        height: 720,
+        deviceScaleFactor: 1,
+        instrumentJavaScript: ["files"],
+        chromeGrantPermissions: ["local-network-access"],
+        noSandbox: true,
+      },
+    });
+
+    assert.equal(result.status, "completed");
+    assert.deepEqual(result.command.slice(1), [
+      "test",
+      "--output-path",
+      path.join(tempDir, "trace-output"),
+      "--header",
+      "Authorization=Bearer test-token",
+      "--header",
+      "X-Test-Capabilities=bombadil-0.5",
+      "--width",
+      "1280",
+      "--height",
+      "720",
+      "--device-scale-factor",
+      "1",
+      "--instrument-javascript",
+      "files",
+      "--chrome-grant-permissions",
+      "local-network-access",
+      "--exit-on-violation",
+      "--headless",
+      "--no-sandbox",
+      "https://example.com",
+    ]);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runBombadil supports Bombadil 0.5 trace reproduction without exit-on-violation", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-reproduce-"));
+  const fakeBinary = path.join(tempDir, "bombadil");
+  const traceFile = path.join(tempDir, "trace.jsonl");
+  writeExecutable(fakeBinary, "#!/bin/sh\necho 'starting test' >&2\nexit 0\n");
+  writeFileSync(traceFile, "{}\n", "utf8");
+
+  try {
+    const result = await runBombadil({
+      origin: "https://example.com",
+      durationMs: 50,
+      env: {
+        TEST_CAPABILITIES_BOMBADIL_BIN: fakeBinary,
+      },
+      options: {
+        reproduceTracePath: traceFile,
+      },
+    });
+
+    assert.equal(result.status, "completed");
+    assert.deepEqual(result.command.slice(1), [
+      "test",
+      "--reproduce",
+      traceFile,
+      "--headless",
+      "https://example.com",
+    ]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -170,7 +261,7 @@ test("runBombadil surfaces missing-build guidance when TEST_CAPABILITIES_BOMBADI
     assert.equal(result.binaryProvider, "vendored");
     assert.equal(result.stderr.includes("Build Bombadil first"), true);
     assert.equal(result.stderr.includes("trunk"), true);
-    assert.equal(result.stderr.includes("esbuild"), true);
+    assert.equal(result.stderr.includes("no longer requires esbuild"), true);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

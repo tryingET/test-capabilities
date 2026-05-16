@@ -49,7 +49,7 @@ function assertNoStaleDirectionClaims(productPosture) {
   assert.equal(
     /no strong AK-native direction frame/i.test(productPosture),
     false,
-    "product_posture.md contains stale AK direction wording",
+    "product-posture.md contains stale AK direction wording",
   );
 }
 
@@ -85,7 +85,7 @@ function assertDirectionDocsTrackAk(productPosture) {
     assert.match(
       productPosture,
       new RegExp(`\\b${directionId}\\b`),
-      `product_posture.md should mention AK direction ${directionId}`,
+      `product-posture.md should mention AK direction ${directionId}`,
     );
   }
 }
@@ -97,6 +97,7 @@ function assertPackedTypeSurface() {
 
   for (const typeName of [
     "AgentConfig",
+    "BombadilOptions",
     "IntelligenceConfig",
     "ObservationSemantics",
     "PropagationEdge",
@@ -191,7 +192,7 @@ function assertVisionCurrentRuntimeAlignment() {
 function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, passport }) {
   const surfaces = {
     "README.md": readme,
-    "docs/project/product_posture.md": productPosture,
+    "docs/project/product-posture.md": productPosture,
     "docs/project/vision.md": readText("docs/project/vision.md"),
     "docs/api/config.md": readText("docs/api/config.md"),
     "docs/api/types.md": readText("docs/api/types.md"),
@@ -962,7 +963,7 @@ function assertPassportGeneratedProjection() {
 
 const packageJson = readJson("package.json");
 const readme = readText("README.md");
-const productPosture = readText("docs/project/product_posture.md");
+const productPosture = readText("docs/project/product-posture.md");
 
 assertNoStaleDirectionClaims(productPosture);
 assertDirectionDocsTrackAk(productPosture);

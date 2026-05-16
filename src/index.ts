@@ -57,6 +57,7 @@ export {
 } from "./core/operations.js";
 export type {
   AgentConfig,
+  BombadilOptions,
   CoverageDimension,
   CoverageReport,
   CoverageStatus,

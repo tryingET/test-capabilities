@@ -20,7 +20,7 @@ system4d:
 ## How to Read This Vision in 2026
 
 This document is the north-star narrative, not a shipped-capability inventory.
-The current product posture lives in [product_posture.md](product_posture.md), and the operator-facing capability contract lives in the repository `README.md`. Treat maintainer planning systems as execution coordination, not as shipped capability truth.
+The current product posture lives in [product-posture.md](product-posture.md), and the operator-facing capability contract lives in the repository `README.md`. Treat maintainer planning systems as execution coordination, not as shipped capability truth.
 
 As of the current product slice, test-capabilities is deliberately **fail-closed**: supported routes run through real runtime paths; unsupported commands, flags, agents, and intelligence modes error instead of pretending to work.
 That boundary is not a retreat from the vision. It is the discipline that lets the vision become real without corrupting operator trust.
