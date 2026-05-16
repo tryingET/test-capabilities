@@ -330,8 +330,9 @@ export class TestFileHealer {
 
       // When findings are provided, only heal selectors that appear in diagnostic evidence.
       // Without findings, fall back to the existing heuristic scan.
+      const candidateAliases = selectorAliases(candidate.selector);
       const isTargetedByEvidence = evidenceSelectors
-        ? evidenceSelectors.has(candidate.selector)
+        ? candidateAliases.some((alias) => evidenceSelectors.has(alias))
         : true;
 
       if (!isValid && (!evidenceSelectors || isTargetedByEvidence)) {
@@ -345,7 +346,7 @@ export class TestFileHealer {
           // Cite the triggering finding when evidence-backed mode is active.
           const triggeringFindingId =
             evidenceSelectors && findings
-              ? findTriggeringFindingId(candidate.selector, findings)
+              ? findTriggeringFindingId(candidate.selector, evidenceSelectors)
               : undefined;
 
           proposals.push({
@@ -583,6 +584,18 @@ export interface HealingProposalVerification {
  * Matches CSS selectors, data-testid attributes, and XPath fragments that appear
  * in orchestrator finding evidence arrays.
  */
+function selectorAliases(selector: string): string[] {
+  const aliases = new Set<string>([selector]);
+
+  const testIdAttribute = selector.match(/^\[data-testid=(?:"([^"]+)"|'([^']+)')\]$/);
+  const testId = testIdAttribute?.[1] ?? testIdAttribute?.[2];
+  if (testId) {
+    aliases.add(testId);
+  }
+
+  return [...aliases];
+}
+
 function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, string> {
   const selectorToFindingId = new Map<string, string>();
 
@@ -604,8 +617,10 @@ function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, s
         // biome-ignore lint:suspicious/noAssignInExpressions: exec() requires assignment-in-condition loop pattern
         while ((match = pattern.exec(evidenceLine)) !== null) {
           const selector = match[1] ?? match[0];
-          if (!selectorToFindingId.has(selector)) {
-            selectorToFindingId.set(selector, finding.id);
+          for (const alias of selectorAliases(selector)) {
+            if (!selectorToFindingId.has(alias)) {
+              selectorToFindingId.set(alias, finding.id);
+            }
           }
         }
       }
@@ -618,12 +633,14 @@ function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, s
 /**
  * Find the first finding ID that references a given selector in its evidence.
  */
-function findTriggeringFindingId(selector: string, findings: HealingFinding[]): string | undefined {
-  for (const finding of findings) {
-    for (const evidenceLine of finding.evidence) {
-      if (evidenceLine.includes(selector)) {
-        return finding.id;
-      }
+function findTriggeringFindingId(
+  selector: string,
+  selectorToFindingId: Map<string, string>,
+): string | undefined {
+  for (const alias of selectorAliases(selector)) {
+    const findingId = selectorToFindingId.get(alias);
+    if (findingId) {
+      return findingId;
     }
   }
   return undefined;

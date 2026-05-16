@@ -457,6 +457,57 @@ test("CLI heal command accepts findings input and writes triggering finding prov
   }
 });
 
+test("CLI heal command accepts test JSON envelopes as findings input", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const testFile = path.join(dir, "sample.test.ts");
+  const findingsFile = path.join(dir, "test-output.json");
+  const proposalFile = path.join(dir, "heal-proposals.json");
+
+  writeFileSync(
+    testFile,
+    "test('login', async () => { await page.getByTestId('old-login-btn').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(
+    findingsFile,
+    JSON.stringify({
+      operationId: "test",
+      result: {
+        findings: [
+          {
+            id: "test-envelope-selector-drift",
+            component: "web",
+            description: "Selector drift detected on login button",
+            evidence: ['selector [data-testid="old-login-btn"] failed during DOM probe'],
+          },
+        ],
+      },
+    }),
+    "utf8",
+  );
+
+  try {
+    const result = runCli([
+      "heal",
+      "--dir",
+      dir,
+      "--dry-run",
+      "--findings-input",
+      findingsFile,
+      "--proposal-output",
+      proposalFile,
+    ]);
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const artifact = JSON.parse(readFileSync(proposalFile, "utf8"));
+    assert.equal(artifact.proposals.length, 1);
+    assert.equal(artifact.proposals[0].oldSelector, "old-login-btn");
+    assert.equal(artifact.proposals[0].triggeringFindingId, "test-envelope-selector-drift");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI heal command fails closed when findings input is missing", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
   try {
@@ -491,7 +542,7 @@ test("CLI heal command fails closed when findings input is malformed JSON", () =
   }
 });
 
-test("CLI heal command fails closed when findings input is not an array", () => {
+test("CLI heal command fails closed when findings input has no accepted findings shape", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
   const findingsFile = path.join(dir, "findings.json");
   writeFileSync(findingsFile, JSON.stringify({ id: "not-an-array" }), "utf8");

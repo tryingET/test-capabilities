@@ -36,6 +36,34 @@ const HealingFindingSchema = z
 
 const HealingFindingsInputSchema = z.array(HealingFindingSchema);
 
+const HealingFindingsObjectSchema = z
+  .object({ findings: HealingFindingsInputSchema })
+  .passthrough();
+const HealingFindingsTestEnvelopeSchema = z
+  .object({ result: z.object({ findings: HealingFindingsInputSchema }).passthrough() })
+  .passthrough();
+
+function normalizeHealingFindingsInput(parsed: unknown): HealingFinding[] {
+  const arrayResult = HealingFindingsInputSchema.safeParse(parsed);
+  if (arrayResult.success) {
+    return arrayResult.data;
+  }
+
+  const objectResult = HealingFindingsObjectSchema.safeParse(parsed);
+  if (objectResult.success) {
+    return objectResult.data.findings;
+  }
+
+  const testEnvelopeResult = HealingFindingsTestEnvelopeSchema.safeParse(parsed);
+  if (testEnvelopeResult.success) {
+    return testEnvelopeResult.data.result.findings;
+  }
+
+  throw new Error(
+    `findings-input must be a JSON array of finding objects, an object with findings[], or a test --json envelope with result.findings[]; each finding needs string id, component, description, and evidence string[]: ${arrayResult.error.message}`,
+  );
+}
+
 type NormalizedHealOperationInput = z.output<typeof HealOperationInputSchema>;
 
 interface HealMutationPosture {
@@ -192,13 +220,7 @@ async function runHealOperation(
       throw new Error(`findings-input must be valid JSON: ${detail}`);
     }
 
-    const result = HealingFindingsInputSchema.safeParse(parsed);
-    if (!result.success) {
-      throw new Error(
-        `findings-input must be a JSON array of finding objects with string id, component, description, and evidence string[]: ${result.error.message}`,
-      );
-    }
-    findings = result.data;
+    findings = normalizeHealingFindingsInput(parsed);
   }
 
   const healer = new TestFileHealer();

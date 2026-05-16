@@ -153,6 +153,7 @@ interface HealingProposal {
   confidence: number;
   strategy: string;
   requiresReview: boolean;
+  triggeringFindingId?: string;
 }
 ```
 
@@ -256,3 +257,5 @@ test-capabilities heal --dir ./tests --dry-run \
 # Apply proposals only after an external checkpoint exists
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```
+
+`--findings-input` accepts a bare findings array, an object with `findings`, or full `test --json` output with `result.findings`. The findings are caller-supplied diagnostic evidence, not causal authority; malformed inputs fail closed, and equivalent selector spellings such as `getByTestId('old-login')` and `[data-testid="old-login"]` are normalized only for deterministic matching.

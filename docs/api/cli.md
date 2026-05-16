@@ -232,8 +232,8 @@ test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabiliti
 Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
 The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
 Proposal and verification artifacts are dry-run only: requesting `--proposal-output` or `--verification-output` without `--dry-run` fails closed instead of writing misleading mutation artifacts.
-`--findings-input` is caller-supplied diagnostic evidence, not causal authority: it must be a bounded JSON array of finding objects with string `id`, `component`, `description`, and `evidence` fields, and malformed input fails closed before scanning or writing artifacts.
-When findings are provided, healing only proposes selector repairs for selectors cited by finding evidence and adds `triggeringFindingId`; without findings, healing uses the heuristic file scan without provenance claims.
+`--findings-input` is caller-supplied diagnostic evidence, not causal authority: it must be either a bounded JSON array of finding objects, an object with `findings`, or a `test --json` envelope with `result.findings`; each finding needs string `id`, `component`, `description`, and `evidence` fields, and malformed input fails closed before scanning or writing artifacts.
+When findings are provided, healing only proposes selector repairs for selectors cited by finding evidence and adds `triggeringFindingId`; equivalent selector spellings such as `getByTestId('old-login')` and `[data-testid="old-login"]` are normalized for matching without turning evidence into causal proof. Without findings, healing uses the heuristic file scan without provenance claims.
 When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind.
 The checkpoint ref must come from an external checkpoint/restore authority; this command records the identity but does not create checkpoints or perform rollback.
 
