@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "capability_passport_projection",
   "repo_name": "test-capabilities",
-  "package_version": "0.2.0",
+  "package_version": "0.3.0",
   "projection_note": "Informational capability projection for this repo. Useful now, but not authoritative task or product state. Candidate future AK model.",
   "support_state_vocabulary": ["supported", "unsupported", "parked", "library_only"],
   "verification_state_vocabulary": ["verified", "contract_only", "present_only", "unverified"],

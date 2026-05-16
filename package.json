@@ -1,8 +1,8 @@
 {
   "name": "test-capabilities",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fail-closed testing capability framework with CLI, browser, property, healing, and diagnostic root-cause surfaces",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tryingET/test-capabilities.git"

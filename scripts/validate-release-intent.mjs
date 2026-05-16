@@ -11,11 +11,7 @@ const expectedTag = `v${pkg.version}`;
 
 assert.equal(pkg.name, "test-capabilities", "package name must remain test-capabilities");
 assert.notEqual(pkg.private, true, "package must not be private for public release");
-assert.equal(
-  pkg.license,
-  "SEE LICENSE IN LICENSE",
-  "license metadata must match repo LICENSE pattern",
-);
+assert.equal(pkg.license, "MIT", "license metadata must match the public MIT license pattern");
 assert.ok(existsSync(path.join(repoRoot, "LICENSE")), "LICENSE file is required");
 assert.equal(pkg.repository?.url, "git+https://github.com/tryingET/test-capabilities.git");
 assert.equal(pkg.publishConfig?.access, "public");
