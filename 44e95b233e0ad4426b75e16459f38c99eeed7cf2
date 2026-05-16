@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "44e95b233e0ad4426b75e16459f38c99eeed7cf2"
-created_at: "2026-05-16T19:52:33Z"
+created_at: "2026-05-16T19:53:16Z"
 intent: "Heal apply from proposal artifact input with symlink rejection, root-constrained targets, atomic writes, and size guards"
 files:
   - "src/core/operations/heal-operation.ts"
@@ -19,7 +19,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm test"
-    status: "pending"
+    status: "pass"
 group:
   index: 1
   total: 2
