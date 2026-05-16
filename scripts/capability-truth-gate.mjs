@@ -971,19 +971,24 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
     "package.json should expose the root-cause corpus dogfood command",
   );
   assert.match(
+    packageJson.scripts?.["truth:gate"] ?? "",
+    /capability-truth-gate\.mjs/,
+    "truth:gate should run the capability truth gate that executes diagnostic corpora",
+  );
+  assert.match(
     packageJson.scripts?.["release:check"] ?? "",
-    /root-cause:corpus/,
-    "release:check should run the root-cause corpus dogfood lane explicitly",
+    /truth:gate/,
+    "release:check should include diagnostic corpora through truth:gate instead of duplicating them",
   );
   assert.match(
     packageJson.scripts?.["runtime-diagnostic:corpus"] ?? "",
     /runtime-diagnostic-corpus\.mjs/,
     "package.json should expose the runtime diagnostic corpus dogfood command",
   );
-  assert.match(
+  assert.doesNotMatch(
     packageJson.scripts?.["release:check"] ?? "",
-    /runtime-diagnostic:corpus/,
-    "release:check should run the runtime diagnostic corpus dogfood lane explicitly",
+    /root-cause:corpus|runtime-diagnostic:corpus/,
+    "release:check should not duplicate diagnostic corpora already executed by truth:gate",
   );
   assert.match(
     packageJson.scripts?.["consumer:smoke"] ?? "",
