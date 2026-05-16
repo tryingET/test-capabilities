@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "44e95b233e0ad4426b75e16459f38c99eeed7cf2"
+created_at: "2026-05-16T19:52:33Z"
+intent: "Heal apply from proposal artifact input with symlink rejection, root-constrained targets, atomic writes, and size guards"
+files:
+  - "src/core/operations/heal-operation.ts"
+  - "src/core/operations/types.ts"
+  - "src/healing/collect-files-core.ts"
+  - "src/healing/self-healing.ts"
+  - "tests/collect_files_contract.test.mjs"
+  - "tests/healing_contract.test.mjs"
+  - "tests/operation_kernel_contract.test.mjs"
+validation:
+  fast_gate:
+    command: "npm run build --silent"
+    status: "pass"
+  full_gate:
+    command: "npm test"
+    status: "pending"
+group:
+  index: 1
+  total: 2
+  rationale: "Implementation+tests first, docs/CLI surface second"
