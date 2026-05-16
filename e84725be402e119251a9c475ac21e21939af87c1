@@ -1,0 +1,23 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "e84725be402e119251a9c475ac21e21939af87c1"
+created_at: "2026-05-16T14:46:44Z"
+intent: "Prepare test-capabilities v0.2.0 release metadata and release notes"
+files:
+  - "package.json"
+  - "package-lock.json"
+  - "governance/capability-passport.json"
+  - "docs/releases/2026-05-16-v0.2.0-github-release.md"
+validation:
+  fast_gate:
+    command: "npm run release:check && npm run docs:list -- --docs . --strict && RELEASE_TAG=v0.2.0 npm run release:intent:check"
+    status: "pass"
+  full_gate:
+    command: "npm run release:check && npm run docs:list -- --docs . --strict && RELEASE_TAG=v0.2.0 npm run release:intent:check"
+    status: "pass"
+group:
+  index: 2
+  total: 2
+  rationale: "Release version bump after implementation commit"
