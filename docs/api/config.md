@@ -156,7 +156,7 @@ Terminal-fuzzer-specific fields under `agents.<name>.terminal`:
 | `command` | string | Optional command to pass after `bombadil terminal test --`; defaults to `targets.cli` |
 | `args` / `command_args` | string[] | Optional command arguments passed after the command |
 
-The Bombadil 0.5 disabled-control skipping, quiescence timers, and dialog auto-accept behavior are runtime capabilities of the Bombadil binary itself; test-capabilities does not emulate or claim them unless the resolved Bombadil binary provides them. The experimental Bombadil terminal fuzzer is a bounded `terminal-fuzzer` agent that emits `observation.v1` runtime evidence; it is not a production stability or autonomy claim.
+The Bombadil 0.5 disabled-control skipping, quiescence timers, and dialog auto-accept behavior are runtime capabilities of the Bombadil binary itself; test-capabilities does not emulate or claim them unless the resolved Bombadil binary provides them. The experimental Bombadil terminal fuzzer is a bounded `terminal-fuzzer` agent that emits `observation.v1` runtime evidence for the resolved terminal command; it is not a production stability or autonomy claim.
 
 If an enabled agent uses `api-fuzzer`, runtime validation fails clearly.
 If an enabled agent uses `surf`, runtime validation requires `targets.web` and a resolvable Surf Go runtime: `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to PATH.

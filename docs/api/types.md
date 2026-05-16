@@ -218,7 +218,7 @@ Runtime capability note:
 - `surf` requires `targets.web` plus a resolvable Surf Go runtime (`TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`)
 - `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`
 - Bombadil 0.5 runtime options are exposed through `bombadil`: request `headers`, `outputPath`, `reproduceTrace`, viewport/instrumentation/permission knobs, and `test-external` debugger settings.
-- Experimental Bombadil terminal fuzzing is exposed through the `terminal-fuzzer` agent and `terminal` options; it runs `bombadil terminal test -- <command> [args...]` and emits bounded `observation.v1` runtime evidence without production-autonomy claims.
+- Experimental Bombadil terminal fuzzing is exposed through the `terminal-fuzzer` agent and `terminal` options; it runs `bombadil terminal test -- <command> [args...]` and emits bounded `observation.v1` runtime evidence whose subject is the resolved terminal command, without production-autonomy claims.
 
 ### `IntelligenceConfig`
 
@@ -411,7 +411,7 @@ Runtime note:
 - observations are diagnostic sensor events, not pass/fail authority
 - `observations` is optional in the public type for compatibility with historical `TestResult` objects; orchestrator runs populate it
 - findings still drive blocking severity and correlation; observations explain what each supported sensor actually measured
-- known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, and CLI smoke execution
+- known orchestrator agents emit observations for Surf coverage, Bombadil property exploration, terminal-fuzzer runtime execution, and CLI smoke execution
 - when `intelligence.correlation` is not `false`, the orchestrator can add non-authoritative synthesis/correlation observations that summarize component and suite-level sensor meaning without changing pass/fail semantics
 - when same-component evidence has at least two independent failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, the orchestrator can also emit `root_cause` observations with deterministic calibration metadata; derived observations do not count separately from their source findings, and the result identifies an evidence-bounded current failure class, not a forecast or probability claim
 - root-cause failure classes are emitted as `semantics.failureClass` and retained in evidence as `failureClass:<class>` for backward-compatible text inspection; the class vocabulary is exposed as the typed `RootCauseFailureClass` plus runtime `ROOT_CAUSE_FAILURE_CLASSES`; the current bounded vocabulary includes `auth_or_permission`, `browser_coverage_gap`, `command_resolution`, `component_failure_surface`, `configuration_error`, `contract_mismatch`, `network_connectivity`, `property_violation`, `resource_exhaustion`, `selector_or_dom_drift`, and `timeout_or_latency`; finding recommendations are not treated as classifying evidence; precedence is evidence-scoped so API contract evidence wins over incidental auth/network/timeout-like wording, CLI executable-resolution evidence wins over config-like executable names, and real config-file/value evidence remains `configuration_error`

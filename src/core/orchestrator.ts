@@ -1016,6 +1016,7 @@ interface AgentResult {
   findings: Finding[];
   coverage: Partial<CoverageReport>;
   observations?: Observation[];
+  observationSubject?: string;
 }
 
 interface TestAgent {
@@ -1776,7 +1777,7 @@ function normalizeKnownAgentResult(
           agent: agentName,
           kind: "runtime",
           status,
-          subject: targets.cli ?? "targets.cli",
+          subject: result.observationSubject ?? targets.cli ?? "targets.cli",
           summary: failed
             ? "Bombadil terminal fuzzer surfaced a blocking runtime or terminal finding."
             : "Bounded Bombadil terminal fuzzer completed without a surfaced violation.",
@@ -2025,6 +2026,7 @@ class TerminalFuzzerAgent implements TestAgent {
       return {
         findings: [],
         coverage: { edgeCases: 100 },
+        observationSubject: command,
       };
     }
 
@@ -2058,6 +2060,7 @@ class TerminalFuzzerAgent implements TestAgent {
         },
       ],
       coverage: { edgeCases: 0 },
+      observationSubject: command,
     };
   }
 }
