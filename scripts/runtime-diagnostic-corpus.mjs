@@ -192,7 +192,7 @@ try {
     {
       name: "Real same-component mixed CLI evidence suppresses root_cause",
       expected: { rootCauseCount: 0 },
-      config: baseConfig("runtime-mixed-cli", cliTargetFor(mixedFixture), cliAgents(2, "25ms")),
+      config: baseConfig("runtime-mixed-cli", cliTargetFor(mixedFixture), cliAgents(2, "200ms")),
       assert: ({ roots }) => assert.equal(roots.length, 0),
     },
     {

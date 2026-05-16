@@ -909,6 +909,16 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
     "release:check should run the root-cause corpus dogfood lane explicitly",
   );
   assert.match(
+    packageJson.scripts?.["runtime-diagnostic:corpus"] ?? "",
+    /runtime-diagnostic-corpus\.mjs/,
+    "package.json should expose the runtime diagnostic corpus dogfood command",
+  );
+  assert.match(
+    packageJson.scripts?.["release:check"] ?? "",
+    /runtime-diagnostic:corpus/,
+    "release:check should run the runtime diagnostic corpus dogfood lane explicitly",
+  );
+  assert.match(
     packageJson.scripts?.["consumer:smoke"] ?? "",
     /consumer_contract_smoke\.mjs/,
     "package.json should expose the packed-consumer smoke",
@@ -927,7 +937,9 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
   assert.match(consumerSmoke, /packed-propagation-invariant/);
   assert.match(consumerSmoke, /kind === "propagation"/);
   assert.match(readme, /root-cause:corpus/);
+  assert.match(readme, /runtime-diagnostic:corpus/);
   assert.match(productPosture, /root-cause:corpus/);
+  assert.match(productPosture, /runtime-diagnostic:corpus/);
 
   const observationProtocol = passport.capabilities.find(
     (capability) => capability.id === "protocol:observation-v1",
@@ -939,9 +951,21 @@ function assertRootCauseCorpusDogfood(packageJson, readme, productPosture, passp
     "observation protocol passport evidence should include the root-cause corpus contract test",
   );
   assert.equal(
+    observationProtocol.evidence?.tests?.includes(
+      "tests/runtime_diagnostic_corpus_contract.test.mjs",
+    ),
+    true,
+    "observation protocol passport evidence should include the runtime diagnostic corpus contract test",
+  );
+  assert.equal(
     observationProtocol.evidence?.commands?.includes("npm run root-cause:corpus"),
     true,
     "observation protocol passport evidence should include npm run root-cause:corpus",
+  );
+  assert.equal(
+    observationProtocol.evidence?.commands?.includes("npm run runtime-diagnostic:corpus"),
+    true,
+    "observation protocol passport evidence should include npm run runtime-diagnostic:corpus",
   );
   assert.equal(
     observationProtocol.evidence?.commands?.includes("npm run consumer:smoke"),
