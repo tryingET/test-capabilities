@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { collectFiles } = await importRuntimeModule("healing/collect-files-core.js");
+const { MAX_HEAL_SOURCE_FILE_BYTES, collectFiles } = await importRuntimeModule(
+  "healing/collect-files-core.js",
+);
 
 test("collectFiles fails closed when the target directory is missing", () => {
   assert.throws(
@@ -21,6 +23,48 @@ test("collectFiles fails closed when the target path is not a directory", () => 
 
   try {
     assert.throws(() => collectFiles(filePath), /Heal directory is not a directory:/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectFiles rejects a symlink scan root", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-collect-files-root-"));
+  const linkPath = `${dir}-link`;
+
+  try {
+    symlinkSync(dir, linkPath, "dir");
+    assert.throws(() => collectFiles(linkPath), /Heal directory must not be a symlink:/);
+  } finally {
+    rmSync(linkPath, { force: true });
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectFiles rejects symlink entries instead of silently scanning escaped paths", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-collect-files-symlink-"));
+  const outsideDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-collect-files-outside-"),
+  );
+  const linkPath = path.join(dir, "linked-tests");
+  writeFileSync(path.join(outsideDir, "escaped.test.ts"), "export const escaped = true;\n", "utf8");
+
+  try {
+    symlinkSync(outsideDir, linkPath, "dir");
+    assert.throws(() => collectFiles(dir), /Heal path must not be a symlink:/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test("collectFiles rejects oversized source candidates before healing reads them", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-collect-files-large-"));
+  const filePath = path.join(dir, "huge.test.ts");
+  writeFileSync(filePath, `${"x".repeat(MAX_HEAL_SOURCE_FILE_BYTES + 1)}\n`, "utf8");
+
+  try {
+    assert.throws(() => collectFiles(dir), /Heal source file exceeds maximum size/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

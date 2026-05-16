@@ -19,11 +19,121 @@ export const HealOperationInputSchema = z.object({
   dryRun: z.boolean().optional().default(false),
   proposalOutput: z.string().min(1).optional(),
   verificationOutput: z.string().min(1).optional(),
+  proposalInput: z.string().min(1).optional(),
   checkpointRef: z.string().min(1).optional(),
   findingsInput: z.string().min(1).optional(),
 });
 
 const MAX_FINDINGS_INPUT_BYTES = 5 * 1024 * 1024;
+const MAX_PROPOSAL_INPUT_BYTES = 5 * 1024 * 1024;
+
+function errorCode(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+}
+
+async function assertSafeInputFile(
+  filePath: string,
+  label: string,
+  maxBytes: number,
+): Promise<number> {
+  let stat: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    stat = await fs.lstat(filePath);
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      throw new Error(`ENOENT: ${label} not found: ${filePath}`);
+    }
+    throw error;
+  }
+
+  if (stat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symlink: ${filePath}`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${label} must be a regular file: ${filePath}`);
+  }
+  if (stat.size > maxBytes) {
+    throw new Error(`${label} exceeds maximum size of ${maxBytes} bytes: ${filePath}`);
+  }
+
+  return stat.size;
+}
+
+async function assertNoExistingSymlinkPathComponents(
+  directoryPath: string,
+  label: string,
+): Promise<void> {
+  const resolvedDirectoryPath = path.resolve(directoryPath);
+  const { root } = path.parse(resolvedDirectoryPath);
+  const relativeParts = path.relative(root, resolvedDirectoryPath).split(path.sep).filter(Boolean);
+  let currentPath = root;
+
+  for (const part of relativeParts) {
+    currentPath = path.join(currentPath, part);
+    let stat: Awaited<ReturnType<typeof fs.lstat>>;
+    try {
+      stat = await fs.lstat(currentPath);
+    } catch (error) {
+      if (errorCode(error) === "ENOENT") {
+        return;
+      }
+      throw error;
+    }
+    if (stat.isSymbolicLink()) {
+      throw new Error(`${label} directory component must not be a symlink: ${currentPath}`);
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`${label} directory component is not a directory: ${currentPath}`);
+    }
+  }
+}
+
+async function assertSafeArtifactOutputPath(artifactPath: string): Promise<void> {
+  try {
+    const stat = await fs.lstat(artifactPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Healing artifact output must not be a symlink: ${artifactPath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`Healing artifact output path is not a regular file: ${artifactPath}`);
+    }
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function writeJsonArtifactAtomically(artifactPath: string, artifact: unknown): Promise<void> {
+  const artifactDirectory = path.dirname(artifactPath);
+  await assertNoExistingSymlinkPathComponents(artifactDirectory, "Healing artifact output");
+  await fs.mkdir(artifactDirectory, { recursive: true });
+  await assertNoExistingSymlinkPathComponents(artifactDirectory, "Healing artifact output");
+  await assertSafeArtifactOutputPath(artifactPath);
+
+  const tempPath = path.join(
+    artifactDirectory,
+    `.${path.basename(artifactPath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+
+  let tempCreated = false;
+  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+  try {
+    handle = await fs.open(tempPath, "wx");
+    tempCreated = true;
+    await handle.writeFile(`${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+    await handle.close();
+    handle = undefined;
+    await fs.rename(tempPath, artifactPath);
+  } catch (error) {
+    await handle?.close().catch(() => undefined);
+    if (tempCreated) {
+      await fs.rm(tempPath, { force: true }).catch(() => undefined);
+    }
+    throw error;
+  }
+}
 
 const HealingFindingSchema = z
   .object({
@@ -31,6 +141,27 @@ const HealingFindingSchema = z
     component: z.string().min(1),
     description: z.string().min(1),
     evidence: z.array(z.string()).min(1),
+  })
+  .passthrough();
+
+const HealingProposalSchema = z.object({
+  file: z.string().min(1),
+  line: z.number().int().positive(),
+  column: z.number().int().positive().optional(),
+  oldSelector: z.string().min(1),
+  newSelector: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  strategy: z.string().min(1),
+  requiresReview: z.boolean(),
+  triggeringFindingId: z.string().min(1).optional(),
+});
+
+const HealProposalArtifactInputSchema = z
+  .object({
+    schema_version: z.literal(1),
+    artifact_kind: z.literal("test-capabilities.heal.proposal"),
+    operation_id: z.literal("heal"),
+    proposals: z.array(HealingProposalSchema),
   })
   .passthrough();
 
@@ -54,6 +185,83 @@ function hasAmbiguousFindingsShapes(parsed: unknown): boolean {
     parsed.result !== null &&
     "findings" in parsed.result
   );
+}
+
+function isPathInsideRoot(candidateRealPath: string, rootRealPath: string): boolean {
+  const relative = path.relative(rootRealPath, candidateRealPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+async function assertSafeHealRoot(rootDir: string): Promise<string> {
+  const stat = await fs.lstat(rootDir);
+  if (stat.isSymbolicLink()) {
+    throw new Error(`Healing proposal apply directory must not be a symlink: ${rootDir}`);
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`Healing proposal apply directory must be a directory: ${rootDir}`);
+  }
+  return fs.realpath(rootDir);
+}
+
+async function constrainProposalTargetsToHealRoot(
+  proposals: HealingProposal[],
+  rootDir: string,
+): Promise<HealingProposal[]> {
+  const rootRealPath = await assertSafeHealRoot(rootDir);
+
+  return Promise.all(
+    proposals.map(async (proposal) => {
+      if (!path.isAbsolute(proposal.file)) {
+        throw new Error(
+          `proposal-input target file must be absolute to avoid cwd-dependent apply behavior: ${proposal.file}`,
+        );
+      }
+      const resolvedFile = path.resolve(proposal.file);
+      let stat: Awaited<ReturnType<typeof fs.lstat>>;
+      try {
+        stat = await fs.lstat(resolvedFile);
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") {
+          throw new Error(`proposal-input target file not found: ${resolvedFile}`);
+        }
+        throw error;
+      }
+
+      if (stat.isSymbolicLink()) {
+        throw new Error(`proposal-input target file must not be a symlink: ${resolvedFile}`);
+      }
+      if (!stat.isFile()) {
+        throw new Error(`proposal-input target must be a regular file: ${resolvedFile}`);
+      }
+
+      const targetRealPath = await fs.realpath(resolvedFile);
+      if (!isPathInsideRoot(targetRealPath, rootRealPath)) {
+        throw new Error(
+          `proposal-input target resolved outside heal directory: ${resolvedFile}. Use --dir to set the intended mutation boundary.`,
+        );
+      }
+
+      return { ...proposal, file: resolvedFile };
+    }),
+  );
+}
+
+function normalizeHealProposalArtifactInput(parsed: unknown): HealingProposal[] {
+  const result = HealProposalArtifactInputSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error(
+      `proposal-input must be a test-capabilities.heal.proposal schema v1 artifact: ${result.error.message}`,
+    );
+  }
+
+  const reviewRequired = result.data.proposals.filter((proposal) => proposal.requiresReview);
+  if (reviewRequired.length > 0) {
+    throw new Error(
+      `proposal-input contains ${reviewRequired.length} proposal(s) that require review and cannot be applied automatically.`,
+    );
+  }
+
+  return result.data.proposals;
 }
 
 function normalizeHealingFindingsInput(parsed: unknown): HealingFinding[] {
@@ -141,7 +349,6 @@ async function writeProposalArtifact(
   proposals: HealingProposal[],
 ): Promise<HealOperationResultEnvelope["proposalArtifact"]> {
   const artifactPath = path.resolve(outputPath);
-  await fs.mkdir(path.dirname(artifactPath), { recursive: true });
 
   const artifact: HealProposalArtifact = {
     schema_version: 1,
@@ -158,7 +365,7 @@ async function writeProposalArtifact(
     proposals,
   };
 
-  await fs.writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+  await writeJsonArtifactAtomically(artifactPath, artifact);
 
   return {
     path: artifactPath,
@@ -174,7 +381,6 @@ async function writeVerificationArtifact(
   proposalArtifact: HealOperationResultEnvelope["proposalArtifact"],
 ): Promise<HealOperationResultEnvelope["verificationArtifact"]> {
   const artifactPath = path.resolve(outputPath);
-  await fs.mkdir(path.dirname(artifactPath), { recursive: true });
 
   const artifact: HealVerificationArtifact = {
     schema_version: 1,
@@ -197,7 +403,7 @@ async function writeVerificationArtifact(
     },
   };
 
-  await fs.writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
+  await writeJsonArtifactAtomically(artifactPath, artifact);
 
   return {
     path: artifactPath,
@@ -205,6 +411,26 @@ async function writeVerificationArtifact(
     status: verification.status,
     proposalCount: verification.proposalCount,
   };
+}
+
+async function readJsonInputFile(
+  filePath: string,
+  label: string,
+  maxBytes: number,
+): Promise<unknown> {
+  await assertSafeInputFile(filePath, label, maxBytes);
+
+  const raw = await fs.readFile(filePath, "utf-8");
+  if (Buffer.byteLength(raw, "utf-8") > maxBytes) {
+    throw new Error(`${label} exceeds maximum size of ${maxBytes} bytes after read: ${filePath}`);
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} must be valid JSON: ${detail}`);
+  }
 }
 
 async function runHealOperation(
@@ -215,46 +441,50 @@ async function runHealOperation(
       "Healing proposal and verification artifacts are only supported with --dry-run.",
     );
   }
-
-  // Load diagnostic findings when evidence-backed mode is requested.
-  let findings: HealingFinding[] | undefined;
-  if (normalized.findingsInput) {
-    const findingsPath = path.resolve(normalized.findingsInput);
-    const stat = await fs.stat(findingsPath);
-    if (!stat.isFile()) {
-      throw new Error(`findings-input must be a file: ${findingsPath}`);
-    }
-    if (stat.size > MAX_FINDINGS_INPUT_BYTES) {
-      throw new Error(
-        `findings-input exceeds maximum size of ${MAX_FINDINGS_INPUT_BYTES} bytes: ${findingsPath}`,
-      );
-    }
-
-    const raw = await fs.readFile(findingsPath, "utf-8");
-    if (Buffer.byteLength(raw, "utf-8") > MAX_FINDINGS_INPUT_BYTES) {
-      throw new Error(
-        `findings-input exceeds maximum size of ${MAX_FINDINGS_INPUT_BYTES} bytes after read: ${findingsPath}`,
-      );
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new Error(`findings-input must be valid JSON: ${detail}`);
-    }
-
-    findings = normalizeHealingFindingsInput(parsed);
+  if (normalized.proposalInput && normalized.dryRun) {
+    throw new Error(
+      "Healing --proposal-input applies reviewed proposals and cannot be combined with --dry-run.",
+    );
+  }
+  if (normalized.proposalInput && !normalized.checkpointRef) {
+    throw new Error(
+      "Healing apply from --proposal-input requires --checkpoint-ref from an external checkpoint/restore authority.",
+    );
+  }
+  if (normalized.proposalInput && normalized.findingsInput) {
+    throw new Error(
+      "Healing --proposal-input cannot be combined with --findings-input; proposal artifacts already contain the proposals to apply.",
+    );
   }
 
-  const healer = new TestFileHealer();
-  const files = collectFiles(path.resolve(normalized.dir));
-  const proposals: HealingProposal[] = [];
+  const healer = new TestFileHealer({ rootDir: path.resolve(normalized.dir) });
+  let files: string[] = [];
+  let proposals: HealingProposal[] = [];
 
-  for (const file of files) {
-    const fileProposals = await healer.analyzeFile(file, findings);
-    proposals.push(...fileProposals);
+  if (normalized.proposalInput) {
+    const proposalInputPath = path.resolve(normalized.proposalInput);
+    proposals = await constrainProposalTargetsToHealRoot(
+      normalizeHealProposalArtifactInput(
+        await readJsonInputFile(proposalInputPath, "proposal-input", MAX_PROPOSAL_INPUT_BYTES),
+      ),
+      path.resolve(normalized.dir),
+    );
+  } else {
+    // Load diagnostic findings when evidence-backed mode is requested.
+    let findings: HealingFinding[] | undefined;
+    if (normalized.findingsInput) {
+      const findingsPath = path.resolve(normalized.findingsInput);
+      findings = normalizeHealingFindingsInput(
+        await readJsonInputFile(findingsPath, "findings-input", MAX_FINDINGS_INPUT_BYTES),
+      );
+    }
+
+    files = collectFiles(path.resolve(normalized.dir));
+
+    for (const file of files) {
+      const fileProposals = await healer.analyzeFile(file, findings);
+      proposals.push(...fileProposals);
+    }
   }
 
   if (!normalized.dryRun && proposals.length > 0 && !normalized.checkpointRef) {

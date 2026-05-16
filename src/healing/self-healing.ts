@@ -3,6 +3,16 @@
  * Tests that fix themselves when things change
  */
 
+import { lstatSync, realpathSync, type Stats } from "node:fs";
+import path from "node:path";
+
+const MAX_HEAL_SOURCE_FILE_BYTES = 5 * 1024 * 1024;
+
+function isPathInsideRoot(candidateRealPath: string, rootRealPath: string): boolean {
+  const relative = path.relative(rootRealPath, candidateRealPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 // ============================================
 // TYPES
 // ============================================
@@ -313,9 +323,33 @@ export class SelfHealingEngine {
 
 export class TestFileHealer {
   private engine: SelfHealingEngine;
+  private readonly rootRealPath?: string;
 
-  constructor() {
+  constructor(options: { rootDir?: string } = {}) {
     this.engine = new SelfHealingEngine();
+    if (options.rootDir) {
+      const rootPath = path.resolve(options.rootDir);
+      let rootStat: Stats;
+      try {
+        rootStat = lstatSync(rootPath);
+      } catch (error) {
+        const code =
+          typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+        if (code === "ENOENT") {
+          throw new Error(
+            `Heal directory not found: ${rootPath}. Use --dir with an existing directory.`,
+          );
+        }
+        throw error;
+      }
+      if (rootStat.isSymbolicLink()) {
+        throw new Error(`Healing root must not be a symlink: ${rootPath}`);
+      }
+      if (!rootStat.isDirectory()) {
+        throw new Error(`Healing root must be a directory: ${rootPath}`);
+      }
+      this.rootRealPath = realpathSync(rootPath);
+    }
   }
 
   async analyzeFile(filePath: string, findings?: HealingFinding[]): Promise<HealingProposal[]> {
@@ -499,14 +533,68 @@ export class TestFileHealer {
     return hasTrailingNewline ? `${updated}${lineEnding}` : updated;
   }
 
-  private async readFile(path: string): Promise<string> {
+  private async assertSafeHealingFile(filePath: string): Promise<Stats> {
     const fs = await import("node:fs/promises");
-    return fs.readFile(path, "utf-8");
+    const stat = await fs.lstat(filePath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Healing file must not be a symlink: ${filePath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`Healing path is not a regular file: ${filePath}`);
+    }
+    if (stat.size > MAX_HEAL_SOURCE_FILE_BYTES) {
+      throw new Error(
+        `Healing file exceeds maximum size of ${MAX_HEAL_SOURCE_FILE_BYTES} bytes: ${filePath}`,
+      );
+    }
+    if (this.rootRealPath) {
+      const realPath = await fs.realpath(filePath);
+      if (!isPathInsideRoot(realPath, this.rootRealPath)) {
+        throw new Error(`Healing file resolved outside root: ${filePath}`);
+      }
+    }
+    return stat;
   }
 
-  private async writeFile(path: string, content: string): Promise<void> {
+  private async readFile(filePath: string): Promise<string> {
     const fs = await import("node:fs/promises");
-    await fs.writeFile(path, content, "utf-8");
+    await this.assertSafeHealingFile(filePath);
+    return fs.readFile(filePath, "utf-8");
+  }
+
+  private async writeFile(filePath: string, content: string): Promise<void> {
+    const fs = await import("node:fs/promises");
+    const originalStat = await this.assertSafeHealingFile(filePath);
+
+    const parentDir = path.dirname(filePath);
+    if (this.rootRealPath) {
+      const parentRealPath = await fs.realpath(parentDir);
+      if (!isPathInsideRoot(parentRealPath, this.rootRealPath)) {
+        throw new Error(`Healing file parent resolved outside root: ${parentDir}`);
+      }
+    }
+
+    const tempPath = path.join(
+      parentDir,
+      `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
+    );
+
+    let tempCreated = false;
+    let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+    try {
+      handle = await fs.open(tempPath, "wx", originalStat.mode & 0o777);
+      tempCreated = true;
+      await handle.writeFile(content, "utf-8");
+      await handle.close();
+      handle = undefined;
+      await fs.rename(tempPath, filePath);
+    } catch (error) {
+      await handle?.close().catch(() => undefined);
+      if (tempCreated) {
+        await fs.rm(tempPath, { force: true }).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   private async validateSelector(selector: string): Promise<boolean> {

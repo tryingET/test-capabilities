@@ -71,6 +71,7 @@ export interface HealOperationInput {
   dryRun?: boolean;
   proposalOutput?: string;
   verificationOutput?: string;
+  proposalInput?: string;
   checkpointRef?: string;
   /**
    * Path to a JSON file containing orchestrator findings (observation.v1 Finding[]).
@@ -251,7 +252,7 @@ export interface HealVerificationArtifactRef {
 export interface HealOperationResultEnvelope {
   operationId: "heal";
   input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
-    Pick<HealOperationInput, "proposalOutput">;
+    Pick<HealOperationInput, "proposalOutput" | "verificationOutput" | "proposalInput">;
   proposals: HealingProposal[];
   appliedCount: number;
   proposalArtifact?: HealProposalArtifactRef;

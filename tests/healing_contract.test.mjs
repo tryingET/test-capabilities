@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -210,6 +218,129 @@ test("TestFileHealer.applyProposal rewrites only the targeted line", async () =>
     const lines = updated.split(/\r?\n/);
     assert.match(lines[0] ?? "", /#old-login/);
     assert.match(lines[2] ?? "", /#new-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer with rootDir rejects files outside the healing root", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-root-"));
+  const outsideDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-root-outside-"));
+  const outsideFile = path.join(outsideDir, "outside.test.ts");
+  const original = "test('outside', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(outsideFile, original, "utf8");
+
+  try {
+    const healer = new TestFileHealer({ rootDir: dir });
+    await assert.rejects(
+      async () =>
+        healer.applyProposal({
+          file: outsideFile,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#new-login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        }),
+      /Healing file resolved outside root:/,
+    );
+    assert.equal(readFileSync(outsideFile, "utf8"), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.applyProposal does not delete a preexisting temp-name collision", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-temp-collision-"));
+  const file = path.join(dir, "sample.test.ts");
+  const originalNow = Date.now;
+  const fixedNow = 123456789;
+  const tempPath = path.join(dir, `.sample.test.ts.${process.pid}.${fixedNow}.tmp`);
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(tempPath, "do-not-delete\n", "utf8");
+
+  try {
+    Date.now = () => fixedNow;
+    const healer = new TestFileHealer();
+    await assert.rejects(
+      async () =>
+        healer.applyProposal({
+          file,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#new-login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        }),
+      /EEXIST|file already exists/i,
+    );
+    assert.equal(readFileSync(tempPath, "utf8"), "do-not-delete\n");
+  } finally {
+    Date.now = originalNow;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.applyProposal preserves target file mode", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-mode-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  chmodSync(file, 0o755);
+
+  try {
+    const healer = new TestFileHealer();
+    await healer.applyProposal({
+      file,
+      line: 1,
+      oldSelector: "#old-login",
+      newSelector: "#new-login",
+      confidence: 0.95,
+      strategy: "manual",
+      requiresReview: false,
+    });
+
+    assert.equal(statSync(file).mode & 0o777, 0o755);
+    assert.match(readFileSync(file, "utf8"), /#new-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.applyProposal rejects symlink files before mutation", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-symlink-"));
+  const realFile = path.join(dir, "real.test.ts");
+  const linkFile = path.join(dir, "linked.test.ts");
+  const original = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(realFile, original, "utf8");
+
+  try {
+    symlinkSync(realFile, linkFile);
+    const healer = new TestFileHealer();
+    await assert.rejects(
+      async () =>
+        healer.applyProposal({
+          file: linkFile,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#new-login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        }),
+      /Healing file must not be a symlink:/,
+    );
+    assert.equal(readFileSync(realFile, "utf8"), original);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -676,6 +677,464 @@ test("executeCliOperation heal writes dry-run proposal and verification artifact
     assert.deepEqual(verificationArtifact.verification.failures, []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal applies proposals from a reviewed proposal artifact", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-input-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "artifacts", "heal-proposals.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    const dryRun = await executeCliOperation(
+      { command: "heal" },
+      { dir, dryRun: true, proposalOutput: artifactPath },
+    );
+    assert.equal(dryRun.appliedCount, 0);
+    assert.equal(dryRun.proposals.length, 1);
+
+    const apply = await executeCliOperation(
+      { command: "heal" },
+      {
+        dir,
+        proposalInput: artifactPath,
+        checkpointRef: "checkpoint/heal-proposal-input-001",
+      },
+    );
+
+    assert.equal(apply.appliedCount, 1);
+    assert.equal(apply.proposals.length, 1);
+    assert.equal(apply.checkpointRef, "checkpoint/heal-proposal-input-001");
+    assert.match(readFileSync(file, "utf8"), /#login/);
+    assert.doesNotMatch(readFileSync(file, "utf8"), /#old-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal rejects unsafe proposal-input combinations and artifacts", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-input-reject-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "heal-proposals.json");
+  const badArtifactPath = path.join(dir, "bad-proposals.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    await executeCliOperation(
+      { command: "heal" },
+      { dir, dryRun: true, proposalOutput: artifactPath },
+    );
+    writeFileSync(
+      badArtifactPath,
+      JSON.stringify({
+        schema_version: 1,
+        artifact_kind: "wrong",
+        operation_id: "heal",
+        proposals: [],
+      }),
+      "utf8",
+    );
+
+    await assert.rejects(
+      async () => executeCliOperation({ command: "heal" }, { dir, proposalInput: artifactPath }),
+      /requires --checkpoint-ref/,
+    );
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, dryRun: true, proposalInput: artifactPath, checkpointRef: "checkpoint/reject" },
+        ),
+      /cannot be combined with --dry-run/,
+    );
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: badArtifactPath, checkpointRef: "checkpoint/reject" },
+        ),
+      /proposal-input must be a test-capabilities\.heal\.proposal schema v1 artifact/,
+    );
+    assert.match(readFileSync(file, "utf8"), /#old-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal rejects relative proposal-input targets", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-relative-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "relative-proposals.json");
+  const original = "test('relative', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(file, original, "utf8");
+  writeFileSync(
+    artifactPath,
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "test-capabilities.heal.proposal",
+      operation_id: "heal",
+      proposals: [
+        {
+          file: "sample.test.ts",
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  try {
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: artifactPath, checkpointRef: "checkpoint/relative" },
+        ),
+      /proposal-input target file must be absolute/,
+    );
+    assert.equal(readFileSync(file, "utf8"), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal rejects proposal-input targets outside the heal directory", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-boundary-"));
+  const outsideDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-proposal-outside-"),
+  );
+  const artifactPath = path.join(dir, "escape-proposals.json");
+  const outsideFile = path.join(outsideDir, "outside.test.ts");
+  const original = "test('escape', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(outsideFile, original, "utf8");
+  writeFileSync(
+    artifactPath,
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "test-capabilities.heal.proposal",
+      operation_id: "heal",
+      proposals: [
+        {
+          file: outsideFile,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  try {
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: artifactPath, checkpointRef: "checkpoint/escape" },
+        ),
+      /proposal-input target resolved outside heal directory/,
+    );
+    assert.equal(readFileSync(outsideFile, "utf8"), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal rejects symlink targets inside proposal artifacts", async () => {
+  const dir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-proposal-symlink-target-"),
+  );
+  const realFile = path.join(dir, "real.test.ts");
+  const linkedFile = path.join(dir, "linked.test.ts");
+  const artifactPath = path.join(dir, "symlink-target-proposals.json");
+  const original = "test('symlink', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(realFile, original, "utf8");
+  symlinkSync(realFile, linkedFile);
+  writeFileSync(
+    artifactPath,
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "test-capabilities.heal.proposal",
+      operation_id: "heal",
+      proposals: [
+        {
+          file: linkedFile,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#login",
+          confidence: 0.95,
+          strategy: "manual",
+          requiresReview: false,
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  try {
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: artifactPath, checkpointRef: "checkpoint/symlink-target" },
+        ),
+      /proposal-input target file must not be a symlink/,
+    );
+    assert.equal(readFileSync(realFile, "utf8"), original);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal refuses symlink proposal inputs", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-input-symlink-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "heal-proposals.json");
+  const linkedArtifactPath = path.join(dir, "linked-heal-proposals.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    await executeCliOperation(
+      { command: "heal" },
+      { dir, dryRun: true, proposalOutput: artifactPath },
+    );
+    symlinkSync(artifactPath, linkedArtifactPath);
+
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: linkedArtifactPath, checkpointRef: "checkpoint/symlink" },
+        ),
+      /proposal-input must not be a symlink:/,
+    );
+    assert.match(readFileSync(file, "utf8"), /#old-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal refuses proposal artifacts containing review-required proposals", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-proposal-review-"));
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "review-proposals.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(
+    artifactPath,
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "test-capabilities.heal.proposal",
+      operation_id: "heal",
+      proposals: [
+        {
+          file,
+          line: 1,
+          oldSelector: "#old-login",
+          newSelector: "#login",
+          confidence: 0.5,
+          strategy: "manual-review",
+          requiresReview: true,
+        },
+      ],
+    }),
+    "utf8",
+  );
+
+  try {
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, proposalInput: artifactPath, checkpointRef: "checkpoint/review" },
+        ),
+      /proposal\(s\) that require review/,
+    );
+    assert.match(readFileSync(file, "utf8"), /#old-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal does not delete a preexisting artifact temp-name collision", async () => {
+  const dir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-artifact-temp-collision-"),
+  );
+  const file = path.join(dir, "sample.test.ts");
+  const artifactPath = path.join(dir, "heal-proposals.json");
+  const originalNow = Date.now;
+  const fixedNow = 123456789;
+  const tempPath = path.join(dir, `.heal-proposals.json.${process.pid}.${fixedNow}.tmp`);
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(tempPath, "do-not-delete\n", "utf8");
+
+  try {
+    Date.now = () => fixedNow;
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, dryRun: true, proposalOutput: artifactPath },
+        ),
+      /EEXIST|file already exists/i,
+    );
+    assert.equal(readFileSync(tempPath, "utf8"), "do-not-delete\n");
+  } finally {
+    Date.now = originalNow;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal refuses symlink artifact outputs", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-artifact-symlink-"));
+  const artifactDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-artifact-output-"),
+  );
+  const file = path.join(dir, "sample.test.ts");
+  const realArtifact = path.join(artifactDir, "real-proposals.json");
+  const symlinkArtifact = path.join(artifactDir, "linked-proposals.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(realArtifact, "{}\n", "utf8");
+
+  try {
+    symlinkSync(realArtifact, symlinkArtifact);
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          {
+            dir,
+            dryRun: true,
+            proposalOutput: symlinkArtifact,
+          },
+        ),
+      /Healing artifact output must not be a symlink:/,
+    );
+    assert.equal(readFileSync(realArtifact, "utf8"), "{}\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(artifactDir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal refuses findings input symlinks", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-findings-symlink-"));
+  const file = path.join(dir, "sample.test.ts");
+  const realFindings = path.join(dir, "findings.json");
+  const linkedFindings = path.join(dir, "linked-findings.json");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  writeFileSync(
+    realFindings,
+    JSON.stringify([
+      {
+        id: "finding-1",
+        component: "web",
+        description: "old login selector",
+        evidence: ["#old-login"],
+      },
+    ]),
+    "utf8",
+  );
+
+  try {
+    symlinkSync(realFindings, linkedFindings);
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, dryRun: true, findingsInput: linkedFindings },
+        ),
+      /findings-input must not be a symlink:/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("executeCliOperation heal refuses symlink artifact output directories", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-artifact-dir-"));
+  const artifactParentDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-artifact-parent-"),
+  );
+  const outsideDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-heal-artifact-outside-"),
+  );
+  const file = path.join(dir, "sample.test.ts");
+  const linkedArtifactDir = path.join(artifactParentDir, "linked-artifacts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    symlinkSync(outsideDir, linkedArtifactDir, "dir");
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          {
+            dir,
+            dryRun: true,
+            proposalOutput: path.join(linkedArtifactDir, "nested", "proposals.json"),
+          },
+        ),
+      /Healing artifact output directory component must not be a symlink:/,
+    );
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          {
+            dir,
+            dryRun: true,
+            verificationOutput: path.join(linkedArtifactDir, "nested", "verification.json"),
+          },
+        ),
+      /Healing artifact output directory component must not be a symlink:/,
+    );
+    assert.equal(existsSync(path.join(outsideDir, "nested")), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(artifactParentDir, { recursive: true, force: true });
+    rmSync(outsideDir, { recursive: true, force: true });
   }
 });
 
