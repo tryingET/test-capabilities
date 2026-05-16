@@ -148,8 +148,9 @@ npm run test:property     # fast-check invariant lane for config, route selectio
 npm run test:behavior     # cucumber-backed CLI workflow scenarios mapped to docs/examples
 npm run test:ci-targeted  # CI-targeted smoke tests
 npm run capability:drill  # Repo-local end-to-end drill for shipped capabilities
-npm run root-cause:corpus # Dogfood calibrated root-cause diagnosis invariants
-npm run bombadil:smoke    # Richer Bombadil regression smoke against a deterministic local fixture
+npm run root-cause:corpus        # Dogfood calibrated root-cause diagnosis invariants
+npm run runtime-diagnostic:corpus # Dogfood calibrated diagnosis through real cli-tester subprocesses
+npm run bombadil:smoke           # Richer Bombadil regression smoke against a deterministic local fixture
 
 # Docs discovery
 npm run docs:list            # List relevant docs for a task
@@ -204,6 +205,12 @@ To dogfood the calibrated diagnostic layer against deterministic fixture cases, 
 npm run root-cause:corpus
 ```
 
+To prove the same root-cause synthesis path through real supported `cli-tester` subprocess execution, use:
+
+```bash
+npm run runtime-diagnostic:corpus
+```
+
 What it checks today:
 - single-agent CLI or Surf failures do not emit `root_cause`
 - two independent observed CLI command-resolution or timeout failures classify as `command_resolution` or `timeout_or_latency`, including shell not-found wording, while app crashes do not masquerade as command resolution
@@ -228,7 +235,10 @@ Machine-readable mode emits aggregate coverage floors, exact release truth-lock 
 
 ```bash
 npm run --silent root-cause:corpus -- --json
+npm run --silent runtime-diagnostic:corpus -- --json
 ```
+
+The runtime diagnostic corpus is intentionally narrower than the fixture corpus: it creates temporary local CLI fixtures and checks single-sensor suppression, two-sensor `command_resolution`, two-sensor `timeout_or_latency`, same-component mixed-class suppression, correlation-disabled suppression, unique observation IDs, and absence of prediction/causal/repair-order language without using network, databases, or external binaries.
 
 ## Bombadil richer smoke fixture
 
