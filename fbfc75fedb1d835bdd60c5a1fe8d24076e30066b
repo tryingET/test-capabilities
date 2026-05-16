@@ -3,7 +3,7 @@ tool: "/commit"
 actor: "tryinget"
 repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
 commit: "fbfc75fedb1d835bdd60c5a1fe8d24076e30066b"
-created_at: "2026-05-16T19:52:59Z"
+created_at: "2026-05-16T19:53:46Z"
 intent: "Update CLI flags, API docs, type docs, product posture, README, and AGENTS for proposal-input apply path"
 files:
   - "bin/test-capabilities"
@@ -19,7 +19,7 @@ validation:
     status: "pass"
   full_gate:
     command: "npm test"
-    status: "pending"
+    status: "pass"
 group:
   index: 2
   total: 2
