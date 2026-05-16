@@ -542,6 +542,52 @@ test("CLI heal command fails closed when findings input is malformed JSON", () =
   }
 });
 
+test("CLI heal command fails closed when findings input has ambiguous findings shapes", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "ambiguous-findings.json");
+  writeFileSync(
+    findingsFile,
+    JSON.stringify({
+      findings: [],
+      result: {
+        findings: [
+          {
+            id: "nested-finding",
+            component: "web",
+            description: "nested finding should not be silently ignored",
+            evidence: ['selector [data-testid="old-login-btn"] failed'],
+          },
+        ],
+      },
+    }),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /findings-input is ambiguous/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI heal command fails closed when findings input exceeds the size limit", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
+  const findingsFile = path.join(dir, "huge-findings.json");
+  writeFileSync(findingsFile, `[${" ".repeat(5 * 1024 * 1024)}]`, "utf8");
+
+  try {
+    const result = runCli(["heal", "--dir", dir, "--dry-run", "--findings-input", findingsFile]);
+
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}\n${result.stderr}`, /findings-input exceeds maximum size/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI heal command fails closed when findings input has no accepted findings shape", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-heal-"));
   const findingsFile = path.join(dir, "findings.json");

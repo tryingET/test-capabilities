@@ -345,6 +345,36 @@ test("TestFileHealer.analyzeFile matches data-testid evidence to getByTestId sou
   }
 });
 
+test("TestFileHealer.analyzeFile matches single-quoted data-testid evidence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-login-btn').click(); });\n",
+    "utf8",
+  );
+
+  const findings = [
+    {
+      id: "surfA-single-quote-data-testid-drift",
+      component: "web",
+      description: "Selector drift detected on login button",
+      evidence: ["selector [data-testid='old-login-btn'] failed"],
+    },
+  ];
+
+  try {
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, findings);
+
+    assert.equal(proposals.length, 1);
+    assert.equal(proposals[0].oldSelector, "old-login-btn");
+    assert.equal(proposals[0].triggeringFindingId, "surfA-single-quote-data-testid-drift");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.analyzeFile with findings only heals selectors cited by evidence", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-"));
   const file = path.join(dir, "sample.test.ts");

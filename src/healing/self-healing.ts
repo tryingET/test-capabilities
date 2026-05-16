@@ -605,7 +605,7 @@ function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, s
       const selectorPatterns = [
         /#[\w-]+/g, // #id
         /[.][\w-]+/g, // .class
-        /\[data-testid="[^"]+"\]/g, // [data-testid="..."]
+        /\[data-testid=(?:"[^"]+"|'[^']+')\]/g, // [data-testid="..."] or [data-testid='...']
         /getByTestId\(['"]([^'"]+)['"]\)/g, // getByTestId('...')
         /locator\(['"]([^'"]+)['"]\)/g, // locator('...')
         /selector[:\s]+([\w#.-]+)/gi, // selector: #foo or selector .bar

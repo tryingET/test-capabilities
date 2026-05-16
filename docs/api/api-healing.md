@@ -258,4 +258,4 @@ test-capabilities heal --dir ./tests --dry-run \
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
 ```
 
-`--findings-input` accepts a bare findings array, an object with `findings`, or full `test --json` output with `result.findings`. The findings are caller-supplied diagnostic evidence, not causal authority; malformed inputs fail closed, and equivalent selector spellings such as `getByTestId('old-login')` and `[data-testid="old-login"]` are normalized only for deterministic matching.
+`--findings-input` accepts exactly one of a bare findings array, an object with `findings`, or full `test --json` output with `result.findings`. The findings are caller-supplied diagnostic evidence, not causal authority; malformed or ambiguous inputs fail closed, and equivalent selector spellings such as `getByTestId('old-login')`, `[data-testid="old-login"]`, and `[data-testid='old-login']` are normalized only for deterministic matching.

@@ -43,7 +43,26 @@ const HealingFindingsTestEnvelopeSchema = z
   .object({ result: z.object({ findings: HealingFindingsInputSchema }).passthrough() })
   .passthrough();
 
+function hasAmbiguousFindingsShapes(parsed: unknown): boolean {
+  return (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    !Array.isArray(parsed) &&
+    "findings" in parsed &&
+    "result" in parsed &&
+    typeof parsed.result === "object" &&
+    parsed.result !== null &&
+    "findings" in parsed.result
+  );
+}
+
 function normalizeHealingFindingsInput(parsed: unknown): HealingFinding[] {
+  if (hasAmbiguousFindingsShapes(parsed)) {
+    throw new Error(
+      "findings-input is ambiguous: provide either top-level findings[] or a test --json envelope with result.findings[], not both.",
+    );
+  }
+
   const arrayResult = HealingFindingsInputSchema.safeParse(parsed);
   if (arrayResult.success) {
     return arrayResult.data;
@@ -212,6 +231,12 @@ async function runHealOperation(
     }
 
     const raw = await fs.readFile(findingsPath, "utf-8");
+    if (Buffer.byteLength(raw, "utf-8") > MAX_FINDINGS_INPUT_BYTES) {
+      throw new Error(
+        `findings-input exceeds maximum size of ${MAX_FINDINGS_INPUT_BYTES} bytes after read: ${findingsPath}`,
+      );
+    }
+
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
