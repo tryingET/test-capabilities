@@ -78,11 +78,28 @@ function assertNoPredictionLanguage(name, run) {
 
 function assertUniqueObservationIds(name, run) {
   const ids = (run.observations ?? []).map((observation) => observation.id);
+  assert.equal(
+    ids.every((id) => typeof id === "string" && id.trim().length > 0),
+    true,
+    `${name}: every observation must have a non-empty string id`,
+  );
   assert.equal(new Set(ids).size, ids.length, `${name}: observation IDs must be unique`);
   assert.equal(
     ids.some((id) => /^corr-/.test(id)),
     false,
     `${name}: observations must not use synthetic corr-* IDs`,
+  );
+}
+
+function assertNoSynthesizedDiagnostics(name, run) {
+  const synthesizedKinds = new Set(["correlation", "synthesis", "root_cause", "propagation"]);
+  const leakedKinds = (run.observations ?? [])
+    .map((observation) => observation.kind)
+    .filter((kind) => synthesizedKinds.has(kind));
+  assert.deepEqual(
+    leakedKinds,
+    [],
+    `${name}: correlation-disabled runs must not emit synthesized diagnostic observations`,
   );
 }
 
@@ -206,9 +223,9 @@ try {
       ),
       assert: ({ run, roots }) => {
         assert.equal(roots.length, 0);
-        assert.equal(
-          (run.observations ?? []).some((observation) => observation.kind === "correlation"),
-          false,
+        assertNoSynthesizedDiagnostics(
+          "Real CLI correlation disabled emits no synthesized diagnosis",
+          run,
         );
       },
     },
