@@ -1,0 +1,26 @@
+kind: "ai-society/commit-provenance/v1"
+tool: "/commit"
+actor: "tryinget"
+repo: "/home/tryinget/ai-society/softwareco/owned/test-capabilities"
+commit: "fbfc75fedb1d835bdd60c5a1fe8d24076e30066b"
+created_at: "2026-05-16T19:52:59Z"
+intent: "Update CLI flags, API docs, type docs, product posture, README, and AGENTS for proposal-input apply path"
+files:
+  - "bin/test-capabilities"
+  - "docs/api/api-healing.md"
+  - "docs/api/cli.md"
+  - "docs/api/types.md"
+  - "docs/project/product-posture.md"
+  - "README.md"
+  - "src/TEST-CAPABILITIES-AGENTS.md"
+validation:
+  fast_gate:
+    command: "npm run build --silent"
+    status: "pass"
+  full_gate:
+    command: "npm test"
+    status: "pending"
+group:
+  index: 2
+  total: 2
+  rationale: "Docs/CLI surface follows implementation commit"
