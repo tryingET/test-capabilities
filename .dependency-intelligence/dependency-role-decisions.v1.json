@@ -185,24 +185,33 @@
       "role": "test-tooling",
       "appliesTo": "direct-dependency-root",
       "decisionStatus": "accepted",
-      "evidenceStatus": "scenario-gap",
+      "evidenceStatus": "confirmed",
       "expectedScenarios": ["behavior-test", "bdd-test"],
       "source": "test-capabilities source-owner review",
       "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
-      "rationale": "BDD tooling is a test lifecycle dependency and was static-central-unobserved because behavior-test scenarios were not part of the runtime evidence set.",
+      "rationale": "BDD tooling is a test lifecycle dependency and is now confirmed by behavior-test runtime evidence.",
       "currentEvidenceRefs": [
         {
-          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "path": "/tmp/test-capabilities-bdd-runtime-trace-20260519184819/runtime/behavior-bdd.runtime-trace-bundle.json",
+          "kind": "runtime-trace-bundle",
+          "tool": "runtime-trace-insights",
+          "digest": "sha256:1688b6451b699177837348619b5fc7e317fa1e35299567c7c51061fbdf36a9ea",
+          "note": "Behavior/BDD scenario runtime trace; observed @cucumber/cucumber@12.8.1 via package autodiscovery."
+        },
+        {
+          "path": "/tmp/test-capabilities-depintel-bdd-role-decisions-accepted-20260519184928/depdiet/dependency-review-program.v1.json",
           "kind": "dependency-review-program",
-          "tool": "dep-diet"
+          "tool": "dep-diet",
+          "digest": "sha256:436548862ad3041373f6efeb8e5e1afcc8f4acbe06b8f3329ef7a8ae485e998d",
+          "note": "Role-decision comparison confirmed @cucumber/cucumber after including the behavior-test runtime bundle."
         }
       ],
-      "followUps": ["Record a behavior-test or BDD scenario before interpreting Cucumber runtime absence."],
+      "followUps": [],
       "authority": {
         "dependencyChangeAuthority": false,
         "removalAuthority": false,
         "replacementAuthority": false,
-        "note": "Accepted test-tooling role only; scenario evidence remains missing."
+        "note": "Accepted test-tooling role only; behavior-test runtime evidence confirms the role for review context."
       }
     },
     {

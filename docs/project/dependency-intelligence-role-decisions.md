@@ -44,7 +44,7 @@ Runtime dependencies with confirmed evidence:
 Tooling dependencies with expected lifecycle-specific evidence:
 
 - `@biomejs/biome` — lint/format tooling
-- `@cucumber/cucumber` — test/BDD tooling; current evidence has a scenario gap
+- `@cucumber/cucumber` — test/BDD tooling; behavior-test evidence is confirmed
 - `@types/figlet` — type tooling
 - `@types/node` — type tooling
 - `@typescript/native-preview` — type tooling
@@ -57,10 +57,10 @@ Tooling dependencies with expected lifecycle-specific evidence:
 - `expected-not-observed`: absence from CLI/runtime evidence is expected because the dependency belongs to a non-runtime lifecycle.
 - `scenario-gap`: the role is accepted, but the needed lifecycle scenario was not part of the evidence set.
 
-The main current scenario gap is:
+Current behavior-test evidence closes the prior Cucumber scenario gap:
 
 ```text
-@cucumber/cucumber -> test-tooling -> needs behavior-test/BDD scenario evidence
+@cucumber/cucumber -> test-tooling -> behavior-test/BDD evidence confirmed
 ```
 
 ## Validation
@@ -85,23 +85,43 @@ node /home/tryinget/ai-society/softwareco/owned/dep-diet/scripts/depdiet.mjs ana
   --dependency-role-decisions .dependency-intelligence/dependency-role-decisions.v1.json
 ```
 
-Latest dogfood artifact:
+Latest dogfood artifacts:
 
 ```text
-/tmp/test-capabilities-depintel-role-decisions-20260519161106
+/tmp/test-capabilities-bdd-runtime-trace-20260519184819
+/tmp/test-capabilities-depintel-bdd-role-decisions-accepted-20260519184928
+```
+
+The behavior-test runtime trace was recorded with:
+
+```bash
+node /home/tryinget/ai-society/softwareco/owned/runtime-trace-insights/scripts/runtime_trace_bundle.mjs record \
+  /home/tryinget/ai-society/softwareco/owned/test-capabilities \
+  --package-autodiscovery \
+  --observed-package @cucumber/cucumber@12.8.1 \
+  --out /tmp/test-capabilities-bdd-runtime-trace-20260519184819/runtime/behavior-bdd.runtime-trace-bundle.json \
+  --run-id test-capabilities-behavior-bdd-cucumber \
+  -- npm run test:behavior:raw --silent
+```
+
+Artifact hashes:
+
+```text
+1688b6451b699177837348619b5fc7e317fa1e35299567c7c51061fbdf36a9ea  /tmp/test-capabilities-bdd-runtime-trace-20260519184819/runtime/behavior-bdd.runtime-trace-bundle.json
+436548862ad3041373f6efeb8e5e1afcc8f4acbe06b8f3329ef7a8ae485e998d  /tmp/test-capabilities-depintel-bdd-role-decisions-accepted-20260519184928/depdiet/dependency-review-program.v1.json
+4b97294b0b8776d7c3635177d324b94c64253adaa26271e895b48a8fc848a4be  /tmp/test-capabilities-depintel-bdd-role-decisions-accepted-20260519184928/depdiet/depmodel.json
 ```
 
 Comparison summary:
 
 ```json
 {
-  "confirmed": 6,
-  "expected-not-observed": 6,
-  "scenario-gap": 1
+  "confirmed": 7,
+  "expected-not-observed": 6
 }
 ```
 
-The remaining scenario gap is still `@cucumber/cucumber` behavior-test/BDD evidence.
+No direct-root role decision remains in `scenario-gap` for the current evidence set.
 
 ## Boundary
 
