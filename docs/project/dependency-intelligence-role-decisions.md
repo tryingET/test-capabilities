@@ -73,6 +73,36 @@ node /home/tryinget/ai-society/softwareco/owned/dep-diet/scripts/validate_depdie
   .dependency-intelligence/dependency-role-decisions.v1.json
 ```
 
+Dep-diet can compare current review evidence against the accepted ledger:
+
+```bash
+node /home/tryinget/ai-society/softwareco/owned/dep-diet/scripts/depdiet.mjs analyze . \
+  --gardener-output <gardener-output.json> \
+  --runtime-bundle <runtime-trace-bundle.json> \
+  --out-depmodel <depmodel.json> \
+  --out-review-program <dependency-review-program.v1.json> \
+  --dependency-role-hints .dependency-intelligence/dependency-role-hints.v1.json \
+  --dependency-role-decisions .dependency-intelligence/dependency-role-decisions.v1.json
+```
+
+Latest dogfood artifact:
+
+```text
+/tmp/test-capabilities-depintel-role-decisions-20260519161106
+```
+
+Comparison summary:
+
+```json
+{
+  "confirmed": 6,
+  "expected-not-observed": 6,
+  "scenario-gap": 1
+}
+```
+
+The remaining scenario gap is still `@cucumber/cucumber` behavior-test/BDD evidence.
+
 ## Boundary
 
 Accepted role decisions are source-owner facts for review and drift detection. They do not authorize dependency mutation, removal, replacement, merge, release, exploitability, disclosure, or trust decisions.
