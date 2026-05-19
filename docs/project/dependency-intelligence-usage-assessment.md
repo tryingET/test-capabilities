@@ -32,11 +32,17 @@ API member assessment:
 /tmp/test-capabilities-depintel-api-members-20260519201920
 ```
 
+Object-flow/member-chain assessment:
+
+```text
+/tmp/test-capabilities-depintel-object-flow-20260519203456
+```
+
 Key outputs:
 
 ```text
-/tmp/test-capabilities-depintel-api-members-20260519201920/depdiet/dependency-review-program.v1.json
-/tmp/test-capabilities-depintel-api-members-20260519201920/depdiet/depmodel.json
+/tmp/test-capabilities-depintel-object-flow-20260519203456/depdiet/dependency-review-program.v1.json
+/tmp/test-capabilities-depintel-object-flow-20260519203456/depdiet/depmodel.json
 ```
 
 ## Summary
@@ -59,7 +65,7 @@ Key outputs:
 Runtime-observed direct roots with small current footprint flagged for reimplementation review:
 
 - `chalk` — runtime styling; imported once in `bin/test-capabilities` as default import; observed member surface is `bold`, `cyan`, `dim`, `green`, `red`, and `yellow`.
-- `commander` — CLI parsing; imported once in `bin/test-capabilities` as `{ Command }`; observed direct API surface is constructor use `new Command`.
+- `commander` — CLI parsing; imported once in `bin/test-capabilities` as `{ Command }`; observed object-flow surface is `new Command`, `name`, `description`, `version`, `command`, `argument`, `option`, `action`, and `parseAsync`.
 
 Runtime-observed direct roots currently treated as lower replacement priority:
 
@@ -92,7 +98,7 @@ The API/symbol/callsite slice adds bounded used-surface evidence:
   },
   "commander": {
     "symbols": ["Command"],
-    "usedApiMembers": ["new Command"],
+    "usedApiMembers": ["action", "argument", "command", "description", "name", "new Command", "option", "parseAsync", "version"],
     "recordCount": 1,
     "callsites": ["bin/test-capabilities:11"]
   },
