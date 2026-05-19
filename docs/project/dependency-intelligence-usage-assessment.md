@@ -26,11 +26,17 @@ API/symbol/callsite assessment:
 /tmp/test-capabilities-depintel-api-surface-20260519201013
 ```
 
+API member assessment:
+
+```text
+/tmp/test-capabilities-depintel-api-members-20260519201920
+```
+
 Key outputs:
 
 ```text
-/tmp/test-capabilities-depintel-api-surface-20260519201013/depdiet/dependency-review-program.v1.json
-/tmp/test-capabilities-depintel-api-surface-20260519201013/depdiet/depmodel.json
+/tmp/test-capabilities-depintel-api-members-20260519201920/depdiet/dependency-review-program.v1.json
+/tmp/test-capabilities-depintel-api-members-20260519201920/depdiet/depmodel.json
 ```
 
 ## Summary
@@ -52,8 +58,8 @@ Key outputs:
 
 Runtime-observed direct roots with small current footprint flagged for reimplementation review:
 
-- `chalk` — runtime styling; imported once in `bin/test-capabilities` as default import.
-- `commander` — CLI parsing; imported once in `bin/test-capabilities` as `{ Command }`.
+- `chalk` — runtime styling; imported once in `bin/test-capabilities` as default import; observed member surface is `bold`, `cyan`, `dim`, `green`, `red`, and `yellow`.
+- `commander` — CLI parsing; imported once in `bin/test-capabilities` as `{ Command }`; observed direct API surface is constructor use `new Command`.
 
 Runtime-observed direct roots currently treated as lower replacement priority:
 
@@ -80,16 +86,19 @@ The API/symbol/callsite slice adds bounded used-surface evidence:
 {
   "chalk": {
     "symbols": ["default"],
+    "usedApiMembers": ["bold", "cyan", "dim", "green", "red", "yellow"],
     "recordCount": 1,
     "callsites": ["bin/test-capabilities:10"]
   },
   "commander": {
     "symbols": ["Command"],
+    "usedApiMembers": ["new Command"],
     "recordCount": 1,
     "callsites": ["bin/test-capabilities:11"]
   },
   "figlet": {
     "symbols": ["default"],
+    "usedApiMembers": ["textSync"],
     "recordCount": 1,
     "callsites": ["bin/test-capabilities:12"]
   },
