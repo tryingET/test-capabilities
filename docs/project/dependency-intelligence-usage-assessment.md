@@ -14,15 +14,23 @@ The assessment is review evidence only. It does not authorize dependency removal
 
 ## Artifact
 
+Initial coarse assessment:
+
 ```text
 /tmp/test-capabilities-depintel-usage-assessment-20260519193934
+```
+
+API/symbol/callsite assessment:
+
+```text
+/tmp/test-capabilities-depintel-api-surface-20260519201013
 ```
 
 Key outputs:
 
 ```text
-/tmp/test-capabilities-depintel-usage-assessment-20260519193934/depdiet/dependency-review-program.v1.json
-/tmp/test-capabilities-depintel-usage-assessment-20260519193934/depdiet/depmodel.json
+/tmp/test-capabilities-depintel-api-surface-20260519201013/depdiet/dependency-review-program.v1.json
+/tmp/test-capabilities-depintel-api-surface-20260519201013/depdiet/depmodel.json
 ```
 
 ## Summary
@@ -44,8 +52,8 @@ Key outputs:
 
 Runtime-observed direct roots with small current footprint flagged for reimplementation review:
 
-- `chalk` — runtime styling; inspect used API surface before considering a local wrapper or smaller replacement.
-- `commander` — CLI parsing; inspect actual command/option surface before considering a smaller parser or local implementation.
+- `chalk` — runtime styling; imported once in `bin/test-capabilities` as default import.
+- `commander` — CLI parsing; imported once in `bin/test-capabilities` as `{ Command }`.
 
 Runtime-observed direct roots currently treated as lower replacement priority:
 
@@ -65,6 +73,32 @@ Declared but unobserved in the current runtime scenario set; lifecycle-specific 
 - `vitest`
 
 ## Interpretation
+
+The API/symbol/callsite slice adds bounded used-surface evidence:
+
+```json
+{
+  "chalk": {
+    "symbols": ["default"],
+    "recordCount": 1,
+    "callsites": ["bin/test-capabilities:10"]
+  },
+  "commander": {
+    "symbols": ["Command"],
+    "recordCount": 1,
+    "callsites": ["bin/test-capabilities:11"]
+  },
+  "figlet": {
+    "symbols": ["default"],
+    "recordCount": 1,
+    "callsites": ["bin/test-capabilities:12"]
+  },
+  "zod": {
+    "symbols": ["z", "ZodType", "ZodTypeDef"],
+    "recordCount": 9
+  }
+}
+```
 
 This is the first slice that moves beyond “does the dependency have an accepted role?” toward:
 
