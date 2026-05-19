@@ -1,0 +1,91 @@
+{
+  "cases": [
+    {
+      "case_id": "case-1-declared-unobserved-package-is-incorrectly-treated-as-unused",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    },
+    {
+      "case_id": "case-2-missing-non-authority-flag-is-ignored",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    },
+    {
+      "case_id": "case-3-transitive-dependency-is-reviewed-without-introducer-path-caveat",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    },
+    {
+      "case_id": "case-4-vulnerability-context-is-handled-without-optional-dep-redteam-handoff-boundary",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    },
+    {
+      "case_id": "case-5-dep-viz-rendering-is-mistaken-for-remediation-authority",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    },
+    {
+      "case_id": "case-6-generated-program-mutates-package-files",
+      "evidence_refs": [
+        "generation_traceability.json",
+        "manifest.json"
+      ],
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
+      "status": "passed"
+    }
+  ],
+  "effect": {
+    "ak_mutated": false,
+    "candidate_files_mutated": false,
+    "canonical_target_mutated": false,
+    "governance_mutated": false,
+    "provider_called": false,
+    "shared_oracle_mutated": false
+  },
+  "identity": {
+    "candidate_manifest_sha256": "43135452975e26df2afb659e8ee4557bd986ad8ce87129e51a643cca24685295",
+    "fitness_suite_sha256": "ec81a76eb175013e024a9c341fcad456ee61adad81cdb4843a51baf9a1ef3848",
+    "target_contract_sha256": "b5da45f519b0c09da4de8eddcb52fb7de284ebb6a91dc09810c595b96c98a5be",
+    "validator": "dspx.gen_fitness_results.v1",
+    "validator_version": "v1"
+  },
+  "non_authority": {
+    "activation_authority": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_authority": false,
+    "promotion_authority": false
+  },
+  "rendered_state": "eligible_for_downstream_evidence_review",
+  "schema_version": "gen-fitness-results-v1",
+  "status": "fitness_passed",
+  "verifier_guarantee": "mechanical_traceability_and_suite_result_shape_only",
+  "verifier_non_guarantee": "semantic_truth_domain_acceptance_or_activation"
+}

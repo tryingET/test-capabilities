@@ -1,0 +1,428 @@
+{
+  "constraints": [
+    "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
+    "Treat runtime-trace-insights observations as bounded to the supplied scenario set.",
+    "Treat Gardener/static evidence as graph evidence, not runtime coverage.",
+    "Treat dep-viz as renderer/explainer only.",
+    "Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists.",
+    "Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions.",
+    "Do not infer that declared-unobserved or scenario-unobserved means unused.",
+    "Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+    "Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding.",
+    "Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems.",
+    "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+  ],
+  "dataset": {
+    "source": "none"
+  },
+  "declared_topology": null,
+  "evaluation_strategy": {
+    "aggregation": "deliberation_summary",
+    "authority": "advisory_evidence_only",
+    "jurors": [
+      {
+        "id": "explicit_dependency_semantics",
+        "model": null,
+        "perspective": "dependency_semantics",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_source_owner_authority",
+        "model": null,
+        "perspective": "source_owner_authority",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_runtime_scenario_coverage",
+        "model": null,
+        "perspective": "runtime_scenario_coverage",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_introducer_path_reasoning",
+        "model": null,
+        "perspective": "introducer_path_reasoning",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_security_handoff_boundary",
+        "model": null,
+        "perspective": "security_handoff_boundary",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_visualization_boundary",
+        "model": null,
+        "perspective": "visualization_boundary",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_non_authority_preservation",
+        "model": null,
+        "perspective": "non_authority_preservation",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "explicit_target_repo_validation",
+        "model": null,
+        "perspective": "target_repo_validation",
+        "reason": "declared in jury.perspectives without a bound juror model",
+        "source": "explicit_perspective"
+      },
+      {
+        "id": "inferred_correctness",
+        "model": null,
+        "perspective": "correctness",
+        "reason": "baseline behavior correctness coverage",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_robustness",
+        "model": null,
+        "perspective": "robustness",
+        "reason": "baseline edge-case and failure-mode coverage",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_instruction_following",
+        "model": null,
+        "perspective": "instruction_following",
+        "reason": "baseline objective and instruction adherence coverage",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_example_generalization",
+        "model": null,
+        "perspective": "example_generalization",
+        "reason": "examples are present, so held-out/generalization behavior matters",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_answer_equivalence",
+        "model": null,
+        "perspective": "answer_equivalence",
+        "reason": "exact-match metrics need strict answer-equivalence critique",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_grounding",
+        "model": null,
+        "perspective": "grounding",
+        "reason": "context/source/citation cues require grounding critique",
+        "source": "inferred_from_intent"
+      },
+      {
+        "id": "inferred_constraint_adherence",
+        "model": null,
+        "perspective": "constraint_adherence",
+        "reason": "declared constraints require adversarial checking",
+        "source": "inferred_from_intent"
+      }
+    ],
+    "minimum_jurors": 8,
+    "mode": "jury",
+    "notes": [
+      "ProgramPlan records the intended evaluation shape only.",
+      "No juror model is called during deterministic materialization.",
+      "Jury evidence cannot rank, prune, promote, or grant Oracle authority."
+    ],
+    "perspectives": [
+      "dependency_semantics",
+      "source_owner_authority",
+      "runtime_scenario_coverage",
+      "introducer_path_reasoning",
+      "security_handoff_boundary",
+      "visualization_boundary",
+      "non_authority_preservation",
+      "target_repo_validation"
+    ],
+    "pool": {
+      "explicit_juror_count": 0,
+      "explicit_perspective_count": 8,
+      "explicit_perspective_juror_count": 8,
+      "inference_basis": [
+        "intent.name",
+        "intent.objective",
+        "intent.task_type",
+        "intent.metric",
+        "intent.inputs",
+        "intent.outputs",
+        "intent.constraints",
+        "intent.examples"
+      ],
+      "inferred_juror_count": 7,
+      "merged_juror_count": 15,
+      "scope": "program"
+    },
+    "schema_version": "program-jury-v1",
+    "selection_constraints": {
+      "prefer_diverse_models": true,
+      "prefer_diverse_perspectives": true
+    },
+    "selection_model": "perspective_balanced_explicit_pool",
+    "status": "planned_not_executed"
+  },
+  "examples": {
+    "count": 1,
+    "hash": "3ae5c2c85bf924d9877de0ceedba80da604ad3c37d8b20189768f1117471bb0f",
+    "path": null,
+    "source": "inline"
+  },
+  "fields": {
+    "inputs": [
+      {
+        "desc": "JSON string conforming to depdiet.dependency-review-program.v1, including target scope, inputs, runtime scenario-set metadata, review signals, introducer summary, handoffs, non-authorizations, and diagnostics.",
+        "name": "dependency_review_program_json",
+        "type": "str"
+      },
+      {
+        "desc": "Valid depmodel.v1 JSON projection produced by dep-diet for dep-viz rendering, including packages, edges, introducerPaths, references, provenance, and optional staticRuntime evidence.",
+        "name": "depmodel_json",
+        "type": "str"
+      },
+      {
+        "desc": "Target-owned test-capabilities context such as accepted scenarios, dependency role annotations, source-owner review notes, validation gates, and known scope limitations.",
+        "name": "target_context_json",
+        "type": "str"
+      }
+    ],
+    "outputs": [
+      {
+        "desc": "JSON array of review-only findings grouped by package or dependency role, preserving direct/transitive/introducer context and distinguishing evidence from accepted source-owner truth.",
+        "name": "review_findings_json",
+        "type": "str"
+      },
+      {
+        "desc": "JSON array of source-owner next evidence actions such as collect another runtime scenario, add a dependency role annotation, inspect an introducer path, render a dep-viz report, or request a dep-redteam security handoff.",
+        "name": "next_evidence_actions_json",
+        "type": "str"
+      },
+      {
+        "desc": "JSON object restating non-authorizations and any withheld decisions. All mutation, removal, replacement, merge, release, exploitability, disclosure, and trust-certification authority flags must remain false.",
+        "name": "authority_boundary_json",
+        "type": "str"
+      }
+    ]
+  },
+  "intent": {
+    "name": "TestCapabilitiesDependencyReviewProgram",
+    "objective": "Review a dep-diet dependency-review-program.v1 packet for the test-capabilities repository and emit source-owner review findings, next-evidence actions, and explicit non-authority boundaries without deciding dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+    "schema_version": "program-intent-v2"
+  },
+  "materialization_scope": {
+    "current_renderer": "single_module_scaffold",
+    "notes": [
+      "No explicit topology was declared; program-gen used the existing single-module scaffold."
+    ],
+    "topology_declared": false,
+    "topology_materialized": true
+  },
+  "materialized_topology": {
+    "edges": [
+      {
+        "from": "input",
+        "to": "generated_module"
+      },
+      {
+        "from": "generated_module",
+        "to": "output"
+      }
+    ],
+    "execution_status": "single_module_scaffold_materialized",
+    "kind": "single_module",
+    "modules": [
+      {
+        "id": "generated_module",
+        "module_class": "TestCapabilitiesDependencyReviewProgramModule",
+        "name": "TestCapabilitiesDependencyReviewProgramModule",
+        "primitive": "Predict",
+        "role": "Default generated single-module scaffold.",
+        "signature": {
+          "inputs": [
+            "dependency_review_program_json",
+            "depmodel_json",
+            "target_context_json"
+          ],
+          "name": "TestCapabilitiesDependencyReviewProgramSignature",
+          "outputs": [
+            "review_findings_json",
+            "next_evidence_actions_json",
+            "authority_boundary_json"
+          ]
+        }
+      }
+    ]
+  },
+  "metric": "exact_match",
+  "non_authority": {
+    "candidate_assembly": "materialized_not_promoted",
+    "governance_authority": false,
+    "oracle_role": "behavioral_interpreter_only",
+    "program_gen_evidence": "non_authoritative",
+    "ranking_pruning_promotion": false
+  },
+  "runtime": {},
+  "schema_version": "program-plan-v1",
+  "surfaces": [
+    {
+      "generator": "program-gen",
+      "kind": "plan",
+      "path": "plan.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "jury",
+      "path": "jury.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "jury_selection",
+      "path": "jury_selection.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "jury_rubric",
+      "path": "jury_rubric.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "promotion_review",
+      "path": "promotion_review.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "promotion_adjudication_request",
+      "path": "promotion_adjudication_request.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "promotion_decision_template",
+      "path": "promotion_decision_template.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "intent",
+      "path": "intent.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "module_surfaces",
+      "path": "module_surfaces.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "execution_episode",
+      "path": "execution_episode.json"
+    },
+    {
+      "generator": "signature-gen",
+      "kind": "signature",
+      "path": "signature.py"
+    },
+    {
+      "generator": "module-gen",
+      "kind": "module",
+      "path": "module.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "program",
+      "path": "program.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "direct_runner",
+      "path": "direct_run.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "smoke_harness",
+      "path": "eval_smoke.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "jury_harness",
+      "path": "eval_jury.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "promotion_harness",
+      "path": "eval_promotion.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "examples",
+      "path": "examples.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "examples_harness",
+      "path": "eval_examples.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "behavior_results",
+      "path": "behavior_results.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "behavior_harness",
+      "path": "eval_behavior.py"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "behavior_episode",
+      "path": "behavior_episode.json"
+    },
+    {
+      "generator": "program-gen",
+      "kind": "oracle_evidence",
+      "path": "oracle_evidence.json"
+    }
+  ],
+  "task_type": "single_module",
+  "topology": {
+    "edges": [
+      {
+        "from": "input",
+        "to": "generated_module"
+      },
+      {
+        "from": "generated_module",
+        "to": "output"
+      }
+    ],
+    "execution_status": "single_module_scaffold_materialized",
+    "kind": "single_module",
+    "modules": [
+      {
+        "id": "generated_module",
+        "module_class": "TestCapabilitiesDependencyReviewProgramModule",
+        "name": "TestCapabilitiesDependencyReviewProgramModule",
+        "primitive": "Predict",
+        "role": "Default generated single-module scaffold.",
+        "signature": {
+          "inputs": [
+            "dependency_review_program_json",
+            "depmodel_json",
+            "target_context_json"
+          ],
+          "name": "TestCapabilitiesDependencyReviewProgramSignature",
+          "outputs": [
+            "review_findings_json",
+            "next_evidence_actions_json",
+            "authority_boundary_json"
+          ]
+        }
+      }
+    ]
+  },
+  "topology_execution_status": "single_module_scaffold_materialized"
+}

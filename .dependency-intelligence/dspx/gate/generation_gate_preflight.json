@@ -1,0 +1,76 @@
+{
+  "effect": {
+    "ak_mutated": false,
+    "candidate_files_mutated": false,
+    "canonical_target_mutated": false,
+    "governance_mutated": false,
+    "provider_called": false,
+    "shared_oracle_mutated": false
+  },
+  "fail_closed_reasons": [],
+  "fitness_suite_validation": {
+    "effect": {
+      "ak_mutated": false,
+      "candidate_files_mutated": false,
+      "canonical_target_mutated": false,
+      "governance_mutated": false,
+      "provider_called": false,
+      "shared_oracle_mutated": false
+    },
+    "fail_closed_reasons": [],
+    "non_authority": {
+      "activation_authority": false,
+      "external_mutation": false,
+      "governance_authority": false,
+      "oracle_authority": false,
+      "promotion_authority": false
+    },
+    "schema_version": "gen-fitness-suite-validation-v1",
+    "status": "valid",
+    "valid": true
+  },
+  "generation_allowed": true,
+  "identity": {
+    "fitness_suite_sha256": "ec81a76eb175013e024a9c341fcad456ee61adad81cdb4843a51baf9a1ef3848",
+    "preflight_sha256": "90f4de6094151e7042de99d6bf77399c8721d022dba23fc3f017e8636e0bd430",
+    "target_contract_sha256": "b5da45f519b0c09da4de8eddcb52fb7de284ebb6a91dc09810c595b96c98a5be"
+  },
+  "non_authority": {
+    "activation_authority": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_authority": false,
+    "promotion_authority": false
+  },
+  "schema_version": "gen-generation-gate-preflight-v1",
+  "status": "generation_allowed",
+  "target_contract_validation": {
+    "adapter_materialization_allowed": true,
+    "effect": {
+      "ak_mutated": false,
+      "candidate_files_mutated": false,
+      "canonical_target_mutated": false,
+      "governance_mutated": false,
+      "provider_called": false,
+      "shared_oracle_mutated": false
+    },
+    "fail_closed_reasons": [],
+    "non_authority": {
+      "activation_authority": false,
+      "external_mutation": false,
+      "governance_authority": false,
+      "oracle_authority": false,
+      "promotion_authority": false
+    },
+    "risk_tier": "authority_adjacent",
+    "schema_version": "gen-target-contract-validation-v1",
+    "status": "valid",
+    "target_protocol_fidelity_claimed": true,
+    "tutorial_contract_profile_used": false,
+    "valid": true,
+    "verifier_guarantee": "declared_contract_sufficiency_only",
+    "verifier_non_guarantee": "semantic_truth_of_target_protocol"
+  },
+  "verifier_guarantee": "declared_contract_and_suite_sufficiency_only",
+  "verifier_non_guarantee": "semantic_truth_of_target_protocol"
+}

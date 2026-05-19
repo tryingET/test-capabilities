@@ -1,0 +1,212 @@
+{
+  "authority": "oracle_readability_only_non_authoritative",
+  "behavior": {
+    "evaluation_sources": [
+      {
+        "behavior_results_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+        "behavior_results_path": "behavior_results.json",
+        "count": 1,
+        "harness": {
+          "path": "eval_examples.py",
+          "returncode": 0,
+          "status": "passed"
+        },
+        "input_artifact_hash": "3ae5c2c85bf924d9877de0ceedba80da604ad3c37d8b20189768f1117471bb0f",
+        "input_artifact_path": "examples.json",
+        "kind": "examples",
+        "metric": "exact_match",
+        "provider": {
+          "provider": "dspy-lm-auth/codex/gpt-5.5",
+          "status": "configured"
+        },
+        "source_kind": "inline_examples",
+        "source_path": null,
+        "status": "passed",
+        "summary": {
+          "degraded": 0,
+          "error": 0,
+          "failed": 0,
+          "passed": 1,
+          "status": "passed",
+          "status_counts": {
+            "passed": 1
+          },
+          "total": 1
+        }
+      }
+    ],
+    "evidence_summary": {
+      "degraded": 0,
+      "error": 0,
+      "executed_source_count": 1,
+      "failed": 0,
+      "no_examples_source_count": 0,
+      "passed": 1,
+      "source_count": 1,
+      "source_statuses": [
+        {
+          "behavior_results_path": "behavior_results.json",
+          "count": 1,
+          "kind": "examples",
+          "source_kind": "inline_examples",
+          "split": null,
+          "status": "passed"
+        }
+      ],
+      "status": "passed",
+      "status_counts": {
+        "passed": 1
+      },
+      "total": 1
+    },
+    "example_count": 1,
+    "failure_modes": [],
+    "result_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+    "result_path": "behavior_results.json",
+    "source_statuses": [
+      {
+        "behavior_results_path": "behavior_results.json",
+        "count": 1,
+        "kind": "examples",
+        "source_kind": "inline_examples",
+        "split": null,
+        "status": "passed"
+      }
+    ],
+    "statuses": {
+      "passed": 1
+    },
+    "summary": {
+      "degraded": 0,
+      "error": 0,
+      "failed": 0,
+      "passed": 1,
+      "status": "passed",
+      "status_counts": {
+        "passed": 1
+      },
+      "total": 1
+    }
+  },
+  "evidence_kind": "program_execution_episode",
+  "identity": {
+    "assembly_id": "prog-asm-efe9ca8f2dc3",
+    "candidate_id": "prog-cand-4b7eb19e7598",
+    "episode_id": "prog-ep-142bae534b7f",
+    "receipt_bundle_id": "prog-rb-b9aea460a686",
+    "request_id": "prog-req-af5a9edbffbc"
+  },
+  "intent": {
+    "constraints": [
+      "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
+      "Treat runtime-trace-insights observations as bounded to the supplied scenario set.",
+      "Treat Gardener/static evidence as graph evidence, not runtime coverage.",
+      "Treat dep-viz as renderer/explainer only.",
+      "Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists.",
+      "Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions.",
+      "Do not infer that declared-unobserved or scenario-unobserved means unused.",
+      "Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+      "Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding.",
+      "Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems.",
+      "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+    ],
+    "metric": "exact_match",
+    "name": "TestCapabilitiesDependencyReviewProgram",
+    "objective": "Review a dep-diet dependency-review-program.v1 packet for the test-capabilities repository and emit source-owner review findings, next-evidence actions, and explicit non-authority boundaries without deciding dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+    "task_type": "single_module"
+  },
+  "io": {
+    "inputs": [
+      "dependency_review_program_json",
+      "depmodel_json",
+      "target_context_json"
+    ],
+    "outputs": [
+      "review_findings_json",
+      "next_evidence_actions_json",
+      "authority_boundary_json"
+    ]
+  },
+  "non_authority": {
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_promotion": false,
+    "oracle_pruning": false,
+    "oracle_ranking": false
+  },
+  "oracle_facets": {
+    "behavior_source_kinds": [
+      "inline_examples"
+    ],
+    "behavior_status": "passed",
+    "dataset_split_count": 0,
+    "evidence_source_count": 1,
+    "example_count": 1,
+    "failure_mode_count": 0,
+    "has_dataset_splits": false,
+    "has_examples": true,
+    "has_failures": false,
+    "input_fields": [
+      "dependency_review_program_json",
+      "depmodel_json",
+      "target_context_json"
+    ],
+    "metric": "exact_match",
+    "output_fields": [
+      "review_findings_json",
+      "next_evidence_actions_json",
+      "authority_boundary_json"
+    ],
+    "status_counts": {
+      "passed": 1
+    },
+    "task_type": "single_module",
+    "total_evaluation_count": 1
+  },
+  "oracle_text": "schema_version=program-oracle-evidence-v1\nevidence_kind=program_execution_episode\nintent.name=TestCapabilitiesDependencyReviewProgram\nintent.objective=Review a dep-diet dependency-review-program.v1 packet for the test-capabilities repository and emit source-owner review findings, next-evidence actions, and explicit non-authority boundaries without deciding dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.\nintent.task_type=single_module\nintent.metric=exact_match\nio.inputs=dependency_review_program_json,depmodel_json,target_context_json\nio.outputs=review_findings_json,next_evidence_actions_json,authority_boundary_json\nconstraints=Treat dep-diet as dependency review-program and evidence-fusion contract owner. | Treat runtime-trace-insights observations as bounded to the supplied scenario set. | Treat Gardener/static evidence as graph evidence, not runtime coverage. | Treat dep-viz as renderer/explainer only. | Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists. | Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions. | Do not infer that declared-unobserved or scenario-unobserved means unused. | Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state. | Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding. | Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems. | External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts.\nidentity.request_id=prog-req-af5a9edbffbc\nidentity.candidate_id=prog-cand-4b7eb19e7598\nidentity.assembly_id=prog-asm-efe9ca8f2dc3\nidentity.episode_id=prog-ep-142bae534b7f\nidentity.receipt_bundle_id=prog-rb-b9aea460a686\nbehavior.status=passed\nbehavior.example_count=1\nbehavior.total_evaluation_count=1\nbehavior.evidence_source_count=1\nbehavior.source_kinds=inline_examples\nbehavior.status_counts=passed:1\nbehavior.failure_modes=none\nauthority=oracle_readability_only_non_authoritative; oracle_ranking=false; oracle_pruning=false; oracle_promotion=false; governance_authority=false; external_mutation=false",
+  "schema_version": "program-oracle-evidence-v1",
+  "source_artifacts": [
+    {
+      "content_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+      "kind": "behavior_results",
+      "path": "behavior_results.json",
+      "source_kind": "inline_examples"
+    },
+    {
+      "content_hash": "3ae5c2c85bf924d9877de0ceedba80da604ad3c37d8b20189768f1117471bb0f",
+      "kind": "examples",
+      "path": "examples.json",
+      "source_kind": "inline_examples"
+    },
+    {
+      "content_hash": "3e49b3affdf6fc7beb11b8c896b33bc13caf5eb0999be37b39d945580305f560",
+      "kind": "intent",
+      "path": "intent.json"
+    },
+    {
+      "content_hash": "3bfe048bb3dd578d41320d305ab1482cd841dd5414a14d061c6521b2623b6ffb",
+      "kind": "module",
+      "path": "module.py"
+    },
+    {
+      "content_hash": "fd8accf3704814b839b901f06a1d65a8a4fd4c18e72978c42d239186f3c67542",
+      "kind": "module_surfaces",
+      "path": "module_surfaces.json"
+    },
+    {
+      "content_hash": "d144b4da14cfa812baf8d305a827aba579b7749809ed2c01c93243b03078d291",
+      "kind": "plan",
+      "path": "plan.json"
+    },
+    {
+      "content_hash": "ae2e25626c8e553e12e8b4dabed0f1fae07d0747747896cc52d7d022c6ac2f05",
+      "kind": "program",
+      "path": "program.py"
+    },
+    {
+      "content_hash": "17581a387643e068d0b6693612b54ab396697d9ebae54ba3cd7fdf422d52355d",
+      "kind": "signature",
+      "path": "signature.py"
+    }
+  ]
+}

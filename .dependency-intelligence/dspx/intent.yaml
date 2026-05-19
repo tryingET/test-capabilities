@@ -1,0 +1,162 @@
+schema_version: program-intent-v2
+name: TestCapabilitiesDependencyReviewProgram
+objective: >-
+  Review a dep-diet dependency-review-program.v1 packet for the test-capabilities
+  repository and emit source-owner review findings, next-evidence actions, and
+  explicit non-authority boundaries without deciding dependency removal,
+  replacement, merge, release, exploitability, disclosure, or trust state.
+task_type: single_module
+inputs:
+  - dependency_review_program_json
+  - depmodel_json
+  - target_context_json
+outputs:
+  - review_findings_json
+  - next_evidence_actions_json
+  - authority_boundary_json
+input_fields:
+  - name: dependency_review_program_json
+    type: str
+    desc: >-
+      JSON string conforming to depdiet.dependency-review-program.v1, including
+      target scope, inputs, runtime scenario-set metadata, review signals,
+      introducer summary, handoffs, non-authorizations, and diagnostics.
+  - name: depmodel_json
+    type: str
+    desc: >-
+      Valid depmodel.v1 JSON projection produced by dep-diet for dep-viz
+      rendering, including packages, edges, introducerPaths, references,
+      provenance, and optional staticRuntime evidence.
+  - name: target_context_json
+    type: str
+    desc: >-
+      Target-owned test-capabilities context such as accepted scenarios,
+      dependency role annotations, source-owner review notes, validation gates,
+      and known scope limitations.
+output_fields:
+  - name: review_findings_json
+    type: str
+    desc: >-
+      JSON array of review-only findings grouped by package or dependency role,
+      preserving direct/transitive/introducer context and distinguishing evidence
+      from accepted source-owner truth.
+  - name: next_evidence_actions_json
+    type: str
+    desc: >-
+      JSON array of source-owner next evidence actions such as collect another
+      runtime scenario, add a dependency role annotation, inspect an introducer
+      path, render a dep-viz report, or request a dep-redteam security handoff.
+  - name: authority_boundary_json
+    type: str
+    desc: >-
+      JSON object restating non-authorizations and any withheld decisions. All
+      mutation, removal, replacement, merge, release, exploitability,
+      disclosure, and trust-certification authority flags must remain false.
+examples:
+  - inputs:
+      dependency_review_program_json: >-
+        {"schemaVersion":"depdiet.dependency-review-program.v1","programId":"example","review":{"classifications":["declared-unobserved"],"reviewSignals":[{"code":"declared-unobserved-review","packageId":"npm:example@1.0.0","posture":"collect-evidence"}],"sourceOwnerRoleAnnotations":[],"nextEvidenceActions":[]},"nonAuthorizations":{"mutationAuthority":false,"removalAuthority":false,"replacementAuthority":false,"mergeAuthority":false,"releaseAuthority":false,"exploitabilityAuthority":false,"disclosureAuthority":false,"trustCertificationAuthority":false}}
+      depmodel_json: >-
+        {"modelVersion":"depmodel.v1","modules":[],"packages":[],"edges":[],"introducerPaths":[],"vulnerabilities":[],"references":[],"provenance":{"producer":"dep-diet","backend":"native","tools":{}}}
+      target_context_json: >-
+        {"repository":"test-capabilities","scenarioCompleteness":"smoke-only","acceptedDependencyChanges":false}
+    outputs:
+      review_findings_json: >-
+        [{"packageId":"npm:example@1.0.0","finding":"declared-unobserved under the supplied scenario set","authority":"review-only"}]
+      next_evidence_actions_json: >-
+        [{"action":"Ask the source owner whether the chosen scenario set should exercise npm:example@1.0.0 before interpreting it as unused.","ownerSurface":"test-capabilities"}]
+      authority_boundary_json: >-
+        {"mutationAuthority":false,"removalAuthority":false,"replacementAuthority":false,"mergeAuthority":false,"releaseAuthority":false,"exploitabilityAuthority":false,"disclosureAuthority":false,"trustCertificationAuthority":false,"decision":"withheld_pending_source_owner_review"}
+metric: exact_match
+constraints:
+  - Treat dep-diet as dependency review-program and evidence-fusion contract owner.
+  - Treat runtime-trace-insights observations as bounded to the supplied scenario set.
+  - Treat Gardener/static evidence as graph evidence, not runtime coverage.
+  - Treat dep-viz as renderer/explainer only.
+  - Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists.
+  - Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions.
+  - Do not infer that declared-unobserved or scenario-unobserved means unused.
+  - Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.
+  - Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding.
+  - Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems.
+  - External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts.
+jury:
+  selection_model: perspective_balanced_explicit_pool
+  minimum_jurors: 8
+  perspectives:
+    - dependency_semantics
+    - source_owner_authority
+    - runtime_scenario_coverage
+    - introducer_path_reasoning
+    - security_handoff_boundary
+    - visualization_boundary
+    - non_authority_preservation
+    - target_repo_validation
+promotion:
+  adjudicator:
+    kind: human_operator
+    id: test_capabilities_source_owner_review
+  external_authority:
+    refs:
+      - system: test-capabilities
+        ref: source-owner-review-required-no-dependency-mutation
+        role: optional_review_target_not_applied
+options:
+  scenario_name: test-capabilities-dependency-review-program
+  target_owner: softwareco/owned/test-capabilities
+  owner_refs:
+    - /home/tryinget/ai-society/softwareco/owned/dep-diet/docs/project/dependency-review-program.v1.md
+    - /home/tryinget/ai-society/softwareco/owned/dep-diet/schemas/depdiet.dependency-review-program.v1.schema.json
+    - /home/tryinget/ai-society/softwareco/owned/dep-viz/docs/project/dependency-review-program-rendering.md
+    - /home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/vision.md
+    - /home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/product-posture.md
+  target_owner_refs:
+    - /home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/dependency-intelligence-scenario-diversity-pilot.md
+  risk_tier: authority_adjacent
+  target_protocol:
+    required_stages:
+      - load_dependency_review_program_packet
+      - validate_non_authority_boundaries
+      - inspect_direct_transitive_introducer_context
+      - inspect_runtime_scenario_set
+      - preserve_dep_viz_rendering_boundary
+      - route_optional_dep_redteam_handoff
+      - produce_review_findings
+      - emit_next_evidence_actions
+      - withhold_dependency_change_decision
+  authority_model:
+    evidence: dep-diet review packet and depmodel projection
+    review: source-owner review findings and next evidence actions
+    proposal: optional follow-up proposals only, never accepted dependency changes
+  expected_artifact_family:
+    - dependency review evidence
+    - source-owner review findings
+    - next evidence actions
+    - non-authority boundary packet
+    - dep-viz rendering reference
+    - optional dep-redteam handoff reference
+    - replayable DSPx generated-program receipt metadata
+  forbidden_effects:
+    - dependency mutation
+    - package manifest mutation
+    - lockfile mutation
+    - source mutation
+    - dependency removal approval
+    - dependency replacement approval
+    - merge approval
+    - release approval
+    - exploitability proof
+    - disclosure approval
+    - trust certification
+    - FCOS board mutation
+    - AK mutation
+    - governance mutation
+    - external system mutation beyond declared DSPx output artifacts
+  fitness:
+    required_adversarial_cases:
+      - declared-unobserved package is incorrectly treated as unused
+      - missing non-authority flag is ignored
+      - transitive dependency is reviewed without introducer-path caveat
+      - vulnerability context is handled without optional dep-redteam handoff boundary
+      - dep-viz rendering is mistaken for remediation authority
+      - generated program mutates package files

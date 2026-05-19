@@ -1,0 +1,63 @@
+{
+  "authority": "behavior_evidence_only_non_authoritative",
+  "non_authority": {
+    "external_authority_mutated": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "optimization_authority": false,
+    "oracle_promotion": false,
+    "oracle_pruning": false,
+    "oracle_ranking": false,
+    "promotion_authority": false,
+    "winner_selection": false
+  },
+  "schema_version": "program-behavior-episode-v1",
+  "sources": [
+    {
+      "behavior_results_hash": "f6a4845ad596aa3b801b31baa6cb358af01f460390614a89e0c0cffb16d0de59",
+      "behavior_results_path": "behavior_results.json",
+      "behavior_status": "error",
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_examples.py"
+      ],
+      "count": 1,
+      "harness_path": "eval_examples.py",
+      "kind": "examples",
+      "provider": {
+        "provider": "dspy-lm-auth/codex/gpt-5.5",
+        "status": "configured"
+      },
+      "returncode": 0,
+      "source_kind": "inline_examples",
+      "split": null,
+      "status": "passed",
+      "stderr": "",
+      "stdout": "program examples ok: 1 example(s); behavior status: error",
+      "summary": {
+        "degraded": 0,
+        "error": 1,
+        "failed": 0,
+        "passed": 0,
+        "status": "error",
+        "status_counts": {
+          "error": 1
+        },
+        "total": 1
+      }
+    }
+  ],
+  "status": "error",
+  "summary": {
+    "degraded": 0,
+    "error": 1,
+    "failed": 0,
+    "passed": 0,
+    "source_count": 1,
+    "status": "error",
+    "status_counts": {
+      "error": 1
+    },
+    "total": 1
+  }
+}

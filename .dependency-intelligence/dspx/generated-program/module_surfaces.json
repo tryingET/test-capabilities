@@ -1,0 +1,73 @@
+{
+  "authority": "module_surface_contracts_only_non_authoritative",
+  "module_surface_count": 1,
+  "module_surfaces": [
+    {
+      "authority": "module_surface_contract_only_non_authoritative",
+      "effects": {
+        "external_authority": false,
+        "filesystem_read": false,
+        "filesystem_write": false,
+        "network": false
+      },
+      "generated": {
+        "module_class": "TestCapabilitiesDependencyReviewProgramModule",
+        "module_path": "module.py",
+        "signature_class": "TestCapabilitiesDependencyReviewProgramSignature",
+        "signature_path": "signature.py"
+      },
+      "io": {
+        "inputs": [
+          "dependency_review_program_json",
+          "depmodel_json",
+          "target_context_json"
+        ],
+        "outputs": [
+          "review_findings_json",
+          "next_evidence_actions_json",
+          "authority_boundary_json"
+        ]
+      },
+      "module_id": "generated_module",
+      "non_authority": {
+        "external_mutation": false,
+        "governance_authority": false,
+        "oracle_promotion": false,
+        "oracle_pruning": false,
+        "oracle_ranking": false,
+        "promotion_authority": false
+      },
+      "primitive": "Predict",
+      "schema_version": "program-module-surface-v1",
+      "signature": {
+        "inputs": [
+          "dependency_review_program_json",
+          "depmodel_json",
+          "target_context_json"
+        ],
+        "name": "TestCapabilitiesDependencyReviewProgramSignature",
+        "outputs": [
+          "review_findings_json",
+          "next_evidence_actions_json",
+          "authority_boundary_json"
+        ]
+      },
+      "source_kind": "generated_single_module_scaffold"
+    }
+  ],
+  "non_authority": {
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_promotion": false,
+    "oracle_pruning": false,
+    "oracle_ranking": false,
+    "promotion_authority": false
+  },
+  "notes": [
+    "program-gen composes generated module surfaces through this replayable contract.",
+    "Future local custom module references can use the same IO-declared surface shape once a safe declared-only/import-free contract lands.",
+    "This artifact does not execute arbitrary custom Python modules and carries no ranking, promotion, governance, or external mutation authority."
+  ],
+  "schema_version": "program-module-surfaces-v1",
+  "status": "materialized"
+}

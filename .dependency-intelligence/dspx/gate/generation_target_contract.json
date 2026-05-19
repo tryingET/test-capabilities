@@ -1,0 +1,125 @@
+{
+  "confirmation_status": "structured_intent_fields_declared",
+  "contract_source": "generated_from_structured_intent",
+  "effect": {
+    "ak_mutated": false,
+    "candidate_files_mutated": false,
+    "canonical_target_mutated": false,
+    "governance_mutated": false,
+    "provider_called": false,
+    "shared_oracle_mutated": false
+  },
+  "fitness": {
+    "required_adversarial_cases": [
+      "declared-unobserved package is incorrectly treated as unused",
+      "missing non-authority flag is ignored",
+      "transitive dependency is reviewed without introducer-path caveat",
+      "vulnerability context is handled without optional dep-redteam handoff boundary",
+      "dep-viz rendering is mistaken for remediation authority",
+      "generated program mutates package files"
+    ]
+  },
+  "identity": {
+    "contract_sha256": "b5da45f519b0c09da4de8eddcb52fb7de284ebb6a91dc09810c595b96c98a5be",
+    "intent_sha256": "46b5f77de145bac403e24f405a955b19d41dec453b396ac7aca659c6b1d5d641",
+    "validator": "dspx.gen_target_contract.v1",
+    "validator_version": "v1"
+  },
+  "non_authority": {
+    "activation_authority": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_authority": false,
+    "promotion_authority": false
+  },
+  "profile_extension": {
+    "inputs": [
+      "dependency_review_program_json",
+      "depmodel_json",
+      "target_context_json"
+    ],
+    "intent_name": "TestCapabilitiesDependencyReviewProgram",
+    "outputs": [
+      "review_findings_json",
+      "next_evidence_actions_json",
+      "authority_boundary_json"
+    ],
+    "task_type": "single_module"
+  },
+  "protocol": {
+    "artifact_families": [
+      "evidence",
+      "review",
+      "proposal",
+      "dependency review evidence",
+      "source-owner review findings",
+      "next evidence actions",
+      "non-authority boundary packet",
+      "dep-viz rendering reference",
+      "optional dep-redteam handoff reference",
+      "replayable DSPx generated-program receipt metadata"
+    ],
+    "forbidden_shortcuts": [
+      "dependency mutation",
+      "package manifest mutation",
+      "lockfile mutation",
+      "source mutation",
+      "dependency removal approval",
+      "dependency replacement approval",
+      "merge approval",
+      "release approval",
+      "exploitability proof",
+      "disclosure approval",
+      "trust certification",
+      "FCOS board mutation",
+      "AK mutation",
+      "governance mutation",
+      "external system mutation beyond declared DSPx output artifacts",
+      "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+    ],
+    "required_stages": [
+      "load_dependency_review_program_packet",
+      "validate_non_authority_boundaries",
+      "inspect_direct_transitive_introducer_context",
+      "inspect_runtime_scenario_set",
+      "preserve_dep_viz_rendering_boundary",
+      "route_optional_dep_redteam_handoff",
+      "produce_review_findings",
+      "emit_next_evidence_actions",
+      "withhold_dependency_change_decision"
+    ]
+  },
+  "requests": {
+    "activation_evidence": false,
+    "adapter_materialization": true,
+    "export_evidence": false,
+    "promotion_evidence": true,
+    "shared_oracle_publication": false
+  },
+  "risk_tier": "authority_adjacent",
+  "schema_version": "gen-target-contract-v1",
+  "source_policy": {
+    "language_policy": "preserve_source_language",
+    "provenance_required": true
+  },
+  "target": {
+    "authority_refs": [
+      {
+        "ref": "source-owner-review-required-no-dependency-mutation",
+        "role": "optional_review_target_not_applied",
+        "system": "test-capabilities"
+      }
+    ],
+    "id": "test-capabilities-dependency-review-program",
+    "owner": "softwareco/owned/test-capabilities",
+    "owner_ref_custody": "local_path_reference_not_publishable_without_redaction",
+    "owner_refs": [
+      "/home/tryinget/ai-society/softwareco/owned/dep-diet/docs/project/dependency-review-program.v1.md",
+      "/home/tryinget/ai-society/softwareco/owned/dep-diet/schemas/depdiet.dependency-review-program.v1.schema.json",
+      "/home/tryinget/ai-society/softwareco/owned/dep-viz/docs/project/dependency-review-program-rendering.md",
+      "/home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/vision.md",
+      "/home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/product-posture.md",
+      "/home/tryinget/ai-society/softwareco/owned/test-capabilities/docs/project/dependency-intelligence-scenario-diversity-pilot.md"
+    ]
+  }
+}

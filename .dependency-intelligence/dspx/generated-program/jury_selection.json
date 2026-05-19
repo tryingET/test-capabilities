@@ -1,0 +1,87 @@
+{
+  "authority": "selection_contract_only_non_authoritative",
+  "eligible_juror_count": 15,
+  "jury_schema_version": "program-jury-v1",
+  "minimum_jurors": 8,
+  "notes": [
+    "Selection is deterministic metadata for future jury execution binding.",
+    "No juror model is called during deterministic materialization.",
+    "Selected jurors cannot rank, prune, promote, or grant Oracle authority."
+  ],
+  "schema_version": "program-jury-selection-v1",
+  "selected_juror_count": 8,
+  "selected_jurors": [
+    {
+      "id": "explicit_dependency_semantics",
+      "model": null,
+      "perspective": "dependency_semantics",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_source_owner_authority",
+      "model": null,
+      "perspective": "source_owner_authority",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_runtime_scenario_coverage",
+      "model": null,
+      "perspective": "runtime_scenario_coverage",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_introducer_path_reasoning",
+      "model": null,
+      "perspective": "introducer_path_reasoning",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_security_handoff_boundary",
+      "model": null,
+      "perspective": "security_handoff_boundary",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_visualization_boundary",
+      "model": null,
+      "perspective": "visualization_boundary",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_non_authority_preservation",
+      "model": null,
+      "perspective": "non_authority_preservation",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    },
+    {
+      "id": "explicit_target_repo_validation",
+      "model": null,
+      "perspective": "target_repo_validation",
+      "reason": "declared in jury.perspectives without a bound juror model",
+      "source": "explicit_perspective"
+    }
+  ],
+  "selected_perspectives": [
+    "dependency_semantics",
+    "source_owner_authority",
+    "runtime_scenario_coverage",
+    "introducer_path_reasoning",
+    "security_handoff_boundary",
+    "visualization_boundary",
+    "non_authority_preservation",
+    "target_repo_validation"
+  ],
+  "selection_constraints": {
+    "prefer_diverse_models": true,
+    "prefer_diverse_perspectives": true
+  },
+  "selection_model": "perspective_balanced_explicit_pool",
+  "status": "selected"
+}

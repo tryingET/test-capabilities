@@ -1,0 +1,14 @@
+[
+  {
+    "inputs": {
+      "dependency_review_program_json": "{\"schemaVersion\":\"depdiet.dependency-review-program.v1\",\"programId\":\"example\",\"review\":{\"classifications\":[\"declared-unobserved\"],\"reviewSignals\":[{\"code\":\"declared-unobserved-review\",\"packageId\":\"npm:example@1.0.0\",\"posture\":\"collect-evidence\"}],\"sourceOwnerRoleAnnotations\":[],\"nextEvidenceActions\":[]},\"nonAuthorizations\":{\"mutationAuthority\":false,\"removalAuthority\":false,\"replacementAuthority\":false,\"mergeAuthority\":false,\"releaseAuthority\":false,\"exploitabilityAuthority\":false,\"disclosureAuthority\":false,\"trustCertificationAuthority\":false}}",
+      "depmodel_json": "{\"modelVersion\":\"depmodel.v1\",\"modules\":[],\"packages\":[],\"edges\":[],\"introducerPaths\":[],\"vulnerabilities\":[],\"references\":[],\"provenance\":{\"producer\":\"dep-diet\",\"backend\":\"native\",\"tools\":{}}}",
+      "target_context_json": "{\"repository\":\"test-capabilities\",\"scenarioCompleteness\":\"smoke-only\",\"acceptedDependencyChanges\":false}"
+    },
+    "outputs": {
+      "authority_boundary_json": "{\"mutationAuthority\":false,\"removalAuthority\":false,\"replacementAuthority\":false,\"mergeAuthority\":false,\"releaseAuthority\":false,\"exploitabilityAuthority\":false,\"disclosureAuthority\":false,\"trustCertificationAuthority\":false,\"decision\":\"withheld_pending_source_owner_review\"}",
+      "next_evidence_actions_json": "[{\"action\":\"Ask the source owner whether the chosen scenario set should exercise npm:example@1.0.0 before interpreting it as unused.\",\"ownerSurface\":\"test-capabilities\"}]",
+      "review_findings_json": "[{\"packageId\":\"npm:example@1.0.0\",\"finding\":\"declared-unobserved under the supplied scenario set\",\"authority\":\"review-only\"}]"
+    }
+  }
+]

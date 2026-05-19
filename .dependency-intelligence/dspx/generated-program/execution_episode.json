@@ -1,0 +1,579 @@
+{
+  "assembly_id": "prog-asm-efe9ca8f2dc3",
+  "authority": "execution_episode_evidence_only_non_authoritative",
+  "behavior_evidence_summary": {
+    "degraded": 0,
+    "error": 0,
+    "executed_source_count": 1,
+    "failed": 0,
+    "no_examples_source_count": 0,
+    "passed": 1,
+    "source_count": 1,
+    "source_statuses": [
+      {
+        "behavior_results_path": "behavior_results.json",
+        "count": 1,
+        "kind": "examples",
+        "source_kind": "inline_examples",
+        "split": null,
+        "status": "passed"
+      }
+    ],
+    "status": "passed",
+    "status_counts": {
+      "passed": 1
+    },
+    "total": 1
+  },
+  "behavior_orchestration": {
+    "harness": "eval_behavior.py",
+    "result_artifact": "behavior_episode.json",
+    "result_hash": "7a8e2086a8900589b763cd1d0dac80ae55420ba31d8151217602f10e2ac25bc8",
+    "returncode": 0,
+    "status": "passed",
+    "summary": {
+      "degraded": 0,
+      "error": 1,
+      "failed": 0,
+      "passed": 0,
+      "source_count": 1,
+      "status": "error",
+      "status_counts": {
+        "error": 1
+      },
+      "total": 1
+    }
+  },
+  "behavior_results": {
+    "content_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+    "path": "behavior_results.json",
+    "summary": {
+      "degraded": 0,
+      "error": 0,
+      "failed": 0,
+      "passed": 1,
+      "status": "passed",
+      "status_counts": {
+        "passed": 1
+      },
+      "total": 1
+    }
+  },
+  "behavior_status": "passed",
+  "behavioral_evaluation": {
+    "examples_count": 1,
+    "result_artifact": "behavior_results.json",
+    "result_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+    "status": "passed",
+    "summary": {
+      "degraded": 0,
+      "error": 0,
+      "failed": 0,
+      "passed": 1,
+      "status": "passed",
+      "status_counts": {
+        "passed": 1
+      },
+      "total": 1
+    }
+  },
+  "candidate_id": "prog-cand-4b7eb19e7598",
+  "checks": {
+    "compile": {
+      "files": [
+        "direct_run.py",
+        "eval_behavior.py",
+        "eval_examples.py",
+        "eval_jury.py",
+        "eval_promotion.py",
+        "eval_smoke.py",
+        "module.py",
+        "program.py",
+        "signature.py"
+      ],
+      "status": "passed"
+    },
+    "dataset_binding": {
+      "dataset_manifest": null,
+      "split_artifacts": {},
+      "status": "not_applicable"
+    },
+    "examples_binding": {
+      "artifact_refs": [
+        "examples.json",
+        "eval_examples.py"
+      ],
+      "examples_count": 1,
+      "status": "passed"
+    },
+    "jury_binding": {
+      "artifact_refs": [
+        "jury.json",
+        "jury_selection.json",
+        "jury_rubric.json",
+        "eval_jury.py"
+      ],
+      "returncode": 0,
+      "status": "passed"
+    },
+    "promotion_binding": {
+      "artifact_refs": [
+        "promotion_review.json",
+        "promotion_adjudication_request.json",
+        "promotion_decision_template.json",
+        "eval_promotion.py"
+      ],
+      "returncode": 0,
+      "status": "passed"
+    },
+    "smoke": {
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_smoke.py"
+      ],
+      "returncode": 0,
+      "status": "passed"
+    }
+  },
+  "dataset_evaluation": {
+    "dataset_manifest": null,
+    "split_results": {
+      "test": {
+        "behavior_results_hash": null,
+        "behavior_results_path": null,
+        "harness": {},
+        "summary": {}
+      },
+      "train": {
+        "behavior_results_hash": null,
+        "behavior_results_path": null,
+        "harness": {},
+        "summary": {}
+      },
+      "validation": {
+        "behavior_results_hash": null,
+        "behavior_results_path": null,
+        "harness": {},
+        "summary": {}
+      }
+    },
+    "status": "not_applicable"
+  },
+  "episode_id": "prog-ep-142bae534b7f",
+  "evaluation_sources": [
+    {
+      "behavior_results_hash": "f3e14a0efb80298962eae0133565aa227ae461fa3d4929b41626e0f52a54bb5d",
+      "behavior_results_path": "behavior_results.json",
+      "count": 1,
+      "harness": {
+        "path": "eval_examples.py",
+        "returncode": 0,
+        "status": "passed"
+      },
+      "input_artifact_hash": "3ae5c2c85bf924d9877de0ceedba80da604ad3c37d8b20189768f1117471bb0f",
+      "input_artifact_path": "examples.json",
+      "kind": "examples",
+      "metric": "exact_match",
+      "provider": {
+        "provider": "dspy-lm-auth/codex/gpt-5.5",
+        "status": "configured"
+      },
+      "source_kind": "inline_examples",
+      "source_path": null,
+      "status": "passed",
+      "summary": {
+        "degraded": 0,
+        "error": 0,
+        "failed": 0,
+        "passed": 1,
+        "status": "passed",
+        "status_counts": {
+          "passed": 1
+        },
+        "total": 1
+      }
+    }
+  ],
+  "evaluator": "deterministic_program_bundle_smoke",
+  "materialization": {
+    "generated_file_count": 24,
+    "generated_files": [
+      "behavior_episode.json",
+      "behavior_results.json",
+      "direct_run.py",
+      "eval_behavior.py",
+      "eval_examples.py",
+      "eval_jury.py",
+      "eval_promotion.py",
+      "eval_smoke.py",
+      "examples.json",
+      "execution_episode.json",
+      "intent.json",
+      "jury.json",
+      "jury_rubric.json",
+      "jury_selection.json",
+      "manifest.json",
+      "module.py",
+      "module_surfaces.json",
+      "oracle_evidence.json",
+      "plan.json",
+      "program.py",
+      "promotion_adjudication_request.json",
+      "promotion_decision_template.json",
+      "promotion_review.json",
+      "signature.py"
+    ],
+    "status": "passed"
+  },
+  "metadata": {
+    "behavior_episode": {
+      "authority": "behavior_evidence_only_non_authoritative",
+      "non_authority": {
+        "external_authority_mutated": false,
+        "external_mutation": false,
+        "governance_authority": false,
+        "optimization_authority": false,
+        "oracle_promotion": false,
+        "oracle_pruning": false,
+        "oracle_ranking": false,
+        "promotion_authority": false,
+        "winner_selection": false
+      },
+      "schema_version": "program-behavior-episode-v1",
+      "sources": [
+        {
+          "behavior_results_hash": "f6a4845ad596aa3b801b31baa6cb358af01f460390614a89e0c0cffb16d0de59",
+          "behavior_results_path": "behavior_results.json",
+          "behavior_status": "error",
+          "command": [
+            "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+            "eval_examples.py"
+          ],
+          "count": 1,
+          "harness_path": "eval_examples.py",
+          "kind": "examples",
+          "provider": {
+            "provider": "dspy-lm-auth/codex/gpt-5.5",
+            "status": "configured"
+          },
+          "returncode": 0,
+          "source_kind": "inline_examples",
+          "split": null,
+          "status": "passed",
+          "stderr": "",
+          "stdout": "program examples ok: 1 example(s); behavior status: error",
+          "summary": {
+            "degraded": 0,
+            "error": 1,
+            "failed": 0,
+            "passed": 0,
+            "status": "error",
+            "status_counts": {
+              "error": 1
+            },
+            "total": 1
+          }
+        }
+      ],
+      "status": "error",
+      "summary": {
+        "degraded": 0,
+        "error": 1,
+        "failed": 0,
+        "passed": 0,
+        "source_count": 1,
+        "status": "error",
+        "status_counts": {
+          "error": 1
+        },
+        "total": 1
+      }
+    },
+    "behavior_results": {
+      "authority": "behavior_evidence_only_non_authoritative",
+      "examples": [
+        {
+          "expected_outputs": {
+            "authority_boundary_json": "{\"mutationAuthority\":false,\"removalAuthority\":false,\"replacementAuthority\":false,\"mergeAuthority\":false,\"releaseAuthority\":false,\"exploitabilityAuthority\":false,\"disclosureAuthority\":false,\"trustCertificationAuthority\":false,\"decision\":\"withheld_pending_source_owner_review\"}",
+            "next_evidence_actions_json": "[{\"action\":\"Ask the source owner whether the chosen scenario set should exercise npm:example@1.0.0 before interpreting it as unused.\",\"ownerSurface\":\"test-capabilities\"}]",
+            "review_findings_json": "[{\"packageId\":\"npm:example@1.0.0\",\"finding\":\"declared-unobserved under the supplied scenario set\",\"authority\":\"review-only\"}]"
+          },
+          "index": 0,
+          "inputs": {
+            "dependency_review_program_json": "{\"schemaVersion\":\"depdiet.dependency-review-program.v1\",\"programId\":\"example\",\"review\":{\"classifications\":[\"declared-unobserved\"],\"reviewSignals\":[{\"code\":\"declared-unobserved-review\",\"packageId\":\"npm:example@1.0.0\",\"posture\":\"collect-evidence\"}],\"sourceOwnerRoleAnnotations\":[],\"nextEvidenceActions\":[]},\"nonAuthorizations\":{\"mutationAuthority\":false,\"removalAuthority\":false,\"replacementAuthority\":false,\"mergeAuthority\":false,\"releaseAuthority\":false,\"exploitabilityAuthority\":false,\"disclosureAuthority\":false,\"trustCertificationAuthority\":false}}",
+            "depmodel_json": "{\"modelVersion\":\"depmodel.v1\",\"modules\":[],\"packages\":[],\"edges\":[],\"introducerPaths\":[],\"vulnerabilities\":[],\"references\":[],\"provenance\":{\"producer\":\"dep-diet\",\"backend\":\"native\",\"tools\":{}}}",
+            "target_context_json": "{\"repository\":\"test-capabilities\",\"scenarioCompleteness\":\"smoke-only\",\"acceptedDependencyChanges\":false}"
+          },
+          "notes": [],
+          "observed_outputs": {
+            "authority_boundary_json": "{\"mutationAuthority\":false,\"removalAuthority\":false,\"replacementAuthority\":false,\"mergeAuthority\":false,\"releaseAuthority\":false,\"exploitabilityAuthority\":false,\"disclosureAuthority\":false,\"trustCertificationAuthority\":false,\"decision\":\"withheld_pending_source_owner_review\"}",
+            "next_evidence_actions_json": "[{\"action\":\"Ask the source owner whether the chosen scenario set should exercise npm:example@1.0.0 before interpreting it as unused.\",\"ownerSurface\":\"test-capabilities\"}]",
+            "review_findings_json": "[{\"packageId\":\"npm:example@1.0.0\",\"finding\":\"declared-unobserved under the supplied scenario set\",\"authority\":\"review-only\"}]"
+          },
+          "status": "passed"
+        }
+      ],
+      "input_fields": [
+        "dependency_review_program_json",
+        "depmodel_json",
+        "target_context_json"
+      ],
+      "intent": {
+        "constraints": [
+          "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
+          "Treat runtime-trace-insights observations as bounded to the supplied scenario set.",
+          "Treat Gardener/static evidence as graph evidence, not runtime coverage.",
+          "Treat dep-viz as renderer/explainer only.",
+          "Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists.",
+          "Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions.",
+          "Do not infer that declared-unobserved or scenario-unobserved means unused.",
+          "Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+          "Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding.",
+          "Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems.",
+          "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+        ],
+        "declared_topology": {},
+        "io": {
+          "inputs": [
+            "dependency_review_program_json",
+            "depmodel_json",
+            "target_context_json"
+          ],
+          "outputs": [
+            "review_findings_json",
+            "next_evidence_actions_json",
+            "authority_boundary_json"
+          ]
+        },
+        "materialization_scope": {
+          "current_renderer": "single_module_scaffold",
+          "topology_declared": false,
+          "topology_materialized": true
+        },
+        "metric": "exact_match",
+        "module_class": "TestCapabilitiesDependencyReviewProgramModule",
+        "name": "TestCapabilitiesDependencyReviewProgram",
+        "objective": "Review a dep-diet dependency-review-program.v1 packet for the test-capabilities repository and emit source-owner review findings, next-evidence actions, and explicit non-authority boundaries without deciding dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+        "signature_class": "TestCapabilitiesDependencyReviewProgramSignature",
+        "topology_execution_status": "single_module_scaffold_materialized"
+      },
+      "intent_name": "TestCapabilitiesDependencyReviewProgram",
+      "non_authority": {
+        "external_authority_mutated": false,
+        "external_mutation": false,
+        "governance_authority": false,
+        "optimization_authority": false,
+        "oracle_promotion": false,
+        "oracle_pruning": false,
+        "oracle_ranking": false,
+        "promotion_authority": false,
+        "winner_selection": false
+      },
+      "output_fields": [
+        "review_findings_json",
+        "next_evidence_actions_json",
+        "authority_boundary_json"
+      ],
+      "provider": {
+        "provider": "dspy-lm-auth/codex/gpt-5.5",
+        "status": "configured"
+      },
+      "schema_version": "program-behavior-results-v1",
+      "summary": {
+        "degraded": 0,
+        "error": 0,
+        "failed": 0,
+        "passed": 1,
+        "status": "passed",
+        "status_counts": {
+          "passed": 1
+        },
+        "total": 1
+      }
+    },
+    "examples": {
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_examples.py"
+      ],
+      "returncode": 0,
+      "stderr": "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/lib/python3.13/site-packages/pydantic/main.py:464: UserWarning: Pydantic serializer warnings:\n  PydanticSerializationUnexpectedValue(Expected `ResponseAPIUsage` - serialized value may not be as expected [field_name='usage', input_value={'completion_tokens': 160..., 'image_tokens': None}}, input_type=dict])\n  return self.__pydantic_serializer__.to_python(",
+      "stdout": "program examples ok: 1 example(s); behavior status: passed"
+    },
+    "jury": {
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_jury.py"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "program jury artifacts ok: 8 selected juror(s)"
+    },
+    "promotion": {
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_promotion.py"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "program promotion artifacts ok: not_ready_blocked"
+    },
+    "smoke": {
+      "command": [
+        "/home/tryinget/ai-society/softwareco/owned/dspx/.venv/bin/python3",
+        "eval_smoke.py"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "program smoke ok: TestCapabilitiesDependencyReviewProgram"
+    }
+  },
+  "non_authority": {
+    "ak_mutation": false,
+    "automatic_promotion": false,
+    "evidence_only": true,
+    "external_authority_mutated": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "governance_mutation": false,
+    "oracle_authority": false,
+    "oracle_promotion": false,
+    "oracle_pruning": false,
+    "oracle_ranking": false,
+    "oracle_role": "not_invoked",
+    "promotion_authority": false,
+    "ranking_pruning_promotion": false,
+    "winner_selection": false
+  },
+  "notes": [
+    "Materialization, binding checks, behavioral evaluation, and Oracle readability are separate episode sections.",
+    "eval_examples.py is the example-backed behavior harness when examples exist.",
+    "Oracle readability is captured without invoking Oracle or mutating an index.",
+    "This artifact is evidence only and cannot rank, prune, promote, export, or mutate governance authority."
+  ],
+  "oracle_evidence": {
+    "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
+    "facets": {
+      "behavior_source_kinds": [
+        "inline_examples"
+      ],
+      "behavior_status": "passed",
+      "dataset_split_count": 0,
+      "evidence_source_count": 1,
+      "example_count": 1,
+      "failure_mode_count": 0,
+      "has_dataset_splits": false,
+      "has_examples": true,
+      "has_failures": false,
+      "input_fields": [
+        "dependency_review_program_json",
+        "depmodel_json",
+        "target_context_json"
+      ],
+      "metric": "exact_match",
+      "output_fields": [
+        "review_findings_json",
+        "next_evidence_actions_json",
+        "authority_boundary_json"
+      ],
+      "status_counts": {
+        "passed": 1
+      },
+      "task_type": "single_module",
+      "total_evaluation_count": 1
+    },
+    "path": "oracle_evidence.json",
+    "summary": {
+      "authority": "oracle_readability_only_non_authoritative",
+      "behavior_status": "passed",
+      "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
+      "evidence_kind": "program_execution_episode",
+      "example_count": 1,
+      "failure_mode_count": 0,
+      "has_failures": false,
+      "oracle_text_hash": "9ba954c442d1f204d8c15b83b3fde17767ac2445f0b969fcacf494c6fd0e11b0",
+      "path": "oracle_evidence.json",
+      "schema_version": "program-oracle-evidence-v1",
+      "status_counts": {
+        "passed": 1
+      }
+    }
+  },
+  "oracle_readability": {
+    "facets": {
+      "behavior_source_kinds": [
+        "inline_examples"
+      ],
+      "behavior_status": "passed",
+      "dataset_split_count": 0,
+      "evidence_source_count": 1,
+      "example_count": 1,
+      "failure_mode_count": 0,
+      "has_dataset_splits": false,
+      "has_examples": true,
+      "has_failures": false,
+      "input_fields": [
+        "dependency_review_program_json",
+        "depmodel_json",
+        "target_context_json"
+      ],
+      "metric": "exact_match",
+      "output_fields": [
+        "review_findings_json",
+        "next_evidence_actions_json",
+        "authority_boundary_json"
+      ],
+      "status_counts": {
+        "passed": 1
+      },
+      "task_type": "single_module",
+      "total_evaluation_count": 1
+    },
+    "oracle_invoked": false,
+    "result_artifact": "oracle_evidence.json",
+    "result_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
+    "status": "captured",
+    "summary": {
+      "authority": "oracle_readability_only_non_authoritative",
+      "behavior_status": "passed",
+      "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
+      "evidence_kind": "program_execution_episode",
+      "example_count": 1,
+      "failure_mode_count": 0,
+      "has_failures": false,
+      "oracle_text_hash": "9ba954c442d1f204d8c15b83b3fde17767ac2445f0b969fcacf494c6fd0e11b0",
+      "path": "oracle_evidence.json",
+      "schema_version": "program-oracle-evidence-v1",
+      "status_counts": {
+        "passed": 1
+      }
+    }
+  },
+  "phase": "materialize",
+  "request_id": "prog-req-af5a9edbffbc",
+  "runtime_conditions": {
+    "metric": "exact_match",
+    "providers": {
+      "examples": {
+        "provider": "dspy-lm-auth/codex/gpt-5.5",
+        "status": "configured"
+      }
+    },
+    "runtime": {}
+  },
+  "schema_version": "program-execution-episode-v1",
+  "status": "passed",
+  "status_scope": "materialization_and_binding_checks",
+  "topology_execution": {
+    "current_renderer": "single_module_scaffold",
+    "declared_topology_kind": null,
+    "declared_topology_present": false,
+    "materialized": true,
+    "materialized_topology_kind": "single_module",
+    "notes": [
+      "Explicit topology is declared-only unless materialized is true.",
+      "program.py delegates to the generated single module scaffold for non-pipeline topology kinds."
+    ],
+    "status": "single_module_scaffold_materialized"
+  }
+}

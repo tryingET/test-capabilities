@@ -1,0 +1,326 @@
+{
+  "cases": [
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-1-declared-unobserved-package-is-incorrectly-treated-as-unused",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://declared-unobserved-package-is-incorrectly-treated-as-unused",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    },
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-2-missing-non-authority-flag-is-ignored",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://missing-non-authority-flag-is-ignored",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    },
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-3-transitive-dependency-is-reviewed-without-introducer-path-caveat",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://transitive-dependency-is-reviewed-without-introducer-path-caveat",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    },
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-4-vulnerability-context-is-handled-without-optional-dep-redteam-handoff-boundary",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://vulnerability-context-is-handled-without-optional-dep-redteam-handoff-boundary",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    },
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-5-dep-viz-rendering-is-mistaken-for-remediation-authority",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://dep-viz-rendering-is-mistaken-for-remediation-authority",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    },
+    {
+      "allowed_artifact_families": [
+        "evidence",
+        "review",
+        "proposal",
+        "dependency review evidence",
+        "source-owner review findings",
+        "next evidence actions",
+        "non-authority boundary packet",
+        "dep-viz rendering reference",
+        "optional dep-redteam handoff reference",
+        "replayable DSPx generated-program receipt metadata"
+      ],
+      "case_id": "case-6-generated-program-mutates-package-files",
+      "expected_failure_label": "withheld_for_target_protocol_failure",
+      "fixture_ref": "declared://generated-program-mutates-package-files",
+      "forbidden_outputs_or_effects": [
+        "dependency mutation",
+        "package manifest mutation",
+        "lockfile mutation",
+        "source mutation",
+        "dependency removal approval",
+        "dependency replacement approval",
+        "merge approval",
+        "release approval",
+        "exploitability proof",
+        "disclosure approval",
+        "trust certification",
+        "FCOS board mutation",
+        "AK mutation",
+        "governance mutation",
+        "external system mutation beyond declared DSPx output artifacts",
+        "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+      ],
+      "source_provenance_assertions": [
+        "source_refs_present"
+      ],
+      "target_stage_assertions": [
+        "load_dependency_review_program_packet",
+        "validate_non_authority_boundaries",
+        "inspect_direct_transitive_introducer_context",
+        "inspect_runtime_scenario_set",
+        "preserve_dep_viz_rendering_boundary",
+        "route_optional_dep_redteam_handoff",
+        "produce_review_findings",
+        "emit_next_evidence_actions",
+        "withhold_dependency_change_decision"
+      ],
+      "validator": "dspx.gen_fitness_suite.declared_mechanical_check.v1"
+    }
+  ],
+  "effect": {
+    "ak_mutated": false,
+    "candidate_files_mutated": false,
+    "canonical_target_mutated": false,
+    "governance_mutated": false,
+    "provider_called": false,
+    "shared_oracle_mutated": false
+  },
+  "identity": {
+    "suite_sha256": "ec81a76eb175013e024a9c341fcad456ee61adad81cdb4843a51baf9a1ef3848",
+    "target_contract_sha256": "b5da45f519b0c09da4de8eddcb52fb7de284ebb6a91dc09810c595b96c98a5be",
+    "validator": "dspx.gen_fitness_suite.v1",
+    "validator_version": "v1"
+  },
+  "non_authority": {
+    "activation_authority": false,
+    "external_mutation": false,
+    "governance_authority": false,
+    "oracle_authority": false,
+    "promotion_authority": false
+  },
+  "schema_version": "gen-fitness-suite-v1"
+}

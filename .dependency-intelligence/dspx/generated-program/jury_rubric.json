@@ -1,0 +1,108 @@
+{
+  "authority": "rubric_contract_only_non_authoritative",
+  "constraints_under_review": [
+    "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
+    "Treat runtime-trace-insights observations as bounded to the supplied scenario set.",
+    "Treat Gardener/static evidence as graph evidence, not runtime coverage.",
+    "Treat dep-viz as renderer/explainer only.",
+    "Treat dep-redteam as optional security/advisory escalation only when vulnerability, advisory, reachability, exploitability, or disclosure evidence exists.",
+    "Treat test-capabilities as the source owner for accepted scenarios, dependency role annotations, validation, and dependency-change decisions.",
+    "Do not infer that declared-unobserved or scenario-unobserved means unused.",
+    "Do not decide dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+    "Preserve all non-authority flags from the input packet; if any are missing or true, emit a blocking review finding.",
+    "Do not mutate package.json, lockfiles, source files, FCOS board state, AK state, governance state, or external systems.",
+    "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
+  ],
+  "intent_name": "TestCapabilitiesDependencyReviewProgram",
+  "juror_rubrics": [
+    {
+      "adversarial_questions": [
+        "What would a dependency_semantics reviewer challenge first?"
+      ],
+      "criteria": [
+        "dependency_semantics_review"
+      ],
+      "juror_id": "explicit_dependency_semantics",
+      "perspective": "dependency_semantics"
+    },
+    {
+      "adversarial_questions": [
+        "What would a source_owner_authority reviewer challenge first?"
+      ],
+      "criteria": [
+        "source_owner_authority_review"
+      ],
+      "juror_id": "explicit_source_owner_authority",
+      "perspective": "source_owner_authority"
+    },
+    {
+      "adversarial_questions": [
+        "What would a runtime_scenario_coverage reviewer challenge first?"
+      ],
+      "criteria": [
+        "runtime_scenario_coverage_review"
+      ],
+      "juror_id": "explicit_runtime_scenario_coverage",
+      "perspective": "runtime_scenario_coverage"
+    },
+    {
+      "adversarial_questions": [
+        "What would a introducer_path_reasoning reviewer challenge first?"
+      ],
+      "criteria": [
+        "introducer_path_reasoning_review"
+      ],
+      "juror_id": "explicit_introducer_path_reasoning",
+      "perspective": "introducer_path_reasoning"
+    },
+    {
+      "adversarial_questions": [
+        "What would a security_handoff_boundary reviewer challenge first?"
+      ],
+      "criteria": [
+        "security_handoff_boundary_review"
+      ],
+      "juror_id": "explicit_security_handoff_boundary",
+      "perspective": "security_handoff_boundary"
+    },
+    {
+      "adversarial_questions": [
+        "What would a visualization_boundary reviewer challenge first?"
+      ],
+      "criteria": [
+        "visualization_boundary_review"
+      ],
+      "juror_id": "explicit_visualization_boundary",
+      "perspective": "visualization_boundary"
+    },
+    {
+      "adversarial_questions": [
+        "What would a non_authority_preservation reviewer challenge first?"
+      ],
+      "criteria": [
+        "non_authority_preservation_review"
+      ],
+      "juror_id": "explicit_non_authority_preservation",
+      "perspective": "non_authority_preservation"
+    },
+    {
+      "adversarial_questions": [
+        "What would a target_repo_validation reviewer challenge first?"
+      ],
+      "criteria": [
+        "target_repo_validation_review"
+      ],
+      "juror_id": "explicit_target_repo_validation",
+      "perspective": "target_repo_validation"
+    }
+  ],
+  "notes": [
+    "Rubrics are deterministic prompts for future jury execution binding.",
+    "No juror model is called during deterministic materialization.",
+    "Rubric results cannot rank, prune, promote, or grant Oracle authority."
+  ],
+  "objective": "Review a dep-diet dependency-review-program.v1 packet for the test-capabilities repository and emit source-owner review findings, next-evidence actions, and explicit non-authority boundaries without deciding dependency removal, replacement, merge, release, exploitability, disclosure, or trust state.",
+  "schema_version": "program-jury-rubric-v1",
+  "selected_juror_count": 8,
+  "selection_status": "selected"
+}
