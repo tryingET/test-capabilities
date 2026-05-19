@@ -46,6 +46,19 @@ Do not turn this file into a task log, changelog, queue mirror, handoff file, or
 | Packaging/release | Package entrypoints, built `dist/`, packed-artifact smoke, root-cause corpus dogfooding, runtime diagnostic corpus dogfooding, packed consumer root-cause and propagation invariant proof, and `release:check` exist; the packed artifact intentionally excludes repo-local `external/bombadil` and verifies the external-tool failure path plus calibrated diagnosis survival through distribution. | Consumers receive only intentional package contents and clear external-tool requirements while release preflight preserves calibrated diagnosis invariants. | Future releases may still revisit vendoring, but the current distribution posture is external Bombadil for packed consumers; the root-cause corpus is bounded fixture proof and the runtime diagnostic corpus is a narrow real-subprocess proof rather than empirical product telemetry. | Release checks prove package contents, CLI entrypoints, root-cause corpus invariants, runtime diagnostic corpus invariants, the external Bombadil requirement, and that packed dist/ produces correct calibrated `root_cause` plus low-calibration non-authoritative `propagation` observations through the library API. |
 | Direction substrate | Maintainer planning systems may track strategic frames, implementation waves, tasks, decisions, and evidence; `governance/work-items.json` remains a compatibility projection only. | Product posture selects strategic frames while docs remain narrative/reference. | Keep product posture and capability-surface changes synchronized without turning this file into a live queue mirror. | Maintainer planning state names the next strategic frame or implementation wave without recreating handoff files. |
 
+## Dependency-intelligence consumer posture
+
+Recent dependency-intelligence pilots used `test-capabilities` as a target repo and behavior-validation consumer. CLI startup probes, public API probes, and module-specific probes exposed different dependency contexts without turning runtime observation into removal authority.
+
+The durable boundary is:
+
+```text
+test-capabilities owns target source facts, accepted scenarios, and validation response
+dependency-intelligence standards/classifications/rendering/security proof stay with their owner repos
+```
+
+Say “`test-capabilities` is a dependency-intelligence target/behavior-validation consumer” rather than “`test-capabilities` owns dependency-intelligence standards.”
+
 ## Current strengths
 
 - The runtime is fail-closed: unsupported config sections, agents, commands, and flags error instead of pretending success.
