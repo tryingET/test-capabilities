@@ -1,0 +1,345 @@
+{
+  "schemaVersion": "depdiet.dependency-role-decisions.v1",
+  "target": {
+    "repositoryPath": ".",
+    "scopeNote": "Source-owner role decisions for direct dependency roots. These decisions establish lifecycle/scenario expectations only; they do not authorize dependency changes."
+  },
+  "decisions": [
+    {
+      "packageName": "chalk",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["cli-runtime", "demo"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "CLI output styling is part of user-facing runtime behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime role only."
+      }
+    },
+    {
+      "packageName": "commander",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["cli-runtime"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "CLI command parsing is shipped runtime behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime role only."
+      }
+    },
+    {
+      "packageName": "figlet",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["demo", "cli-runtime"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "Demo/CLI banner output is runtime/demo behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime/demo role only."
+      }
+    },
+    {
+      "packageName": "js-yaml",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["config-load", "cli-runtime"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "YAML config parsing is runtime/config behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime/config role only."
+      }
+    },
+    {
+      "packageName": "ora",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["cli-runtime", "demo"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "CLI spinner/status output is runtime behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime role only."
+      }
+    },
+    {
+      "packageName": "zod",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "confirmed",
+      "expectedScenarios": ["cli-runtime", "api-runtime"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "Runtime schema validation is runtime/API behavior and was observed in runtime evidence.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": [],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted runtime role only."
+      }
+    },
+    {
+      "packageName": "@biomejs/biome",
+      "role": "lint-format-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["lint", "format", "quality-check"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Lint/format tooling is not expected in ordinary CLI runtime scenarios.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Include a lint/format scenario when reviewing changes to lint-format dependencies."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted tooling role only."
+      }
+    },
+    {
+      "packageName": "@cucumber/cucumber",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "scenario-gap",
+      "expectedScenarios": ["behavior-test", "bdd-test"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-review-program-dogfood.md",
+      "rationale": "BDD tooling is a test lifecycle dependency and was static-central-unobserved because behavior-test scenarios were not part of the runtime evidence set.",
+      "currentEvidenceRefs": [
+        {
+          "path": "/tmp/test-capabilities-depintel-review-program-20260519123902/depdiet/dependency-review-program.v1.json",
+          "kind": "dependency-review-program",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Record a behavior-test or BDD scenario before interpreting Cucumber runtime absence."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted test-tooling role only; scenario evidence remains missing."
+      }
+    },
+    {
+      "packageName": "@types/figlet",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["typecheck", "build"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Type declaration packages are not expected in runtime package observations.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Use typecheck/build scenarios for type-tooling reviews."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted type-tooling role only."
+      }
+    },
+    {
+      "packageName": "@types/node",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["typecheck", "build"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Node type declarations are typecheck/build support and are not expected in runtime package observations.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Use typecheck/build scenarios for type-tooling reviews."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted type-tooling role only."
+      }
+    },
+    {
+      "packageName": "@typescript/native-preview",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["typecheck", "build"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Native TypeScript compiler tooling is expected in typecheck/build scenarios, not ordinary CLI runtime scenarios.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Use typecheck/build scenarios for reviews of TypeScript compiler tooling."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted type-tooling role only."
+      }
+    },
+    {
+      "packageName": "fast-check",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["property-test", "test"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Property-testing support is expected in test/property-test scenarios, not ordinary CLI runtime scenarios.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Use property-test scenarios when reviewing fast-check changes."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted test-tooling role only."
+      }
+    },
+    {
+      "packageName": "vitest",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "decisionStatus": "accepted",
+      "evidenceStatus": "expected-not-observed",
+      "expectedScenarios": ["test", "unit-test"],
+      "source": "test-capabilities source-owner review",
+      "sourceRef": "docs/project/dependency-intelligence-role-hints.md",
+      "rationale": "Unit-test tooling is expected in test scenarios, not ordinary CLI runtime scenarios.",
+      "currentEvidenceRefs": [
+        {
+          "path": ".dependency-intelligence/dependency-role-hints.v1.json",
+          "kind": "dependency-role-hints",
+          "tool": "dep-diet"
+        }
+      ],
+      "followUps": ["Use unit-test scenarios when reviewing Vitest changes."],
+      "authority": {
+        "dependencyChangeAuthority": false,
+        "removalAuthority": false,
+        "replacementAuthority": false,
+        "note": "Accepted test-tooling role only."
+      }
+    }
+  ],
+  "nonAuthorizations": {
+    "mutationAuthority": false,
+    "removalAuthority": false,
+    "replacementAuthority": false,
+    "mergeAuthority": false,
+    "releaseAuthority": false,
+    "exploitabilityAuthority": false,
+    "disclosureAuthority": false,
+    "trustCertificationAuthority": false,
+    "note": "Role decisions are source-owner scenario-expectation facts only."
+  }
+}
