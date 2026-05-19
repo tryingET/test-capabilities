@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "depdiet.dependency-role-hints.v1",
+  "target": {
+    "repositoryPath": ".",
+    "scopeNote": "Broad lifecycle/tooling role hints for direct dependency roots and a few platform/optional introducer families. These hints are scenario-expectation context, not dependency-change authority."
+  },
+  "hints": [
+    {
+      "packagePattern": "@biomejs/cli-*",
+      "role": "platform-optional-binary",
+      "appliesTo": "introducer-family",
+      "expectedScenarios": ["install", "lint-format"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only",
+      "note": "Biome platform packages support the lint/format toolchain and are not expected in ordinary CLI runtime scenarios."
+    },
+    {
+      "packageName": "@biomejs/biome",
+      "role": "lint-format-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["lint", "format", "quality-check"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "@cucumber/cucumber",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["behavior-test", "bdd-test"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "@types/figlet",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["typecheck", "build"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "@types/node",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["typecheck", "build"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packagePattern": "@typescript/native-preview-*",
+      "role": "platform-optional-binary",
+      "appliesTo": "introducer-family",
+      "expectedScenarios": ["typecheck", "build"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "@typescript/native-preview",
+      "role": "type-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["typecheck", "build"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "chalk",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["cli-runtime", "demo"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "commander",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["cli-runtime"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packagePattern": "@esbuild/*",
+      "role": "platform-optional-binary",
+      "appliesTo": "introducer-family",
+      "expectedScenarios": ["build", "test"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "fast-check",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["property-test", "test"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "figlet",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["demo", "cli-runtime"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "js-yaml",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["config-load", "cli-runtime"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "ora",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["cli-runtime", "demo"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packagePattern": "@rollup/rollup-*",
+      "role": "platform-optional-binary",
+      "appliesTo": "introducer-family",
+      "expectedScenarios": ["build", "test"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "vitest",
+      "role": "test-tooling",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["test", "unit-test"],
+      "absenceFromRuntimeScenario": "expected-unless-matching-lifecycle-scenario",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    },
+    {
+      "packageName": "zod",
+      "role": "runtime",
+      "appliesTo": "direct-dependency-root",
+      "expectedScenarios": ["cli-runtime", "api-runtime"],
+      "absenceFromRuntimeScenario": "unexpected-needs-review",
+      "source": "test-capabilities review-program dogfood",
+      "confidence": "hint-only"
+    }
+  ],
+  "nonAuthorizations": {
+    "mutationAuthority": false,
+    "removalAuthority": false,
+    "replacementAuthority": false,
+    "mergeAuthority": false,
+    "releaseAuthority": false,
+    "exploitabilityAuthority": false,
+    "disclosureAuthority": false,
+    "trustCertificationAuthority": false,
+    "note": "Role hints are scenario-expectation context only."
+  }
+}
