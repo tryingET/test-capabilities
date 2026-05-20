@@ -68,14 +68,14 @@ test-capabilities replacement-validation plan \
 
 ## Required request shape
 
-A supported request requires:
+A supported request requires the published schema fields:
 
 - `candidateChangeRef.kind`: `dep-surgeon-plan` or `dep-surgeon-result`;
 - `candidateChangeRef.path`;
-- `impactScope.packageNames[]`;
-- `impactScope.validationCommands[]`.
+- `impactScope.packageNames[]` with at least one package;
+- `impactScope.validationCommands[]` with at least one explicit command.
 
-If any of these are missing, the result status is `unsupported` and no commands are selected.
+The runtime parser still fails closed for malformed or incomplete inputs by returning `unsupported` with no selected commands. The published JSON schema defines the supported interop request shape.
 
 ## Authority boundary
 

@@ -57,6 +57,12 @@ for (const schemaPath of schemaPaths) {
     assert.equal(schema["$schema"], "https://json-schema.org/draft/2020-12/schema");
     assert.equal(schema.type, "object");
     assert.equal(schema.additionalProperties, false);
+    if (schemaPath.includes("request")) {
+      assert.deepEqual(schema.required, ["schemaVersion", "candidateChangeRef", "impactScope"]);
+      assert.deepEqual(schema.properties.impactScope.required, ["packageNames", "validationCommands"]);
+      assert.equal(schema.properties.impactScope.properties.packageNames.minItems, 1);
+      assert.equal(schema.properties.impactScope.properties.validationCommands.minItems, 1);
+    }
     if (schemaPath.includes("result")) {
       const nonAuthorizations = schema.properties.nonAuthorizations.properties;
       assert.equal(nonAuthorizations.mutationAuthority.const, false);
