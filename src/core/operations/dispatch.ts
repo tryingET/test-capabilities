@@ -8,6 +8,7 @@ export {
   executeHealOperation,
   executeInitOperation,
   executeQuantumOperation,
+  executeReplacementValidationOperation,
   executeSurfExploreOperation,
   executeTestOperation,
   getCliCommandStatus,

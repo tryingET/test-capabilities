@@ -13,10 +13,11 @@ export type CliCommand =
   | "predict"
   | "quantum"
   | "heal"
+  | "replacement-validation"
   | "visualize"
   | "report";
 export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
-export type OperationId = "test" | "doctor" | "demo" | "init" | "surf.explore" | "quantum" | "heal";
+export type OperationId = "test" | "doctor" | "demo" | "init" | "surf.explore" | "quantum" | "heal" | "replacement-validation";
 export type CliRoute =
   | { command: "test" }
   | { command: "doctor" }
@@ -26,6 +27,7 @@ export type CliRoute =
   | { command: "predict" }
   | { command: "quantum" }
   | { command: "heal" }
+  | { command: "replacement-validation" }
   | { command: "visualize" }
   | { command: "report" };
 
@@ -104,6 +106,13 @@ export interface InitOperationInput {
   target?: string;
   force?: boolean;
   print?: boolean;
+  json?: boolean;
+}
+
+export interface ReplacementValidationOperationInput {
+  action: "plan";
+  request: string;
+  out?: string;
   json?: boolean;
 }
 
@@ -249,6 +258,14 @@ export interface HealVerificationArtifactRef {
   proposalCount: number;
 }
 
+export interface ReplacementValidationOperationResultEnvelope {
+  operationId: "replacement-validation";
+  input: Required<Pick<ReplacementValidationOperationInput, "action" | "request" | "json">> &
+    Pick<ReplacementValidationOperationInput, "out">;
+  requestPath: string;
+  result: import("../replacement-validation.js").ReplacementValidationResult;
+}
+
 export interface HealOperationResultEnvelope {
   operationId: "heal";
   input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
@@ -268,7 +285,8 @@ export type CliOperationResult =
   | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | QuantumOperationResultEnvelope
-  | HealOperationResultEnvelope;
+  | HealOperationResultEnvelope
+  | ReplacementValidationOperationResultEnvelope;
 
 export type CliOperationInputUnion =
   | TestOperationInput
@@ -277,7 +295,8 @@ export type CliOperationInputUnion =
   | InitOperationInput
   | SurfExploreOperationInput
   | QuantumOperationInput
-  | HealOperationInput;
+  | HealOperationInput
+  | ReplacementValidationOperationInput;
 
 export interface OperationDefinition<
   TParsedInput,

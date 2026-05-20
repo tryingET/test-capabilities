@@ -416,6 +416,51 @@ program
   });
 
 program
+  .command("replacement-validation")
+  .description("Plan dependency replacement validation from an explicit dep-surgeon request")
+  .argument("<action>", "Action: plan")
+  .requiredOption("--request <file>", "testcapabilities.replacement-validation-request.v1 JSON file")
+  .option("--out <file>", "Write testcapabilities.replacement-validation-result.v1 JSON")
+  .option("--json", "Print machine-readable validation planning envelope")
+  .action(async (action, options) => {
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson
+      ? undefined
+      : ora("Planning replacement validation...").start();
+
+    try {
+      assertSupportedCliCommand("replacement-validation");
+      const output = await executeCliOperation({ command: "replacement-validation" }, {
+        action,
+        request: options.request,
+        out: options.out,
+        json: shouldPrintJson,
+      });
+
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        spinner?.succeed(`Replacement validation ${output.result.status}.`);
+        for (const selected of output.result.selectedCommands) {
+          console.log(`${chalk.green("plan")} ${selected.command}`);
+        }
+        if (options.out) {
+          console.log(chalk.dim(`Result artifact: ${options.out}`));
+        }
+      }
+
+      if (output.result.status !== "planned") {
+        process.exit(1);
+      }
+    } catch (error) {
+      exitWithError(error, spinner, "Replacement validation planning failed!");
+    }
+  });
+
+program
   .command("visualize")
   .description("Generate interactive test visualization")
   .option("-o, --output <file>", "Output HTML file", "test-capabilities-viz.html")

@@ -3,6 +3,7 @@ import { DOCTOR_OPERATION, executeDoctorOperation } from "./doctor-operation.js"
 import { executeHealOperation, HEAL_OPERATION } from "./heal-operation.js";
 import { executeInitOperation, INIT_OPERATION } from "./init-operation.js";
 import { executeQuantumOperation, QUANTUM_OPERATION } from "./quantum-operation.js";
+import { executeReplacementValidationOperation, REPLACEMENT_VALIDATION_OPERATION } from "./replacement-validation-operation.js";
 import { executeSurfExploreOperation, SURF_EXPLORE_OPERATION } from "./surf-explore-operation.js";
 import { executeTestOperation, TEST_OPERATION } from "./test-operation.js";
 import type {
@@ -24,6 +25,7 @@ export const CLI_OPERATION_REGISTRY = {
   "surf.explore": SURF_EXPLORE_OPERATION,
   quantum: QUANTUM_OPERATION,
   heal: HEAL_OPERATION,
+  "replacement-validation": REPLACEMENT_VALIDATION_OPERATION,
 } as const;
 
 export const CLI_ROUTE_MANIFEST = [
@@ -100,6 +102,12 @@ export const CLI_ROUTE_MANIFEST = [
     description: HEAL_OPERATION.description,
   },
   {
+    command: "replacement-validation",
+    status: "implemented",
+    operationId: "replacement-validation",
+    description: REPLACEMENT_VALIDATION_OPERATION.description,
+  },
+  {
     command: "predict",
     status: "unsupported",
     description: "Registered command that currently fails clearly",
@@ -157,6 +165,7 @@ export {
   executeHealOperation,
   executeInitOperation,
   executeQuantumOperation,
+  executeReplacementValidationOperation,
   executeSurfExploreOperation,
   executeTestOperation,
 };

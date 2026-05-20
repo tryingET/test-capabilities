@@ -57,6 +57,15 @@ schemas/testcapabilities.replacement-validation-result.v1.schema.json
 
 The current implementation is planning-only. It selects explicit repo-local validation commands but does not execute them.
 
+CLI handoff:
+
+```bash
+test-capabilities replacement-validation plan \
+  --request out/dep-surgeon/testcap-validation-request.json \
+  --out out/test-capabilities/replacement-validation-result.json \
+  --json
+```
+
 ## Required request shape
 
 A supported request requires:

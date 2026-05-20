@@ -95,10 +95,12 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.equal(CAPABILITY_MATRIX.cli.commands.demo, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.init, "implemented");
   assert.equal(CAPABILITY_MATRIX.cli.commands.surf, "implemented");
+  assert.equal(CAPABILITY_MATRIX.cli.commands["replacement-validation"], "implemented");
   assert.equal(getCliCommandStatus("test"), "implemented");
   assert.equal(getCliCommandStatus("doctor"), "implemented");
   assert.equal(getCliCommandStatus("demo"), "implemented");
   assert.equal(getCliCommandStatus("init"), "implemented");
+  assert.equal(getCliCommandStatus("replacement-validation"), "implemented");
   assert.equal(getCliCommandStatus("predict"), "unsupported");
   assert.equal(getSurfActionStatus("explore"), "implemented");
   assert.equal(getSurfActionStatus("flow"), "unsupported");
@@ -113,6 +115,7 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.equal(resolveCliRoute({ command: "doctor" })?.operationId, "doctor");
   assert.equal(resolveCliRoute({ command: "demo" })?.operationId, "demo");
   assert.equal(resolveCliRoute({ command: "init" })?.operationId, "init");
+  assert.equal(resolveCliRoute({ command: "replacement-validation" })?.operationId, "replacement-validation");
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
 });
 

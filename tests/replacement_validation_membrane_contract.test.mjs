@@ -1,8 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
 
-import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
+import { importRuntimeModule, runtimeEnv } from "./helpers/runtime-dist.mjs";
+
+const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
 
 const {
   createReplacementValidationPlan,
@@ -119,6 +125,35 @@ test("replacement validation membrane rejects non dep-surgeon candidate refs", (
     ),
     true,
   );
+});
+
+test("replacement-validation CLI plans from a dep-surgeon request without executing commands", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-replacement-validation-"));
+  const requestPath = path.join(tempDir, "request.json");
+  const resultPath = path.join(tempDir, "result.json");
+
+  try {
+    writeFileSync(requestPath, `${JSON.stringify(validRequest(), null, 2)}\n`, "utf8");
+    const result = spawnSync(
+      process.execPath,
+      [binPath, "replacement-validation", "plan", "--request", requestPath, "--out", resultPath, "--json"],
+      {
+        encoding: "utf8",
+        env: runtimeEnv({ PATH: path.dirname(process.execPath) }),
+      },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stderr.trim(), "");
+    const envelope = JSON.parse(result.stdout);
+    const written = JSON.parse(readFileSync(resultPath, "utf8"));
+    assert.equal(envelope.operationId, "replacement-validation");
+    assert.equal(envelope.result.status, "planned");
+    assert.equal(envelope.result.execution.executed, false);
+    assert.deepEqual(written, envelope.result);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("replacement validation membrane fails closed without explicit impact scope commands", () => {

@@ -47,6 +47,7 @@ This registry currently owns the shipped verbs:
 - `surf explore`
 - `quantum`
 - `heal`
+- `replacement-validation`
 
 ---
 
@@ -180,6 +181,29 @@ Unsupported surf actions:
 - `replay`
 
 These actions fail clearly instead of emitting placeholder output.
+
+---
+
+### `test-capabilities replacement-validation plan`
+
+Plan dependency replacement validation from an explicit `testcapabilities.replacement-validation-request.v1` JSON file, usually emitted by `dep-surgeon` from a replacement plan.
+
+```bash
+test-capabilities replacement-validation plan \
+  --request out/dep-surgeon/testcap-validation-request.json \
+  --out out/test-capabilities/replacement-validation-result.json \
+  --json
+```
+
+Options:
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--request <file>` | Required `testcapabilities.replacement-validation-request.v1` input | none |
+| `--out <file>` | Optional result artifact path for `testcapabilities.replacement-validation-result.v1` | none |
+| `--json` | Print the machine-readable operation envelope | `false` |
+
+This command is a validation membrane. It selects explicit target-owned validation commands from the request but does not execute them. A planned result does not authorize dependency mutation, replacement, merge, release, or trust certification.
 
 ---
 
