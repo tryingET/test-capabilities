@@ -162,6 +162,47 @@ test("replacement-validation CLI plans from a dep-surgeon request without execut
   }
 });
 
+test("replacement-validation CLI writes unsupported results and exits non-zero for incomplete requests", () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-replacement-validation-unsupported-"));
+  const requestPath = path.join(tempDir, "request.json");
+  const resultPath = path.join(tempDir, "result.json");
+
+  try {
+    writeFileSync(requestPath, `${JSON.stringify({
+      schemaVersion: REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
+      impactScope: {
+        packageNames: ["chalk"],
+        validationCommands: ["node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
+      },
+    }, null, 2)}\n`, "utf8");
+    const result = spawnSync(
+      process.execPath,
+      [binPath, "replacement-validation", "plan", "--request", requestPath, "--out", resultPath, "--json"],
+      {
+        encoding: "utf8",
+        env: runtimeEnv({ PATH: path.dirname(process.execPath) }),
+      },
+    );
+
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stderr.trim(), "");
+    const envelope = JSON.parse(result.stdout);
+    const written = JSON.parse(readFileSync(resultPath, "utf8"));
+    assert.equal(envelope.operationId, "replacement-validation");
+    assert.equal(envelope.result.status, "unsupported");
+    assert.deepEqual(written, envelope.result);
+    assert.equal(envelope.result.execution.executed, false);
+    assert.equal(
+      envelope.result.diagnostics.some(
+        (entry) => entry.code === "replacementValidation.candidateChangeRefRequired",
+      ),
+      true,
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("replacement validation membrane fails closed without explicit impact scope commands", () => {
   const result = createReplacementValidationPlan(
     validRequest({
