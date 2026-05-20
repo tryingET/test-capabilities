@@ -102,6 +102,7 @@ test("baseline: node22 + required scripts are present", () => {
     "bin/",
     "dist/",
     "examples/demo/",
+    "schemas/",
     "README.md",
     "test-capabilities.yaml",
   ]);

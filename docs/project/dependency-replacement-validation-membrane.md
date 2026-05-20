@@ -37,10 +37,22 @@ Request schema version:
 testcapabilities.replacement-validation-request.v1
 ```
 
+Published JSON schema:
+
+```text
+schemas/testcapabilities.replacement-validation-request.v1.schema.json
+```
+
 Result schema version:
 
 ```text
 testcapabilities.replacement-validation-result.v1
+```
+
+Published JSON schema:
+
+```text
+schemas/testcapabilities.replacement-validation-result.v1.schema.json
 ```
 
 The current implementation is planning-only. It selects explicit repo-local validation commands but does not execute them.

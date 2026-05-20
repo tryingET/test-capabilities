@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
@@ -8,6 +9,11 @@ const {
   REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
   REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
 } = await importRuntimeModule("index.js");
+
+const schemaPaths = [
+  "schemas/testcapabilities.replacement-validation-request.v1.schema.json",
+  "schemas/testcapabilities.replacement-validation-result.v1.schema.json",
+];
 
 function validRequest(overrides = {}) {
   return {
@@ -37,6 +43,25 @@ function validRequest(overrides = {}) {
     dryRun: true,
     ...overrides,
   };
+}
+
+for (const schemaPath of schemaPaths) {
+  test(`${schemaPath} is a parseable interop schema with authority boundaries`, () => {
+    const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+    assert.equal(schema["$schema"], "https://json-schema.org/draft/2020-12/schema");
+    assert.equal(schema.type, "object");
+    assert.equal(schema.additionalProperties, false);
+    if (schemaPath.includes("result")) {
+      const nonAuthorizations = schema.properties.nonAuthorizations.properties;
+      assert.equal(nonAuthorizations.mutationAuthority.const, false);
+      assert.equal(nonAuthorizations.dependencyChangeAuthority.const, false);
+      assert.equal(nonAuthorizations.replacementAuthority.const, false);
+      assert.equal(nonAuthorizations.mergeAuthority.const, false);
+      assert.equal(nonAuthorizations.releaseAuthority.const, false);
+      assert.equal(nonAuthorizations.trustCertificationAuthority.const, false);
+      assert.equal(schema.properties.execution.properties.executed.const, false);
+    }
+  });
 }
 
 test("replacement validation membrane plans explicit target-owned commands without executing them", () => {

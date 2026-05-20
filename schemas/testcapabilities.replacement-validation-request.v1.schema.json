@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://softwareco.local/schemas/testcapabilities.replacement-validation-request.v1.schema.json",
+  "title": "testcapabilities replacement-validation-request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {
+      "const": "testcapabilities.replacement-validation-request.v1"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repositoryPath": { "type": "string", "minLength": 1 },
+        "repositoryRef": { "type": "string", "minLength": 1 }
+      }
+    },
+    "candidateChangeRef": { "$ref": "#/$defs/artifactRef" },
+    "evidenceRefs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifactRef" }
+    },
+    "impactScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "packageNames": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "changedPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requiredProofCodes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "validationCommands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "dryRun": { "type": "boolean", "default": true }
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

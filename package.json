@@ -33,6 +33,7 @@
     "bin/",
     "dist/",
     "examples/demo/",
+    "schemas/",
     "README.md",
     "test-capabilities.yaml"
   ],
