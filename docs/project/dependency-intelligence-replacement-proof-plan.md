@@ -55,7 +55,7 @@ Inputs reused the accepted role-decision ledger and the existing static/runtime 
 
 The proof plan says a future owner-approved candidate could evaluate a tiny local styling wrapper, but only after terminal-rendering behavior and source-owner acceptance are proven.
 
-A first target-owned proof harness now exists at `tests/dependency_intelligence_chalk_proof.test.mjs`. It pins the current used style surface under forced-color output and no-color passthrough for `bold`, `cyan`, `dim`, `green`, `red`, and `yellow`. This satisfies part of the terminal-rendering proof requirement for the current dependency behavior, but it still does not approve a dependency change.
+A first target-owned proof harness now exists at `tests/dependency_intelligence_chalk_proof.test.mjs`. It pins the current used style surface under forced-color output and no-color passthrough for `bold`, `cyan`, `dim`, `green`, `red`, and `yellow`, and it exercises the `doctor` CLI path under forced-color and no-color rendering. This satisfies part of the terminal-rendering and impact-scoped proof requirements for the current dependency behavior, but it still does not approve a dependency change.
 
 By contrast, `commander` is ranked second and still shows a broader CLI-builder surface (`command`, `argument`, `option`, `action`, `parseAsync`, etc.), so its proof plan is not a simple style-wrapper candidate.
 
