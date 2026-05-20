@@ -1,0 +1,67 @@
+---
+title: Dependency replacement validation membrane
+summary: Generic non-authoritative validation-planning membrane between dep-diet, dep-surgeon, and test-capabilities.
+status: draft
+updated: 2026-05-19
+read_when:
+  - You are wiring dependency replacement/reimplementation candidates into test-capabilities validation.
+  - You need to understand why dep-diet proof plans do not directly authorize target validation or mutation.
+---
+
+# Dependency replacement validation membrane
+
+This membrane prevents dependency-intelligence review evidence from becoming accidental dependency-change authority.
+
+Flow:
+
+```text
+dep-diet review evidence / proof-plan ranking
+-> dep-surgeon explicit candidate plan or result
+-> test-capabilities replacement validation request
+-> target-owned validation plan/result
+```
+
+`test-capabilities` does not infer a replacement candidate directly from dep-diet. A request must cite a `dep-surgeon-plan` or `dep-surgeon-result` artifact and an explicit impact scope.
+
+## Current surface
+
+Runtime export:
+
+```ts
+createReplacementValidationPlan(input)
+```
+
+Request schema version:
+
+```text
+testcapabilities.replacement-validation-request.v1
+```
+
+Result schema version:
+
+```text
+testcapabilities.replacement-validation-result.v1
+```
+
+The current implementation is planning-only. It selects explicit repo-local validation commands but does not execute them.
+
+## Required request shape
+
+A supported request requires:
+
+- `candidateChangeRef.kind`: `dep-surgeon-plan` or `dep-surgeon-result`;
+- `candidateChangeRef.path`;
+- `impactScope.packageNames[]`;
+- `impactScope.validationCommands[]`.
+
+If any of these are missing, the result status is `unsupported` and no commands are selected.
+
+## Authority boundary
+
+The result always preserves false authority for mutation, dependency change, removal, replacement, merge, release, and trust certification.
+
+A planned validation command means only:
+
+> this target-owned validation command is relevant to the explicit candidate request.
+
+It does not mean the dependency change is safe, approved, merged, released, or behaviorally equivalent.

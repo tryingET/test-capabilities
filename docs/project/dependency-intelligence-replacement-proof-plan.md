@@ -60,3 +60,5 @@ A first target-owned proof harness now exists at `tests/dependency_intelligence_
 By contrast, `commander` is ranked second and still shows a broader CLI-builder surface (`command`, `argument`, `option`, `action`, `parseAsync`, etc.), so its proof plan is not a simple style-wrapper candidate.
 
 The review packet also emits `replacement-intent-review` signals for `chalk` and `commander`; these are planning prompts only, not dependency-change approval.
+
+Further package-specific proof should stop here unless a separate `dep-surgeon` candidate exists. The next generic handoff surface is `docs/project/dependency-replacement-validation-membrane.md`, which keeps candidate validation planning separate from dep-diet review evidence and dependency-change authority.
