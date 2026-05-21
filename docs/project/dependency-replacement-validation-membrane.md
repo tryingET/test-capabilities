@@ -79,10 +79,10 @@ The runtime parser still fails closed for malformed or incomplete inputs by retu
 
 ## Authority boundary
 
-The result always preserves false authority for mutation, dependency change, removal, replacement, merge, release, and trust certification.
+The result always preserves false authority for mutation, dependency change, removal, replacement, merge, release, exploitability claims, disclosure claims, and trust certification.
 
 A planned validation command means only:
 
 > this target-owned validation command is relevant to the explicit candidate request.
 
-It does not mean the dependency change is safe, approved, merged, released, or behaviorally equivalent.
+It does not mean the dependency change is safe, approved, merged, released, exploitable/non-exploitable, disclosure-ready, or behaviorally equivalent.

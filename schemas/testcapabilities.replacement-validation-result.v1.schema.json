@@ -78,6 +78,8 @@
         "replacementAuthority",
         "mergeAuthority",
         "releaseAuthority",
+        "exploitabilityAuthority",
+        "disclosureAuthority",
         "trustCertificationAuthority"
       ],
       "properties": {
@@ -87,6 +89,8 @@
         "replacementAuthority": { "const": false },
         "mergeAuthority": { "const": false },
         "releaseAuthority": { "const": false },
+        "exploitabilityAuthority": { "const": false },
+        "disclosureAuthority": { "const": false },
         "trustCertificationAuthority": { "const": false }
       }
     },

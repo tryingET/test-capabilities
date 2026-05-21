@@ -12,6 +12,8 @@ export const REPLACEMENT_VALIDATION_NON_AUTHORIZATIONS = Object.freeze({
   replacementAuthority: false,
   mergeAuthority: false,
   releaseAuthority: false,
+  exploitabilityAuthority: false,
+  disclosureAuthority: false,
   trustCertificationAuthority: false,
 });
 
@@ -91,7 +93,7 @@ export interface ReplacementValidationResult {
 
 const DEP_SURGEON_REF_KINDS = new Set(["dep-surgeon-plan", "dep-surgeon-result"]);
 const RESULT_AUTHORITY =
-  "Replacement validation planning is target validation guidance only; it does not authorize mutation, dependency change, removal, replacement, merge, release, or trust certification.";
+  "Replacement validation planning is target validation guidance only; it does not authorize mutation, dependency change, removal, replacement, merge, release, exploitability claims, disclosure claims, or trust certification.";
 
 function unsupportedResult(
   diagnostics: ReplacementValidationDiagnostic[],

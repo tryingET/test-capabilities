@@ -70,6 +70,8 @@ for (const schemaPath of schemaPaths) {
       assert.equal(nonAuthorizations.replacementAuthority.const, false);
       assert.equal(nonAuthorizations.mergeAuthority.const, false);
       assert.equal(nonAuthorizations.releaseAuthority.const, false);
+      assert.equal(nonAuthorizations.exploitabilityAuthority.const, false);
+      assert.equal(nonAuthorizations.disclosureAuthority.const, false);
       assert.equal(nonAuthorizations.trustCertificationAuthority.const, false);
       assert.equal(schema.properties.execution.properties.executed.const, false);
     }
@@ -95,6 +97,8 @@ test("replacement validation membrane plans explicit target-owned commands witho
   assert.equal(result.nonAuthorizations.replacementAuthority, false);
   assert.equal(result.nonAuthorizations.mergeAuthority, false);
   assert.equal(result.nonAuthorizations.releaseAuthority, false);
+  assert.equal(result.nonAuthorizations.exploitabilityAuthority, false);
+  assert.equal(result.nonAuthorizations.disclosureAuthority, false);
   assert.equal(result.nonAuthorizations.trustCertificationAuthority, false);
   assert.match(result.authority, /does not authorize mutation/);
 });
