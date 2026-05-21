@@ -17,7 +17,7 @@
         "repositoryRef": { "type": "string", "minLength": 1 }
       }
     },
-    "candidateChangeRef": { "$ref": "#/$defs/artifactRef" },
+    "candidateChangeRef": { "$ref": "#/$defs/depSurgeonCandidateRef" },
     "evidenceRefs": {
       "type": "array",
       "items": { "$ref": "#/$defs/artifactRef" }
@@ -50,6 +50,17 @@
     "dryRun": { "type": "boolean", "default": true }
   },
   "$defs": {
+    "depSurgeonCandidateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["dep-surgeon-plan", "dep-surgeon-result"] },
+        "path": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
     "artifactRef": {
       "type": "object",
       "additionalProperties": false,

@@ -59,6 +59,11 @@ for (const schemaPath of schemaPaths) {
     assert.equal(schema.additionalProperties, false);
     if (schemaPath.includes("request")) {
       assert.deepEqual(schema.required, ["schemaVersion", "candidateChangeRef", "impactScope"]);
+      assert.equal(schema.properties.candidateChangeRef.$ref, "#/$defs/depSurgeonCandidateRef");
+      assert.deepEqual(schema.$defs.depSurgeonCandidateRef.properties.kind.enum, [
+        "dep-surgeon-plan",
+        "dep-surgeon-result",
+      ]);
       assert.deepEqual(schema.properties.impactScope.required, ["packageNames", "validationCommands"]);
       assert.equal(schema.properties.impactScope.properties.packageNames.minItems, 1);
       assert.equal(schema.properties.impactScope.properties.validationCommands.minItems, 1);
