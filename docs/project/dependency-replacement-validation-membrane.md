@@ -55,7 +55,7 @@ Published JSON schema:
 schemas/testcapabilities.replacement-validation-result.v1.schema.json
 ```
 
-The current implementation is planning-only. It selects explicit repo-local validation commands but does not execute them.
+The current implementation is planning-only. It selects explicit repo-local validation commands but does not execute them. When a request includes `dependency-tree-persistence-check`, the result surfaces an explicit diagnostic that installed-tree persistence proof is required; the membrane still only plans the check.
 
 CLI handoff:
 

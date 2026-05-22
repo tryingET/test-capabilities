@@ -108,6 +108,40 @@ test("replacement validation membrane plans explicit target-owned commands witho
   assert.match(result.authority, /does not authorize mutation/);
 });
 
+test("replacement validation membrane surfaces dependency-tree persistence proof requirements", () => {
+  const result = createReplacementValidationPlan(validRequest({
+    impactScope: {
+      packageNames: ["chalk"],
+      changedPaths: ["bin/test-capabilities", "package.json"],
+      requiredProofCodes: [
+        "dependency-tree-persistence-check",
+        "terminal-rendering-equivalence",
+      ],
+      validationCommands: [
+        "npm ls chalk --depth=2",
+        "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
+      ],
+    },
+  }));
+
+  assert.equal(result.status, "planned");
+  assert.equal(result.execution.executed, false);
+  assert.equal(
+    result.diagnostics.some(
+      (entry) => entry.code === "replacementValidation.dependencyTreePersistenceRequired",
+    ),
+    true,
+  );
+  assert.deepEqual(result.requestSummary.requiredProofCodes, [
+    "dependency-tree-persistence-check",
+    "terminal-rendering-equivalence",
+  ]);
+  assert.deepEqual(result.selectedCommands.map((entry) => entry.command), [
+    "npm ls chalk --depth=2",
+    "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
+  ]);
+});
+
 test("replacement validation membrane fails closed without a dep-surgeon candidate ref", () => {
   const request = validRequest({ candidateChangeRef: undefined });
   const result = createReplacementValidationPlan(request);

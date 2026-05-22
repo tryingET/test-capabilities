@@ -131,6 +131,30 @@ function diagnosticFromIssue(issue: z.ZodIssue): ReplacementValidationDiagnostic
   };
 }
 
+function createPlannedDiagnostics(
+  request: ReplacementValidationRequest,
+): ReplacementValidationDiagnostic[] {
+  const diagnostics: ReplacementValidationDiagnostic[] = [
+    {
+      level: "info",
+      code: "replacementValidation.plannedOnly",
+      message:
+        "Validation commands were selected for a candidate change, but no command was executed by this planning membrane.",
+    },
+  ];
+
+  if (request.impactScope?.requiredProofCodes.includes("dependency-tree-persistence-check")) {
+    diagnostics.push({
+      level: "info",
+      code: "replacementValidation.dependencyTreePersistenceRequired",
+      message:
+        "The request requires proof that the dependency tree still contains or no longer contains the package after direct dependency changes; this membrane only plans the check.",
+    });
+  }
+
+  return diagnostics;
+}
+
 export function createReplacementValidationPlan(
   input: unknown,
 ): ReplacementValidationResult {
@@ -209,14 +233,7 @@ export function createReplacementValidationPlan(
       reason:
         "Replacement validation membrane only plans target-owned validation commands and never mutates dependencies.",
     },
-    diagnostics: [
-      {
-        level: "info",
-        code: "replacementValidation.plannedOnly",
-        message:
-          "Validation commands were selected for a candidate change, but no command was executed by this planning membrane.",
-      },
-    ],
+    diagnostics: createPlannedDiagnostics(request),
     nonAuthorizations: REPLACEMENT_VALIDATION_NON_AUTHORIZATIONS,
     authority: RESULT_AUTHORITY,
   };
