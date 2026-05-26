@@ -45,11 +45,7 @@
       "type": "str"
     }
   ],
-  "inputs": [
-    "dependency_review_program_json",
-    "depmodel_json",
-    "target_context_json"
-  ],
+  "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
   "jury": {
     "minimum_jurors": 8,
     "perspectives": [
@@ -153,11 +149,7 @@
       "type": "str"
     }
   ],
-  "outputs": [
-    "review_findings_json",
-    "next_evidence_actions_json",
-    "authority_boundary_json"
-  ],
+  "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"],
   "promotion": {
     "adjudicator": {
       "id": "test_capabilities_source_owner_review",

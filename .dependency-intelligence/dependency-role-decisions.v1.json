@@ -172,7 +172,9 @@
           "tool": "dep-diet"
         }
       ],
-      "followUps": ["Include a lint/format scenario when reviewing changes to lint-format dependencies."],
+      "followUps": [
+        "Include a lint/format scenario when reviewing changes to lint-format dependencies."
+      ],
       "authority": {
         "dependencyChangeAuthority": false,
         "removalAuthority": false,

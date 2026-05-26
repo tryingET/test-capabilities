@@ -17,7 +17,15 @@ export type CliCommand =
   | "visualize"
   | "report";
 export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
-export type OperationId = "test" | "doctor" | "demo" | "init" | "surf.explore" | "quantum" | "heal" | "replacement-validation";
+export type OperationId =
+  | "test"
+  | "doctor"
+  | "demo"
+  | "init"
+  | "surf.explore"
+  | "quantum"
+  | "heal"
+  | "replacement-validation";
 export type CliRoute =
   | { command: "test" }
   | { command: "doctor" }

@@ -15,10 +15,7 @@
     "plan": "plan.json",
     "smoke_harness": "eval_smoke.py"
   },
-  "blocking_conditions": [
-    "no_model_jury_execution_episode",
-    "no_promotion_adjudicator_decision"
-  ],
+  "blocking_conditions": ["no_model_jury_execution_episode", "no_promotion_adjudicator_decision"],
   "candidate_status": "exploratory",
   "decision": {
     "decided_at": null,
@@ -30,41 +27,27 @@
   "decision_authority": "required_for_promotion",
   "evidence_requirements": [
     {
-      "artifact_refs": [
-        "program.py",
-        "manifest.json"
-      ],
+      "artifact_refs": ["program.py", "manifest.json"],
       "name": "candidate_materialized",
       "status": "satisfied_by_current_materialization"
     },
     {
-      "artifact_refs": [
-        "eval_smoke.py"
-      ],
+      "artifact_refs": ["eval_smoke.py"],
       "name": "smoke_validation",
       "status": "satisfied_by_current_materialization"
     },
     {
-      "artifact_refs": [
-        "jury.json",
-        "jury_selection.json",
-        "jury_rubric.json"
-      ],
+      "artifact_refs": ["jury.json", "jury_selection.json", "jury_rubric.json"],
       "name": "jury_artifact_binding",
       "status": "satisfied_by_current_materialization"
     },
     {
-      "artifact_refs": [
-        "examples.json",
-        "eval_examples.py"
-      ],
+      "artifact_refs": ["examples.json", "eval_examples.py"],
       "name": "examples_binding",
       "status": "satisfied_by_current_materialization"
     },
     {
-      "artifact_refs": [
-        "behavior_results.json"
-      ],
+      "artifact_refs": ["behavior_results.json"],
       "name": "behavioral_evaluation_episode",
       "status": "satisfied_by_current_behavior_episode"
     },

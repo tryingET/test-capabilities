@@ -245,11 +245,7 @@
         "primitive": "Predict",
         "role": "Default generated single-module scaffold.",
         "signature": {
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "name": "TestCapabilitiesDependencyReviewProgramSignature",
           "outputs": [
             "review_findings_json",
@@ -409,11 +405,7 @@
         "primitive": "Predict",
         "role": "Default generated single-module scaffold.",
         "signature": {
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "name": "TestCapabilitiesDependencyReviewProgramSignature",
           "outputs": [
             "review_findings_json",

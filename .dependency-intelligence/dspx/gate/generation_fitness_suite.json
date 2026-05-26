@@ -34,9 +34,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",
@@ -84,9 +82,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",
@@ -134,9 +130,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",
@@ -184,9 +178,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",
@@ -234,9 +226,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",
@@ -284,9 +274,7 @@
         "external system mutation beyond declared DSPx output artifacts",
         "External filesystem mutation is forbidden except for declared DSPx program-gen output artifacts."
       ],
-      "source_provenance_assertions": [
-        "source_refs_present"
-      ],
+      "source_provenance_assertions": ["source_refs_present"],
       "target_stage_assertions": [
         "load_dependency_review_program_packet",
         "validate_non_authority_boundaries",

@@ -22,10 +22,7 @@
   },
   "requirements": [
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -72,10 +69,7 @@
       "target_stage": "load_dependency_review_program_packet"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -122,10 +116,7 @@
       "target_stage": "validate_non_authority_boundaries"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -172,10 +163,7 @@
       "target_stage": "inspect_direct_transitive_introducer_context"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -222,10 +210,7 @@
       "target_stage": "inspect_runtime_scenario_set"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -272,10 +257,7 @@
       "target_stage": "preserve_dep_viz_rendering_boundary"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -322,10 +304,7 @@
       "target_stage": "route_optional_dep_redteam_handoff"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -372,10 +351,7 @@
       "target_stage": "produce_review_findings"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",
@@ -422,10 +398,7 @@
       "target_stage": "emit_next_evidence_actions"
     },
     {
-      "evidence_refs": [
-        "manifest.json",
-        "generation_fitness_results.json"
-      ],
+      "evidence_refs": ["manifest.json", "generation_fitness_results.json"],
       "generated_surfaces": [
         "plan.json",
         "jury.json",

@@ -3,7 +3,10 @@ import { DOCTOR_OPERATION, executeDoctorOperation } from "./doctor-operation.js"
 import { executeHealOperation, HEAL_OPERATION } from "./heal-operation.js";
 import { executeInitOperation, INIT_OPERATION } from "./init-operation.js";
 import { executeQuantumOperation, QUANTUM_OPERATION } from "./quantum-operation.js";
-import { executeReplacementValidationOperation, REPLACEMENT_VALIDATION_OPERATION } from "./replacement-validation-operation.js";
+import {
+  executeReplacementValidationOperation,
+  REPLACEMENT_VALIDATION_OPERATION,
+} from "./replacement-validation-operation.js";
 import { executeSurfExploreOperation, SURF_EXPLORE_OPERATION } from "./surf-explore-operation.js";
 import { executeTestOperation, TEST_OPERATION } from "./test-operation.js";
 import type {

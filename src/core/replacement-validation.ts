@@ -52,9 +52,7 @@ export const ReplacementValidationRequestSchema = z
   })
   .strict();
 
-export type ReplacementValidationRequest = z.infer<
-  typeof ReplacementValidationRequestSchema
->;
+export type ReplacementValidationRequest = z.infer<typeof ReplacementValidationRequestSchema>;
 
 export type ReplacementValidationStatus = "planned" | "unsupported";
 
@@ -115,7 +113,8 @@ function unsupportedResult(
     selectedCommands: [],
     execution: {
       executed: false,
-      reason: "No validation commands were executed because the request did not pass the validation membrane.",
+      reason:
+        "No validation commands were executed because the request did not pass the validation membrane.",
     },
     diagnostics,
     nonAuthorizations: REPLACEMENT_VALIDATION_NON_AUTHORIZATIONS,
@@ -155,9 +154,7 @@ function createPlannedDiagnostics(
   return diagnostics;
 }
 
-export function createReplacementValidationPlan(
-  input: unknown,
-): ReplacementValidationResult {
+export function createReplacementValidationPlan(input: unknown): ReplacementValidationResult {
   const parsed = ReplacementValidationRequestSchema.safeParse(input);
   if (!parsed.success) {
     return unsupportedResult(parsed.error.issues.map(diagnosticFromIssue));
@@ -170,8 +167,7 @@ export function createReplacementValidationPlan(
     diagnostics.push({
       level: "error",
       code: "replacementValidation.candidateChangeRefRequired",
-      message:
-        "Replacement validation requires an explicit dep-surgeon plan/result reference.",
+      message: "Replacement validation requires an explicit dep-surgeon plan/result reference.",
     });
   } else if (!DEP_SURGEON_REF_KINDS.has(request.candidateChangeRef.kind)) {
     diagnostics.push({
@@ -226,7 +222,8 @@ export function createReplacementValidationPlan(
     selectedCommands: (request.impactScope?.validationCommands ?? []).map((command) => ({
       command,
       mode: "planned-not-executed",
-      authority: "Command selection is a validation plan only; execution requires an explicit caller.",
+      authority:
+        "Command selection is a validation plan only; execution requires an explicit caller.",
     })),
     execution: {
       executed: false,

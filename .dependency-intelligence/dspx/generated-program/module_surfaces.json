@@ -17,16 +17,8 @@
         "signature_path": "signature.py"
       },
       "io": {
-        "inputs": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
-        "outputs": [
-          "review_findings_json",
-          "next_evidence_actions_json",
-          "authority_boundary_json"
-        ]
+        "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
+        "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"]
       },
       "module_id": "generated_module",
       "non_authority": {
@@ -40,17 +32,9 @@
       "primitive": "Predict",
       "schema_version": "program-module-surface-v1",
       "signature": {
-        "inputs": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "name": "TestCapabilitiesDependencyReviewProgramSignature",
-        "outputs": [
-          "review_findings_json",
-          "next_evidence_actions_json",
-          "authority_boundary_json"
-        ]
+        "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"]
       },
       "source_kind": "generated_single_module_scaffold"
     }

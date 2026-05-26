@@ -115,7 +115,10 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.equal(resolveCliRoute({ command: "doctor" })?.operationId, "doctor");
   assert.equal(resolveCliRoute({ command: "demo" })?.operationId, "demo");
   assert.equal(resolveCliRoute({ command: "init" })?.operationId, "init");
-  assert.equal(resolveCliRoute({ command: "replacement-validation" })?.operationId, "replacement-validation");
+  assert.equal(
+    resolveCliRoute({ command: "replacement-validation" })?.operationId,
+    "replacement-validation",
+  );
   assert.equal(resolveCliRoute({ command: "predict" })?.status, "unsupported");
 });
 

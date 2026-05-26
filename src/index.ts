@@ -94,14 +94,6 @@ export {
   TestCapabilitiesOrchestrator,
   TestCapabilitiesOrchestrator as NexusOrchestrator,
 } from "./core/orchestrator.js";
-export { resolveSurfRuntimeCommand, resolveSurfRuntimeResolution } from "./core/surf-runtime.js";
-export {
-  createReplacementValidationPlan,
-  REPLACEMENT_VALIDATION_NON_AUTHORIZATIONS,
-  REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
-  REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
-  ReplacementValidationRequestSchema,
-} from "./core/replacement-validation.js";
 export type {
   ReplacementValidationDiagnostic,
   ReplacementValidationRequest,
@@ -109,6 +101,14 @@ export type {
   ReplacementValidationSelectedCommand,
   ReplacementValidationStatus,
 } from "./core/replacement-validation.js";
+export {
+  createReplacementValidationPlan,
+  REPLACEMENT_VALIDATION_NON_AUTHORIZATIONS,
+  REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
+  REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
+  ReplacementValidationRequestSchema,
+} from "./core/replacement-validation.js";
+export { resolveSurfRuntimeCommand, resolveSurfRuntimeResolution } from "./core/surf-runtime.js";
 export type {
   ElementSnapshot,
   HealingContext,

@@ -2,60 +2,42 @@
   "cases": [
     {
       "case_id": "case-1-declared-unobserved-package-is-incorrectly-treated-as-unused",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"
     },
     {
       "case_id": "case-2-missing-non-authority-flag-is-ignored",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"
     },
     {
       "case_id": "case-3-transitive-dependency-is-reviewed-without-introducer-path-caveat",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"
     },
     {
       "case_id": "case-4-vulnerability-context-is-handled-without-optional-dep-redteam-handoff-boundary",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"
     },
     {
       "case_id": "case-5-dep-viz-rendering-is-mistaken-for-remediation-authority",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"
     },
     {
       "case_id": "case-6-generated-program-mutates-package-files",
-      "evidence_refs": [
-        "generation_traceability.json",
-        "manifest.json"
-      ],
+      "evidence_refs": ["generation_traceability.json", "manifest.json"],
       "expected_failure_label": "withheld_for_target_protocol_failure",
       "mechanical_check": "dspx.gen_fitness_suite.declared_mechanical_check.v1",
       "status": "passed"

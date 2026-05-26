@@ -5,7 +5,11 @@ import {
   createReplacementValidationPlan,
   type ReplacementValidationResult,
 } from "../replacement-validation.js";
-import type { OperationDefinition, ReplacementValidationOperationInput, ReplacementValidationOperationResultEnvelope } from "./types.js";
+import type {
+  OperationDefinition,
+  ReplacementValidationOperationInput,
+  ReplacementValidationOperationResultEnvelope,
+} from "./types.js";
 
 export const ReplacementValidationOperationInputSchema = z
   .object({
@@ -52,7 +56,8 @@ export const REPLACEMENT_VALIDATION_OPERATION: OperationDefinition<
 > = {
   id: "replacement-validation",
   route: { command: "replacement-validation" },
-  description: "Plan replacement validation from an explicit dep-surgeon candidate request without executing commands",
+  description:
+    "Plan replacement validation from an explicit dep-surgeon candidate request without executing commands",
   inputSchema: ReplacementValidationOperationInputSchema,
   execute: executeReplacementValidationOperation,
 };

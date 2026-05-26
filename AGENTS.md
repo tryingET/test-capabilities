@@ -22,8 +22,8 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 - Docs discovery/scoping: `./scripts/docs-list.sh --task "<task>" --top 8`
 - Prompt read-scope allowlist: `./scripts/docs-list.sh --from-prompt <prompt-file> --paths-only --wikilink`
 - Code-file triage (optional/experimental): `./scripts/code-list.sh`
-- Tech stack lanes list: `./scripts/tech-stack.sh list`
-- Tech stack lane details: `./scripts/tech-stack.sh show <py|ts|pi-ts|go> --prefer-repo`
+- Engineering-core lanes list: `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list`
+- Engineering-core lane details: `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show <py|ts|pi-ts|go>`
 - Quality gate: `npm run check` (lint + test)
 
 ## Read order

@@ -116,16 +116,8 @@
     "task_type": "single_module"
   },
   "io": {
-    "inputs": [
-      "dependency_review_program_json",
-      "depmodel_json",
-      "target_context_json"
-    ],
-    "outputs": [
-      "review_findings_json",
-      "next_evidence_actions_json",
-      "authority_boundary_json"
-    ]
+    "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
+    "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"]
   },
   "non_authority": {
     "external_mutation": false,
@@ -135,9 +127,7 @@
     "oracle_ranking": false
   },
   "oracle_facets": {
-    "behavior_source_kinds": [
-      "inline_examples"
-    ],
+    "behavior_source_kinds": ["inline_examples"],
     "behavior_status": "passed",
     "dataset_split_count": 0,
     "evidence_source_count": 1,
@@ -146,11 +136,7 @@
     "has_dataset_splits": false,
     "has_examples": true,
     "has_failures": false,
-    "input_fields": [
-      "dependency_review_program_json",
-      "depmodel_json",
-      "target_context_json"
-    ],
+    "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
     "metric": "exact_match",
     "output_fields": [
       "review_findings_json",

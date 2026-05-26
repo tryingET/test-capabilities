@@ -22,11 +22,7 @@
       "status": "passed"
     }
   ],
-  "input_fields": [
-    "dependency_review_program_json",
-    "depmodel_json",
-    "target_context_json"
-  ],
+  "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
   "intent": {
     "constraints": [
       "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
@@ -43,16 +39,8 @@
     ],
     "declared_topology": {},
     "io": {
-      "inputs": [
-        "dependency_review_program_json",
-        "depmodel_json",
-        "target_context_json"
-      ],
-      "outputs": [
-        "review_findings_json",
-        "next_evidence_actions_json",
-        "authority_boundary_json"
-      ]
+      "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
+      "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"]
     },
     "materialization_scope": {
       "current_renderer": "single_module_scaffold",

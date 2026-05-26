@@ -33,17 +33,9 @@
     "promotion_authority": false
   },
   "profile_extension": {
-    "inputs": [
-      "dependency_review_program_json",
-      "depmodel_json",
-      "target_context_json"
-    ],
+    "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
     "intent_name": "TestCapabilitiesDependencyReviewProgram",
-    "outputs": [
-      "review_findings_json",
-      "next_evidence_actions_json",
-      "authority_boundary_json"
-    ],
+    "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"],
     "task_type": "single_module"
   },
   "protocol": {

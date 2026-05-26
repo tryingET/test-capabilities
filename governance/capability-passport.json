@@ -209,6 +209,17 @@
       "activation_requirements": []
     },
     {
+      "id": "cli:replacement-validation",
+      "name": "replacement-validation command",
+      "surface_kind": "cli-command",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {},
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
       "id": "cli:report",
       "name": "report command",
       "surface_kind": "cli-command",

@@ -1,8 +1,8 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import test from "node:test";
 
 import chalk from "chalk";
 
@@ -12,6 +12,7 @@ const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
 
 const forcedColorChalk = new chalk.Instance({ level: 1 });
 const noColorChalk = new chalk.Instance({ level: 0 });
+const ANSI_ESCAPE = "\u001B";
 
 function runDoctor(extraEnv = {}) {
   return spawnSync(process.execPath, [binPath, "doctor"], {
@@ -57,11 +58,20 @@ test("dependency intelligence: CLI doctor preserves current forced-color chalk r
   const result = runDoctor({ FORCE_COLOR: "1", NO_COLOR: undefined });
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.equal(result.stdout.startsWith("\u001B[36m"), true);
-  assert.match(result.stdout, /\u001B\[36m[\s\S]*\u001B\[39m\n\u001B\[2m  Fail-closed Testing Capability Framework/);
-  assert.match(result.stdout, /\u001B\[2m  Fail-closed Testing Capability Framework v[\d.]+\u001B\[22m/);
-  assert.match(result.stdout, /\u001B\[32mpass\u001B\[39m Node\.js runtime/);
-  assert.match(result.stderr, /\u001B\[32m✔\u001B\[39m Doctor passed/);
+  const escapedStdout = result.stdout.replaceAll(ANSI_ESCAPE, "<ESC>");
+  const escapedStderr = result.stderr.replaceAll(ANSI_ESCAPE, "<ESC>");
+
+  assert.equal(result.stdout.startsWith(`${ANSI_ESCAPE}[36m`), true);
+  assert.match(
+    escapedStdout,
+    /<ESC>\[36m[\s\S]*<ESC>\[39m\n<ESC>\[2m {2}Fail-closed Testing Capability Framework/,
+  );
+  assert.match(
+    escapedStdout,
+    /<ESC>\[2m {2}Fail-closed Testing Capability Framework v[\d.]+<ESC>\[22m/,
+  );
+  assert.match(escapedStdout, /<ESC>\[32mpass<ESC>\[39m Node\.js runtime/);
+  assert.match(escapedStderr, /<ESC>\[32m✔<ESC>\[39m Doctor passed/);
 });
 
 test("dependency intelligence: CLI doctor preserves current no-color chalk rendering", () => {
@@ -70,7 +80,7 @@ test("dependency intelligence: CLI doctor preserves current no-color chalk rende
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.equal(result.stdout.includes("\u001B["), false);
   assert.equal(result.stderr.includes("\u001B["), false);
-  assert.match(result.stdout, /  Fail-closed Testing Capability Framework v[\d.]+/);
+  assert.match(result.stdout, / {2}Fail-closed Testing Capability Framework v[\d.]+/);
   assert.match(result.stdout, /pass Node\.js runtime/);
   assert.match(result.stderr, /✔ Doctor passed/);
 });

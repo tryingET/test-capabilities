@@ -5,12 +5,7 @@
     "kind": "human_operator",
     "status": "pending"
   },
-  "allowed_outcomes": [
-    "promote",
-    "withhold",
-    "reject",
-    "request_more_evidence"
-  ],
+  "allowed_outcomes": ["promote", "withhold", "reject", "request_more_evidence"],
   "authority": "adjudication_request_only_non_authoritative",
   "candidate_refs": {
     "intent": "intent.json",

@@ -121,11 +121,7 @@
           "candidate_valid": true,
           "fallback_used": false,
           "input_count": 3,
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "json_mode": false,
           "max_attempts": 1,
           "output_count": 3,
@@ -166,17 +162,9 @@
           "candidate_count": 3,
           "evaluation_status": "passed",
           "execution_episode_count": 3,
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "io_spec": {
-            "inputs": [
-              "dependency_review_program_json",
-              "depmodel_json",
-              "target_context_json"
-            ],
+            "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
             "outputs": [
               "review_findings_json",
               "next_evidence_actions_json",
@@ -202,11 +190,7 @@
             "output_hash": "3bfe048bb3dd578d41320d305ab1482cd841dd5414a14d061c6521b2623b6ffb",
             "promotion_receipt_coverage": true,
             "promotion_requested": false,
-            "ranked_candidate_ids": [
-              "cand-08ecd44917b2",
-              "cand-120f5f2999f2",
-              "cand-56507cd00ec1"
-            ],
+            "ranked_candidate_ids": ["cand-08ecd44917b2", "cand-120f5f2999f2", "cand-56507cd00ec1"],
             "receipt_coverage": true,
             "receipt_invariant_issues": [],
             "run_kind": "module-gen",
@@ -220,11 +204,7 @@
             "validation_total": 3
           },
           "quality_event_status": "ok",
-          "ranked_candidate_ids": [
-            "cand-08ecd44917b2",
-            "cand-120f5f2999f2",
-            "cand-56507cd00ec1"
-          ],
+          "ranked_candidate_ids": ["cand-08ecd44917b2", "cand-120f5f2999f2", "cand-56507cd00ec1"],
           "ranking_policy_id": "module.v7.multi-candidate-ranked",
           "ranking_policy_version": "v0",
           "receipt_bundle_count": 3,
@@ -237,11 +217,7 @@
             "execution_episode_count": 3,
             "promotion_outcome": "withheld",
             "promotion_status": "ready",
-            "ranked_candidate_ids": [
-              "cand-08ecd44917b2",
-              "cand-120f5f2999f2",
-              "cand-56507cd00ec1"
-            ],
+            "ranked_candidate_ids": ["cand-08ecd44917b2", "cand-120f5f2999f2", "cand-56507cd00ec1"],
             "ranking_policy_id": "module.v7.multi-candidate-ranked",
             "ranking_policy_version": "v0",
             "receipt_bundle_count": 3,
@@ -300,9 +276,7 @@
                 },
                 "request_id": "sreq-3ad52543211a",
                 "status": "materialized",
-                "surface_kinds": [
-                  "module"
-                ],
+                "surface_kinds": ["module"],
                 "workspace_id": "ws-a763c08dbac5"
               },
               {
@@ -331,9 +305,7 @@
                 },
                 "request_id": "sreq-3ad52543211a",
                 "status": "materialized",
-                "surface_kinds": [
-                  "module"
-                ],
+                "surface_kinds": ["module"],
                 "workspace_id": "ws-ba6643a68ad3"
               },
               {
@@ -362,9 +334,7 @@
                 },
                 "request_id": "sreq-3ad52543211a",
                 "status": "selected",
-                "surface_kinds": [
-                  "module"
-                ],
+                "surface_kinds": ["module"],
                 "workspace_id": "ws-8f914f8bbf67"
               }
             ],
@@ -1177,11 +1147,7 @@
             "promotion_decision": {
               "candidate_id": "cand-08ecd44917b2",
               "decision_id": "promote-c51c3258fedd",
-              "evaluation_ids": [
-                "eval-479ae329be6a",
-                "eval-f0e652d74e07",
-                "eval-4a0de6e764d3"
-              ],
+              "evaluation_ids": ["eval-479ae329be6a", "eval-f0e652d74e07", "eval-4a0de6e764d3"],
               "metadata": {
                 "evaluation_status": "passed",
                 "promotion_shell_id": "shell-cad04ee826c2",
@@ -1586,11 +1552,7 @@
                 "candidate_limit": 3,
                 "promote_without_evaluations": false,
                 "promotion_boundary": "explicit_shell",
-                "ranking_dimensions": [
-                  "runtime_validation_gate",
-                  "selection_bonus",
-                  "ordinal"
-                ],
+                "ranking_dimensions": ["runtime_validation_gate", "selection_bonus", "ordinal"],
                 "runtime_spine_version": "v1"
               },
               "mode": "multi_candidate_ranked",
@@ -1601,11 +1563,7 @@
               ],
               "policy_id": "module.v7.multi-candidate-ranked",
               "policy_version": "v0",
-              "tie_breakers": [
-                "highest score",
-                "preferred variant",
-                "lowest ordinal"
-              ]
+              "tie_breakers": ["highest score", "preferred variant", "lowest ordinal"]
             },
             "strategy": {
               "metadata": {
@@ -1822,11 +1780,7 @@
                 "template_version": "simple-v1",
                 "use_signature": true
               },
-              "retrieval_order": [
-                "exact_match_receipts",
-                "replay_verification",
-                "oracle_neighbors"
-              ]
+              "retrieval_order": ["exact_match_receipts", "replay_verification", "oracle_neighbors"]
             },
             "evidence_bundle_version": "v1",
             "evidence_summary": {
@@ -1844,9 +1798,7 @@
                   "candidate_count_summary": {
                     "compared_candidate_count": 1
                   },
-                  "comparison_scope": [
-                    "cand-08ecd44917b2"
-                  ],
+                  "comparison_scope": ["cand-08ecd44917b2"],
                   "input_contracts": [
                     "candidate_winner_priors:v1",
                     "candidate_prior_audit:v1",
@@ -1874,15 +1826,11 @@
                     "shadow_predictive_ranking_advisory": "v1"
                   }
                 },
-                "comparison_scope": [
-                  "cand-08ecd44917b2"
-                ],
+                "comparison_scope": ["cand-08ecd44917b2"],
                 "decision_rule_summary": "Compare the live selected candidate to the bounded shadow preferred candidate from the current shadow advisory comparison set.",
                 "evaluation_contract_version": "20260330.v1",
                 "evaluation_result": {
-                  "evaluated_candidate_ids": [
-                    "cand-08ecd44917b2"
-                  ],
+                  "evaluated_candidate_ids": ["cand-08ecd44917b2"],
                   "governance_candidate_id": null,
                   "governance_candidate_reason": null,
                   "notes": [
@@ -1991,9 +1939,7 @@
                 "decision_rule_summary": "Classify the live-selected candidate's promotion posture from the current shadow advisory status without reopening ranking.",
                 "evaluation_contract_version": "20260330.v1",
                 "evaluation_result": {
-                  "evaluated_candidate_ids": [
-                    "cand-08ecd44917b2"
-                  ],
+                  "evaluated_candidate_ids": ["cand-08ecd44917b2"],
                   "governance_candidate_id": null,
                   "governance_candidate_reason": null,
                   "notes": [
@@ -2155,9 +2101,7 @@
                   "human_review_required_notice"
                 ],
                 "review_artifacts": {
-                  "comparison_scope": [
-                    "cand-08ecd44917b2"
-                  ],
+                  "comparison_scope": ["cand-08ecd44917b2"],
                   "consumed_surface_versions": {
                     "candidate_prior_audit": "v1",
                     "candidate_prior_counterfactual_advisory": "v1",
@@ -2260,9 +2204,7 @@
                   "human_review_required_notice"
                 ],
                 "review_artifacts": {
-                  "comparison_scope": [
-                    "selected_candidate_only"
-                  ],
+                  "comparison_scope": ["selected_candidate_only"],
                   "consumed_surface_versions": {
                     "candidate_prior_audit": "v1",
                     "candidate_prior_counterfactual_advisory": "v1",
@@ -2440,9 +2382,7 @@
       {
         "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
         "facets": {
-          "behavior_source_kinds": [
-            "inline_examples"
-          ],
+          "behavior_source_kinds": ["inline_examples"],
           "behavior_status": "passed",
           "dataset_split_count": 0,
           "evidence_source_count": 1,
@@ -2594,20 +2534,12 @@
         "status": "not_applicable"
       },
       "examples_binding": {
-        "artifact_refs": [
-          "examples.json",
-          "eval_examples.py"
-        ],
+        "artifact_refs": ["examples.json", "eval_examples.py"],
         "examples_count": 1,
         "status": "passed"
       },
       "jury_binding": {
-        "artifact_refs": [
-          "jury.json",
-          "jury_selection.json",
-          "jury_rubric.json",
-          "eval_jury.py"
-        ],
+        "artifact_refs": ["jury.json", "jury_selection.json", "jury_rubric.json", "eval_jury.py"],
         "returncode": 0,
         "status": "passed"
       },
@@ -2808,11 +2740,7 @@
             "status": "passed"
           }
         ],
-        "input_fields": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "intent": {
           "constraints": [
             "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
@@ -2829,11 +2757,7 @@
           ],
           "declared_topology": {},
           "io": {
-            "inputs": [
-              "dependency_review_program_json",
-              "depmodel_json",
-              "target_context_json"
-            ],
+            "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
             "outputs": [
               "review_findings_json",
               "next_evidence_actions_json",
@@ -2949,9 +2873,7 @@
     "oracle_evidence": {
       "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
       "facets": {
-        "behavior_source_kinds": [
-          "inline_examples"
-        ],
+        "behavior_source_kinds": ["inline_examples"],
         "behavior_status": "passed",
         "dataset_split_count": 0,
         "evidence_source_count": 1,
@@ -2960,11 +2882,7 @@
         "has_dataset_splits": false,
         "has_examples": true,
         "has_failures": false,
-        "input_fields": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "metric": "exact_match",
         "output_fields": [
           "review_findings_json",
@@ -2996,9 +2914,7 @@
     },
     "oracle_readability": {
       "facets": {
-        "behavior_source_kinds": [
-          "inline_examples"
-        ],
+        "behavior_source_kinds": ["inline_examples"],
         "behavior_status": "passed",
         "dataset_split_count": 0,
         "evidence_source_count": 1,
@@ -3007,11 +2923,7 @@
         "has_dataset_splits": false,
         "has_examples": true,
         "has_failures": false,
-        "input_fields": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "metric": "exact_match",
         "output_fields": [
           "review_findings_json",
@@ -3124,11 +3036,7 @@
         "type": "str"
       }
     ],
-    "inputs": [
-      "dependency_review_program_json",
-      "depmodel_json",
-      "target_context_json"
-    ],
+    "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
     "jury": {
       "minimum_jurors": 8,
       "perspectives": [
@@ -3232,11 +3140,7 @@
         "type": "str"
       }
     ],
-    "outputs": [
-      "review_findings_json",
-      "next_evidence_actions_json",
-      "authority_boundary_json"
-    ],
+    "outputs": ["review_findings_json", "next_evidence_actions_json", "authority_boundary_json"],
     "promotion": {
       "adjudicator": {
         "id": "test_capabilities_source_owner_review",
@@ -3265,9 +3169,7 @@
   "oracle_readability": {
     "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
     "facets": {
-      "behavior_source_kinds": [
-        "inline_examples"
-      ],
+      "behavior_source_kinds": ["inline_examples"],
       "behavior_status": "passed",
       "dataset_split_count": 0,
       "evidence_source_count": 1,
@@ -3276,11 +3178,7 @@
       "has_dataset_splits": false,
       "has_examples": true,
       "has_failures": false,
-      "input_fields": [
-        "dependency_review_program_json",
-        "depmodel_json",
-        "target_context_json"
-      ],
+      "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
       "metric": "exact_match",
       "output_fields": [
         "review_findings_json",
@@ -3328,22 +3226,14 @@
     "intent_name": "TestCapabilitiesDependencyReviewProgram",
     "juror_rubrics": [
       {
-        "adversarial_questions": [
-          "What would a dependency_semantics reviewer challenge first?"
-        ],
-        "criteria": [
-          "dependency_semantics_review"
-        ],
+        "adversarial_questions": ["What would a dependency_semantics reviewer challenge first?"],
+        "criteria": ["dependency_semantics_review"],
         "juror_id": "explicit_dependency_semantics",
         "perspective": "dependency_semantics"
       },
       {
-        "adversarial_questions": [
-          "What would a source_owner_authority reviewer challenge first?"
-        ],
-        "criteria": [
-          "source_owner_authority_review"
-        ],
+        "adversarial_questions": ["What would a source_owner_authority reviewer challenge first?"],
+        "criteria": ["source_owner_authority_review"],
         "juror_id": "explicit_source_owner_authority",
         "perspective": "source_owner_authority"
       },
@@ -3351,9 +3241,7 @@
         "adversarial_questions": [
           "What would a runtime_scenario_coverage reviewer challenge first?"
         ],
-        "criteria": [
-          "runtime_scenario_coverage_review"
-        ],
+        "criteria": ["runtime_scenario_coverage_review"],
         "juror_id": "explicit_runtime_scenario_coverage",
         "perspective": "runtime_scenario_coverage"
       },
@@ -3361,9 +3249,7 @@
         "adversarial_questions": [
           "What would a introducer_path_reasoning reviewer challenge first?"
         ],
-        "criteria": [
-          "introducer_path_reasoning_review"
-        ],
+        "criteria": ["introducer_path_reasoning_review"],
         "juror_id": "explicit_introducer_path_reasoning",
         "perspective": "introducer_path_reasoning"
       },
@@ -3371,19 +3257,13 @@
         "adversarial_questions": [
           "What would a security_handoff_boundary reviewer challenge first?"
         ],
-        "criteria": [
-          "security_handoff_boundary_review"
-        ],
+        "criteria": ["security_handoff_boundary_review"],
         "juror_id": "explicit_security_handoff_boundary",
         "perspective": "security_handoff_boundary"
       },
       {
-        "adversarial_questions": [
-          "What would a visualization_boundary reviewer challenge first?"
-        ],
-        "criteria": [
-          "visualization_boundary_review"
-        ],
+        "adversarial_questions": ["What would a visualization_boundary reviewer challenge first?"],
+        "criteria": ["visualization_boundary_review"],
         "juror_id": "explicit_visualization_boundary",
         "perspective": "visualization_boundary"
       },
@@ -3391,19 +3271,13 @@
         "adversarial_questions": [
           "What would a non_authority_preservation reviewer challenge first?"
         ],
-        "criteria": [
-          "non_authority_preservation_review"
-        ],
+        "criteria": ["non_authority_preservation_review"],
         "juror_id": "explicit_non_authority_preservation",
         "perspective": "non_authority_preservation"
       },
       {
-        "adversarial_questions": [
-          "What would a target_repo_validation reviewer challenge first?"
-        ],
-        "criteria": [
-          "target_repo_validation_review"
-        ],
+        "adversarial_questions": ["What would a target_repo_validation reviewer challenge first?"],
+        "criteria": ["target_repo_validation_review"],
         "juror_id": "explicit_target_repo_validation",
         "perspective": "target_repo_validation"
       }
@@ -3524,11 +3398,7 @@
           "signature_path": "signature.py"
         },
         "io": {
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "outputs": [
             "review_findings_json",
             "next_evidence_actions_json",
@@ -3547,11 +3417,7 @@
         "primitive": "Predict",
         "schema_version": "program-module-surface-v1",
         "signature": {
-          "inputs": [
-            "dependency_review_program_json",
-            "depmodel_json",
-            "target_context_json"
-          ],
+          "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
           "name": "TestCapabilitiesDependencyReviewProgramSignature",
           "outputs": [
             "review_findings_json",
@@ -3825,11 +3691,7 @@
           "primitive": "Predict",
           "role": "Default generated single-module scaffold.",
           "signature": {
-            "inputs": [
-              "dependency_review_program_json",
-              "depmodel_json",
-              "target_context_json"
-            ],
+            "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
             "name": "TestCapabilitiesDependencyReviewProgramSignature",
             "outputs": [
               "review_findings_json",
@@ -3989,11 +3851,7 @@
           "primitive": "Predict",
           "role": "Default generated single-module scaffold.",
           "signature": {
-            "inputs": [
-              "dependency_review_program_json",
-              "depmodel_json",
-              "target_context_json"
-            ],
+            "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
             "name": "TestCapabilitiesDependencyReviewProgramSignature",
             "outputs": [
               "review_findings_json",
@@ -4013,12 +3871,7 @@
       "kind": "human_operator",
       "status": "pending"
     },
-    "allowed_outcomes": [
-      "promote",
-      "withhold",
-      "reject",
-      "request_more_evidence"
-    ],
+    "allowed_outcomes": ["promote", "withhold", "reject", "request_more_evidence"],
     "authority": "adjudication_request_only_non_authoritative",
     "candidate_refs": {
       "intent": "intent.json",
@@ -4122,10 +3975,7 @@
       "plan": "plan.json",
       "smoke_harness": "eval_smoke.py"
     },
-    "blocking_conditions": [
-      "no_model_jury_execution_episode",
-      "no_promotion_adjudicator_decision"
-    ],
+    "blocking_conditions": ["no_model_jury_execution_episode", "no_promotion_adjudicator_decision"],
     "candidate_status": "exploratory",
     "decision": {
       "decided_at": null,
@@ -4137,41 +3987,27 @@
     "decision_authority": "required_for_promotion",
     "evidence_requirements": [
       {
-        "artifact_refs": [
-          "program.py",
-          "manifest.json"
-        ],
+        "artifact_refs": ["program.py", "manifest.json"],
         "name": "candidate_materialized",
         "status": "satisfied_by_current_materialization"
       },
       {
-        "artifact_refs": [
-          "eval_smoke.py"
-        ],
+        "artifact_refs": ["eval_smoke.py"],
         "name": "smoke_validation",
         "status": "satisfied_by_current_materialization"
       },
       {
-        "artifact_refs": [
-          "jury.json",
-          "jury_selection.json",
-          "jury_rubric.json"
-        ],
+        "artifact_refs": ["jury.json", "jury_selection.json", "jury_rubric.json"],
         "name": "jury_artifact_binding",
         "status": "satisfied_by_current_materialization"
       },
       {
-        "artifact_refs": [
-          "examples.json",
-          "eval_examples.py"
-        ],
+        "artifact_refs": ["examples.json", "eval_examples.py"],
         "name": "examples_binding",
         "status": "satisfied_by_current_materialization"
       },
       {
-        "artifact_refs": [
-          "behavior_results.json"
-        ],
+        "artifact_refs": ["behavior_results.json"],
         "name": "behavioral_evaluation_episode",
         "status": "satisfied_by_current_behavior_episode"
       },
@@ -4324,11 +4160,7 @@
             "status": "passed"
           }
         ],
-        "input_fields": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "intent": {
           "constraints": [
             "Treat dep-diet as dependency review-program and evidence-fusion contract owner.",
@@ -4345,11 +4177,7 @@
           ],
           "declared_topology": {},
           "io": {
-            "inputs": [
-              "dependency_review_program_json",
-              "depmodel_json",
-              "target_context_json"
-            ],
+            "inputs": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
             "outputs": [
               "review_findings_json",
               "next_evidence_actions_json",
@@ -4472,9 +4300,7 @@
       "oracle_readability": {
         "content_hash": "b3200efbe4b41263f4726859decb242793b0606952bdb3f38a6ce69b5473b6ac",
         "facets": {
-          "behavior_source_kinds": [
-            "inline_examples"
-          ],
+          "behavior_source_kinds": ["inline_examples"],
           "behavior_status": "passed",
           "dataset_split_count": 0,
           "evidence_source_count": 1,
@@ -4518,9 +4344,7 @@
         }
       },
       "oracle_readability_facets": {
-        "behavior_source_kinds": [
-          "inline_examples"
-        ],
+        "behavior_source_kinds": ["inline_examples"],
         "behavior_status": "passed",
         "dataset_split_count": 0,
         "evidence_source_count": 1,
@@ -4529,11 +4353,7 @@
         "has_dataset_splits": false,
         "has_examples": true,
         "has_failures": false,
-        "input_fields": [
-          "dependency_review_program_json",
-          "depmodel_json",
-          "target_context_json"
-        ],
+        "input_fields": ["dependency_review_program_json", "depmodel_json", "target_context_json"],
         "metric": "exact_match",
         "output_fields": [
           "review_findings_json",

@@ -1,10 +1,10 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import test from "node:test";
 
 import { importRuntimeModule, runtimeEnv } from "./helpers/runtime-dist.mjs";
 
@@ -38,13 +38,8 @@ function validRequest(overrides = {}) {
     impactScope: {
       packageNames: ["chalk"],
       changedPaths: ["bin/test-capabilities"],
-      requiredProofCodes: [
-        "terminal-rendering-equivalence",
-        "impact-scoped-tests",
-      ],
-      validationCommands: [
-        "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
-      ],
+      requiredProofCodes: ["terminal-rendering-equivalence", "impact-scoped-tests"],
+      validationCommands: ["node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
     },
     dryRun: true,
     ...overrides,
@@ -54,7 +49,7 @@ function validRequest(overrides = {}) {
 for (const schemaPath of schemaPaths) {
   test(`${schemaPath} is a parseable interop schema with authority boundaries`, () => {
     const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
-    assert.equal(schema["$schema"], "https://json-schema.org/draft/2020-12/schema");
+    assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema");
     assert.equal(schema.type, "object");
     assert.equal(schema.additionalProperties, false);
     if (schemaPath.includes("request")) {
@@ -64,7 +59,10 @@ for (const schemaPath of schemaPaths) {
         "dep-surgeon-plan",
         "dep-surgeon-result",
       ]);
-      assert.deepEqual(schema.properties.impactScope.required, ["packageNames", "validationCommands"]);
+      assert.deepEqual(schema.properties.impactScope.required, [
+        "packageNames",
+        "validationCommands",
+      ]);
       assert.equal(schema.properties.impactScope.properties.packageNames.minItems, 1);
       assert.equal(schema.properties.impactScope.properties.validationCommands.minItems, 1);
     }
@@ -90,9 +88,10 @@ test("replacement validation membrane plans explicit target-owned commands witho
   assert.equal(result.status, "planned");
   assert.equal(result.execution.executed, false);
   assert.deepEqual(result.requestSummary.packageNames, ["chalk"]);
-  assert.deepEqual(result.selectedCommands.map((entry) => entry.command), [
-    "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
-  ]);
+  assert.deepEqual(
+    result.selectedCommands.map((entry) => entry.command),
+    ["node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
+  );
   assert.equal(
     result.selectedCommands.every((entry) => entry.mode === "planned-not-executed"),
     true,
@@ -109,20 +108,19 @@ test("replacement validation membrane plans explicit target-owned commands witho
 });
 
 test("replacement validation membrane surfaces dependency-tree persistence proof requirements", () => {
-  const result = createReplacementValidationPlan(validRequest({
-    impactScope: {
-      packageNames: ["chalk"],
-      changedPaths: ["bin/test-capabilities", "package.json"],
-      requiredProofCodes: [
-        "dependency-tree-persistence-check",
-        "terminal-rendering-equivalence",
-      ],
-      validationCommands: [
-        "npm ls chalk --depth=2",
-        "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
-      ],
-    },
-  }));
+  const result = createReplacementValidationPlan(
+    validRequest({
+      impactScope: {
+        packageNames: ["chalk"],
+        changedPaths: ["bin/test-capabilities", "package.json"],
+        requiredProofCodes: ["dependency-tree-persistence-check", "terminal-rendering-equivalence"],
+        validationCommands: [
+          "npm ls chalk --depth=2",
+          "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
+        ],
+      },
+    }),
+  );
 
   assert.equal(result.status, "planned");
   assert.equal(result.execution.executed, false);
@@ -136,10 +134,10 @@ test("replacement validation membrane surfaces dependency-tree persistence proof
     "dependency-tree-persistence-check",
     "terminal-rendering-equivalence",
   ]);
-  assert.deepEqual(result.selectedCommands.map((entry) => entry.command), [
-    "npm ls chalk --depth=2",
-    "node --test tests/dependency_intelligence_chalk_proof.test.mjs",
-  ]);
+  assert.deepEqual(
+    result.selectedCommands.map((entry) => entry.command),
+    ["npm ls chalk --depth=2", "node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
+  );
 });
 
 test("replacement validation membrane fails closed without a dep-surgeon candidate ref", () => {
@@ -185,7 +183,16 @@ test("replacement-validation CLI plans from a dep-surgeon request without execut
     writeFileSync(requestPath, `${JSON.stringify(validRequest(), null, 2)}\n`, "utf8");
     const result = spawnSync(
       process.execPath,
-      [binPath, "replacement-validation", "plan", "--request", requestPath, "--out", resultPath, "--json"],
+      [
+        binPath,
+        "replacement-validation",
+        "plan",
+        "--request",
+        requestPath,
+        "--out",
+        resultPath,
+        "--json",
+      ],
       {
         encoding: "utf8",
         env: runtimeEnv({ PATH: path.dirname(process.execPath) }),
@@ -206,21 +213,40 @@ test("replacement-validation CLI plans from a dep-surgeon request without execut
 });
 
 test("replacement-validation CLI writes unsupported results and exits non-zero for incomplete requests", () => {
-  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-replacement-validation-unsupported-"));
+  const tempDir = mkdtempSync(
+    path.join(os.tmpdir(), "test-capabilities-replacement-validation-unsupported-"),
+  );
   const requestPath = path.join(tempDir, "request.json");
   const resultPath = path.join(tempDir, "result.json");
 
   try {
-    writeFileSync(requestPath, `${JSON.stringify({
-      schemaVersion: REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
-      impactScope: {
-        packageNames: ["chalk"],
-        validationCommands: ["node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
-      },
-    }, null, 2)}\n`, "utf8");
+    writeFileSync(
+      requestPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: REPLACEMENT_VALIDATION_REQUEST_SCHEMA_VERSION,
+          impactScope: {
+            packageNames: ["chalk"],
+            validationCommands: ["node --test tests/dependency_intelligence_chalk_proof.test.mjs"],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
     const result = spawnSync(
       process.execPath,
-      [binPath, "replacement-validation", "plan", "--request", requestPath, "--out", resultPath, "--json"],
+      [
+        binPath,
+        "replacement-validation",
+        "plan",
+        "--request",
+        requestPath,
+        "--out",
+        resultPath,
+        "--json",
+      ],
       {
         encoding: "utf8",
         env: runtimeEnv({ PATH: path.dirname(process.execPath) }),
