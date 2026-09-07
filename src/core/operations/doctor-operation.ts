@@ -4,7 +4,14 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
-import { resolveSurfRuntimeResolution } from "../surf-runtime.js";
+import {
+  describeSurfRuntime,
+  probeSurfRuntime,
+  resolveSurfRuntimeResolution,
+  runSurfCommand,
+  SURF_MECHANISM_COMMANDS,
+  type SurfCommandResult,
+} from "../surf-runtime.js";
 import { loadConfig } from "./config-overrides.js";
 import type {
   DoctorCheck,
@@ -206,36 +213,134 @@ function checkTargetExecutable(input: NormalizedDoctorOperationInput): DoctorChe
       );
 }
 
-function checkOptionalSurf(env: NodeJS.ProcessEnv = process.env): DoctorCheck {
-  try {
-    const resolution = resolveSurfRuntimeResolution(env);
-    const commandAvailable = path.isAbsolute(resolution.command)
-      ? existsSync(resolution.command)
-      : resolution.command === "go"
-        ? hasExecutableOnPath("go", env)
-        : hasExecutableOnPath(resolution.command, env);
+type SurfDoctorSummary = {
+  browser: string;
+  ok: boolean;
+  socketPath?: string;
+  manifests: string[];
+  failures: string[];
+  warnings: string[];
+  recommendations: string[];
+};
 
-    if (commandAvailable) {
-      return pass(
-        "external.surf_go",
-        "Optional Surf Go runtime",
-        `resolved via ${resolution.provider}: ${[resolution.command, ...resolution.baseArgs].join(" ")}`,
-        false,
-      );
-    }
-  } catch (error) {
-    return warn(
-      "external.surf_go",
-      "Optional Surf Go runtime",
-      error instanceof Error ? error.message : String(error),
-    );
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringsOf(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function summarizeSurfDoctor(browser: string, run: SurfCommandResult): SurfDoctorSummary {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(run.stdout);
+  } catch {
+    payload = undefined;
   }
 
-  return warn(
-    "external.surf_go",
-    "Optional Surf Go runtime",
-    "not found; surf-backed browser exploration will require TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, or surf-go on PATH",
-  );
+  if (!isRecord(payload)) {
+    return {
+      browser,
+      ok: false,
+      manifests: [],
+      failures: [
+        run.failure
+          ? `${run.failure.message} [${run.failure.code}]`
+          : "surf doctor did not print machine-readable JSON",
+      ],
+      warnings: [],
+      recommendations: [],
+    };
+  }
+
+  const checks = Array.isArray(payload.checks) ? payload.checks.filter(isRecord) : [];
+  const messagesWithStatus = (status: string) =>
+    checks
+      .filter((check) => check.status === status && typeof check.message === "string")
+      .map((check) => check.message as string);
+  const environment = isRecord(payload.environment) ? payload.environment : {};
+  const manifests = Array.isArray(payload.manifests)
+    ? payload.manifests
+        .filter(isRecord)
+        .map((manifest) => manifest.path)
+        .filter((entry): entry is string => typeof entry === "string")
+    : [];
+
+  return {
+    browser,
+    ok: payload.ok === true,
+    socketPath: typeof environment.socketPath === "string" ? environment.socketPath : undefined,
+    manifests,
+    failures: messagesWithStatus("fail"),
+    warnings: messagesWithStatus("warn"),
+    recommendations: stringsOf(payload.recommendations),
+  };
+}
+
+function checkOptionalSurf(env: NodeJS.ProcessEnv = process.env): DoctorCheck {
+  const id = "external.surf";
+  const label = "Optional surf CLI runtime";
+
+  let resolution: ReturnType<typeof resolveSurfRuntimeResolution>;
+  try {
+    resolution = resolveSurfRuntimeResolution(env);
+  } catch (error) {
+    return warn(id, label, error instanceof Error ? error.message : String(error));
+  }
+
+  let probe: ReturnType<typeof probeSurfRuntime>;
+  try {
+    probe = probeSurfRuntime(resolution, { env });
+  } catch (error) {
+    return warn(id, label, error instanceof Error ? error.message : String(error));
+  }
+
+  const browser = env.TEST_CAPABILITIES_SURF_BROWSER?.trim() || "chromium";
+  const doctorRun = runSurfCommand(resolution, ["doctor", "--browser", browser, "--json"], {
+    timeoutMs: 15_000,
+    env,
+  });
+  const doctor = summarizeSurfDoctor(browser, doctorRun);
+
+  const mechanismSummary = Object.entries(SURF_MECHANISM_COMMANDS)
+    .map(
+      ([key, command]) =>
+        `${command}${probe.mechanisms[key as keyof typeof SURF_MECHANISM_COMMANDS] ? "" : " (missing)"}`,
+    )
+    .join(", ");
+  const doctorSummary = doctor.ok
+    ? `ok (socket ${doctor.socketPath ?? "unknown"}; manifest ${doctor.manifests.join(", ") || "unknown"})`
+    : `${doctor.failures.length} issue(s): ${doctor.failures.join("; ") || "no detail"}`;
+  const detail = `${describeSurfRuntime(resolution, probe)}; mechanisms: ${mechanismSummary}; surf doctor --browser ${browser}: ${doctorSummary}`;
+  const data = {
+    command: resolution.command,
+    provider: resolution.provider,
+    version: probe.version ?? null,
+    mechanisms: probe.mechanisms,
+    missingExploreMechanisms: probe.missingExploreMechanisms,
+    doctor,
+  };
+
+  if (probe.missingExploreMechanisms.length === 0 && doctor.ok) {
+    return { ...pass(id, label, detail, false), data };
+  }
+
+  const reasons = [
+    ...(probe.missingExploreMechanisms.length > 0
+      ? [
+          `surf explore needs ${probe.missingExploreMechanisms.join(" and ")} (upstream build without the site-independent mechanisms branch)`,
+        ]
+      : []),
+    ...(doctor.ok
+      ? []
+      : [
+          "the surf native host/socket is not reachable; start the browser with the surf extension",
+        ]),
+  ];
+  return { ...warn(id, label, `${detail}; ${reasons.join("; ")}`), data };
 }
 
 function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorCheck {

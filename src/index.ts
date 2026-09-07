@@ -108,7 +108,31 @@ export {
   REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
   ReplacementValidationRequestSchema,
 } from "./core/replacement-validation.js";
-export { resolveSurfRuntimeCommand, resolveSurfRuntimeResolution } from "./core/surf-runtime.js";
+export type {
+  SurfCommandFailure,
+  SurfCommandResult,
+  SurfMechanism,
+  SurfReadinessErrorCode,
+  SurfRuntimeFlavor,
+  SurfRuntimeProbe,
+  SurfRuntimeProvider,
+  SurfRuntimeResolution,
+} from "./core/surf-runtime.js";
+export {
+  assertSurfExploreMechanisms,
+  isSurfReadinessErrorCode,
+  parseCreatedTabId,
+  parseSurfErrorOutput,
+  parseSurfJsonOutput,
+  probeSurfRuntime,
+  resolveSurfRuntimeCommand,
+  resolveSurfRuntimeResolution,
+  runSurfCommand,
+  SURF_MECHANISM_COMMANDS,
+  SURF_READINESS_ERROR_CODES,
+  SurfCommandError,
+  translateSurfArgs,
+} from "./core/surf-runtime.js";
 export type {
   ElementSnapshot,
   HealingContext,
@@ -125,7 +149,13 @@ export type {
   SurfActionResult,
   SurfConfig,
   SurfElement,
+  SurfExtractOptions,
+  SurfExtractResult,
+  SurfFrameDiagnosis,
+  SurfReadiness,
+  SurfReadinessOptions,
   SurfSnapshot,
+  SurfWaitReadyOptions,
 } from "./integrations/surf-client.js";
 // Surf Integration
 export { SurfClient, SurfFlowBuilder } from "./integrations/surf-client.js";

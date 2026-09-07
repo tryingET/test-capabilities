@@ -2109,7 +2109,7 @@ class SurfAgent implements TestAgent {
             description: `Surf runtime could not complete against ${targets.web}`,
             evidence: [error instanceof Error ? error.message : String(error)],
             recommendation:
-              "Ensure Surf Go is resolvable through TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, the workspace surf-cli-go checkout, or surf-go on PATH, then re-run the suite.",
+              "Ensure the surf CLI (nicobailon/surf-cli with wait.ready and extract) is resolvable through TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, and that the browser with the surf extension is running (surf doctor), then re-run the suite.",
             timestamp: new Date(),
           },
         ],

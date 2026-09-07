@@ -130,6 +130,7 @@ export interface DoctorCheck {
   status: "pass" | "warn" | "fail";
   required: boolean;
   detail: string;
+  data?: Record<string, unknown>;
 }
 
 export interface TestOperationSummary {
@@ -197,6 +198,52 @@ export interface InitOperationResultEnvelope {
   nextCommands: string[];
 }
 
+export type SurfExploreReadinessState =
+  | "ready"
+  | "empty"
+  | "loading"
+  | "login"
+  | "challenge"
+  | "not-found"
+  | "error"
+  | "unknown";
+
+export interface SurfExplorePageReadiness {
+  state: SurfExploreReadinessState;
+  code?: string;
+  message?: string;
+  href?: string;
+  title?: string;
+  readyState?: string;
+  polls?: number;
+  waited?: number;
+  evidence: string[];
+}
+
+export interface SurfExploreProbeResult {
+  kind: "state" | "dom" | "links";
+  url: string;
+  depth: number;
+  verified: boolean;
+  signal?: string;
+  error?: string;
+  code?: string;
+}
+
+export interface SurfExplorePageResult {
+  url: string;
+  depth: number;
+  tabId?: number;
+  verified: boolean;
+  readiness?: SurfExplorePageReadiness;
+  probes: SurfExploreProbeResult[];
+  discoveredUrls: string[];
+  links?: {
+    rowCount: number;
+    attempts: number;
+  };
+}
+
 export interface SurfExploreOperationResultEnvelope {
   operationId: "surf.explore";
   input: Required<Pick<SurfExploreOperationInput, "url">> & Omit<SurfExploreOperationInput, "url">;
@@ -204,9 +251,11 @@ export interface SurfExploreOperationResultEnvelope {
     command: string;
     args: string[];
     runtime?: {
-      flavor: "surf-go";
+      flavor: "surf";
       provider: string;
       resolutionNotes: string[];
+      version?: string;
+      mechanisms?: Record<string, boolean>;
     };
     stdout: string;
     stderr: string;
@@ -230,20 +279,7 @@ export interface SurfExploreOperationResultEnvelope {
       probesRequired: number;
       probesVerified: number;
     };
-    pages: Array<{
-      url: string;
-      depth: number;
-      verified: boolean;
-      probes: Array<{
-        kind: "state" | "dom" | "links";
-        url: string;
-        depth: number;
-        verified: boolean;
-        signal?: string;
-        error?: string;
-      }>;
-      discoveredUrls: string[];
-    }>;
+    pages: SurfExplorePageResult[];
   };
 }
 

@@ -4,7 +4,13 @@
  */
 
 import { spawn } from "node:child_process";
-import { resolveSurfRuntimeCommand } from "../core/surf-runtime.js";
+import {
+  parseCreatedTabId,
+  parseSurfErrorOutput,
+  parseSurfJsonOutput,
+  resolveSurfRuntimeCommand,
+  SurfCommandError,
+} from "../core/surf-runtime.js";
 
 // ============================================
 // TYPES
@@ -50,6 +56,72 @@ export interface NetworkRequest {
   duration: number;
   request?: unknown;
   response?: unknown;
+}
+
+/** Result of `surf wait.ready` / `surf page.readiness --json`. */
+export interface SurfReadiness {
+  state: "ready" | "empty" | "loading" | "login" | "challenge" | "not-found" | "error";
+  evidence: string[];
+  href?: string;
+  title?: string;
+  readyState?: string;
+  tabStatus?: string;
+  polls?: number;
+  waited?: number;
+  accepted?: boolean;
+}
+
+export interface SurfReadinessOptions {
+  tabId?: number;
+  selector?: string;
+  text?: string;
+  urlPrefix?: string;
+  emptyText?: string;
+}
+
+export interface SurfWaitReadyOptions extends SurfReadinessOptions {
+  accept?: Array<"login" | "challenge" | "not-found" | "error">;
+  timeout?: number;
+  interval?: number;
+}
+
+/** Result of `surf extract --json`. */
+export interface SurfExtractResult<TRow = unknown> {
+  data: unknown;
+  rows: TRow[];
+  rowCount: number | null;
+  attempts: number;
+  readiness?: SurfReadiness;
+  mode?: string;
+  url?: string | null;
+  tabId?: number | null;
+}
+
+export interface SurfExtractOptions {
+  url?: string;
+  tabId?: number;
+  code?: string;
+  file?: string;
+  options?: Record<string, unknown>;
+  readySelector?: string;
+  readyText?: string;
+  readyUrlPrefix?: string;
+  emptyText?: string;
+  readyTimeout?: number;
+  rows?: string;
+  retry?: number;
+  allowEmpty?: boolean;
+  keepTab?: boolean;
+}
+
+/** Result of `surf frame.diagnose --json`. */
+export interface SurfFrameDiagnosis {
+  mainPage?: unknown;
+  counts?: Record<string, number>;
+  domIframes: unknown[];
+  extensionFrames: unknown[];
+  cdpFrames: unknown[];
+  warnings: string[];
 }
 
 function assertSupportedSurfConfig(config: SurfConfig): void {
@@ -147,43 +219,8 @@ export class SurfClient {
     return result.message || "";
   }
 
-  private looksLikeJsonStart(value: string): boolean {
-    return /^(?:\{|\[|"|-?\d|true\b|false\b|null\b)/.test(value);
-  }
-
   private parseJsonPayload<T>(command: string, message: string | undefined): T {
-    const raw = (message || "").trim();
-
-    if (raw.length === 0) {
-      throw new Error(`surf ${command} returned empty output where JSON was expected`);
-    }
-
-    const candidates = new Set<string>([raw]);
-    const lines = raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    for (let index = 0; index < lines.length; index += 1) {
-      if (!this.looksLikeJsonStart(lines[index])) {
-        continue;
-      }
-
-      candidates.add(lines.slice(index).join("\n"));
-      candidates.add(lines[index]);
-      break;
-    }
-
-    for (const candidate of candidates) {
-      try {
-        return JSON.parse(candidate) as T;
-      } catch {
-        // Try the next candidate shape.
-      }
-    }
-
-    const preview = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
-    throw new Error(`Invalid JSON output from surf ${command}: ${preview}`);
+    return parseSurfJsonOutput(message ?? "", command).data as T;
   }
 
   private parseSnapshot(raw: string): SurfSnapshot {
@@ -358,12 +395,48 @@ export class SurfClient {
 
   async listTabs(): Promise<Array<{ id: number; title: string; url: string }>> {
     const result = await this.run("tab.list", []);
-    return this.parseTabList(result);
+    const payload = this.parseJsonPayload<unknown>("tab.list", result.message);
+    const entries = Array.isArray(payload)
+      ? payload
+      : payload &&
+          typeof payload === "object" &&
+          Array.isArray((payload as { tabs?: unknown }).tabs)
+        ? ((payload as { tabs: unknown[] }).tabs ?? [])
+        : undefined;
+    if (!entries) {
+      throw new Error("surf tab.list --json did not return a tab array");
+    }
+
+    return entries.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return [];
+      }
+      const record = entry as Record<string, unknown>;
+      if (typeof record.id !== "number") {
+        return [];
+      }
+      return [
+        {
+          id: record.id,
+          title: typeof record.title === "string" ? record.title : "",
+          url: typeof record.url === "string" ? record.url : "",
+        },
+      ];
+    });
   }
 
-  async newTab(url: string): Promise<{ tabId: number; windowId: number }> {
+  /**
+   * `surf tab.new` answers with the text "Created tab <id>: <url>" (also under `--json`);
+   * the id is parsed from that line.
+   */
+  async newTab(url: string): Promise<{ tabId: number; url: string }> {
     const result = await this.run("tab.new", [url]);
-    return this.parseJsonPayload("tab.new", result.message);
+    const tabId = parseCreatedTabId(result.message ?? "");
+    if (tabId === undefined) {
+      const preview = (result.message ?? "").slice(0, 200);
+      throw new Error(`surf tab.new did not report a tab id: ${preview || "(empty output)"}`);
+    }
+    return { tabId, url };
   }
 
   async switchTab(id: number | string): Promise<SurfActionResult> {
@@ -596,6 +669,103 @@ export class SurfClient {
   }
 
   // ============================================
+  // TYPED READINESS, EXTRACTION, FRAME DIAGNOSIS
+  // (surf-cli branch feat/site-independent-mechanisms)
+  // ============================================
+
+  private readinessArgs(options: SurfReadinessOptions): string[] {
+    const args: string[] = [];
+    if (options.tabId !== undefined) args.push("--tab-id", String(options.tabId));
+    if (options.selector) args.push("--selector", options.selector);
+    if (options.text) args.push("--text", options.text);
+    if (options.urlPrefix) args.push("--url-prefix", options.urlPrefix);
+    if (options.emptyText) args.push("--empty-text", options.emptyText);
+    return args;
+  }
+
+  /** Classify the page once without waiting (`surf page.readiness --json`). */
+  async pageReadiness(options: SurfReadinessOptions = {}): Promise<SurfReadiness> {
+    const result = await this.run("page.readiness", this.readinessArgs(options));
+    return this.parseJsonPayload<SurfReadiness>("page.readiness", result.message);
+  }
+
+  /**
+   * Wait until the page is ready or fail fast with a typed state. Negative states reject with a
+   * `SurfCommandError` whose `code` is `page_login`, `page_challenge`, `page_not_found`,
+   * `page_error` or `page_timeout` unless listed in `accept`.
+   */
+  async waitReady(options: SurfWaitReadyOptions = {}): Promise<SurfReadiness> {
+    const args = this.readinessArgs(options);
+    if (options.accept && options.accept.length > 0)
+      args.push("--accept", options.accept.join(","));
+    if (options.timeout !== undefined) args.push("--timeout", String(options.timeout));
+    if (options.interval !== undefined) args.push("--interval", String(options.interval));
+    const result = await this.run("wait.ready", args);
+    return this.parseJsonPayload<SurfReadiness>("wait.ready", result.message);
+  }
+
+  /**
+   * Read-only extraction (`surf extract --json`): in an owned tab when `url` is given without
+   * `tabId`, in place when `tabId` is given. Zero rows reject with `empty_result` unless
+   * `allowEmpty` is set or the page reports its own empty state.
+   */
+  async extract<TRow = unknown>(options: SurfExtractOptions): Promise<SurfExtractResult<TRow>> {
+    const args: string[] = [];
+    if (options.url) args.push(options.url);
+    if (options.tabId !== undefined) args.push("--tab-id", String(options.tabId));
+    if (options.code) args.push("--code", options.code);
+    if (options.file) args.push("--file", options.file);
+    if (options.options) args.push("--options", JSON.stringify(options.options));
+    if (options.readySelector) args.push("--ready-selector", options.readySelector);
+    if (options.readyText) args.push("--ready-text", options.readyText);
+    if (options.readyUrlPrefix) args.push("--ready-url-prefix", options.readyUrlPrefix);
+    if (options.emptyText) args.push("--empty-text", options.emptyText);
+    if (options.readyTimeout !== undefined)
+      args.push("--ready-timeout", String(options.readyTimeout));
+    if (options.rows) args.push("--rows", options.rows);
+    if (options.retry !== undefined) args.push("--retry", String(options.retry));
+    if (options.allowEmpty) args.push("--allow-empty");
+    if (options.keepTab) args.push("--keep-tab");
+
+    const result = await this.run("extract", args);
+    const payload = this.parseJsonPayload<Record<string, unknown>>("extract", result.message);
+    if (!payload || typeof payload !== "object") {
+      throw new Error("surf extract --json did not return an object");
+    }
+    return {
+      data: payload.data,
+      rows: Array.isArray(payload.rows) ? (payload.rows as TRow[]) : [],
+      rowCount: typeof payload.rowCount === "number" ? payload.rowCount : null,
+      attempts: typeof payload.attempts === "number" ? payload.attempts : 1,
+      readiness: payload.readiness as SurfReadiness | undefined,
+      mode: typeof payload.mode === "string" ? payload.mode : undefined,
+      url: typeof payload.url === "string" ? payload.url : null,
+      tabId: typeof payload.tabId === "number" ? payload.tabId : null,
+    };
+  }
+
+  /** Explain why a selector does not reach a widget (`surf frame.diagnose --json`). */
+  async diagnoseFrames(options: { tabId?: number } = {}): Promise<SurfFrameDiagnosis> {
+    const args: string[] = [];
+    if (options.tabId !== undefined) args.push("--tab-id", String(options.tabId));
+    const result = await this.run("frame.diagnose", args);
+    const payload = this.parseJsonPayload<Record<string, unknown>>(
+      "frame.diagnose",
+      result.message,
+    );
+    return {
+      mainPage: payload.mainPage,
+      counts: payload.counts as Record<string, number> | undefined,
+      domIframes: Array.isArray(payload.domIframes) ? payload.domIframes : [],
+      extensionFrames: Array.isArray(payload.extensionFrames) ? payload.extensionFrames : [],
+      cdpFrames: Array.isArray(payload.cdpFrames) ? payload.cdpFrames : [],
+      warnings: Array.isArray(payload.warnings)
+        ? payload.warnings.filter((entry): entry is string => typeof entry === "string")
+        : [],
+    };
+  }
+
+  // ============================================
   // LOW-LEVEL EXECUTION
   // ============================================
 
@@ -619,8 +789,9 @@ export class SurfClient {
   }
 
   private async run(command: string, args: string[] = []): Promise<SurfActionResult> {
+    const runtime = resolveSurfRuntimeCommand(command, args);
+
     return new Promise((resolve, reject) => {
-      const runtime = resolveSurfRuntimeCommand(command, args);
       const proc = spawn(runtime.command, runtime.args, {
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -646,15 +817,31 @@ export class SurfClient {
         }
 
         reject(
-          new Error(
-            (stderr || stdout).trim() ||
-              `${runtime.commandDisplay.join(" ")} exited with code ${code}`,
-          ),
+          new SurfCommandError({
+            ok: false,
+            code,
+            stdout,
+            stderr,
+            commandDisplay: runtime.commandDisplay,
+            failure: parseSurfErrorOutput(stdout, stderr, code, runtime.commandDisplay),
+          }),
         );
       });
 
       proc.on("error", (err) => {
-        reject(new Error(`Failed to run ${runtime.commandDisplay.join(" ")}: ${err.message}`));
+        reject(
+          new SurfCommandError({
+            ok: false,
+            code: null,
+            stdout,
+            stderr,
+            commandDisplay: runtime.commandDisplay,
+            failure: {
+              code: "spawn_failed",
+              message: `Failed to run ${runtime.commandDisplay.join(" ")}: ${err.message}`,
+            },
+          }),
+        );
       });
     });
   }
@@ -662,27 +849,6 @@ export class SurfClient {
   private extractScreenshotPath(output: string): string | undefined {
     const match = output.match(/screenshot saved to:\s*(\/\S+)/i);
     return match?.[1];
-  }
-
-  private parseTabList(
-    result: SurfActionResult,
-  ): Array<{ id: number; title: string; url: string }> {
-    if (!result.message) return [];
-
-    return result.message.split("\n").flatMap((line) => {
-      const match = line.match(/^\s*│?\s*(\d+)\s*│\s*(.*?)\s*│\s*(.*?)\s*│?\s*$/);
-      if (!match) {
-        return [];
-      }
-
-      return [
-        {
-          id: parseInt(match[1], 10),
-          title: match[2],
-          url: match[3],
-        },
-      ];
-    });
   }
 }
 

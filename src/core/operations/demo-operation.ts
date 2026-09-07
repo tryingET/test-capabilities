@@ -56,7 +56,7 @@ function buildCoreUseCaseGuide(): CoreUseCaseGuide {
     ],
     nextSteps: [
       "replace the demo target with a safe CLI command that supports --help",
-      "keep Surf Go and Bombadil-compatible runtimes optional until you need web exploration",
+      "keep the surf CLI and Bombadil-compatible runtimes optional until you need web exploration",
       "treat root_cause and propagation observations as diagnostic evidence, not pass/fail authority",
     ],
   };
