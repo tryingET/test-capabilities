@@ -68,6 +68,8 @@ Surf-backed and Bombadil-backed web runs are also supported when you enable a `s
 | `intelligence` | no | `correlation: true` is supported and may emit synthesis, suite correlation, and calibrated `root_cause` observations |
 | `quantum` | no | Supported when `targets.web` is present |
 | `chaos` | no | Must remain disabled for now |
+| `receipts` | no | Where the mutation ledger keeps its receipts, and whether the store is declared ephemeral |
+| `mutation` | no | The origins a mutating step may act on; empty by default |
 
 Rejected top-level keys in the current runtime include:
 - `healing`
@@ -195,6 +197,51 @@ If an enabled agent uses `surf`, runtime validation requires `targets.web` and a
 If an enabled agent uses `bombadil`, runtime validation requires `targets.web` and a Bombadil binary that can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
 If an enabled agent uses `terminal-fuzzer`, runtime validation requires `targets.cli` or `agents.<name>.terminal.command`, plus a resolvable Bombadil binary.
 A source checkout only overrides the vendored fallback after it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or the project Nix shell.
+
+---
+
+## `receipts`
+
+```yaml
+receipts:
+  dir: '.test-capabilities/receipts'   # default; resolved against this config file's directory
+  ephemeral: false                     # default
+```
+
+Every mutating step writes a receipt here **before** it acts, and reads the directory back
+before the next attempt with the same key: a receipt that is still `attempting` or `unknown`
+refuses the rerun (`mutation_replay_refused`) until an operator passes
+`--supersede-receipt <receipt_id>`. Nothing under `receipts.dir` is ever deleted by the
+framework; deleting it by hand is an interlock reset with the same standing as superseding.
+
+The base the relative `dir` is resolved against is defined per operation, because `heal`,
+`init` and `replacement-validation` run without a config file at all: this config file's
+directory for `test`, `--dir` for `heal`, the working directory for the rest.
+`TEST_CAPABILITIES_RECEIPTS_DIR` overrides all of them and is the only way to point the store
+somewhere else for an operation that takes no config.
+
+`ephemeral: false` is fail-closed (operator decision D5): when `receipts.dir` resolves inside a
+workspace that does not survive the run — `$TMPDIR`, a CI job workspace, a linked git worktree —
+a mutating operation refuses with `mutation_receipts_ephemeral`, because an interlock that
+vanishes with the workspace is not an interlock. Setting `ephemeral: true` (or
+`TEST_CAPABILITIES_RECEIPTS_EPHEMERAL=1`) accepts that, and every receipt written under it
+records `"ephemeral_store": true` so it never overstates what it protects.
+
+---
+
+## `mutation`
+
+```yaml
+mutation:
+  allowOrigins:            # or allow_origins
+    - 'http://127.0.0.1:8080'
+```
+
+The operator's declaration of which web origins this suite may *act* on. It is empty by
+default, and a mutating step whose subject is a web origin outside it refuses with
+`mutation_origin_not_allowed` before anything is spawned — the Bombadil agent included, which
+is a behaviour change for existing Bombadil configs. Reading a page never consults this key;
+only steps that may change the target do.
 
 ---
 

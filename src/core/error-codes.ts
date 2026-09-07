@@ -5,7 +5,7 @@
  * registered here as a namespaced `as const` array; `tests/error_codes_contract.test.mjs`
  * asserts uniqueness across the namespaces and that every `new FrameworkError("<code>"` literal
  * in `src/` uses a registered code (architecture review A6, Q5). Later slices append one array
- * each: `EFFECT_ERROR_CODES` (S5), `SUBMIT_GATE_ERROR_CODES` (S7),
+ * each: `SUBMIT_GATE_ERROR_CODES` (S7),
  * `FRAME_ROOT_CAUSE_ERROR_CODES` (S8), `A11Y_CHANNEL_ERROR_CODES` (S9).
  *
  * Codes that come from a tool the framework does not own (surf's `page_login`, an HTTP status)
@@ -44,6 +44,39 @@ export const EXPLORE_ERROR_CODES = [
   "page_not_ready",
   /** a probe produced no verified browser evidence, so no coverage may be claimed from it */
   "probe_unverified",
+] as const;
+
+/**
+ * The mutation-safety refusals (mutation-safety packet, "Error codes"; slice S5). Every one of
+ * them is raised *before* an effect, except `mutation_outcome_unknown` and
+ * `read_only_violation_observed`, which are raised after an attempt whose result the framework
+ * refuses to guess at.
+ */
+export const EFFECT_ERROR_CODES = [
+  /** an operation or step reached the ledger without a class; there is no default class */
+  "effect_unclassified",
+  /** the declaration contradicts its class (a precondition on a read-only step, and so on) */
+  "effect_declaration_invalid",
+  /** a mutating step asked for a retry budget; mutating steps are attempted exactly once */
+  "mutation_retry_refused",
+  /** the same idempotency key again in this run, or an in-doubt receipt for it on disk */
+  "mutation_replay_refused",
+  /** the step ran and reported nothing; nothing about the target is known */
+  "mutation_outcome_unknown",
+  /** the `attempting` receipt did not reach disk, so the step was not run */
+  "mutation_receipt_write_failed",
+  /** the content the write expected to find is not what is there now; nothing was written */
+  "precondition_failed",
+  /** a `read_only` claim failed the static denylist before the step ran */
+  "read_only_violation",
+  /** a read-only attempt's own evidence shows the target moved; the retry budget is forfeit */
+  "read_only_violation_observed",
+  /** a target-affecting browser command without a tab this run owns */
+  "owned_tab_required",
+  /** a mutating/target step whose web origin is not in `mutation.allowOrigins` */
+  "mutation_origin_not_allowed",
+  /** `receipts.dir` resolves inside a workspace that does not survive the run (D5) */
+  "mutation_receipts_ephemeral",
 ] as const;
 
 /**
@@ -96,6 +129,7 @@ export const RESULT_RECORDED_SIGNALS = [
 export type CapabilityErrorCode = (typeof CAPABILITY_ERROR_CODES)[number];
 export type CliErrorCode = (typeof CLI_ERROR_CODES)[number];
 export type ExploreErrorCode = (typeof EXPLORE_ERROR_CODES)[number];
+export type EffectErrorCode = (typeof EFFECT_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -104,6 +138,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...CAPABILITY_ERROR_CODES,
   ...CLI_ERROR_CODES,
   ...EXPLORE_ERROR_CODES,
+  ...EFFECT_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];

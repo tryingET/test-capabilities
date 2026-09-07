@@ -72,6 +72,18 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `page_not_ready` | `surf explore` reached a page state it cannot probe (and no empty marker declared that state acceptable) |
 | `probe_unverified` | A `surf explore` probe produced no verified browser evidence, so no user-flow coverage may be claimed from it |
 | `unclassified_error` | The framework raised an error the registry does not name yet. It is never a verdict about the target |
+| `effect_unclassified` | An operation or a step reached the kernel without an effect class. There is no default class: no class, no capability, no run |
+| `effect_declaration_invalid` | A declaration contradicts its class (a `precondition` or `verify` on a read-only step, a mutating step without a scope, a `verify` that answered `applied` with no evidence) |
+| `mutation_retry_refused` | A mutating step declared `maxAttempts > 1` or a `retryOn` list. Mutating steps are attempted exactly once |
+| `mutation_replay_refused` | The same idempotency key twice in one run, or a receipt for it on disk that is still `attempting` or `unknown`. The message names the receipt and the exact `--supersede-receipt <id>` line |
+| `mutation_outcome_unknown` | A mutating step reported nothing (timeout, signal, tab gone) and no `verify` promoted it. The run fails closed; `error.details.receipts` carries the receipt |
+| `mutation_receipt_write_failed` | The `attempting` receipt did not reach disk. The step was not run |
+| `precondition_failed` | The content a workspace write expected to find is not what is there now. Nothing was written |
+| `read_only_violation` | A `read_only` claim failed the static denylist before the step ran. Declare `mutating` instead of weakening the list |
+| `read_only_violation_observed` | A read-only attempt's own evidence shows the target moved. The remaining retry budget is forfeit |
+| `owned_tab_required` | A target-affecting browser command was asked to run without a tab this run created |
+| `mutation_origin_not_allowed` | A mutating step whose subject is a web origin that `mutation.allowOrigins` does not name |
+| `mutation_receipts_ephemeral` | `receipts.dir` resolves inside a workspace that does not survive the run (`$TMPDIR`, a CI job workspace, a linked git worktree). Set `receipts.ephemeral: true` (or `TEST_CAPABILITIES_RECEIPTS_EPHEMERAL=1`) to accept that, or point `receipts.dir` somewhere durable |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

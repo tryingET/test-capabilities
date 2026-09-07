@@ -3,6 +3,14 @@
  * Fail-closed testing capability framework
  */
 
+export type { ArtifactKind, ArtifactListEntry, WriteArtifactOptions } from "./core/artifacts.js";
+export {
+  ARTIFACT_FILE_MODE,
+  ARTIFACT_KINDS,
+  FileReceiptStore,
+  listJsonArtifacts,
+  writeJsonArtifact,
+} from "./core/artifacts.js";
 export {
   assertSupportedCliCommand,
   assertSupportedSurfAction,
@@ -15,14 +23,22 @@ export type {
   BombadilOptions,
   BombadilTerminalOptions,
   IntelligenceConfig,
+  MutationConfig,
   ParsedTestCapabilitiesConfig,
   PropagationEdge,
   PropagationTopology,
+  ReceiptsConfig,
   RuntimeConfigLike,
   Target,
   TestCapabilitiesConfig,
 } from "./core/config.js";
-export { AgentConfigSchema, TargetSchema, TestCapabilitiesConfigSchema } from "./core/config.js";
+export {
+  AgentConfigSchema,
+  MutationConfigSchema,
+  ReceiptsConfigSchema,
+  TargetSchema,
+  TestCapabilitiesConfigSchema,
+} from "./core/config.js";
 export type {
   Determination,
   DeterminationContext,
@@ -104,6 +120,22 @@ export type {
   TestResult,
 } from "./core/orchestrator.js";
 export { ROOT_CAUSE_FAILURE_CLASSES, TestCapabilitiesOrchestrator } from "./core/orchestrator.js";
+export type {
+  MutationOutcome,
+  MutationReceipt,
+  MutationReceiptEnvelopeCopy,
+  ReceiptFilter,
+  ReceiptStore,
+  VerifyResult,
+} from "./core/receipt-store.js";
+export {
+  isInDoubt,
+  MUTATION_OUTCOMES,
+  MUTATION_RECEIPT_KIND,
+  MUTATION_RECEIPT_SCHEMA_VERSION,
+  matchesReceiptFilter,
+  redactReceipt,
+} from "./core/receipt-store.js";
 export type {
   ReplacementValidationDiagnostic,
   ReplacementValidationRequest,

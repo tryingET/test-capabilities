@@ -179,6 +179,38 @@ const ChaosSchema = z
   })
   .strict();
 
+/**
+ * Where the mutation ledger keeps its receipts, and whether the operator has accepted that the
+ * store may not survive the run (mutation-safety packet §Contract; operator decision D5).
+ *
+ * `dir` is resolved against a base the operation defines (`src/core/run-context.ts`,
+ * adjudication claim 47), because `heal`, `init` and `replacement-validation` run without a
+ * config file at all. `ephemeral: true` is the operator's declaration that a receipt written
+ * here may vanish with the workspace; it is recorded in every receipt written under it, so a
+ * receipt never overstates the interlock it belongs to.
+ */
+export const ReceiptsConfigSchema = z
+  .object({
+    dir: z.string().min(1).optional(),
+    ephemeral: z.boolean().default(false),
+  })
+  .strict();
+
+/**
+ * The operator's declaration of which web origins this repo may act on (architecture review
+ * A13, Q1). Empty by default: a mutating step whose subject is a web origin refuses with
+ * `mutation_origin_not_allowed` until the origin is named here, Bombadil included. The
+ * authority is the operator's, never the framework's.
+ */
+export const MutationConfigSchema = z.preprocess(
+  (value) => withAliases(value, { allow_origins: "allowOrigins" }),
+  z
+    .object({
+      allowOrigins: z.array(z.string().min(1)).default([]),
+    })
+    .strict(),
+);
+
 export const TestCapabilitiesConfigSchema = z
   .object({
     version: z.literal("2.0"),
@@ -188,6 +220,8 @@ export const TestCapabilitiesConfigSchema = z
     intelligence: IntelligenceSchema.optional(),
     quantum: QuantumSchema.optional(),
     chaos: ChaosSchema.optional(),
+    receipts: ReceiptsConfigSchema.optional(),
+    mutation: MutationConfigSchema.optional(),
   })
   .strict();
 
@@ -255,11 +289,24 @@ export interface IntelligenceConfig {
   collective?: boolean;
   propagationTopology?: PropagationTopology;
 }
+/** See {@link ReceiptsConfigSchema}. */
+export interface ReceiptsConfig {
+  dir?: string;
+  ephemeral?: boolean;
+}
+
+/** See {@link MutationConfigSchema}. */
+export interface MutationConfig {
+  allowOrigins?: string[];
+}
+
 export interface TestCapabilitiesConfig {
   version: "2.0";
   name: string;
   targets: Target;
   agents?: Record<string, AgentConfig>;
+  receipts?: ReceiptsConfig;
+  mutation?: MutationConfig;
   intelligence?: IntelligenceConfig;
   quantum?: {
     enabled?: boolean;

@@ -13,6 +13,7 @@
     "src/core/config.ts",
     "src/core/determination.ts",
     "src/core/error-codes.ts",
+    "src/core/receipt-store.ts",
     "src/core/result-classification.ts",
     "src/core/result-payload.ts",
     "src/core/runtime-contract.ts"

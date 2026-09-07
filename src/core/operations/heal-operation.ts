@@ -8,6 +8,7 @@ import type {
   HealingProposalVerification,
 } from "../../healing/self-healing.js";
 import { TestFileHealer } from "../../healing/self-healing.js";
+import { writeJsonArtifact } from "../artifacts.js";
 import type {
   HealOperationInput,
   HealOperationResultEnvelope,
@@ -23,6 +24,9 @@ export const HealOperationInputSchema = z.object({
   checkpointRef: z.string().min(1).optional(),
   findingsInput: z.string().min(1).optional(),
 });
+
+/** How every healing artifact refusal names itself; the messages are part of the contract. */
+const HEAL_ARTIFACT_LABEL = "Healing artifact output";
 
 const MAX_FINDINGS_INPUT_BYTES = 5 * 1024 * 1024;
 const MAX_PROPOSAL_INPUT_BYTES = 5 * 1024 * 1024;
@@ -57,82 +61,6 @@ async function assertSafeInputFile(
   }
 
   return stat.size;
-}
-
-async function assertNoExistingSymlinkPathComponents(
-  directoryPath: string,
-  label: string,
-): Promise<void> {
-  const resolvedDirectoryPath = path.resolve(directoryPath);
-  const { root } = path.parse(resolvedDirectoryPath);
-  const relativeParts = path.relative(root, resolvedDirectoryPath).split(path.sep).filter(Boolean);
-  let currentPath = root;
-
-  for (const part of relativeParts) {
-    currentPath = path.join(currentPath, part);
-    let stat: Awaited<ReturnType<typeof fs.lstat>>;
-    try {
-      stat = await fs.lstat(currentPath);
-    } catch (error) {
-      if (errorCode(error) === "ENOENT") {
-        return;
-      }
-      throw error;
-    }
-    if (stat.isSymbolicLink()) {
-      throw new Error(`${label} directory component must not be a symlink: ${currentPath}`);
-    }
-    if (!stat.isDirectory()) {
-      throw new Error(`${label} directory component is not a directory: ${currentPath}`);
-    }
-  }
-}
-
-async function assertSafeArtifactOutputPath(artifactPath: string): Promise<void> {
-  try {
-    const stat = await fs.lstat(artifactPath);
-    if (stat.isSymbolicLink()) {
-      throw new Error(`Healing artifact output must not be a symlink: ${artifactPath}`);
-    }
-    if (!stat.isFile()) {
-      throw new Error(`Healing artifact output path is not a regular file: ${artifactPath}`);
-    }
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
-}
-
-async function writeJsonArtifactAtomically(artifactPath: string, artifact: unknown): Promise<void> {
-  const artifactDirectory = path.dirname(artifactPath);
-  await assertNoExistingSymlinkPathComponents(artifactDirectory, "Healing artifact output");
-  await fs.mkdir(artifactDirectory, { recursive: true });
-  await assertNoExistingSymlinkPathComponents(artifactDirectory, "Healing artifact output");
-  await assertSafeArtifactOutputPath(artifactPath);
-
-  const tempPath = path.join(
-    artifactDirectory,
-    `.${path.basename(artifactPath)}.${process.pid}.${Date.now()}.tmp`,
-  );
-
-  let tempCreated = false;
-  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
-  try {
-    handle = await fs.open(tempPath, "wx");
-    tempCreated = true;
-    await handle.writeFile(`${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
-    await handle.close();
-    handle = undefined;
-    await fs.rename(tempPath, artifactPath);
-  } catch (error) {
-    await handle?.close().catch(() => undefined);
-    if (tempCreated) {
-      await fs.rm(tempPath, { force: true }).catch(() => undefined);
-    }
-    throw error;
-  }
 }
 
 const HealingFindingSchema = z
@@ -371,7 +299,7 @@ async function writeProposalArtifact(
     proposals,
   };
 
-  await writeJsonArtifactAtomically(artifactPath, artifact);
+  await writeJsonArtifact(artifactPath, artifact, { label: HEAL_ARTIFACT_LABEL });
 
   return {
     path: artifactPath,
@@ -409,7 +337,7 @@ async function writeVerificationArtifact(
     },
   };
 
-  await writeJsonArtifactAtomically(artifactPath, artifact);
+  await writeJsonArtifact(artifactPath, artifact, { label: HEAL_ARTIFACT_LABEL });
 
   return {
     path: artifactPath,

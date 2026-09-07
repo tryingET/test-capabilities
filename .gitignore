@@ -32,3 +32,7 @@ ontology/dist/
 # Python caches/build metadata (vendored tooling)
 **/__pycache__/
 **/*.egg-info/
+
+# Mutation receipts: the default receipts.dir under a project root (slice S5).
+# Nothing here is ever deleted by the framework; deleting it is an interlock reset.
+.test-capabilities/
