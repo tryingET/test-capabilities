@@ -96,11 +96,14 @@ Files (committed, formatted by Biome, JSON):
 Scripts (`scripts/quality/`, ESM, Node-only, no new runtime dependency):
 
 - `coverage-ratchet.mjs [--raise]`: builds via `npm run build --silent`, runs
-  `node --test --experimental-test-coverage --test-coverage-include='dist/**/*.js' --test-reporter=lcov
+  `node --test --experimental-test-coverage --test-coverage-include='dist/**/*.js' --test-coverage-exclude='dist/quantum/**' --test-coverage-exclude='dist/prediction/**' --test-reporter=lcov
   --test-reporter-destination=coverage/lcov.raw.info tests/*.test.mjs`, remaps to `src/**` through
   `scripts/screening/remap-lcov-to-src.mjs` (which becomes exact once the coverage build emits source maps, see Open
-  questions), then: (1) every `src/**/*.ts` that compiles to a module with at least one executable line per lcov must
-  appear in the report with at least one hit — a missing module fails with `module never loaded by the suite`; a
+  questions), then: (1) every `src/**/*.ts` module must be reachable in the import graph from `src/index.ts` or
+  `bin/test-capabilities` (the graph `check-structure.mjs` builds), a module nothing imports fails with
+  `module never imported`, and the child-process coverage merge is proven before any floor is set so a module exercised
+  only in child processes (`test-operation.ts`) is never a false finding (revised by adjudication: claim 42; the earlier
+  "never loaded" baseline was one dead barrel, one `export {}` and one child-only module); a
   type-only module (zero executable lines) is not a finding; *revised by refinement:* there is no exception list for
   this check — it is the one signal that cannot be gamed, and an exception would hollow it; (2) each measured metric
   must be ≥ floor − 0.005; (3) changed executable lines (below) must be ≥ `floors.lines` % (*revised by refinement:*
@@ -113,12 +116,18 @@ Scripts (`scripts/quality/`, ESM, Node-only, no new runtime dependency):
   Lines present in the diff but not executable per lcov are ignored, as in pic (`check-coverage.ts:57-59`). The
   uncovered changed `file:line` list is printed on every run, pass or fail (*revised by refinement:* the list, not
   the percentage, is the output a reviewer acts on, and it is the target list for screening's mutation lane).
-- `check-structure.mjs`: line budgets and a runtime-import cycle detector. Import edges are extracted with a
+- `check-structure.mjs`: line budgets, a runtime-import cycle detector, the never-imported check, and the ring rule:
+  the named pure-ring modules (`result-classification.ts`, `error-codes.ts`, `config.ts`, `frame-root-cause.ts`,
+  `determination.ts`, the type half of `effects.ts`) import neither `node:fs` nor `node:child_process` (revised by
+  adjudication: Part 2 Clash 4). Floors are measured only after the 0.4.0 removals so the ratchet never memorises
+  deleted code (claim 13); `dist/quantum/**` and `dist/prediction/**` are excluded from the coverage include because
+  under operator decision D1 they stay in the runtime as parked, read-only code that produces no target evidence. Import edges are extracted with a
   regex over `import … from "./x"`, `export … from "./x"` and `import("./x")`, skipping `import type` / `export type`
   and type-only named specifiers; pic uses the TypeScript AST for this (`check-structure.ts:22-76`) but this repo has
   only `tsgo`, which exposes no compiler API. Cycle detection is pic's DFS (`check-structure.ts:78-108`).
 - `check-contract-sync.mjs`: (a) `node scripts/generate-capability-passport.mjs --stdout` byte-equal to
-  `governance/capability-passport.json` (moved here from the release gate, which keeps calling it); (b) the commander
+  `governance/capability-passport.json` (moved here from the release gate, which keeps calling it; this one check ships with the first ratchet commit, ahead
+  of the rest of contract-sync, revised by adjudication: Part 4 S2); (b) the commander
   command set from `bin/test-capabilities --help` equals the name set of `CLI_ROUTE_MANIFEST`, and each `status` in the
   manifest equals the status column of the table under `docs/api/cli.md:294`; every subcommand `--help` is captured into
   `docs/api/cli-help.generated.md` (Biome ignores `*.generated.*`, `biome.jsonc:20`) and must be byte-equal to the
@@ -294,6 +303,13 @@ surfaces), the budget exceptions and the allowed cycle.
   warns) and does not inherit the truth gate's `TEST_CAPABILITIES_REQUIRE_AK_DIRECTION` optionality.
 - 2026-09-07, *revised by architecture review (A20):* contract-sync also checks the `CliRoute`/`CliOperationResult`
   unions in `docs/api/types.md`, the drift the review found in the current tree.
+- 2026-09-07, *revised by adjudication (claims 13, 42; Part 2 Clash 4; Part 4 S2):* never-loaded becomes never-imported
+  over the import graph; the child-coverage merge is proven before any floor; floors are measured after the 0.4.0
+  removals; the passport byte check lands in the first ratchet commit; the pure/mediated ring boundary is a structure
+  rule.
+- 2026-09-07, *revised by adjudication (claim 49; operator decisions D1, D4):* `RuntimeConfigLike` is derived from the
+  kernel config schema (no hand mirror); if any mirror survives, contract-sync covers it; `dist/quantum/**` and
+  `dist/prediction/**` are excluded from the floor as parked code.
 
 ## Refinement (many-of-the-greats)
 

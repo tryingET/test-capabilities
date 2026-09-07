@@ -39,7 +39,7 @@ Assessment row 6 says "flavor gated on the CDP port". Challenged: a flavor is th
 Confirmed placement: an **observer** attached to browser operations, resolved and probed exactly like the surf runtime (`src/core/surf-runtime.ts:163-213`, `:429-481`), reported by `doctor` as an optional external (`src/core/operations/doctor-operation.ts:283-344` is the template), invoked by `surf explore` after the readiness gate on the surf-owned tab, and stored as an artifact in the page result. Its second consumer is the tester prompt: `prompts/web-tester.md:70-92` already describes the snapshot/ref loop for pi-agent-browser; the channel makes that a framework artifact instead of an ad-hoc shell habit. So: runtime module + observer hook + prompt input; not a flavor, not an agent.
 
 Integration points:
-- `src/core/a11y-snapshot-runtime.ts` (new): resolution, probes, argv allowlist, artifact and assertion types.
+- `src/core/a11y-snapshot-runtime.ts` (new): the agent-browser `Adapter` (resolve, probe, translate allowlist, effects = read-only only, two `invoke` transports: HTTP for `/json/version` and `/json/list`, spawn for `snapshot`/`get`/`is`/`tab`; normalize to `RawResult`; revised by adjudication: claim 28), plus the artifact and assertion types.
 - the surf adapter's owned-tab `BrowserSession`: the observer is a registered read-only `observe` step run after the probes and torn down before the session closes (revised by architecture review: A8); `explorePage` (`surf-explore-operation.ts:632-694`) becomes a step list over the session, so the observer inherits the effect class, attempt log and outcome of every step.
 - `src/core/operations/types.ts:233-245`: `observations?: A11ySnapshotArtifact[]` on `SurfExplorePageResult`; envelope `runtime` gains `a11yChannel`.
 - `src/core/operations/doctor-operation.ts`: `external.agent_browser` next to `external.surf`; `src/core/capabilities.ts:46`: the new explore option in `SURF_EXPLORE_OPTION_SUPPORT`.
@@ -143,7 +143,7 @@ Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (
 
 - Not an action channel: no `click`, `fill`, `type`, `eval`, `network route`, `cookies`, `open`, `--auto-connect`, `--profile`, screenshots or `a11y` audits through agent-browser.
 - No second browser: the channel attaches to Chromium (Agent) only; it never launches a headless Chrome and never targets Brave or the personal Chromium.
-- No ref-based healing or ref persistence across runs; no replacement of surf's `wait.ready`/`extract` evidence; no orchestrator agent of its own; no fixing of `SurfClient.parseSnapshot` here (tracked separately).
+- No ref-based healing or ref persistence across runs; no replacement of surf's `wait.ready`/`extract` evidence; no orchestrator agent of its own; `SurfClient.parseSnapshot` is not fixed but removed with the class under operator decision D2 (revised by adjudication: claim 36).
 
 ## Risks
 
@@ -185,6 +185,7 @@ Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (
 - 2026-09-07, revised by architecture review (A8): the observer is an `observe` step on the surf adapter's `BrowserSession`, not a hook inside `explorePage`.
 - 2026-09-07, revised by architecture review (A5, A9, A10): the session name derives from the kernel `RunContext.runId`; the artifact is written through `src/core/artifacts.ts`; the envelope carries digest, refs and counts and names the file, the text stays in the file.
 - 2026-09-07, revised by architecture review (A17): the fake agent-browser is fed by captured `snapshot -i --json` shapes under `tests/fixtures/captures/` with a fidelity test.
+- 2026-09-07, revised by adjudication (claims 22, 28, 36): agent-browser is an `Adapter` with an HTTP invoke and a spawn invoke; the observer is a `Session.observe` step on the kernel session interface; `SurfClient.parseSnapshot` disappears with the class (operator decision D2).
 
 ## Refinement (many-of-the-greats)
 

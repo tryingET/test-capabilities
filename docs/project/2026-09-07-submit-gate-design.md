@@ -82,7 +82,7 @@ implementation is this repo; the surf-cli side is described as a later upstream 
 
 ### 4.1 `surf plan` (read-only, always allowed)
 
-`test-capabilities surf plan --url <url> --field <locator>=<value> [--field ...] [--submit-text <t> | --submit-selector <s>] --out <plan.json> [--json]`.
+`test-capabilities surf plan --url <url> --field <locator>=<value> [--field ...] [--submit-text <t> | --submit-selector <s>] --out <plan.json> [--config <file>] [--json]`. `--config` (default `test-capabilities.yaml` in cwd, the lookup `test` uses) is the only source of `mutation.allowOrigins`, `surf.submit.*` and `receipts.dir` for plan and apply, read through the kernel config schema `src/core/config.ts` (revised by adjudication: claim 48; operator decision D4).
 `<locator>` is `label:<text>`, `selector:<css>` or `name:<input name>`. The operation opens an owned tab, gates
 it with `wait.ready` (any `page_*` refusal is passed through unchanged), resolves every field with a pure
 `js` expression, identifies the submit control, fingerprints the page, writes the plan with mode 0600 and closes
@@ -124,7 +124,7 @@ rule); a field inside a cross-origin iframe or a shadow root (`plan_field_unreac
 
 ### 4.2 `surf apply` (mutating; dry-run fill by default)
 
-`test-capabilities surf apply --plan <plan.json> [--submit --confirm-plan <approval_token>] [--until-url-prefix <p> | --until-text <t>] [--receipt-out <path>] [--json]`.
+`test-capabilities surf apply --plan <plan.json> [--submit --confirm-plan <approval_token>] [--until-url-prefix <p> | --until-text <t>] [--receipt-out <path>] [--config <file>] [--json]`.
 
 - **Fill mode (default).** Re-opens an owned tab on `target.url`, re-gates readiness, recomputes the fingerprint
   and refuses on mismatch (`plan_stale`). For each field: set the value through the field's own input
@@ -181,8 +181,9 @@ rule); a field inside a cross-origin iframe or a shadow root (`plan_field_unreac
 ### 4.3 The apply runner (capability restriction; the load-bearing layer)
 
 `surf.apply` never holds a general `SurfClient`. It constructs a `SurfApplyRunner` from the plan and the mode, and
-the runner is the only object in the operation with a surf runtime handle. The runner is built from an owned-tab
-`BrowserSession` opened in fill or submit mode, and each of its methods is a packet-1 `EffectStep` over that session
+the runner is the only object in the operation with a surf runtime handle. The runner is built from the kernel
+`Session` interface (surf implementation) opened in fill or submit mode (revised by adjudication: claim 36; `SurfClient`
+no longer exists under operator decision D2), and each of its methods is a packet-1 `EffectStep` over that session
 (revised by architecture review: A8). Its whole surface is:
 
 | method | emits | addressable set |
@@ -212,8 +213,8 @@ compile-time `never` check on the excluded members) and through `calls.log`.
 - Submit mode is not wired to any agent, hook or retry path in this repo (revised by architecture review: A12):
   `surf apply --submit` is unreachable from `agents.<name>` config, the orchestrator and `heal`, but the kernel is a
   public library and `executeCliOperation({ command: "surf", action: "apply" }, { submit, confirmPlan })` is reachable
-  like every operation. The dispatch manifest's `mutation: external` and `operator_only: true`, and the passport row
-  for `surf-action:apply`, document intent and are not a control; the controls are `mutation.allowOrigins` and the
+  like every operation. `mutation: external` and `operator_only` are not manifest fields (revised by adjudication: claim 26): the sentence
+  lives in the route `description` and in the passport row for `surf-action:apply`, documents intent and is not a control; the controls are `mutation.allowOrigins` and the
   runner's construction. There is no confirmation prompt and no two-person rule: a ritual repeated by automation stops being deliberate
   (Refinement, clash 4), so reachability replaces it.
 - Submit control identification: candidates are the owning form's `button[type=submit]`, `input[type=submit]`
@@ -369,6 +370,10 @@ auto-wait and step-delay semantics hide which call clicked).
   mutating/target step (Bombadil included), and the runner's construction. D9 and D10 are read with this entry.
 - D16 (2026-09-07, revised by architecture review: A3, A8): `SurfFlowBuilder` is deleted, not trimmed; the apply
   runner is built from an owned-tab `BrowserSession` and its methods are `EffectStep`s. D8 is read with this entry.
+- D17 (2026-09-07, revised by adjudication: claims 26, 36, 48; operator decisions D2, D4): the runner is built from the
+  kernel `Session` interface, `SurfClient` is gone; plan and apply take `--config` and read the allowlist, timeouts and
+  `receipts.dir` from the kernel config schema; `mutation: external` and `operator_only` are description text, not
+  manifest fields. D15 and D16 are read with this entry.
 
 ## Refinement (many-of-the-greats)
 

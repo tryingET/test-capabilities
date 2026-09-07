@@ -89,7 +89,8 @@ element by selector or ref, on a page whose readiness was `ready`/`empty`. Produ
 gate when a new `--ready-selector` option is given and `wait.ready --selector` ends in `page_timeout` (mirrors
 `SurfClient.extract({ readySelector })`, `surf-client.ts:100-115`); (b) browser steps from the submit-gate packet
 (`click`, `type --into`, `wait.element`) failing with surf `element_not_found`/`no_ref`/`page_timeout`; (c) library
-callers via `SurfClient.explainUnreachable(selector, { tabId, frameHint? })`. Never on `page_login`/`page_challenge`/
+callers via `Session.explainUnreachable(selector, { frameHint? })` on the kernel session interface (revised by
+adjudication: claim 36; `SurfClient` is deleted under operator decision D2). Never on `page_login`/`page_challenge`/
 `page_not_found`/`page_error`, runtime-resolution failures, or non-browser sensors: those are not element problems.
 
 **Frame hint (confirmation input).** A step or explore invocation may carry `frameHint: { selector | urlPrefix }`
@@ -280,7 +281,8 @@ text or from healer strategy output.
 5. Positive in-frame probe (deferred): `frame.switch --index` in the owned tab followed by a read-only query for the
    failing selector would turn `suspected` into `confirmed` or `excluded` without a hint. It changes extension state
    for the tab and adds one round trip per candidate; it must be designed together with the mutation-safety packet
-   (read-only classification of `frame.switch`) before it can be added. Until then confirmation requires a hint.
+   (`frame.switch`/`frame.main` are now classified `browser_session` scope in the mutation-safety packet's map, revised by
+   adjudication: Part 4 P3 note, so what remains is the read-only in-frame query and its round trips) before it can be added. Until then confirmation requires a hint.
 
 ## Decision log
 
@@ -313,6 +315,9 @@ text or from healer strategy output.
 - 2026-09-07, revised by architecture review (A6, A15, A17): codes are carried by `FrameworkError` from the registry;
   the overclaim grep in the truth gate is re-read against `frame_boundary`/`confirmed` before landing; captures live
   under `tests/fixtures/captures/`.
+- 2026-09-07, revised by adjudication (claims 22, 36; Part 4 P3 note): `explainUnreachable` lives on the kernel
+  `Session`; the diagnosis is a `Session.observe` step; `frame.switch`/`frame.main` are `browser_session` scope in P1's
+  map, which is the precondition the deferred in-frame probe was waiting for.
 
 ## Refinement (many-of-the-greats)
 
