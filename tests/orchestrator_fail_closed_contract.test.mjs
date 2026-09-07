@@ -1538,8 +1538,12 @@ test("cli agent caps noisy CLI smoke output in findings", async () => {
       },
     }).run();
 
-    const evidence = result.findings[0]?.evidence[0] ?? "";
+    // Since S4 the outcome and basis lines lead the evidence, so the capped channel is the
+    // last line rather than the first; the cap itself is what this test is about.
+    const lines = result.findings[0]?.evidence ?? [];
+    const evidence = lines.at(-1) ?? "";
     assert.equal(result.passed, false);
+    assert.equal(lines[0], "outcome:error:exit_1");
     assert.match(evidence, /output truncated after 64000 characters/);
     assert.equal(evidence.length < 65_000, true);
   } finally {
@@ -1575,5 +1579,60 @@ test("cli agent supports quoted commands whose executable path contains spaces",
     assert.deepEqual(result.coverage.unmeasuredDimensions, ["userFlows", "apiEndpoints"]);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+// The headline of the result-classification packet: a command that exits 0 and prints nothing
+// produced no evidence, so the run is `unverified`, not `passed` (adjudication claim 1; plan S4).
+// The plan named `true` as the smallest such target; on GNU coreutils `true --help` prints 944
+// bytes of usage, which is real evidence, so the silent shape needs a script of its own.
+test("a CLI target that prints nothing is unverified, and a declaration makes it verified", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-silent-cli-"));
+  const silent = path.join(dir, "silent-cli.sh");
+  writeFileSync(silent, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+  try {
+    const undeclared = await new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name: "Silent CLI Target",
+      targets: { cli: silent },
+      agents: { cli: { enabled: true, type: "cli-tester", intensity: "normal" } },
+    }).run();
+
+    assert.equal(undeclared.passed, false);
+    assert.equal(undeclared.determination.value, "unverified");
+    assert.equal(undeclared.determination.basis, "no_evidence");
+
+    const finding = undeclared.findings.find((entry) => entry.id === "cli-empty-result");
+    assert.ok(finding, "expected the empty payload to be reported as its own finding");
+    assert.equal(finding.outcome.class, "empty");
+    assert.equal(finding.outcome.basis, "no_evidence");
+    // The recommendation names the exact key that would make this shape legitimate.
+    assert.match(finding.recommendation, /agents\.cli\.expect: \{ output: empty \}/);
+    // An absence of evidence is not a fault, so it must not be counted as a blocking failure.
+    assert.equal(undeclared.determination.candidates.includes("failed"), false);
+
+    const declared = await new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name: "Silent CLI Target",
+      targets: { cli: silent },
+      agents: {
+        cli: {
+          enabled: true,
+          type: "cli-tester",
+          intensity: "normal",
+          expect: { output: "empty" },
+        },
+      },
+    }).run();
+
+    assert.equal(declared.determination.value, "verified");
+    assert.equal(declared.determination.basis, "evidence");
+    assert.equal(declared.passed, true);
+    assert.deepEqual(declared.findings, []);
+    assert.equal(declared.outcomes[0].class, "declared_empty");
+    assert.equal(declared.outcomes[0].emptiness.declaredBy, "config:agents.cli.expect");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

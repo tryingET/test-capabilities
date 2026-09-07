@@ -83,6 +83,27 @@ const BombadilOptionsSchema = z.preprocess(
     .strict(),
 );
 
+/**
+ * What the operator declares about the payload this agent's steps produce.
+ *
+ * An empty payload is the absence of evidence, so the framework refuses to read it as a pass
+ * unless someone declared that emptiness is the expected shape (result-classification packet,
+ * "Declaring acceptable emptiness"). The keys are the ones `ExpectDeclaration` carries into the
+ * classifier, so a declaration travels from the file to the verdict without a hand-written
+ * mirror; `declaredBy` is filled in as `config:agents.<name>.expect` at the call site.
+ */
+export const AgentExpectSchema = z.preprocess(
+  (value) => withAliases(value, { emptyMarker: "empty_marker", errorEnvelope: "error_envelope" }),
+  z
+    .object({
+      output: z.enum(["required", "empty"]).optional(),
+      empty_marker: z.string().min(1).optional(),
+      payload: z.enum(["opaque", "json"]).optional(),
+      error_envelope: z.boolean().optional(),
+    })
+    .strict(),
+);
+
 export const AgentConfigSchema = z
   .object({
     type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
@@ -90,6 +111,7 @@ export const AgentConfigSchema = z
     intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
     duration: z.string().optional(),
     focus: z.array(z.string()).optional(),
+    expect: AgentExpectSchema.optional(),
     bombadil: BombadilOptionsSchema.optional(),
     terminal: BombadilTerminalOptionsSchema.optional(),
   })
@@ -200,12 +222,21 @@ export interface BombadilOptions {
   createTarget?: boolean;
 }
 
+/** The declaration keys of `agents.<name>.expect`; see {@link AgentExpectSchema}. */
+export interface AgentExpect {
+  output?: "required" | "empty";
+  empty_marker?: string;
+  payload?: "opaque" | "json";
+  error_envelope?: boolean;
+}
+
 export interface AgentConfig {
   type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester" | "terminal-fuzzer";
   enabled?: boolean;
   intensity?: "gentle" | "normal" | "aggressive";
   duration?: string;
   focus?: string[];
+  expect?: AgentExpect;
   bombadil?: BombadilOptions;
   terminal?: BombadilTerminalOptions;
 }

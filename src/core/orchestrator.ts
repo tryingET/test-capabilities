@@ -285,7 +285,7 @@ export class TestCapabilitiesOrchestrator {
         }
         case "cli-tester": {
           const timeoutMs = parseDurationToMs(agentConfig.duration, DEFAULT_CLI_TESTER_TIMEOUT_MS);
-          this.agents.set(name, new CliTesterAgent(name, timeoutMs));
+          this.agents.set(name, new CliTesterAgent(name, timeoutMs, agentConfig.expect));
           break;
         }
         case "terminal-fuzzer": {

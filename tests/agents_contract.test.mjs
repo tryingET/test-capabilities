@@ -88,7 +88,10 @@ test("cli-tester fails closed on a non-zero --help exit and renders the stderr c
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].id, "cli-tester-help-failed");
     assert.equal(result.findings[0].description.includes("--help"), true);
-    assert.equal(result.findings[0].evidence[0], "boom on stderr");
+    // outcome/basis lead, the diagnostics channel is still rendered verbatim at the end
+    assert.equal(result.findings[0].evidence[0], "outcome:error:exit_3");
+    assert.equal(result.findings[0].outcome.basis, "fault");
+    assert.equal(result.findings[0].evidence.at(-1), "boom on stderr");
     assert.deepEqual(result.coverage, { edgeCases: 0 });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -104,7 +107,10 @@ test("cli-tester kills a hanging --help run at the timeout and names the budget"
     const result = await new CliTesterAgent("cli-tester", 120).execute({ cli: target });
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].id, "cli-tester-help-failed");
-    assert.match(result.findings[0].evidence[0], /^timed out after 120ms/);
+    // The outcome and basis lines lead the evidence since S4; the budget line stays last.
+    assert.equal(result.findings[0].evidence[0], "outcome:timeout:timeout");
+    assert.equal(result.findings[0].outcome.basis, "fault");
+    assert.match(result.findings[0].evidence.at(-1), /^timed out after 120ms/);
     assert.deepEqual(result.coverage, { edgeCases: 0 });
   } finally {
     rmSync(dir, { recursive: true, force: true });

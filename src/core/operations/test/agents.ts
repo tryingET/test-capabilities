@@ -12,9 +12,15 @@
 import { invokeAdapter } from "../../adapter.js";
 import { runBombadil, runBombadilTerminalTest } from "../../bombadil-runtime.js";
 import { cliAdapter } from "../../cli-adapter.js";
-import type { BombadilOptions, BombadilTerminalOptions, Target } from "../../config.js";
+import type {
+  AgentExpect,
+  BombadilOptions,
+  BombadilTerminalOptions,
+  Target,
+} from "../../config.js";
 import type { CoverageReport, Finding, Observation } from "../../orchestrator.js";
 import type { ExpectDeclaration, ResultOutcome } from "../../result-classification.js";
+import { classifyResult } from "../../result-classification.js";
 import { executeSurfExploreOperation, outcomeFromError } from "../surf-explore-operation.js";
 
 export const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
@@ -438,13 +444,87 @@ function describeSurfRefusal(url: string, outcome: ResultOutcome | undefined): S
   };
 }
 
+/**
+ * The finding a classified CLI outcome renders as.
+ *
+ * Only `fault` is a statement about the target. `no_evidence` says the command ran and wrote
+ * nothing, which is why the recommendation names the declaration that would make that shape
+ * legitimate instead of asking anyone to fix a target that may be fine (result-classification
+ * packet, refinement; plan S4).
+ */
+function describeCliOutcome(
+  target: string,
+  commandDisplay: string,
+  outcome: ResultOutcome,
+  declarationKey: string,
+): SurfRefusalShape {
+  if (outcome.basis === "no_evidence") {
+    return {
+      id: "empty-result",
+      severity: "high",
+      description: `CLI smoke command produced no output: ${commandDisplay} [${outcome.code}]`,
+      recommendation: `The command exited successfully and wrote nothing, so the run obtained no evidence about '${target}'. Point targets.cli at a command that prints, or declare the shape with '${declarationKey}: { output: empty }' (add empty_marker when the command prints a fixed no-results line).`,
+    };
+  }
+
+  if (outcome.basis === "contradiction") {
+    return {
+      id: "unclassifiable",
+      severity: "critical",
+      description: `CLI smoke command answered with a reply the result contract cannot classify: ${commandDisplay} [${outcome.code}]`,
+      recommendation:
+        "The reply contradicts itself (for example a declared error envelope on a zero exit). Nothing downstream may reinterpret it; capture the raw output and fix the producer.",
+    };
+  }
+
+  if (outcome.basis === "indeterminate") {
+    return {
+      id: "outcome-unknown",
+      severity: "critical",
+      description: `CLI smoke command never reported an outcome: ${commandDisplay} [${outcome.code}]`,
+      recommendation:
+        "A step that may have changed the target never reported a result, so nothing about the target is known. Inspect the environment by hand before re-running.",
+    };
+  }
+
+  return {
+    id: "help-failed",
+    severity: "critical",
+    description: `CLI smoke command failed: ${commandDisplay} [${outcome.code}]`,
+    recommendation: `Ensure '${target}' is executable and '--help' exits successfully.`,
+  };
+}
+
 export class CliTesterAgent implements TestAgent {
   private readonly agentName: string;
   private readonly timeoutMs: number;
+  private readonly expect: AgentExpect | undefined;
 
-  constructor(agentName: string, timeoutMs: number = DEFAULT_CLI_TESTER_TIMEOUT_MS) {
+  constructor(
+    agentName: string,
+    timeoutMs: number = DEFAULT_CLI_TESTER_TIMEOUT_MS,
+    expect?: AgentExpect,
+  ) {
     this.agentName = agentName;
     this.timeoutMs = timeoutMs;
+    this.expect = expect;
+  }
+
+  /** The config key this agent's declaration is read from, named in every recommendation. */
+  private declarationKey(): string {
+    return `agents.${this.agentName}.expect`;
+  }
+
+  /**
+   * The declaration in force for this agent's steps. The operator's config wins; with no
+   * config there is still a declaration, because the framework knows what it ran: `--help`
+   * is assumed read-only and its payload is opaque text, which is recorded as the author's
+   * claim rather than left implicit (adjudication claims 4, 50).
+   */
+  private declaration(): ExpectDeclaration {
+    return this.expect === undefined
+      ? { payload: "opaque", declaredBy: "author:cli-tester" }
+      : { ...this.expect, declaredBy: `config:${this.declarationKey()}` };
   }
 
   async execute(targets: Target): Promise<AgentResult> {
@@ -485,31 +565,44 @@ export class CliTesterAgent implements TestAgent {
         return this.spawnFailure(targets.cli, commandDisplay, raw.spawnFailure);
       }
 
-      if (raw.timedOut || raw.exitCode !== 0) {
+      const declaration = this.declaration();
+      // Exit 0 is not a pass: a command that writes nothing produced no evidence, and only a
+      // declaration can make that shape a pass (result-classification packet, region 4).
+      const outcome = classifyResult(raw, declaration);
+
+      if (outcome.ok) {
         return {
-          findings: [
-            {
-              id: `${this.agentName}-help-failed`,
-              type: "bug",
-              severity: "critical",
-              component: "cli",
-              description: `CLI smoke command failed: ${commandDisplay}`,
-              evidence: [
-                raw.timedOut
-                  ? `timed out after ${this.timeoutMs}ms${raw.signal ? ` (${raw.signal})` : ""}`
-                  : raw.stderr.trim() || raw.stdout.trim() || `exit code ${raw.exitCode}`,
-              ],
-              recommendation: `Ensure '${targets.cli}' is executable and '--help' exits successfully.`,
-              timestamp: new Date(),
-            },
-          ],
-          coverage: { edgeCases: 0 },
+          findings: [],
+          coverage: { edgeCases: 100 },
+          outcomes: [outcome],
+          expectations: [declaration],
         };
       }
 
+      const shape = describeCliOutcome(targets.cli, commandDisplay, outcome, this.declarationKey());
+
       return {
-        findings: [],
-        coverage: { edgeCases: 100 },
+        findings: [
+          {
+            id: `${this.agentName}-${shape.id}`,
+            type: "bug",
+            severity: shape.severity,
+            component: "cli",
+            description: shape.description,
+            evidence: [
+              ...outcome.evidence,
+              raw.timedOut
+                ? `timed out after ${this.timeoutMs}ms${raw.signal ? ` (${raw.signal})` : ""}`
+                : raw.stderr.trim() || raw.stdout.trim() || `exit code ${raw.exitCode}`,
+            ],
+            recommendation: shape.recommendation,
+            timestamp: new Date(),
+            outcome,
+          },
+        ],
+        coverage: { edgeCases: 0 },
+        outcomes: [outcome],
+        expectations: [declaration],
       };
     } catch (error) {
       return this.spawnFailure(
