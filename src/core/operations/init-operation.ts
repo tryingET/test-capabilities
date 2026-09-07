@@ -3,7 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import yaml from "js-yaml";
 import { z } from "zod";
-import { TestCapabilitiesConfigSchema } from "../orchestrator.js";
+import { TestCapabilitiesConfigSchema } from "../config.js";
 import type {
   InitOperationInput,
   InitOperationResultEnvelope,

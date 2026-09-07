@@ -10,6 +10,8 @@ type: "reference"
 
 > Exact configuration contract for the current fail-closed runtime.
 
+The schema lives in one place, `src/core/config.ts` (`TestCapabilitiesConfigSchema`, `TargetSchema`, `AgentConfigSchema`, and the derived `TestCapabilitiesConfig` and `RuntimeConfigLike` types), and is exported from the package root; the orchestrator, `test --config`, `init` and the capability matrix all parse through it.
+
 The parser is strict:
 - unknown top-level keys are rejected
 - unknown nested keys in supported sections are rejected

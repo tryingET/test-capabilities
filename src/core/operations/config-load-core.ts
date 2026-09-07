@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import type { TestCapabilitiesConfig } from "../orchestrator.js";
-import { TestCapabilitiesConfigSchema } from "../orchestrator.js";
+import type { TestCapabilitiesConfig } from "../config.js";
+import { TestCapabilitiesConfigSchema } from "../config.js";
 
 export function loadConfig(file: string): TestCapabilitiesConfig {
   const configPath = path.resolve(file);

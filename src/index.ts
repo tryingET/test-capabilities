@@ -11,6 +11,20 @@ export {
   validateCapabilityContract,
 } from "./core/capabilities.js";
 export type {
+  AgentConfig,
+  BombadilOptions,
+  BombadilTerminalOptions,
+  IntelligenceConfig,
+  ParsedTestCapabilitiesConfig,
+  PropagationEdge,
+  PropagationTopology,
+  RuntimeConfigLike,
+  Target,
+  TestCapabilitiesConfig,
+  TestCapabilitiesConfig as NexusConfig,
+} from "./core/config.js";
+export { AgentConfigSchema, TargetSchema, TestCapabilitiesConfigSchema } from "./core/config.js";
+export type {
   CliCommand,
   CliOperationResult,
   CliRoute,
@@ -59,15 +73,11 @@ export {
   TEST_OPTION_SUPPORT,
 } from "./core/operations.js";
 export type {
-  AgentConfig,
-  BombadilOptions,
-  BombadilTerminalOptions,
   CoverageDimension,
   CoverageReport,
   CoverageStatus,
   Finding,
   FindingType,
-  IntelligenceConfig,
   Observation,
   ObservationCalibration,
   ObservationCalibrationLevel,
@@ -76,21 +86,13 @@ export type {
   ObservationSemantics,
   ObservationStatus,
   Prediction as OrchestratorPrediction,
-  PropagationEdge,
-  PropagationTopology,
   QuantumInsights,
   RootCauseFailureClass,
   Severity,
-  Target,
-  TestCapabilitiesConfig,
-  TestCapabilitiesConfig as NexusConfig,
   TestResult,
 } from "./core/orchestrator.js";
 export {
-  AgentConfigSchema,
   ROOT_CAUSE_FAILURE_CLASSES,
-  TargetSchema,
-  TestCapabilitiesConfigSchema,
   TestCapabilitiesOrchestrator,
   TestCapabilitiesOrchestrator as NexusOrchestrator,
 } from "./core/orchestrator.js";
@@ -187,7 +189,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import type { TestCapabilitiesConfig } from "./core/orchestrator.js";
+import type { TestCapabilitiesConfig } from "./core/config.js";
 // Convenience factory
 import { TestCapabilitiesOrchestrator } from "./core/orchestrator.js";
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
+import type { TestCapabilitiesConfig } from "../config.js";
+import type { TestResult } from "../orchestrator.js";
 import { TestCapabilitiesOrchestrator } from "../orchestrator.js";
 import {
   applyQuickMode,

@@ -2,7 +2,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import type { TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
+import type { TestCapabilitiesConfig } from "../config.js";
+import type { TestResult } from "../orchestrator.js";
 import { TestCapabilitiesOrchestrator } from "../orchestrator.js";
 import type {
   CoreUseCaseGuide,

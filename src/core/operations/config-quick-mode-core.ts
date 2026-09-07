@@ -1,4 +1,4 @@
-import type { TestCapabilitiesConfig } from "../orchestrator.js";
+import type { TestCapabilitiesConfig } from "../config.js";
 
 function withIntelligenceOverrides(
   config: TestCapabilitiesConfig,

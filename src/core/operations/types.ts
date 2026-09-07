@@ -1,7 +1,8 @@
 import type { ZodType, ZodTypeDef } from "zod";
 import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
-import type { CoverageReport, TestCapabilitiesConfig, TestResult } from "../orchestrator.js";
+import type { TestCapabilitiesConfig } from "../config.js";
+import type { CoverageReport, TestResult } from "../orchestrator.js";
 
 export type OperationStatus = "implemented" | "unsupported";
 export type CliCommand =
