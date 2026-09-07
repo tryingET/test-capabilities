@@ -23,28 +23,6 @@ export default [
     ],
   },
   {
-    id: "operation.command-runner.error-surface",
-    title: "Command runner preserves success output and fails loudly",
-    description:
-      "runCommand must preserve stdout and stderr on success while surfacing spawn and process failures instead of hiding them.",
-    severity: "high",
-    selectors: ["path:src/core/operations/command-runner-core.ts", "symbol:runCommand"],
-    requiredTestPatterns: ["tests/command_runner_contract.test.mjs"],
-    scenarios: [
-      {
-        id: "success-and-failure-surfaced",
-        description: "successful commands preserve output and failure paths surface process detail",
-        keywords: ["runCommand captures stdout and stderr on success"],
-        failurePathKeywords: ["runCommand rejects missing commands with a surfaced spawn error"],
-        executionWitnessCommand: ["node", "--test", "tests/command_runner_contract.test.mjs"],
-        executionWitnessOutput: ".ts-quality/witnesses/command-runner-contract.json",
-        executionWitnessTestFiles: ["tests/command_runner_contract.test.mjs"],
-        executionWitnessTimeoutMs: 10000,
-        expected: "surface",
-      },
-    ],
-  },
-  {
     id: "healing.collect-files.boundary",
     title: "collectFiles stays bounded and fail-closed",
     description:

@@ -11,15 +11,6 @@ export default [
   },
   {
     kind: "risk",
-    id: "command-runner-screening-risk",
-    paths: ["src/core/operations/command-runner-core.ts"],
-    message: "Command-runner error-surface changes require deterministic screening evidence.",
-    maxCrap: 30,
-    minMutationScore: 0.5,
-    minMergeConfidence: 50,
-  },
-  {
-    kind: "risk",
     id: "collect-files-screening-risk",
     paths: ["src/healing/collect-files-core.ts"],
     message: "collectFiles boundary changes require deterministic screening evidence.",

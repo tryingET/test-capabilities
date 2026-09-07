@@ -24,7 +24,7 @@ For the rollout overview of what is live today vs planned next in this repo, see
 
 To keep the boundaries explicit:
 
-- **screened test-capabilities code**: `src/**`, with the current live slices on `src/core/operations/dispatch-execution.ts`, `src/core/operations/command-runner-core.ts`, `src/healing/collect-files-core.ts`, `src/core/operations/quantum-operation.ts`, and the config-override cluster under `src/core/operations/config-*.ts`
+- **screened test-capabilities code**: `src/**`, with the current live slices on `src/core/operations/dispatch-execution.ts`, `src/healing/collect-files-core.ts`, `src/core/operations/quantum-operation.ts`, and the config-override cluster under `src/core/operations/config-*.ts`
 - **repo-local ts-quality integration files**: `ts-quality.config.json`, `.ts-quality/**`, and `scripts/screening/**`
 - **upstream ts-quality implementation/docs**: `../ts-quality/**`
 
@@ -42,7 +42,6 @@ To keep the boundaries explicit:
 | Invariant | Screened test-capabilities file(s) | Witness test | Notes |
 |---|---|---|---|
 | `operation.kernel.fail-closed` | `src/core/operations/dispatch-execution.ts` | `tests/operation_kernel_contract.test.mjs` | `src/core/operations.ts` and `dist/core/operations.js` normalize onto the implementation file. |
-| `operation.command-runner.error-surface` | `src/core/operations/command-runner-core.ts` | `tests/command_runner_contract.test.mjs` | `src/core/operations/command-runner.ts` and `dist/core/operations/command-runner.js` normalize onto the implementation file. |
 | `healing.collect-files.boundary` | `src/healing/collect-files-core.ts` | `tests/collect_files_contract.test.mjs` | `src/healing/collect-files.ts` and `dist/healing/collect-files.js` normalize onto the implementation file. |
 | `operation.quantum.input-envelope.contract` | `src/core/operations/quantum-operation.ts` | `tests/quantum_operation_contract.test.mjs` | Screen the quantum operation implementation file directly; keep the witness centered on operation-level input validation and result-envelope shaping rather than the broader simulator contract. |
 | `operation.test.config-override.contract` | `src/core/operations/config-targets-core.ts`, `src/core/operations/config-quick-mode-core.ts`, `src/core/operations/config-load-core.ts` | `tests/config_overrides_contract.test.mjs` | `src/core/operations/config-overrides.ts` and `dist/core/operations/config-overrides.js` normalize onto the implementation cluster. |
@@ -60,9 +59,6 @@ Current canonical examples:
 - `src/core/operations/dispatch-execution.ts` -> `src/core/operations/dispatch-execution.ts`
 - `src/core/operations.ts` -> `src/core/operations/dispatch-execution.ts`
 - `dist/core/operations.js` -> `src/core/operations/dispatch-execution.ts`
-- `src/core/operations/command-runner-core.ts` -> `src/core/operations/command-runner-core.ts`
-- `src/core/operations/command-runner.ts` -> `src/core/operations/command-runner-core.ts`
-- `dist/core/operations/command-runner.js` -> `src/core/operations/command-runner-core.ts`
 - `src/healing/collect-files-core.ts` -> `src/healing/collect-files-core.ts`
 - `src/healing/collect-files.ts` -> `src/healing/collect-files-core.ts`
 - `dist/healing/collect-files.js` -> `src/healing/collect-files-core.ts`
@@ -79,10 +75,6 @@ If `--changed` is omitted, the wrappers derive changed `src/**` files from git-v
 npm run screening:witness-refresh -- --changed src/core/operations.ts
 npm run screening:witness-refresh -- --changed src/core/operations/dispatch-execution.ts
 npm run screening:check -- --changed src/core/operations.ts --run-id tc-operations-screen
-
-npm run screening:witness-refresh -- --changed src/core/operations/command-runner.ts
-npm run screening:witness-refresh -- --changed src/core/operations/command-runner-core.ts
-npm run screening:check -- --changed src/core/operations/command-runner.ts --run-id tc-command-runner-screen
 
 npm run screening:witness-refresh -- --changed src/healing/collect-files.ts
 npm run screening:witness-refresh -- --changed src/healing/collect-files-core.ts

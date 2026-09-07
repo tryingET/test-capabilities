@@ -132,6 +132,14 @@ function toTsconfigPath(value) {
   return relative.startsWith(".") ? relative : `./${relative}`;
 }
 
+// TEST_CAPABILITIES_BUILD_SOURCEMAP=1 emits dist/**/*.js.map so a coverage run
+// can be remapped exactly onto src/**. The default build (and therefore the
+// npm pack, which runs the default build through prepack) stays map-free:
+// publishDist removes entries that the staged dist no longer contains.
+function buildSourceMapRequested() {
+  return process.env.TEST_CAPABILITIES_BUILD_SOURCEMAP === "1";
+}
+
 function writeStagingTsconfig(stagingRoot) {
   const stagingTsconfig = path.join(stagingRoot, "tsconfig.build.json");
   writeFileSync(
@@ -141,6 +149,7 @@ function writeStagingTsconfig(stagingRoot) {
         extends: toTsconfigPath({ from: stagingTsconfig, to: baseTsconfig }),
         compilerOptions: {
           outDir: "./dist",
+          ...(buildSourceMapRequested() ? { sourceMap: true } : {}),
         },
       },
       null,

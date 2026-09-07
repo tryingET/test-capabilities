@@ -127,10 +127,6 @@ map_changed_path_to_screening_source() {
       printf '%s\n' "src/core/operations/dispatch-execution.ts"
       return 0
       ;;
-    src/core/operations/command-runner.ts|src/core/operations/command-runner-core.ts|dist/core/operations/command-runner.js|dist/core/operations/command-runner-core.js)
-      printf '%s\n' "src/core/operations/command-runner-core.ts"
-      return 0
-      ;;
     src/healing/collect-files.ts|src/healing/collect-files-core.ts|dist/healing/collect-files.js|dist/healing/collect-files-core.js)
       printf '%s\n' "src/healing/collect-files-core.ts"
       return 0

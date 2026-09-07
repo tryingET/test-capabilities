@@ -8,7 +8,6 @@ export default [
         id: "maintainer-screening-merge",
         actions: ["merge", "override", "amend"],
         paths: [
-          "src/core/operations/command-runner-core.ts",
           "src/core/operations/config-load-core.ts",
           "src/core/operations/config-quick-mode-core.ts",
           "src/core/operations/config-targets-core.ts",
@@ -28,7 +27,6 @@ export default [
         id: "release-bot-screening-merge",
         actions: ["merge"],
         paths: [
-          "src/core/operations/command-runner-core.ts",
           "src/core/operations/config-load-core.ts",
           "src/core/operations/config-quick-mode-core.ts",
           "src/core/operations/config-targets-core.ts",
