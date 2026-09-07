@@ -16,7 +16,7 @@ type: "guide"
 
 - Node.js 22+
 - A CLI command or executable you can safely run with `--help`
-- Optional: a Surf Go runtime if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, then `surf-go` on `PATH`.
+- Optional: the surf CLI (nicobailon/surf-cli built from the `feat/site-independent-mechanisms` branch, with its browser extension and native host; `surf doctor --browser chromium` must be OK) if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, then `~/.local/bin/surf`.
 - Optional for Bombadil-backed web exploration: a Bombadil-compatible binary exposed through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`; Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or a project-provided Nix shell
 
 ---
@@ -44,7 +44,7 @@ node ./bin/test-capabilities doctor --target node
 node ./bin/test-capabilities demo
 ```
 
-The generated config enables only `cli-tester`, disables unsupported autonomy/intelligence modes, and refuses to overwrite existing files unless you pass `--force`. The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require Surf Go, Bombadil, network access, or a target application. This is the polished `cli-smoke-observation` use case for the first public release: prove config generation, CLI smoke execution, and `observation.v1` diagnostics first, then replace the demo target with your own safe CLI command.
+The generated config enables only `cli-tester`, disables unsupported autonomy/intelligence modes, and refuses to overwrite existing files unless you pass `--force`. The demo runs `examples/demo/cli-demo.mjs` through the same `cli-tester` orchestrator path used for real CLI targets. It does not require a surf CLI, Bombadil, network access, or a target application. This is the polished `cli-smoke-observation` use case for the first public release: prove config generation, CLI smoke execution, and `observation.v1` diagnostics first, then replace the demo target with your own safe CLI command.
 
 Machine-readable output is available for agents and CI probes:
 

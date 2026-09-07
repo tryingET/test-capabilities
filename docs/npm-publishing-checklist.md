@@ -64,7 +64,7 @@ Before publishing, re-check:
 - `docs/api/` describes implemented runtime surfaces and fail-closed unsupported modes
 - `docs/project/vision.md` is clearly north-star/roadmap, not current support
 - local maintainer or workspace-specific paths are not required for public users
-- release notes disclose external runtime requirements for Bombadil-compatible browser/terminal-fuzzer and Surf Go-compatible integrations
+- release notes disclose external runtime requirements for Bombadil-compatible browser/terminal-fuzzer and surf CLI (nicobailon/surf-cli) integrations
 
 ## 5) Configure npm Trusted Publishing
 

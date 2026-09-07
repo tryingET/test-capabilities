@@ -114,6 +114,45 @@ Surf explore target must be a valid URL.
 
 ---
 
+### Surf explore refused by a typed readiness state
+
+```
+Surf explore refused https://github.com/settings/profile: page readiness is 'login' [page_login]: Page is not ready: login at https://github.com/login. Evidence: 1 visible password field(s); URL path /login looks like a login route
+```
+
+**Cause**:
+- `surf wait.ready` classified the owned tab as `login`, `challenge`, `not-found`, `error`, or timed out (`page_timeout`) before the framework probed it
+
+**Fix**:
+- Log the agent browser into the site first, pick a public URL, or fix the target; the framework never probes an unclassified or bounced page
+
+---
+
+### Surf CLI without the readiness/extract mechanisms
+
+```
+surf 2.18.0 via path_surf (/usr/local/bin/surf) lacks wait.ready and extract. Surf explore requires the surf-cli build with typed page readiness and owned-tab extraction ...
+```
+
+**Cause**:
+- The resolved `surf` is an upstream build without the `feat/site-independent-mechanisms` branch
+
+**Fix**:
+- Install the branch build and point `TEST_CAPABILITIES_SURF_BIN` at it, or put it first on `PATH`
+
+---
+
+### Retired surf-go env vars
+
+```
+TEST_CAPABILITIES_SURF_GO_BIN is set, but the surf-go fork runtime was retired (upstream deleted, binary removed). Unset it and use TEST_CAPABILITIES_SURF_BIN, 'surf' on PATH, or ~/.local/bin/surf from nicobailon/surf-cli.
+```
+
+**Fix**:
+- Unset `TEST_CAPABILITIES_SURF_GO_BIN` / `TEST_CAPABILITIES_SURF_GO_REPO`
+
+---
+
 ### Unsupported surf action
 
 ```text
@@ -283,7 +322,7 @@ targets:
   web: 'https://example.com'
 ```
 
-For Surf, make sure Surf Go is resolvable through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`.
+For Surf, make sure the surf CLI is resolvable through `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, has the `wait.ready`/`extract` mechanisms, and that `surf doctor --browser chromium` is OK.
 For Bombadil, make sure the binary can be resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
 If you only cloned the source repo, build it first so `target/release|debug/bombadil` exists; upstream Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or the project Nix shell.
 

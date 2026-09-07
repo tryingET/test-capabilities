@@ -9,7 +9,7 @@ type: "guide"
 # Built-in demo: CLI smoke + observation diagnostics
 
 This fixture is the polished first public use case for `test-capabilities`.
-It proves the package can run a real CLI command through the fail-closed `cli-tester` orchestrator path and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application.
+It proves the package can run a real CLI command through the fail-closed `cli-tester` orchestrator path and emit `observation.v1` diagnostic evidence without a surf CLI, Bombadil, network access, or a target application.
 
 ## Commands
 
@@ -41,4 +41,4 @@ test-capabilities test --target node --quick
 - the orchestrator records a passing `observation.v1` smoke signal
 - the JSON envelope is stable enough for agents and CI smoke probes
 
-Surf Go and Bombadil-compatible runtimes remain optional until you need browser/property exploration.
+The surf CLI and Bombadil-compatible runtimes remain optional until you need browser/property exploration.

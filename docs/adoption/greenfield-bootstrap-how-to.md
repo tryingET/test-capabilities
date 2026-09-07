@@ -2,7 +2,7 @@
 summary: "How-to guide for bootstrapping test-capabilities in a new repo without creating adoption debt."
 read_when:
   - "You are starting a new repo and want test-capabilities from day one"
-  - "You want a greenfield setup path before adding Surf Go or Bombadil-compatible runtimes"
+  - "You want a greenfield setup path before adding the surf CLI or Bombadil-compatible runtimes"
 type: "how-to"
 ---
 
@@ -73,7 +73,7 @@ The generated config enables only `cli-tester`, disables unsupported intelligenc
 test-capabilities doctor --config test-capabilities.yaml --target node
 ```
 
-`doctor` checks package/runtime basics, config shape, and target executability without running the target command. Missing Surf Go or Bombadil-compatible runtimes are warnings, not failures, for this first path.
+`doctor` checks package/runtime basics, config shape, and target executability without running the target command. Missing surf CLI or Bombadil-compatible runtimes are warnings, not failures, for this first path.
 
 ### 4) Run the first smoke with machine-readable output
 
@@ -110,7 +110,7 @@ Then wire `npm run capability:smoke` into CI only after it is green locally.
 
 Only after the CLI smoke path is stable, add advanced integrations:
 
-- Surf Go for `surf explore` or the `surf` orchestrator agent
+- the surf CLI (nicobailon/surf-cli with `wait.ready`/`extract`, `surf doctor` OK) for `surf explore` or the `surf` orchestrator agent
 - a Bombadil-compatible runtime for property/web exploration
 - `heal` for reviewable selector repair proposals
 - `quantum` for direct simulator exploration
@@ -123,7 +123,7 @@ Avoid these:
 
 - hand-writing config when `init` can generate the first valid baseline
 - enabling unsupported autonomy/prediction flags and treating their fail-closed errors as bugs
-- making Surf Go or Bombadil mandatory for the first proof
+- making the surf CLI or Bombadil mandatory for the first proof
 - using a mutating command as the first `cli-tester` target
 - hiding JSON output from CI/agents when `--json` exists
 - treating partial coverage as failure instead of an honest measurement boundary

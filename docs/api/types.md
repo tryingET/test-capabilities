@@ -85,7 +85,7 @@ interface DoctorOperationResultEnvelope {
 ```
 
 Runtime note:
-- `doctor` is the zero-external-dependency diagnostic happy path; missing Surf Go or Bombadil-compatible runtimes produce optional warnings, not failure
+- `doctor` is the zero-external-dependency diagnostic happy path; missing surf CLI or Bombadil-compatible runtimes produce optional warnings, not failure; the `external.surf` check carries a `data` object with the surf version, mechanisms, and `surf doctor` summary
 - required checks cover Node version, package metadata/version, license/readme, built runtime entrypoint, CLI entrypoint, sample config presence, config shape, and optional `--target` CLI executable or URL validation
 - `target` executability is checked by resolving the executable without running the target command
 
@@ -215,7 +215,7 @@ Schema note:
 
 Runtime capability note:
 - `bombadil`, `surf`, and `cli-tester` are currently supported by the fail-closed orchestrator path
-- `surf` requires `targets.web` plus a resolvable Surf Go runtime (`TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`)
+- `surf` requires `targets.web` plus a resolvable surf CLI (`TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`) with the `wait.ready`/`extract` mechanisms
 - `bombadil` requires `targets.web` plus a Bombadil binary resolved through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`
 - Bombadil 0.5 runtime options are exposed through `bombadil`: request `headers`, `outputPath`, `reproduceTrace`, viewport/instrumentation/permission knobs, and `test-external` debugger settings.
 - Experimental Bombadil terminal fuzzing is exposed through the `terminal-fuzzer` agent and `terminal` options; it runs `bombadil terminal test -- <command> [args...]` and emits bounded `observation.v1` runtime evidence whose subject is the resolved terminal command, without production-autonomy claims.
@@ -674,9 +674,11 @@ interface SurfExploreOperationResultEnvelope {
     command: string;
     args: string[];
     runtime?: {
-      flavor: 'surf-go';
-      provider: string;
+      flavor: 'surf';
+      provider: 'explicit_bin' | 'path_surf' | 'home_local_bin';
       resolutionNotes: string[];
+      version?: string;
+      mechanisms?: Record<string, boolean>;
     };
     stdout: string;
     stderr: string;
@@ -703,7 +705,19 @@ interface SurfExploreOperationResultEnvelope {
     pages: Array<{
       url: string;
       depth: number;
+      tabId?: number;
       verified: boolean;
+      readiness?: {
+        state: 'ready' | 'empty' | 'loading' | 'login' | 'challenge' | 'not-found' | 'error' | 'unknown';
+        code?: string;      // page_login, page_challenge, page_not_found, page_error, page_timeout
+        message?: string;
+        href?: string;
+        title?: string;
+        readyState?: string;
+        polls?: number;
+        waited?: number;
+        evidence: string[];
+      };
       probes: Array<{
         kind: 'state' | 'dom' | 'links';
         url: string;
@@ -711,8 +725,10 @@ interface SurfExploreOperationResultEnvelope {
         verified: boolean;
         signal?: string;
         error?: string;
+        code?: string;      // surf error code when the probe failed
       }>;
       discoveredUrls: string[];
+      links?: { rowCount: number; attempts: number };
     }>;
   };
 }
@@ -720,6 +736,6 @@ interface SurfExploreOperationResultEnvelope {
 
 Runtime note:
 - `url` is required; `depth` is implemented as a bounded integer from `1` to `3`
-- the operation navigates with Surf Go, verifies explicit browser-state and DOM probes, and uses a links probe for same-origin depth expansion
+- the operation opens an owned surf tab, gates it with `wait.ready` typed states, verifies explicit browser-state and DOM `js` probes, uses `extract` (zero rows accepted explicitly) for same-origin depth expansion, and closes the tab
 - `coverage.userFlows` is a graded score from verified probes over required probes; unsupported or failed deeper pages reduce the score instead of becoming fake 100% coverage
 - `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path

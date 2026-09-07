@@ -53,7 +53,7 @@ node ./bin/test-capabilities doctor --json
 node ./bin/test-capabilities demo --json
 ```
 
-This proves the package can load, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without Surf Go, Bombadil, network access, or a target application.
+This proves the package can load, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without a surf CLI, Bombadil, network access, or a target application.
 For the full `doctor -> init -> demo -> test --json` path, use [Minimal CLI smoke walkthrough](docs/adoption/minimal-cli-smoke-walkthrough.md). For adoption strategy, use [Greenfield bootstrap](docs/adoption/greenfield-bootstrap-how-to.md) or [Brownfield integration](docs/adoption/brownfield-integration-how-to.md). See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
 
 ## Capability Contract
@@ -69,11 +69,11 @@ npx test-capabilities doctor
 node ./bin/test-capabilities doctor --json
 ```
 
-`doctor` has no Surf/Bombadil requirement: missing optional external runtimes are reported as warnings while package/runtime readiness checks remain required.
+`doctor` has no Surf/Bombadil requirement: missing optional external runtimes are reported as warnings while package/runtime readiness checks remain required. When a surf CLI is found, `doctor` probes its version and mechanisms and runs `surf doctor --browser <TEST_CAPABILITIES_SURF_BROWSER|chromium> --json`, reporting the native-host socket and manifest state.
 
 The shipped CLI verbs now run through a typed **operation kernel** exposed at `src/core/operations.ts` and implemented in trust-sized modules under `src/core/operations/`.
 That registry owns the supported routes, their input schemas, their executors, and their structured result shapes so the CLI wrapper stays thin.
-For Surf-backed web exploration, Surf Go is the standard runtime. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. A Surf Go source checkout can run via `go -C <repo>/go run ./cmd/surf-go`; build `surf-go` first for faster runs. Explicit Surf Go repo env vars fail closed when invalid instead of silently switching to a different runtime. `surf explore` now runs explicit browser-state/DOM/link probes, supports bounded same-origin `--depth` exploration from 1-3, and reports graded user-flow coverage from verified probe counts; empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage.
+For Surf-backed web exploration, the runtime is the upstream [nicobailon/surf-cli](https://github.com/nicobailon/surf-cli) CLI (`surf`, v2.18.0) built from the `feat/site-independent-mechanisms` branch, which adds typed page readiness (`wait.ready`/`page.readiness`), owned-tab extraction (`extract`) and `frame.diagnose`. The supported orchestrator resolves it through `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, probes `surf --version` and `surf --help-full`, and refuses to explore with a build that lacks `wait.ready` or `extract` instead of degrading silently. The retired `surf-go` fork is not supported: `TEST_CAPABILITIES_SURF_GO_BIN`/`TEST_CAPABILITIES_SURF_GO_REPO` fail closed with a retirement message. `surf explore` opens its own tab (`tab.new`), gates it with `wait.ready` (login, challenge, not-found, error and timeout states refuse the page with the surf error code), runs explicit browser-state/DOM probes through `js`, extracts same-origin links through `extract` for bounded `--depth` exploration from 1-3, closes the tab, and reports graded user-flow coverage from verified probe counts; empty output, non-JSON output, and probe results without a matching browser-state URL fail closed as unverified coverage. The `SURF_SOCKET` environment variable is passed through to the surf CLI unchanged.
 For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
 A Bombadil-compatible source checkout only overrides the parked repo-local fallback once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil 0.5 centralizes builds and no longer requires `esbuild`, though local source builds may still need project-specific prerequisites such as `trunk` or the project Nix shell.
 Bombadil 0.5 request headers, trace output paths, trace reproduction, viewport/instrumentation/permission knobs, and `test-external` debugger settings are exposed through `agents.<name>.bombadil` config. Bombadil's disabled-control skipping, quiescence timers, and dialog auto-accept behavior come from the resolved Bombadil binary itself. A bounded experimental `terminal-fuzzer` agent wraps `bombadil terminal test -- <command> [args...]` and emits normalized `observation.v1` runtime evidence whose subject is the resolved terminal command, without claiming production stability or autonomy.
@@ -83,16 +83,16 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 
 | Surface | Status | Notes |
 |---------|--------|-------|
-| `doctor` command | Implemented | Zero-external-dependency package and environment diagnostics; optional Surf Go/Bombadil-compatible runtimes warn when absent instead of failing |
+| `doctor` command | Implemented | Zero-external-dependency package and environment diagnostics; optional surf CLI/Bombadil-compatible runtimes warn when absent instead of failing; a found surf CLI is probed for version, mechanisms and `surf doctor` socket/manifest state |
 | `init` command | Implemented | Generates a minimal valid `test-capabilities.yaml` for the zero-external-dependency `cli-tester` path and refuses overwrites without `--force` |
 | `demo` command | Implemented | Built-in zero-external-dependency functional demo for the polished `cli-smoke-observation` use case |
 | `test` command | Implemented | Supports `--config`, `--target`, `--quick`; URL targets apply when `quantum.enabled: true` or a supported `bombadil`/`surf` agent is enabled, and they only replace `targets.cli` when no `cli-tester` smoke is enabled |
 | `bombadil` orchestrator agent | Implemented | Runs a bounded Bombadil exploration budget against `targets.web`; resolves the binary through explicit env, a built source checkout, repo-local parked fallback, or `PATH` |
 | `terminal-fuzzer` orchestrator agent | Implemented | Experimental bounded wrapper for `bombadil terminal test -- <command> [args...]`; emits `observation.v1` runtime evidence for the resolved CLI/terminal command and fails closed on missing Bombadil or target command |
-| `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves Surf Go from explicit env, a source checkout, or `surf-go` on `PATH`, then reports graded user-flow coverage from verified browser-state/DOM probes |
+| `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves the surf CLI from `TEST_CAPABILITIES_SURF_BIN`, `PATH`, or `~/.local/bin/surf`, then reports graded user-flow coverage from verified browser-state/DOM probes |
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
 | `quantum` command | Implemented | Uses the shared simulator path |
-| `surf explore` | Implemented | Runs Surf Go navigation plus explicit browser-state/DOM probes, optionally follows same-origin links with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
+| `surf explore` | Implemented | Opens an owned surf tab, gates it with `wait.ready` typed states, runs explicit browser-state/DOM probes, optionally follows same-origin links through `extract` with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow; `--findings-input` accepts orchestrator findings JSON so proposals cite diagnostic evidence as `triggeringFindingId`; apply mode can consume a reviewed `--proposal-input` artifact and still requires an external `--checkpoint-ref` |
 | normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class, and low-calibration non-authoritative `propagation` observations across configured dependency edges |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
@@ -186,13 +186,13 @@ What it checks today:
 Surf modes:
 
 ```bash
-# Auto-detect: use Surf Go when available, otherwise a deterministic shim
+# Auto-detect: use the real surf CLI when `surf doctor` is OK, otherwise a deterministic shim
 npm run capability:drill
 
 # Force the deterministic shim path
 bash ./scripts/capability-drill.sh --surf-mode shim
 
-# Require a real Surf Go runtime (surf-go or source-checkout Surf Go)
+# Require a real surf CLI whose `surf doctor --browser chromium` is OK
 bash ./scripts/capability-drill.sh --surf-mode real
 
 # Emit machine-readable JSON for automation

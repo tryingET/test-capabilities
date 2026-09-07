@@ -10,7 +10,7 @@ type: "reference"
 
 > Browser automation via surf-cli.
 
-`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. Surf Go is the standard runtime for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`. Only commands with explicit Surf Go adapter mappings are routed, and unmapped methods fail closed until verified.
+`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. The runtime is the upstream nicobailon/surf-cli CLI (`surf`, v2.18.0 plus the `feat/site-independent-mechanisms` branch) for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, and the retired `surf-go` fork env vars fail closed. Only commands with explicit adapter mappings (checked against `surf <command> --help`) are routed with verified flags; unmapped methods and unverified flags fail closed. Non-zero exits reject with a `SurfCommandError` carrying the surf error `code` (from the `--json` error object or the `[code]` suffix), `message`, and `details`. Live-verified against Chromium (Agent): the `doctor`/`explore` path (`tab.new`, `wait.ready`, `js`, `extract`, `tab.close`, `doctor`); the remaining mappings follow the documented CLI shapes only.
 
 ---
 
@@ -98,7 +98,7 @@ await surf.click("//button[@type='submit']");
 await surf.click(100, 200);
 ```
 
-Any string that is **not** a surf element ref like `e5` is now routed through Surf Go's explicit selector payload so generic CSS selectors and XPath-style selectors are not misclassified as positional click arguments.
+Any string that is **not** a surf element ref like `e5` is now routed through surf's explicit `--selector` flag so generic CSS selectors and XPath-style selectors are not misclassified as positional click arguments.
 
 ### `type(text, options?)`
 
@@ -186,13 +186,15 @@ When `screenshotResize` is set on the client, the wrapper passes that value thro
 const tabs = await surf.listTabs();
 ```
 
-The parser tolerates common bordered table output from `surf tab.list` and extracts numeric tab ids, titles, and URLs from each row.
+`tab.list` is called with `--json`; entries without a numeric `id` are dropped.
 
 ### `newTab(url)`
 
 ```typescript
-const { tabId, windowId } = await surf.newTab('https://example.com');
+const { tabId, url } = await surf.newTab('https://example.com');
 ```
+
+The id is parsed from surf's `Created tab <id>: <url>` reply.
 
 ### `switchTab(id)`
 
@@ -353,8 +355,54 @@ await surf.wait({ url: '/dashboard' });
 ### `evaluate<T>(code)`
 
 ```typescript
-const title = await surf.evaluate<string>('JSON.stringify(document.title)');
-const count = await surf.evaluate<number>('JSON.stringify(document.querySelectorAll(".item").length)');
+const title = await surf.evaluate<string>('document.title');
+const count = await surf.evaluate<number>('document.querySelectorAll(".item").length');
+```
+
+surf evaluates `js` code in expression mode first (`return (<code>)`) and falls back to statement mode, so plain expressions work and scripts that need declarations should end with `return`. Output is requested as `--json`; the explicit-target wrapper (`{result, target, notice}`) is unwrapped.
+
+---
+
+## Typed readiness, extraction, frame diagnosis
+
+These methods need the surf-cli branch mechanisms; `test-capabilities doctor` reports whether the resolved build has them.
+
+### `waitReady(options?)` / `pageReadiness(options?)`
+
+```typescript
+const ready = await surf.waitReady({ tabId, selector: '.results', timeout: 20000 });
+// { state: 'ready', evidence: [...], href, title, readyState, polls, waited }
+
+try {
+  await surf.waitReady({ tabId, urlPrefix: 'https://app.example.com/' });
+} catch (error) {
+  if (error instanceof SurfCommandError && error.code === 'page_login') {
+    // typed refusal: login bounce; error.details.evidence explains why
+  }
+}
+
+const accepted = await surf.waitReady({ tabId, accept: ['login', 'not-found'] });
+// negative states come back as results with accepted: true instead of rejecting
+```
+
+### `extract(options)`
+
+```typescript
+const result = await surf.extract<{ title: string; href: string }>({
+  url: 'https://github.com/nicobailon/surf-cli/releases',
+  code: 'return [...document.querySelectorAll("h2 a")].map(a => ({ title: a.textContent.trim(), href: a.href }))',
+  readySelector: 'a[href*="/releases/tag/"]',
+});
+// { data, rows, rowCount, attempts, readiness, mode: 'owned-tab' }
+```
+
+Without `tabId` the extraction runs in an owned tab (`tab.new -> wait.ready -> js -> tab.close`) with bounded retry; with `tabId` it reads in place with no retry. Zero rows reject with code `empty_result` unless `allowEmpty` is set or the page reports its own empty state (`emptyText`).
+
+### `diagnoseFrames(options?)`
+
+```typescript
+const diagnosis = await surf.diagnoseFrames({ tabId });
+// { domIframes, extensionFrames, cdpFrames, warnings: ['frame 2 is out-of-process: ...'] }
 ```
 
 ---

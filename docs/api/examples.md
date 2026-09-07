@@ -288,10 +288,10 @@ npm run capability:drill
 ```
 
 This repo-local harness exercises the currently shipped capabilities against deterministic local fixtures.
-By default it auto-detects Surf Go; `--surf-mode shim` forces a deterministic temporary `surf-go` shim so the wrapper path can be verified without a browser host. Real mode accepts `surf-go` or a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`.
+By default it uses the real surf CLI when `surf doctor --browser chromium` is OK and otherwise a deterministic shim; `--surf-mode shim` forces the shim (a fake `surf` built from `tests/fixtures/fake-surf.mjs` that speaks the surf-cli branch CLI/JSON shapes) so the wrapper path can be verified without a browser host. Real mode requires `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf` with a passing `surf doctor`.
 
 ```bash
-# Force the deterministic surf-go shim
+# Force the deterministic surf shim
 bash ./scripts/capability-drill.sh --surf-mode shim
 
 # Require a real Surf runtime

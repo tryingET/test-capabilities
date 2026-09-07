@@ -42,7 +42,9 @@ test("CLI docs reflect the fail-closed capability contract", () => {
   assert.match(cliDoc, /quantum\.enabled: true/);
   assert.match(cliDoc, /enabled `bombadil` or `surf` agent/);
   assert.match(cliDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
-  assert.match(cliDoc, /surf-go/);
+  assert.match(cliDoc, /TEST_CAPABILITIES_SURF_BIN/);
+  assert.match(cliDoc, /wait\.ready/);
+  assert.doesNotMatch(cliDoc, /surf-go`\) runtime/);
   assert.match(cliDoc, /built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`/);
   assert.match(
     cliDoc,
@@ -62,7 +64,7 @@ test("getting-started docs no longer advertise unsupported autonomous flags as r
   assert.match(gettingStartedDoc, /test-capabilities init --output/);
   assert.match(gettingStartedDoc, /refuses to overwrite existing files/);
   assert.match(gettingStartedDoc, /node \.\/bin\/test-capabilities demo/);
-  assert.match(gettingStartedDoc, /does not require Surf Go, Bombadil, network access/);
+  assert.match(gettingStartedDoc, /does not require a surf CLI, Bombadil, network access/);
   assert.match(gettingStartedDoc, /cli-smoke-observation/);
   assert.doesNotMatch(gettingStartedDoc, /test-capabilities test .*--autonomous/);
   assert.doesNotMatch(gettingStartedDoc, /Health Score: 94/);
@@ -79,7 +81,8 @@ test("config docs show the strict fail-closed surface instead of legacy top-leve
   assert.match(configDoc, /Rejected top-level keys/);
   assert.match(configDoc, /Runtime-supported types:\s*- `bombadil`\s*- `surf`\s*- `cli-tester`/s);
   assert.match(configDoc, /TEST_CAPABILITIES_BOMBADIL_REPO/);
-  assert.match(configDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
+  assert.match(configDoc, /TEST_CAPABILITIES_SURF_BIN/);
+  assert.match(configDoc, /retired `TEST_CAPABILITIES_SURF_GO_BIN`/);
   assert.match(configDoc, /propagation_topology/);
   assert.match(configDoc, /propagationTopology\.includeDefaults/);
   assert.match(configDoc, /`api -> web`, `cli -> api`, and `cli -> web`/);
@@ -198,7 +201,7 @@ test("api reference shows the operation kernel and a capability-backed orchestra
   assert.match(apiReferenceDoc, /type: 'cli-tester'/);
   assert.match(apiReferenceDoc, /targets:\s*\{\s*cli: 'node'/s);
   assert.match(apiReferenceDoc, /`bombadil`, `surf`, and\/or `cli-tester`/);
-  assert.match(apiReferenceDoc, /TEST_CAPABILITIES_SURF_GO_REPO/);
+  assert.match(apiReferenceDoc, /TEST_CAPABILITIES_SURF_BIN/);
   assert.match(apiReferenceDoc, /observations\?: Observation\[\];/);
   assert.match(apiReferenceDoc, /ROOT_CAUSE_FAILURE_CLASSES/);
   assert.match(apiReferenceDoc, /RootCauseFailureClass/);
@@ -234,7 +237,12 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
   assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
-  assert.match(surfDoc, /source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`/);
+  assert.match(
+    surfDoc,
+    /`TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~\/.local\/bin\/surf`/,
+  );
+  assert.match(surfDoc, /SurfCommandError/);
+  assert.match(surfDoc, /waitReady/);
   assert.match(surfDoc, /warning-prefixed output/i);
 });
 
@@ -246,4 +254,6 @@ test("errors docs include newly fail-closed quantum and surf config cases", () =
   assert.match(errorsDoc, /Surf explore target must be a valid URL/);
   assert.match(errorsDoc, /Invalid JSON output from surf network/);
   assert.match(errorsDoc, /Unsupported SurfClient config option\(s\): socketPath/);
+  assert.match(errorsDoc, /page readiness is 'login' \[page_login\]/);
+  assert.match(errorsDoc, /surf-go fork runtime was retired/);
 });

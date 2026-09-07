@@ -23,6 +23,8 @@ What are you testing?
 │
 ├─ Web UI (LLM sees & clicks) ─────→ agent-browser
 │
+├─ Web UI (typed readiness, owned-tab extraction, iframe diagnosis) → surf-cli (TEST-CAPABILITIES `surf explore` / SurfClient)
+│
 ├─ Desktop / OS control ───────────→ Open Interpreter
 │
 ├─ Code editing + terminal ────────→ Claude Code / pi
@@ -41,6 +43,7 @@ What are you testing?
 | **Bombadil** | Web UI | Finding edge cases | Property-based fuzzing |
 | **Stagehand** | Web UI | AI-driven navigation | Natural language + code |
 | **agent-browser** | Web UI | LLM browsing | CLI + @ref handles |
+| **surf-cli** (nicobailon, site-independent-mechanisms branch) | Web UI | Fail-closed page gating, row extraction, frame diagnosis behind TEST-CAPABILITIES | CLI + browser extension + native host; `wait.ready`, `extract`, `frame.diagnose` |
 | **pi-agent-browser** | Web (in pi) | LLM browses for you | pi extension |
 | **Open Interpreter** | Computer | General OS control | Code execution agent |
 | **Open Computer Use** | Cloud Linux | Secure sandbox desktop | E2B + any LLM |
@@ -115,6 +118,21 @@ agent-browser fill @e2 "text"
 
 ---
 
+### 3b. Fail-closed exploration through TEST-CAPABILITIES (surf-cli)
+
+**Use**: `test-capabilities surf explore --url <url>` or `SurfClient`
+
+```bash
+test-capabilities doctor --json          # surf CLI version, mechanisms, `surf doctor` socket/manifest state
+test-capabilities surf explore --url https://example.com --depth 2
+```
+
+**Why**: `wait.ready` refuses login bounces, anti-bot challenges, 404s and errors with a typed code instead of probing a wrong page; `extract` treats zero rows as a failure unless accepted explicitly; `frame.diagnose` explains which iframe swallowed a selector. The framework runs everything in an owned tab of the agent browser and closes it.
+
+**Not for**: the retired `surf-go` fork (unsupported), or browsers without the surf extension and native host (`surf doctor` must be OK).
+
+---
+
 ### 4. LLM Tests Your Web App (In Agent)
 
 **Use**: `pi-agent-browser` (for pi)
@@ -182,6 +200,7 @@ claude                # Anthropic's CLI
 | Bombadil | Free | Medium | Web | High | Any |
 | Stagehand | LLM cost | Medium | Web | Medium | Any |
 | agent-browser | Free (browser) | Fast | Web | High | Any |
+| surf-cli via TEST-CAPABILITIES | Free (browser) | Fast | Web | High (fail-closed) | Chromium-family with the surf extension |
 | pi-agent-browser | LLM cost | Medium | Web | Medium | Any |
 | Open Interpreter | LLM cost | Slow | Computer | Low | Any |
 | Open Computer Use | E2B + LLM | Slow | Cloud Linux | Low | Cloud |

@@ -151,7 +151,7 @@ console.log(init.written); // true when the config was written
 console.log(demo.summary.health); // 'pass' when the built-in CLI fixture succeeds
 ```
 
-`doctor` is the recommended first diagnostic path for public consumers because it does not require Surf Go or Bombadil-compatible external tools. It validates package/runtime basics, package version metadata, config shape, and optional CLI target executability without running the target. `init` is the starting-config path: it writes a minimal valid `cli-tester` config and refuses overwrites unless `force` is set. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets. For the primary suite path, `test-capabilities test --json` prints the full `TestOperationResultEnvelope` returned by `executeCliOperation({ command: 'test' }, input)`.
+`doctor` is the recommended first diagnostic path for public consumers because it does not require the surf CLI or Bombadil-compatible external tools. It validates package/runtime basics, package version metadata, config shape, and optional CLI target executability without running the target. `init` is the starting-config path: it writes a minimal valid `cli-tester` config and refuses overwrites unless `force` is set. `demo` is the first functional path: it runs the shipped `examples/demo/cli-demo.mjs` fixture through the same `cli-tester` orchestrator path used for real CLI targets. For the primary suite path, `test-capabilities test --json` prints the full `TestOperationResultEnvelope` returned by `executeCliOperation({ command: 'test' }, input)`.
 
 ---
 
@@ -200,7 +200,7 @@ For the current supported orchestrator path, you must configure:
 - currently that means `bombadil`, `surf`, and/or `cli-tester`
 - `targets.cli` when `cli-tester` is enabled
 - `targets.web` when `bombadil` or `surf` is enabled or `quantum.enabled` is true
-- a resolvable Surf Go runtime when the supported Surf agent is enabled: `TEST_CAPABILITIES_SURF_GO_BIN`, a source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`
+- a resolvable surf CLI when the supported Surf agent is enabled: `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf` (nicobailon/surf-cli with `wait.ready`/`extract`; the retired `surf-go` env vars fail closed)
 - a Bombadil binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH` when the supported Bombadil agent is enabled
 
 ---

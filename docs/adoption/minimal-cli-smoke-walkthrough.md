@@ -24,7 +24,7 @@ From a source checkout, use:
 node ./bin/test-capabilities doctor --json
 ```
 
-A healthy first result has `operationId: "doctor"` and `status: "pass"`. Missing Surf Go or Bombadil-compatible runtimes are optional warnings.
+A healthy first result has `operationId: "doctor"` and `status: "pass"`. Missing surf CLI or Bombadil-compatible runtimes are optional warnings.
 
 ## 2) Generate a minimal config
 
@@ -93,4 +93,4 @@ The first slice is done when:
 - `init` generated or informed the committed config
 - `demo --json` passes in the install environment
 - `test --quick --json` passes against one safe target
-- optional Surf Go, Bombadil-compatible, healing, and quantum work is explicitly left for later slices
+- optional surf CLI, Bombadil-compatible, healing, and quantum work is explicitly left for later slices

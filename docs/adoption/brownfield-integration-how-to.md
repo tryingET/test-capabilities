@@ -2,7 +2,7 @@
 summary: "How-to guide for integrating test-capabilities into an existing repo without broad fake-green claims."
 read_when:
   - "You are adding test-capabilities to an existing repo"
-  - "You need a brownfield rollout recipe for CLI, Surf Go, Bombadil-compatible, or healing surfaces"
+  - "You need a brownfield rollout recipe for CLI, surf CLI, Bombadil-compatible, or healing surfaces"
 type: "how-to"
 ---
 
@@ -34,7 +34,7 @@ inventory existing repo
 Before writing config, identify:
 
 - one CLI command that safely supports `--help`
-- whether the repo has a local web app suitable for Surf Go exploration
+- whether the repo has a local web app suitable for surf exploration
 - whether a Bombadil-compatible runtime is already installed or buildable
 - whether selector-healing proposals would be useful and reviewable
 - which CI job can run a zero-external smoke without credentials or network assumptions
@@ -64,7 +64,7 @@ test-capabilities doctor --config test-capabilities.yaml --target '<safe-command
 Classify the output honestly:
 
 - required package/runtime/config/target checks must pass
-- missing Surf Go is acceptable until you adopt `surf`
+- a missing surf CLI is acceptable until you adopt `surf`
 - missing Bombadil-compatible runtime is acceptable until you adopt `bombadil`
 - invalid explicit runtime env vars are blockers because they would make later runs ambiguous
 
@@ -88,9 +88,9 @@ Useful checks in the JSON envelope:
 
 After the CLI smoke path is stable, add optional surfaces as separate slices.
 
-#### Surf Go slice
+#### surf CLI slice
 
-Use when the repo has a real web target and Surf Go is resolvable:
+Use when the repo has a real web target and the surf CLI is resolvable with `surf doctor --browser chromium` OK:
 
 ```bash
 test-capabilities doctor --target https://example.com --json

@@ -75,7 +75,7 @@
       },
       "attach_points": ["src/core/capabilities.ts", "src/core/orchestrator.ts"],
       "activation_requirements": [],
-      "notes": "Supported Surf runtime uses the shared surf explore operation, resolves TEST_CAPABILITIES_SURF_GO_BIN, TEST_CAPABILITIES_SURF_GO_REPO, or surf-go on PATH, verifies explicit browser-state/DOM/link probes, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, help text, warning-only output, and target URLs without a matching browser-state probe fail closed as unverified coverage."
+      "notes": "Supported Surf runtime uses the shared surf explore operation on the upstream nicobailon/surf-cli CLI (branch feat/site-independent-mechanisms), resolves TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, refuses builds without wait.ready/extract and the retired surf-go env vars, runs in an owned tab gated by wait.ready typed states, verifies explicit browser-state/DOM probes and extract-backed link rows, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, non-JSON output, refused readiness states, and target URLs without a matching browser-state probe fail closed as unverified coverage."
     },
     {
       "id": "agent:terminal-fuzzer",

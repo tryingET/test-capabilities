@@ -18,7 +18,7 @@ read_when:
 - **Runtime:** Node.js 22+ (ESM)
 - **Language:** TypeScript
 - **Quality:** Biome (lint/format), Node test runner
-- **Testing tools:** Bombadil-compatible property exploration, Surf Go-compatible browser exploration, CLI smoke execution
+- **Testing tools:** Bombadil-compatible property exploration, surf-cli browser exploration, CLI smoke execution
 
 ## Key Integrations
 

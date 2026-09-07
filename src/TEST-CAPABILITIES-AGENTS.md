@@ -23,7 +23,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 
 ### Supported CLI/runtime surfaces
 - `test-capabilities doctor [--json]`
-  - zero-external-dependency first-run diagnostics; missing Surf/Bombadil runtimes warn but do not fail
+  - zero-external-dependency first-run diagnostics; missing surf CLI/Bombadil runtimes warn but do not fail; a found surf CLI is probed (`--version`, mechanisms, `surf doctor --browser <TEST_CAPABILITIES_SURF_BROWSER|chromium> --json`)
 - `test-capabilities init [--output <file>] [--target <command>] [--force] [--print] [--json]`
   - generates a minimal valid `cli-tester` config and refuses overwrites unless `--force` is present
 - `test-capabilities demo [--json]`
@@ -42,7 +42,7 @@ The shipped CLI verbs are routed through a shared operation kernel (`CLI_OPERATI
 - `cli-tester` agent
 - `correlation: true`
 - `quantum` when `targets.web` is present
-- Surf Go runtime resolution: `TEST_CAPABILITIES_SURF_GO_BIN` → source checkout referenced by `TEST_CAPABILITIES_SURF_GO_REPO` → `surf-go` on `PATH`
+- surf CLI resolution (nicobailon/surf-cli with `wait.ready`/`extract`): `TEST_CAPABILITIES_SURF_BIN` → `surf` on `PATH` → `~/.local/bin/surf`; the retired `surf-go` env vars fail closed
 - Bombadil binary resolution: `TEST_CAPABILITIES_BOMBADIL_BIN` → built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO` → repo-local `external/bombadil` → `bombadil` on `PATH`
 
 ### Unsupported in the current CLI wrapper

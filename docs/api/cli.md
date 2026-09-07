@@ -55,7 +55,7 @@ This registry currently owns the shipped verbs:
 
 ### `test-capabilities doctor`
 
-Run zero-external-dependency package and environment diagnostics. This is the public first-run happy path: it verifies required package/runtime basics and reports optional external Surf Go or Bombadil-compatible runtimes as warnings when absent.
+Run zero-external-dependency package and environment diagnostics. This is the public first-run happy path: it verifies required package/runtime basics and reports optional external surf CLI or Bombadil-compatible runtimes as warnings when absent. A found surf CLI is probed for its version and mechanisms and `surf doctor --browser <TEST_CAPABILITIES_SURF_BROWSER|chromium> --json` is summarized (socket path, manifest, failing checks) in the `external.surf` check; the check passes only when the readiness/extract mechanisms exist and `surf doctor` is OK.
 
 ```bash
 test-capabilities doctor
@@ -73,7 +73,7 @@ Required checks:
 - `--target <command-or-url>` resolves a CLI executable without running it, or validates an HTTP(S) URL target
 
 Optional checks:
-- Surf Go runtime via `TEST_CAPABILITIES_SURF_GO_BIN`, `TEST_CAPABILITIES_SURF_GO_REPO`, or `surf-go` on `PATH`
+- surf CLI runtime via `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf` (`external.surf`; the retired `surf-go` env vars are reported as a warning)
 - Bombadil-compatible runtime via `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`
 
 Missing optional runtimes do not fail `doctor`.
@@ -110,7 +110,7 @@ test-capabilities demo
 test-capabilities demo --json
 ```
 
-The demo uses `examples/demo/cli-demo.mjs` and an equivalent checked-in config at `examples/demo/test-capabilities.yaml`. It requires only Node.js and the installed package files; Surf Go and Bombadil-compatible runtimes remain optional. The text and JSON output both identify the polished core use case as `cli-smoke-observation`: CLI smoke plus `observation.v1` diagnostics, with next commands for replacing the demo target with a real CLI.
+The demo uses `examples/demo/cli-demo.mjs` and an equivalent checked-in config at `examples/demo/test-capabilities.yaml`. It requires only Node.js and the installed package files; surf CLI and Bombadil-compatible runtimes remain optional. The text and JSON output both identify the polished core use case as `cli-smoke-observation`: CLI smoke plus `observation.v1` diagnostics, with next commands for replacing the demo target with a real CLI.
 
 ### `test-capabilities test`
 
@@ -153,7 +153,7 @@ Accepted but currently unsupported options:
 
 ### `test-capabilities surf explore`
 
-Run the resolved Surf Go (`surf-go`) runtime through the supported `explore` action. `test-capabilities surf explore --url <url>` invokes Surf Go as `navigate --url <url>`, then runs explicit browser-state and DOM JavaScript probes and verifies that observed page state matches the target URL before reporting coverage.
+Run the resolved surf CLI (nicobailon/surf-cli, resolution `TEST_CAPABILITIES_SURF_BIN` → `surf` on `PATH` → `~/.local/bin/surf`) through the supported `explore` action. `test-capabilities surf explore --url <url>` first probes the build (`surf --version`, `surf --help-full`) and refuses a build without `wait.ready` and `extract`; it then opens an owned tab (`surf tab.new <url>`), gates it with `surf wait.ready --tab-id <id> --json` (states `login`, `challenge`, `not-found`, `error`, or a timeout refuse the page with the surf code such as `[page_login]` and the evidence lines), runs explicit browser-state and DOM probes through `surf js --tab-id <id> --json`, extracts same-origin links through `surf extract --tab-id <id> --allow-empty --json` when `--depth` asks for more pages, closes the tab, and verifies that observed page state matches the target (or landed) URL before reporting coverage. Commands never act on the browser's active tab.
 An explicit `--url` is required; the kernel no longer defaults to `about:blank` because that created success-shaped no-op runs. Non-empty stdout is not evidence by itself: help text, warnings, and target URLs without a matching browser-state probe fail closed as unverified coverage. `--depth 2` or `--depth 3` adds bounded same-origin link discovery and turns user-flow coverage into a graded verified-probe score instead of a binary process-success signal.
 
 ```bash
