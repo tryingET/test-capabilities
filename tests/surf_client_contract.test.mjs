@@ -1,245 +1,83 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
+import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { SurfClient, SurfFlowBuilder } = await importRuntimeModule("index.js");
+const { SurfClient, SurfCommandError, SurfFlowBuilder } = await importRuntimeModule("index.js");
 
-function withFakeSurfGo(script) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "surf-client-test-"));
-  const surfGoPath = path.join(dir, "surf-go");
-  writeFileSync(surfGoPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+const PAGES = readyPages({
+  "https://example.com/": {
+    title: "Example Domain",
+    links: ["https://example.com/docs", "https://other.example/away"],
+    counts: { iframes: 2 },
+  },
+  "https://example.com/empty": { title: "Nothing here", links: [] },
+  "https://example.com/login": {
+    title: "Sign in",
+    readiness: "login",
+    evidence: ["1 visible password field(s)", "URL path /login looks like a login route"],
+  },
+});
 
-  const previous = {
-    path: process.env.PATH,
-    bin: process.env.TEST_CAPABILITIES_SURF_GO_BIN,
-    repo: process.env.TEST_CAPABILITIES_SURF_GO_REPO,
-  };
-
-  return {
-    dir,
-    path: surfGoPath,
-    apply() {
-      process.env.PATH = `${dir}:${process.env.PATH ?? ""}`;
-      process.env.TEST_CAPABILITIES_SURF_GO_BIN = surfGoPath;
-      delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
-    },
-    cleanup() {
-      if (previous.path === undefined) {
-        delete process.env.PATH;
-      } else {
-        process.env.PATH = previous.path;
-      }
-      if (previous.bin === undefined) {
-        delete process.env.TEST_CAPABILITIES_SURF_GO_BIN;
-      } else {
-        process.env.TEST_CAPABILITIES_SURF_GO_BIN = previous.bin;
-      }
-      if (previous.repo === undefined) {
-        delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
-      } else {
-        process.env.TEST_CAPABILITIES_SURF_GO_REPO = previous.repo;
-      }
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
+function lastArgv(fake) {
+  const calls = fake.calls();
+  return calls[calls.length - 1];
 }
 
-test(
-  "SurfClient passes raw arguments without shell-style quotes",
-  { concurrency: false },
-  async () => {
-    const fake = withFakeSurfGo('printf "%s\\n" "$@"');
-    fake.apply();
-
-    try {
-      const client = new SurfClient({ autoScreenshot: false });
-      const gotoResult = await client.goto("https://example.com");
-      const clickResult = await client.click("button.login");
-      const typeResult = await client.type("hello world", { ref: "e1", submit: true });
-
-      assert.equal(gotoResult.success, true);
-      assert.equal(gotoResult.message, "navigate\n--url\nhttps://example.com");
-      assert.equal(clickResult.success, true);
-      assert.equal(
-        clickResult.message,
-        `click\n--args-json\n${JSON.stringify({ selector: "button.login" })}`,
-      );
-      assert.equal(typeResult.success, true);
-      assert.equal(
-        typeResult.message,
-        `tool-raw\n--tool\nclick_type_submit\n--args-json\n${JSON.stringify({ text: "hello world", ref: "e1" })}`,
-      );
-    } finally {
-      fake.cleanup();
-    }
-  },
-);
-
-test(
-  "SurfClient routes XPath selectors through the explicit selector channel",
-  { concurrency: false },
-  async () => {
-    const fake = withFakeSurfGo('printf "%s\\n" "$@"');
-    fake.apply();
-
-    try {
-      const client = new SurfClient({ autoScreenshot: false });
-      const result = await client.click("//button[@type='submit']");
-
-      assert.equal(result.success, true);
-      assert.equal(
-        result.message,
-        `click\n--args-json\n${JSON.stringify({ selector: "//button[@type='submit']" })}`,
-      );
-    } finally {
-      fake.cleanup();
-    }
-  },
-);
-
-test(
-  "SurfClient does not turn a successful action into a failure when the follow-up screenshot fails",
-  { concurrency: false },
-  async () => {
-    const fake = withFakeSurfGo(`
-cmd="$1"
-shift
-if [ "$cmd" = "navigate" ]; then
-  shift
-  printf 'ok navigate %s\\n' "$1"
-  exit 0
-fi
-if [ "$cmd" = "screenshot" ]; then
-  echo 'screenshot failed' >&2
-  exit 2
-fi
-printf '%s\\n' "$cmd" "$@"
-`);
-    fake.apply();
-
-    try {
-      const client = new SurfClient({ autoScreenshot: true });
-      const result = await client.goto("https://example.com");
-
-      assert.equal(result.success, true);
-      assert.equal(result.message, "ok navigate https://example.com");
-      assert.match(result.error ?? "", /screenshot failed/);
-    } finally {
-      fake.cleanup();
-    }
-  },
-);
-
-test(
-  "SurfClient parses multiline snapshots with title and URL",
-  { concurrency: false },
-  async () => {
-    const fake = withFakeSurfGo(`
-cmd="$1"
-shift
-if [ "$cmd" = "page" ] && [ "\${1-}" = "read" ]; then
-  printf '✓ Example Title\\nhttps://example.com\\nbutton [ref=e1] name="Login": Login\\n'
-  exit 0
-fi
-printf '%s\\n' "$cmd" "$@"
-`);
-    fake.apply();
-
-    try {
-      const client = new SurfClient({ autoScreenshot: false });
-      const snapshot = await client.read();
-
-      assert.equal(snapshot.title, "Example Title");
-      assert.equal(snapshot.url, "https://example.com");
-      assert.equal(snapshot.elements[0]?.role, "button");
-    } finally {
-      fake.cleanup();
-    }
-  },
-);
-
-test("SurfClient parses tab lists with bordered table output", { concurrency: false }, async () => {
-  const fake = withFakeSurfGo(`
-cmd="$1"
-shift
-if [ "$cmd" = "tab" ] && [ "\${1-}" = "list" ]; then
-  printf '│ 3 │ Dashboard │ https://example.com/dashboard │\n'
-  exit 0
-fi
-printf '%s\n' "$cmd" "$@"
-`);
-  fake.apply();
-
+async function withClient(options, callback) {
+  const fake = createFakeSurf({ pages: PAGES, ...options.fake });
   try {
-    const client = new SurfClient({ autoScreenshot: false });
-    const tabs = await client.listTabs();
-
-    assert.deepEqual(tabs, [
-      {
-        id: 3,
-        title: "Dashboard",
-        url: "https://example.com/dashboard",
-      },
-    ]);
+    await withFakeSurfEnv(fake.path, async () => {
+      await callback(new SurfClient({ autoScreenshot: false, ...options.client }), fake);
+    });
   } finally {
     fake.cleanup();
   }
-});
+}
 
 test(
-  "SurfClient tolerates warning-prefixed JSON output for pageState",
+  "SurfClient maps navigation and interaction methods onto verified surf argv",
   { concurrency: false },
   async () => {
-    const fake = withFakeSurfGo(`
-cmd="$1"
-shift
-if [ "$cmd" = "page" ] && [ "\${1-}" = "state" ]; then
-  printf 'warning: devtools reconnecting\n{"modals":[],"loading":false,"scrollPosition":{"x":0,"y":1}}\n'
-  exit 0
-fi
-printf '%s\n' "$cmd" "$@"
-`);
-    fake.apply();
+    await withClient({ fake: { echo: true } }, async (client, fake) => {
+      const gotoResult = await client.goto("https://example.com");
+      assert.equal(gotoResult.success, true);
+      assert.equal(gotoResult.message, "navigate\nhttps://example.com");
+      assert.deepEqual(lastArgv(fake), ["navigate", "https://example.com"]);
 
-    try {
-      const client = new SurfClient({ autoScreenshot: false });
-      const state = await client.pageState();
+      await client.click("button.login");
+      assert.deepEqual(lastArgv(fake), ["click", "--selector", "button.login"]);
 
-      assert.deepEqual(state, {
-        modals: [],
-        loading: false,
-        scrollPosition: { x: 0, y: 1 },
-      });
-    } finally {
-      fake.cleanup();
-    }
-  },
-);
+      await client.click("e5");
+      assert.deepEqual(lastArgv(fake), ["click", "e5"]);
 
-test(
-  "SurfClient fails clearly when JSON-bearing commands emit non-JSON output",
-  { concurrency: false },
-  async () => {
-    const fake = withFakeSurfGo(`
-cmd="$1"
-shift
-if [ "$cmd" = "network" ] && [ "\${1-}" = "list" ]; then
-  printf 'warning: capture disabled\n'
-  exit 0
-fi
-printf '%s\n' "$cmd" "$@"
-`);
-    fake.apply();
+      await client.click("//button[@type='submit']");
+      assert.deepEqual(lastArgv(fake), ["click", "--selector", "//button[@type='submit']"]);
 
-    try {
-      const client = new SurfClient({ autoScreenshot: false });
-      await assert.rejects(() => client.getNetwork(), /Invalid JSON output from surf network/);
-    } finally {
-      fake.cleanup();
-    }
+      await client.click(100, 200);
+      assert.deepEqual(lastArgv(fake), ["click", "--x", "100", "--y", "200"]);
+
+      await client.type("hello world", { ref: "e1", submit: true });
+      assert.deepEqual(lastArgv(fake), ["type", "hello world", "--ref", "e1", "--submit"]);
+
+      await client.type("query", { selector: "input[name=q]" });
+      assert.deepEqual(lastArgv(fake), ["type", "query", "--into", "input[name=q]"]);
+
+      await client.wait(1500);
+      assert.deepEqual(lastArgv(fake), ["wait", "1.5"]);
+
+      await client.wait({ element: ".loaded" });
+      assert.deepEqual(lastArgv(fake), ["wait.element", ".loaded"]);
+
+      await client.press("Enter");
+      assert.deepEqual(lastArgv(fake), ["key", "Enter"]);
+
+      await client.scroll("down", 500);
+      assert.deepEqual(lastArgv(fake), ["scroll", "down", "500"]);
+
+      await client.reload(true);
+      assert.deepEqual(lastArgv(fake), ["tab.reload", "--hard"]);
+    });
   },
 );
 
@@ -247,21 +85,155 @@ test(
   "SurfClient applies screenshotResize to screenshot commands",
   { concurrency: false },
   async () => {
-    const fake = withFakeSurfGo('printf "%s\\n" "$@"');
-    fake.apply();
+    await withClient(
+      { fake: { echo: true }, client: { screenshotResize: 777 } },
+      async (client, fake) => {
+        const result = await client.screenshot();
+        assert.equal(result.success, true);
+        assert.deepEqual(lastArgv(fake), ["screenshot", "--max-size", "777"]);
+      },
+    );
+  },
+);
 
-    try {
-      const client = new SurfClient({ autoScreenshot: false, screenshotResize: 777 });
-      const result = await client.screenshot();
+test(
+  "SurfClient does not turn a successful action into a failure when the follow-up screenshot fails",
+  { concurrency: false },
+  async () => {
+    await withClient(
+      { fake: { echo: true, failOn: ["screenshot"] }, client: { autoScreenshot: true } },
+      async (client) => {
+        const result = await client.goto("https://example.com");
 
-      assert.equal(result.success, true);
-      assert.equal(
-        result.message,
-        `screenshot\n--args-json\n${JSON.stringify({ "max-size": 777 })}`,
+        assert.equal(result.success, true);
+        assert.equal(result.message, "navigate\nhttps://example.com");
+        assert.match(result.error ?? "", /surf exploded/);
+      },
+    );
+  },
+);
+
+test(
+  "SurfClient surfaces typed readiness failures as SurfCommandError codes",
+  { concurrency: false },
+  async () => {
+    await withClient({}, async (client) => {
+      const { tabId } = await client.newTab("https://example.com/login");
+
+      await assert.rejects(
+        () => client.waitReady({ tabId }),
+        (error) => {
+          assert.ok(error instanceof SurfCommandError);
+          assert.equal(error.code, "page_login");
+          assert.match(
+            error.message,
+            /Page is not ready: login at https:\/\/example\.com\/login \[page_login\]/,
+          );
+          assert.equal(error.details?.state, "login");
+          assert.deepEqual(error.details?.evidence, [
+            "1 visible password field(s)",
+            "URL path /login looks like a login route",
+          ]);
+          return true;
+        },
       );
-    } finally {
-      fake.cleanup();
-    }
+
+      const accepted = await client.waitReady({ tabId, accept: ["login"] });
+      assert.equal(accepted.state, "login");
+      assert.equal(accepted.accepted, true);
+
+      const classified = await client.pageReadiness({ tabId });
+      assert.equal(classified.state, "login");
+
+      await client.closeTab(tabId);
+    });
+  },
+);
+
+test(
+  "SurfClient opens tabs, lists them as JSON, and extracts rows in place with the zero-rows invariant",
+  { concurrency: false },
+  async () => {
+    await withClient({}, async (client) => {
+      const opened = await client.newTab("https://example.com/");
+      assert.deepEqual(opened, { tabId: 100, url: "https://example.com/" });
+
+      const tabs = await client.listTabs();
+      assert.deepEqual(tabs, [{ id: 100, title: "Example Domain", url: "https://example.com/" }]);
+
+      const ready = await client.waitReady({ tabId: 100 });
+      assert.equal(ready.state, "ready");
+      assert.equal(ready.href, "https://example.com/");
+
+      // extract prefixes a SURF_OPTIONS prelude, so extraction scripts must `return` explicitly.
+      const rowsScript =
+        "return { rows: Array.from(document.querySelectorAll('a[href]')).map((anchor) => ({ href: anchor.getAttribute('href') })) };";
+      const extracted = await client.extract({ tabId: 100, code: rowsScript });
+      assert.equal(extracted.mode, "target");
+      assert.equal(extracted.rowCount, 2);
+      assert.deepEqual(extracted.rows, [
+        { href: "https://example.com/docs" },
+        { href: "https://other.example/away" },
+      ]);
+      assert.equal(extracted.readiness?.state, "ready");
+
+      const emptyTab = await client.newTab("https://example.com/empty");
+      await assert.rejects(
+        () => client.extract({ tabId: emptyTab.tabId, code: rowsScript }),
+        (error) => error instanceof SurfCommandError && error.code === "empty_result",
+      );
+      const allowed = await client.extract({
+        tabId: emptyTab.tabId,
+        code: rowsScript,
+        allowEmpty: true,
+      });
+      await assert.rejects(
+        () =>
+          client.extract({
+            tabId: emptyTab.tabId,
+            code: "({ rows: [] })",
+          }),
+        (error) => error instanceof SurfCommandError && error.code === "no_output",
+      );
+      assert.equal(allowed.rowCount, 0);
+      assert.deepEqual(allowed.rows, []);
+
+      await client.closeTab(emptyTab.tabId);
+      await client.closeTab(100);
+      assert.deepEqual(await client.listTabs(), []);
+    });
+  },
+);
+
+test(
+  "SurfClient evaluate returns the JSON value and diagnoseFrames returns the typed diagnosis",
+  { concurrency: false },
+  async () => {
+    await withClient({}, async (client) => {
+      const { tabId } = await client.newTab("https://example.com/");
+
+      assert.equal(await client.evaluate("document.title"), "Example Domain");
+      assert.deepEqual(await client.evaluate("({ href: location.href })"), {
+        href: "https://example.com/",
+      });
+
+      const diagnosis = await client.diagnoseFrames({ tabId });
+      assert.equal(diagnosis.domIframes.length, 2);
+      assert.equal(diagnosis.cdpFrames.length, 1);
+      assert.match(diagnosis.warnings.join("\n"), /out-of-process/);
+
+      await client.closeTab(tabId);
+    });
+  },
+);
+
+test(
+  "SurfClient fails clearly when JSON-bearing commands emit non-JSON output",
+  { concurrency: false },
+  async () => {
+    await withClient({ fake: { echo: true } }, async (client) => {
+      await assert.rejects(() => client.getNetwork(), /Invalid JSON output from surf network/);
+    });
   },
 );
 
@@ -273,13 +245,9 @@ test("SurfClient rejects unsupported config knobs instead of silently ignoring t
 });
 
 test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: false }, async () => {
-  const fake = withFakeSurfGo('echo "simulated failure" >&2\nexit 1');
-  fake.apply();
-  let assertionRuns = 0;
-
-  try {
-    const client = new SurfClient({ autoScreenshot: false });
-    await assert.rejects(() => client.goto("https://example.com"), /simulated failure/);
+  await withClient({ fake: { failOn: ["navigate"] } }, async (client) => {
+    let assertionRuns = 0;
+    await assert.rejects(() => client.goto("https://example.com"), /surf exploded/);
 
     const flow = new SurfFlowBuilder(client)
       .goto("https://example.com")
@@ -293,24 +261,17 @@ test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: fa
     assert.equal(result.steps[0]?.success, false);
     assert.equal(assertionRuns, 0);
     assert.deepEqual(result.assertions, []);
-    assert.match(result.steps[0]?.error ?? "", /simulated failure/);
-  } finally {
-    fake.cleanup();
-  }
+    assert.match(result.steps[0]?.error ?? "", /surf exploded/);
+  });
 });
 
 test("SurfFlowBuilder accepts zero-duration waits", { concurrency: false }, async () => {
-  const fake = withFakeSurfGo('printf "%s\\n" "$@"');
-  fake.apply();
-
-  try {
-    const client = new SurfClient({ autoScreenshot: false });
+  await withClient({ fake: { echo: true } }, async (client, fake) => {
     const result = await new SurfFlowBuilder(client).wait(0).execute();
 
     assert.equal(result.success, true);
     assert.equal(result.steps[0]?.success, true);
     assert.equal(result.steps[0]?.step.duration, 0);
-  } finally {
-    fake.cleanup();
-  }
+    assert.deepEqual(lastArgv(fake), ["wait", "0"]);
+  });
 });

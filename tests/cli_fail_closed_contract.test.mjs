@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { createFakeSurf, readyPages } from "./helpers/fake-surf.mjs";
 import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const binPath = new URL("../bin/test-capabilities", import.meta.url).pathname;
@@ -16,11 +17,14 @@ function runCli(args, extraEnv = {}) {
   });
 }
 
+// An empty HOME keeps ~/.local/bin/surf out of child CLI runs that must not see a surf CLI.
+const noSurfHome = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-no-surf-home-"));
+
 test("CLI doctor command passes as zero-external-dependency happy path", () => {
   const result = runCli(["doctor", "--json"], {
     PATH: path.dirname(process.execPath),
-    TEST_CAPABILITIES_SURF_GO_BIN: "",
-    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_SURF_BIN: "",
+    HOME: noSurfHome,
     TEST_CAPABILITIES_BOMBADIL_BIN: "",
     TEST_CAPABILITIES_BOMBADIL_REPO: "",
   });
@@ -39,7 +43,7 @@ test("CLI doctor command passes as zero-external-dependency happy path", () => {
     true,
   );
   assert.equal(
-    payload.checks.some((check) => check.id === "external.surf_go" && check.required === false),
+    payload.checks.some((check) => check.id === "external.surf" && check.required === false),
     true,
   );
   assert.equal(
@@ -51,8 +55,8 @@ test("CLI doctor command passes as zero-external-dependency happy path", () => {
 test("CLI doctor command checks target executability without running target", () => {
   const result = runCli(["doctor", "--json", "--target", process.execPath], {
     PATH: path.dirname(process.execPath),
-    TEST_CAPABILITIES_SURF_GO_BIN: "",
-    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_SURF_BIN: "",
+    HOME: noSurfHome,
     TEST_CAPABILITIES_BOMBADIL_BIN: "",
     TEST_CAPABILITIES_BOMBADIL_REPO: "",
   });
@@ -71,8 +75,8 @@ test("CLI doctor command fails when requested target cannot be resolved", () => 
     ["doctor", "--json", "--target", "definitely-missing-test-capabilities-command"],
     {
       PATH: path.dirname(process.execPath),
-      TEST_CAPABILITIES_SURF_GO_BIN: "",
-      TEST_CAPABILITIES_SURF_GO_REPO: "",
+      TEST_CAPABILITIES_SURF_BIN: "",
+      HOME: noSurfHome,
       TEST_CAPABILITIES_BOMBADIL_BIN: "",
       TEST_CAPABILITIES_BOMBADIL_REPO: "",
     },
@@ -146,8 +150,8 @@ test("CLI init command can print a config without writing", () => {
 test("CLI demo command passes as zero-external-dependency functional path", () => {
   const result = runCli(["demo", "--json"], {
     PATH: path.dirname(process.execPath),
-    TEST_CAPABILITIES_SURF_GO_BIN: "",
-    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_SURF_BIN: "",
+    HOME: noSurfHome,
     TEST_CAPABILITIES_BOMBADIL_BIN: "",
     TEST_CAPABILITIES_BOMBADIL_REPO: "",
   });
@@ -170,8 +174,8 @@ test("CLI demo command passes as zero-external-dependency functional path", () =
 test("CLI test command emits machine-readable JSON for the primary run path", () => {
   const result = runCli(["test", "--config", "examples/demo/test-capabilities.yaml", "--json"], {
     PATH: path.dirname(process.execPath),
-    TEST_CAPABILITIES_SURF_GO_BIN: "",
-    TEST_CAPABILITIES_SURF_GO_REPO: "",
+    TEST_CAPABILITIES_SURF_BIN: "",
+    HOME: noSurfHome,
     TEST_CAPABILITIES_BOMBADIL_BIN: "",
     TEST_CAPABILITIES_BOMBADIL_REPO: "",
   });
@@ -229,27 +233,11 @@ test("CLI test command rejects URL overrides when no supported web consumer is e
 
 test("CLI test command accepts URL overrides when surf is the supported web consumer", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-surf-"));
-  const fakeSurfGo = path.join(tempDir, "surf-go");
+  const fake = createFakeSurf({
+    pages: readyPages({ "https://example.com/": { title: "Example Domain" } }),
+  });
   const configPath = path.join(tempDir, "surf-config.yaml");
 
-  writeFileSync(
-    fakeSurfGo,
-    `#!/bin/sh
-cmd="$1"
-if [ "$cmd" = "navigate" ]; then
-  printf '{ "success": true, "url": "https://example.com" }\n'
-  exit 0
-fi
-if [ "$cmd" = "js" ]; then
-  probe=\${2#*\\"}
-  probe=\${probe%%\\"*}
-  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
-  exit 0
-fi
-printf '%s\n' "$@"
-`,
-    { mode: 0o755 },
-  );
   writeFileSync(
     configPath,
     [
@@ -280,15 +268,23 @@ printf '%s\n' "$@"
     const result = runCli(
       ["test", "--config", configPath, "--target", "https://example.com", "--quick"],
       {
-        PATH: `${tempDir}${path.delimiter}${process.env.PATH ?? ""}`,
-        TEST_CAPABILITIES_SURF_GO_BIN: fakeSurfGo,
+        PATH: `${fake.binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        TEST_CAPABILITIES_SURF_BIN: fake.path,
       },
     );
 
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(`${result.stdout}\n${result.stderr}`, /Health:\s+pass/);
     assert.match(`${result.stdout}\n${result.stderr}`, /user=100%/);
+    assert.deepEqual(
+      fake
+        .calls()
+        .map((call) => call[0])
+        .filter((command) => !command.startsWith("--")),
+      ["tab.new", "wait.ready", "js", "js", "tab.close"],
+    );
   } finally {
+    fake.cleanup();
     rmSync(tempDir, { recursive: true, force: true });
   }
 });

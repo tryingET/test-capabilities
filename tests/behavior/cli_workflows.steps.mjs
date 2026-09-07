@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { After, Before, Given, setDefaultTimeout, Then, When } from "@cucumber/cucumber";
+import { createFakeSurf, readyPages } from "../helpers/fake-surf.mjs";
 
 setDefaultTimeout(20_000);
 
@@ -66,13 +67,13 @@ chaos:
   },
 );
 
-Given("a fake surf executable is on PATH that prints:", function (scriptBody) {
-  const binDir = path.join(this.cwd, "bin");
-  mkdirSync(binDir, { recursive: true });
-  const surfGoPath = path.join(binDir, "surf-go");
-  writeFileSync(surfGoPath, `#!/bin/sh\n${scriptBody.trim()}\n`, { mode: 0o755 });
-  this.env.PATH = `${binDir}${path.delimiter}${this.env.PATH ?? ""}`;
-  this.env.TEST_CAPABILITIES_SURF_GO_BIN = surfGoPath;
+Given("a fake surf executable is on PATH", function () {
+  const fake = createFakeSurf({
+    pages: readyPages({ "https://example.com/": { title: "Example Domain" } }),
+  });
+  this.fakeSurf = fake;
+  this.env.PATH = `${fake.binDir}${path.delimiter}${this.env.PATH ?? ""}`;
+  this.env.TEST_CAPABILITIES_SURF_BIN = fake.path;
 });
 
 When("I run the TEST-CAPABILITIES CLI with:", function (dataTable) {

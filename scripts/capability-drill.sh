@@ -127,7 +127,7 @@ usage() {
 Usage: bash ./scripts/capability-drill.sh [options]
 
 Options:
-  --surf-mode <auto|shim|real>  How to run the surf drill (default: auto)
+  --surf-mode <auto|shim|real>  How to run the surf drill (default: auto; real needs a surf CLI whose 'surf doctor' is OK)
   --skip-build                  Assume dist/ is already current
   --keep-temp                   Keep generated temp fixtures for inspection
   --json                        Emit machine-readable JSON instead of human logs
@@ -232,58 +232,53 @@ done
 server_port="$(tr -d '[:space:]' <"$tmpdir/server-port")"
 base_url="http://127.0.0.1:${server_port}"
 
+surf_bin=""
+if [[ -n "${TEST_CAPABILITIES_SURF_BIN:-}" && -x "${TEST_CAPABILITIES_SURF_BIN}" ]]; then
+  surf_bin="$TEST_CAPABILITIES_SURF_BIN"
+elif command -v surf >/dev/null 2>&1; then
+  surf_bin="$(command -v surf)"
+elif [[ -x "$HOME/.local/bin/surf" ]]; then
+  surf_bin="$HOME/.local/bin/surf"
+fi
+surf_browser="${TEST_CAPABILITIES_SURF_BROWSER:-chromium}"
+
+surf_doctor_ok() {
+  [[ -n "$surf_bin" ]] && "$surf_bin" doctor --browser "$surf_browser" >/dev/null 2>&1
+}
+
 case "$surf_mode" in
   auto)
-    if command -v surf-go >/dev/null 2>&1 || [[ -f "$repo_root/../../contrib/surf-cli-go/go/cmd/surf-go/main.go" ]]; then
+    if surf_doctor_ok; then
       surf_mode="real"
     else
       surf_mode="shim"
     fi
     ;;
   real)
-    if ! command -v surf-go >/dev/null 2>&1 && [[ ! -f "$repo_root/../../contrib/surf-cli-go/go/cmd/surf-go/main.go" ]]; then
-      die "surf setup" "surf_mode=real requested but neither 'surf-go' nor the workspace contrib surf-cli-go checkout is available"
+    if [[ -z "$surf_bin" ]]; then
+      die "surf setup" "surf_mode=real requested but no surf CLI is available (TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf)"
     fi
+    if ! surf_doctor_ok; then
+      die "surf setup" "surf_mode=real requested but '$surf_bin doctor --browser $surf_browser' reports issues; start the browser with the surf extension first"
+    fi
+    export TEST_CAPABILITIES_SURF_BIN="$surf_bin"
     ;;
   shim)
     ;;
 esac
 
 if [[ "$surf_mode" == "shim" ]]; then
-  mkdir -p "$tmpdir/shim-bin"
-  export TEST_CAPABILITIES_SURF_SHIM_STATE="$tmpdir/shim-surf-url"
-  cat >"$tmpdir/shim-bin/surf-go" <<'SH'
+  # Deterministic fake `surf` speaking the surf-cli branch CLI/JSON shapes (tests/fixtures/fake-surf.mjs).
+  mkdir -p "$tmpdir/shim-bin" "$tmpdir/shim-state"
+  node_bin="$(command -v node)"
+  cat >"$tmpdir/shim-bin/surf" <<SH
 #!/usr/bin/env bash
-set -euo pipefail
-cmd="${1-}"
-shift || true
-if [[ "$cmd" == "navigate" ]]; then
-  target_url=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --url)
-        target_url="${2-}"
-        shift 2
-        ;;
-      *)
-        shift
-        ;;
-    esac
-  done
-  printf '%s' "$target_url" >"${TEST_CAPABILITIES_SURF_SHIM_STATE:?}"
-  printf '{ "success": true, "url": "%s" }\n' "$target_url"
-  exit 0
-fi
-if [[ "$cmd" == "js" ]]; then
-  target_url="$(cat "${TEST_CAPABILITIES_SURF_SHIM_STATE:?}" 2>/dev/null || true)"
-  probe_id="$(printf '%s' "$*" | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -n 1)"
-  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "%s", "title": "surf-go shim page", "readyState": "complete" }\n' "$probe_id" "$target_url"
-  exit 0
-fi
-printf '%s\n' "$cmd" "$@"
+export FAKE_SURF_STATE_DIR='$tmpdir/shim-state'
+export FAKE_SURF_PAGES='{"$base_url/": {"title": "surf shim page", "links": []}}'
+exec '$node_bin' '$repo_root/tests/fixtures/fake-surf.mjs' "\$@"
 SH
-  chmod +x "$tmpdir/shim-bin/surf-go"
-  export TEST_CAPABILITIES_SURF_GO_BIN="$tmpdir/shim-bin/surf-go"
+  chmod +x "$tmpdir/shim-bin/surf"
+  export TEST_CAPABILITIES_SURF_BIN="$tmpdir/shim-bin/surf"
   export PATH="$tmpdir/shim-bin:$PATH"
 fi
 

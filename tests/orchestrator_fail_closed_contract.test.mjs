@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { TestCapabilitiesOrchestrator } = await importRuntimeModule("index.js");
@@ -19,42 +20,6 @@ function withFakeBombadil(script) {
       rmSync(dir, { recursive: true, force: true });
     },
   };
-}
-
-function withFakeSurfGo(script) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-surf-go-"));
-  const surfGoPath = path.join(dir, "surf-go");
-  writeFileSync(surfGoPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
-
-  return {
-    path: surfGoPath,
-    dir,
-    cleanup() {
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
-
-function withSurfGoEnv(binaryPath, callback) {
-  const previousBin = process.env.TEST_CAPABILITIES_SURF_GO_BIN;
-  const previousRepo = process.env.TEST_CAPABILITIES_SURF_GO_REPO;
-  process.env.TEST_CAPABILITIES_SURF_GO_BIN = binaryPath;
-  delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
-
-  return Promise.resolve()
-    .then(callback)
-    .finally(() => {
-      if (previousBin === undefined) {
-        delete process.env.TEST_CAPABILITIES_SURF_GO_BIN;
-      } else {
-        process.env.TEST_CAPABILITIES_SURF_GO_BIN = previousBin;
-      }
-      if (previousRepo === undefined) {
-        delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
-      } else {
-        process.env.TEST_CAPABILITIES_SURF_GO_REPO = previousRepo;
-      }
-    });
 }
 
 test("orchestrator rejects configs with no enabled agents", async () => {
@@ -541,23 +506,12 @@ test(
   "surf agent reports successful exploration as measured user-flow coverage",
   { concurrency: false },
   async () => {
-    const fake = withFakeSurfGo(`
-cmd="$1"
-if [ "$cmd" = "navigate" ]; then
-  printf '{ "success": true, "url": "https://example.com" }\n'
-  exit 0
-fi
-if [ "$cmd" = "js" ]; then
-  probe=\${2#*\\"}
-  probe=\${probe%%\\"*}
-  printf '{ "__testCapabilitiesSurfExploreProbe": "%s", "href": "https://example.com", "title": "Example Domain", "readyState": "complete" }\n' "$probe"
-  exit 0
-fi
-printf '%s\n' "$@"
-`);
+    const fake = createFakeSurf({
+      pages: readyPages({ "https://example.com/": { title: "Example Domain" } }),
+    });
 
     try {
-      await withSurfGoEnv(fake.path, async () => {
+      await withFakeSurfEnv(fake.path, async () => {
         const result = await new TestCapabilitiesOrchestrator({
           version: "2.0",
           name: "Surf Success",
@@ -599,7 +553,11 @@ test(
   "surf agent rejects empty successful processes as fake coverage",
   { concurrency: false },
   async () => {
-    await withSurfGoEnv("/bin/true", async () => {
+    const fake = createFakeSurf({
+      pages: readyPages({ "https://example.com/": {} }),
+      emptyOn: ["tab.new"],
+    });
+    await withFakeSurfEnv(fake.path, async () => {
       const result = await new TestCapabilitiesOrchestrator({
         version: "2.0",
         name: "Surf Empty Success",
@@ -638,7 +596,7 @@ test(
       );
       assert.equal(
         result.findings.some((finding) =>
-          finding.evidence.some((entry) => /produced no runtime evidence/.test(entry)),
+          finding.evidence.some((entry) => /did not report a tab id/.test(entry)),
         ),
         true,
       );
@@ -657,14 +615,17 @@ test(
         /predict|probability|horizon|future|will fail/i,
       );
     });
+    fake.cleanup();
   },
 );
 
 test("surf agent rejects non-browser stdout as fake coverage", { concurrency: false }, async () => {
-  const fake = withFakeSurfGo('echo surf-go fake "$@"');
+  const fake = createFakeSurf({
+    pages: readyPages({ "https://example.com/": { jsResult: "surf fake output" } }),
+  });
 
   try {
-    await withSurfGoEnv(fake.path, async () => {
+    await withFakeSurfEnv(fake.path, async () => {
       const result = await new TestCapabilitiesOrchestrator({
         version: "2.0",
         name: "Surf Non Evidence",
@@ -704,10 +665,13 @@ test(
   "surf agent surfaces runtime failures as critical findings",
   { concurrency: false },
   async () => {
-    const fake = withFakeSurfGo("echo surf-go exploded >&2\nexit 9");
+    const fake = createFakeSurf({
+      pages: readyPages({ "https://example.com/": {} }),
+      failOn: ["tab.new"],
+    });
 
     try {
-      await withSurfGoEnv(fake.path, async () => {
+      await withFakeSurfEnv(fake.path, async () => {
         const result = await new TestCapabilitiesOrchestrator({
           version: "2.0",
           name: "Surf Failure",
@@ -739,7 +703,7 @@ test(
         );
         assert.equal(
           result.findings.some((finding) =>
-            finding.evidence.some((entry) => /surf-go exploded/.test(entry)),
+            finding.evidence.some((entry) => /surf exploded/.test(entry)),
           ),
           true,
         );

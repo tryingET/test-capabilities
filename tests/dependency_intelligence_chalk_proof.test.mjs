@@ -19,8 +19,7 @@ function runDoctor(extraEnv = {}) {
     encoding: "utf8",
     env: runtimeEnv({
       PATH: path.dirname(process.execPath),
-      TEST_CAPABILITIES_SURF_GO_BIN: "",
-      TEST_CAPABILITIES_SURF_GO_REPO: "",
+      TEST_CAPABILITIES_SURF_BIN: "",
       TEST_CAPABILITIES_BOMBADIL_BIN: "",
       TEST_CAPABILITIES_BOMBADIL_REPO: "",
       ...extraEnv,
