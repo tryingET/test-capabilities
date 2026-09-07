@@ -9,15 +9,14 @@
  * runtime import graph stays acyclic.
  */
 
-import { spawn } from "node:child_process";
-import process from "node:process";
+import { invokeAdapter } from "../../adapter.js";
 import { runBombadil, runBombadilTerminalTest } from "../../bombadil-runtime.js";
+import { cliAdapter } from "../../cli-adapter.js";
 import type { BombadilOptions, BombadilTerminalOptions, Target } from "../../config.js";
 import type { CoverageReport, Finding, Observation } from "../../orchestrator.js";
 import { executeSurfExploreOperation } from "../surf-explore-operation.js";
 
 export const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
-const MAX_CLI_TESTER_OUTPUT_CHARS = 64_000;
 
 export interface AgentResult {
   findings: Finding[];
@@ -28,82 +27,6 @@ export interface AgentResult {
 
 export interface TestAgent {
   execute(targets: Target): Promise<AgentResult>;
-}
-
-function appendCappedProcessOutput(current: string, chunk: string): string {
-  if (current.length >= MAX_CLI_TESTER_OUTPUT_CHARS) {
-    return current;
-  }
-
-  const remaining = MAX_CLI_TESTER_OUTPUT_CHARS - current.length;
-  if (chunk.length <= remaining) {
-    return current + chunk;
-  }
-
-  return `${current}${chunk.slice(0, remaining)}\n[output truncated after ${MAX_CLI_TESTER_OUTPUT_CHARS} characters]`;
-}
-
-function parseCommandLine(commandLine: string): { command: string; args: string[] } {
-  const tokens: string[] = [];
-  let current = "";
-  let quote: '"' | "'" | null = null;
-  let escaping = false;
-
-  for (const char of commandLine) {
-    if (escaping) {
-      current += char;
-      escaping = false;
-      continue;
-    }
-
-    if (char === "\\") {
-      escaping = true;
-      continue;
-    }
-
-    if (quote) {
-      if (char === quote) {
-        quote = null;
-      } else {
-        current += char;
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (current.length > 0) {
-        tokens.push(current);
-        current = "";
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (quote) {
-    throw new Error(`Unterminated quote in command: ${commandLine}`);
-  }
-
-  if (escaping) {
-    current += "\\";
-  }
-
-  if (current.length > 0) {
-    tokens.push(current);
-  }
-
-  const [command, ...args] = tokens;
-  if (!command) {
-    throw new Error("CLI target command is empty.");
-  }
-
-  return { command, args };
 }
 
 function summarizeBombadilEvidence(
@@ -424,14 +347,22 @@ export class CliTesterAgent implements TestAgent {
     let commandDisplay = `${targets.cli} --help`;
 
     try {
-      const parsedCommand = parseCommandLine(targets.cli);
-      commandDisplay = [parsedCommand.command, ...parsedCommand.args, "--help"].join(" ");
-      const result = await this.runCommand(
-        parsedCommand.command,
-        [...parsedCommand.args, "--help"],
-        this.timeoutMs,
-      );
-      if (result.timedOut || result.code !== 0) {
+      // The kernel boundary: translation, effect declaration and the spawn transport all live
+      // in the adapter, so this step list never touches a process (adjudication claims 2, 21).
+      const { raw, invocation } = await invokeAdapter(cliAdapter, {
+        id: `${this.agentName}.help`,
+        command: targets.cli,
+        args: ["--help"],
+        timeoutMs: this.timeoutMs,
+        subject: targets.cli,
+      });
+      commandDisplay = invocation.display.join(" ");
+
+      if (raw.spawnFailure) {
+        return this.spawnFailure(targets.cli, commandDisplay, raw.spawnFailure);
+      }
+
+      if (raw.timedOut || raw.exitCode !== 0) {
         return {
           findings: [
             {
@@ -441,9 +372,9 @@ export class CliTesterAgent implements TestAgent {
               component: "cli",
               description: `CLI smoke command failed: ${commandDisplay}`,
               evidence: [
-                result.timedOut
-                  ? `timed out after ${this.timeoutMs}ms${result.signal ? ` (${result.signal})` : ""}`
-                  : result.stderr || result.stdout || `exit code ${result.code}`,
+                raw.timedOut
+                  ? `timed out after ${this.timeoutMs}ms${raw.signal ? ` (${raw.signal})` : ""}`
+                  : raw.stderr.trim() || raw.stdout.trim() || `exit code ${raw.exitCode}`,
               ],
               recommendation: `Ensure '${targets.cli}' is executable and '--help' exits successfully.`,
               timestamp: new Date(),
@@ -458,103 +389,30 @@ export class CliTesterAgent implements TestAgent {
         coverage: { edgeCases: 100 },
       };
     } catch (error) {
-      return {
-        findings: [
-          {
-            id: `${this.agentName}-spawn-failed`,
-            type: "bug",
-            severity: "critical",
-            component: "cli",
-            description: `CLI smoke command could not be executed: ${commandDisplay}`,
-            evidence: [error instanceof Error ? error.message : String(error)],
-            recommendation: `Ensure '${targets.cli}' exists and is executable in the current environment.`,
-            timestamp: new Date(),
-          },
-        ],
-        coverage: { edgeCases: 0 },
-      };
+      return this.spawnFailure(
+        targets.cli,
+        commandDisplay,
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
-  private async runCommand(
-    command: string,
-    args: string[],
-    timeoutMs: number,
-  ): Promise<{
-    code: number | null;
-    signal: NodeJS.Signals | null;
-    stdout: string;
-    stderr: string;
-    timedOut: boolean;
-  }> {
-    return new Promise((resolve, reject) => {
-      const proc = spawn(command, args, {
-        shell: false,
-        detached: process.platform !== "win32",
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      const killProcessTree = (signal: NodeJS.Signals): void => {
-        try {
-          if (process.platform !== "win32" && typeof proc.pid === "number") {
-            process.kill(-proc.pid, signal);
-            return;
-          }
-
-          proc.kill(signal);
-        } catch (error) {
-          if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") {
-            throw error;
-          }
-        }
-      };
-
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-      let closed = false;
-      const forceKillGraceMs = 1_000;
-      let forceKillTimer: NodeJS.Timeout | undefined;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        killProcessTree("SIGTERM");
-        forceKillTimer = setTimeout(() => {
-          if (!closed) {
-            killProcessTree("SIGKILL");
-          }
-        }, forceKillGraceMs);
-      }, timeoutMs);
-
-      proc.stdout.on("data", (data) => {
-        stdout = appendCappedProcessOutput(stdout, String(data));
-      });
-      proc.stderr.on("data", (data) => {
-        stderr = appendCappedProcessOutput(stderr, String(data));
-      });
-
-      proc.on("close", (code, signal) => {
-        closed = true;
-        clearTimeout(timer);
-        if (forceKillTimer) {
-          clearTimeout(forceKillTimer);
-        }
-        resolve({
-          code,
-          signal,
-          stdout: stdout.trim(),
-          stderr: stderr.trim(),
-          timedOut,
-        });
-      });
-
-      proc.on("error", (error) => {
-        closed = true;
-        clearTimeout(timer);
-        if (forceKillTimer) {
-          clearTimeout(forceKillTimer);
-        }
-        reject(error);
-      });
-    });
+  /** A command that never ran is a framework/environment fault, never target evidence. */
+  private spawnFailure(target: string, commandDisplay: string, message: string): AgentResult {
+    return {
+      findings: [
+        {
+          id: `${this.agentName}-spawn-failed`,
+          type: "bug",
+          severity: "critical",
+          component: "cli",
+          description: `CLI smoke command could not be executed: ${commandDisplay}`,
+          evidence: [message],
+          recommendation: `Ensure '${target}' exists and is executable in the current environment.`,
+          timestamp: new Date(),
+        },
+      ],
+      coverage: { edgeCases: 0 },
+    };
   }
 }

@@ -4,11 +4,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
+import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
   describeSurfRuntime,
-  probeSurfRuntime,
   resolveSurfRuntimeResolution,
-  runSurfCommand,
   SURF_MECHANISM_COMMANDS,
   type SurfCommandResult,
 } from "../surf-runtime.js";

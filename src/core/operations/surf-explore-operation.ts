@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
   assertSurfExploreMechanisms,
   isSurfReadinessErrorCode,
   parseCreatedTabId,
   parseSurfJsonOutput,
-  probeSurfRuntime,
   resolveSurfRuntimeResolution,
-  runSurfCommand,
   SurfCommandError,
   type SurfCommandResult,
   type SurfRuntimeProbe,

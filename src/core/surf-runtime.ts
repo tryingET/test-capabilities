@@ -8,7 +8,6 @@
  * silently kept mapping could never be verified again.
  */
 
-import { spawnSync } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -216,7 +215,7 @@ export function resolveSurfRuntimeResolution(
 // PROCESS EXECUTION AND OUTPUT PARSING
 // ============================================
 
-const DEFAULT_SURF_TIMEOUT_MS = 90_000;
+export const DEFAULT_SURF_TIMEOUT_MS = 90_000;
 
 function looksLikeJsonStart(value: string): boolean {
   return /^(?:\{|\[|"|-?\d|true\b|false\b|null\b)/.test(value);
@@ -338,56 +337,6 @@ export function parseSurfErrorOutput(
   };
 }
 
-export function runSurfCommand(
-  resolution: SurfRuntimeResolution,
-  argv: string[],
-  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
-): SurfCommandResult {
-  const args = [...resolution.baseArgs, ...argv];
-  const commandDisplay = [resolution.command, ...args];
-  const timeoutMs = options.timeoutMs ?? DEFAULT_SURF_TIMEOUT_MS;
-  const result = spawnSync(resolution.command, args, {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: timeoutMs,
-    env: options.env ?? process.env,
-  });
-
-  const stdout = (result.stdout as string | null) ?? "";
-  const stderr = (result.stderr as string | null) ?? "";
-
-  if (result.error) {
-    const error = result.error as NodeJS.ErrnoException;
-    const timedOut = error.code === "ETIMEDOUT";
-    return {
-      ok: false,
-      code: result.status,
-      stdout,
-      stderr,
-      commandDisplay,
-      failure: {
-        code: timedOut ? "timeout" : "spawn_failed",
-        message: timedOut
-          ? `${commandDisplay.join(" ")} timed out after ${timeoutMs}ms`
-          : `Failed to run ${commandDisplay.join(" ")}: ${error.message}`,
-      },
-    };
-  }
-
-  if (result.status !== 0) {
-    return {
-      ok: false,
-      code: result.status,
-      stdout,
-      stderr,
-      commandDisplay,
-      failure: parseSurfErrorOutput(stdout, stderr, result.status, commandDisplay),
-    };
-  }
-
-  return { ok: true, code: 0, stdout, stderr, commandDisplay };
-}
-
 /** `tab.new` answers with the text "Created tab <id>: <url>" even under `--json`. */
 export function parseCreatedTabId(output: string): number | undefined {
   const parsed = tryParseSurfJson(output);
@@ -414,71 +363,6 @@ export function parseCreatedTabId(output: string): number | undefined {
 // ============================================
 // VERSION AND MECHANISM PROBE
 // ============================================
-
-const probeCache = new Map<string, SurfRuntimeProbe>();
-
-export function resetSurfRuntimeProbeCache(): void {
-  probeCache.clear();
-}
-
-function helpListsCommand(helpText: string, command: string): boolean {
-  const escaped = command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^\\s*${escaped}(?:\\s|$)`, "m").test(helpText);
-}
-
-export function probeSurfRuntime(
-  resolution: SurfRuntimeResolution,
-  options: { cache?: boolean; env?: NodeJS.ProcessEnv } = {},
-): SurfRuntimeProbe {
-  const useCache = options.cache ?? true;
-  const cached = useCache ? probeCache.get(resolution.command) : undefined;
-  if (cached) {
-    return cached;
-  }
-
-  const version = runSurfCommand(resolution, ["--version"], {
-    timeoutMs: 15_000,
-    env: options.env,
-  });
-  if (!version.ok) {
-    throw new Error(
-      `surf at ${resolution.command} did not answer --version: ${version.failure?.message ?? "unknown failure"}`,
-    );
-  }
-
-  const help = runSurfCommand(resolution, ["--help-full"], {
-    timeoutMs: 15_000,
-    env: options.env,
-  });
-  if (!help.ok) {
-    throw new Error(
-      `surf at ${resolution.command} did not answer --help-full: ${help.failure?.message ?? "unknown failure"}`,
-    );
-  }
-
-  const versionOutput = version.stdout.trim();
-  const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
-  const mechanisms = Object.fromEntries(
-    Object.entries(SURF_MECHANISM_COMMANDS).map(([key, command]) => [
-      key,
-      helpListsCommand(help.stdout, command),
-    ]),
-  ) as Record<SurfMechanism, boolean>;
-
-  const probe: SurfRuntimeProbe = {
-    version: versionMatch?.[1],
-    versionOutput,
-    mechanisms,
-    missingExploreMechanisms: SURF_EXPLORE_REQUIRED_MECHANISMS.filter(
-      (mechanism) => !mechanisms[mechanism],
-    ).map((mechanism) => SURF_MECHANISM_COMMANDS[mechanism]),
-  };
-
-  if (useCache) {
-    probeCache.set(resolution.command, probe);
-  }
-  return probe;
-}
 
 export function describeSurfRuntime(
   resolution: SurfRuntimeResolution,

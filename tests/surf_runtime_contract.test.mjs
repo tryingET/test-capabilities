@@ -11,11 +11,11 @@ const {
   parseCreatedTabId,
   parseSurfErrorOutput,
   parseSurfJsonOutput,
-  probeSurfRuntime,
   resolveSurfRuntimeCommand,
   resolveSurfRuntimeResolution,
   translateSurfArgs,
 } = await importRuntimeModule("core/surf-runtime.js");
+const { probeSurfRuntime } = await importRuntimeModule("core/surf-adapter.js");
 
 function withTempDir() {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-surf-runtime-"));

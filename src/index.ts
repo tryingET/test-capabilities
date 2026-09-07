@@ -105,6 +105,7 @@ export {
   REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
   ReplacementValidationRequestSchema,
 } from "./core/replacement-validation.js";
+export { probeSurfRuntime, runSurfCommand } from "./core/surf-adapter.js";
 export type {
   SurfCommandFailure,
   SurfCommandResult,
@@ -121,10 +122,8 @@ export {
   parseCreatedTabId,
   parseSurfErrorOutput,
   parseSurfJsonOutput,
-  probeSurfRuntime,
   resolveSurfRuntimeCommand,
   resolveSurfRuntimeResolution,
-  runSurfCommand,
   SURF_MECHANISM_COMMANDS,
   SURF_READINESS_ERROR_CODES,
   SurfCommandError,

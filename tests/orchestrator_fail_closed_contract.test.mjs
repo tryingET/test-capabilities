@@ -9,13 +9,18 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { TestCapabilitiesOrchestrator } = await importRuntimeModule("index.js");
 
+// The fake writes the trace file it announces, exactly as Bombadil does: the trace is the typed
+// evidence the runtime reads for the run status (adjudication claim 46), so a fake that only
+// prints the line would not speak the tool's contract.
 function withFakeBombadil(script) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-"));
   const bombadilPath = path.join(dir, "bombadil");
-  writeFileSync(bombadilPath, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+  const tracePath = path.join(dir, "trace.jsonl");
+  writeFileSync(bombadilPath, `#!/bin/sh\nTRACE_PATH=${tracePath}\n${script}\n`, { mode: 0o755 });
 
   return {
     path: bombadilPath,
+    tracePath,
     cleanup() {
       rmSync(dir, { recursive: true, force: true });
     },
@@ -317,7 +322,8 @@ test(
   async () => {
     const fake = withFakeBombadil(`
       echo 'using default specification' >&2
-      echo 'storing trace in /tmp/fake-bombadil-trace' >&2
+      echo '{}' > "$TRACE_PATH"
+      echo "storing trace in $TRACE_PATH" >&2
       trap '' TERM
       sleep 30
     `);
@@ -373,7 +379,8 @@ test(
   async () => {
     const fake = withFakeBombadil(`
       echo 'using default specification' >&2
-      echo 'storing trace in /tmp/fake-bombadil-trace' >&2
+      echo '{}' > "$TRACE_PATH"
+      echo "storing trace in $TRACE_PATH" >&2
       echo 'violation: invariant failed' >&2
       exit 2
     `);
@@ -419,7 +426,7 @@ test(
       );
       assert.equal(
         result.findings.some((finding) =>
-          finding.evidence.some((entry) => /trace: \/tmp\/fake-bombadil-trace/.test(entry)),
+          finding.evidence.some((entry) => entry === `trace: ${fake.tracePath}`),
         ),
         true,
       );
