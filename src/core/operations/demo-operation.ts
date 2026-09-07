@@ -3,6 +3,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { TestCapabilitiesConfig } from "../config.js";
+import { countOutcomeBases, countOutcomeClasses } from "../determination.js";
 import type { TestResult } from "../orchestrator.js";
 import { TestCapabilitiesOrchestrator } from "../orchestrator.js";
 import type {
@@ -28,10 +29,16 @@ function resolvePackageRoot(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 function summarizeTestResult(result: TestResult): TestOperationSummary {
+  const outcomes = result.outcomes;
   return {
+    // `pass` is `determination.value === "verified"` and nothing else: a run that produced no
+    // evidence either way is not a pass (operator decision D3).
     health: result.passed ? "pass" : "fail",
+    determination: result.determination,
     findings: result.findings.length,
     coverage: result.coverage,
+    outcomes: countOutcomeClasses(outcomes),
+    bases: countOutcomeBases(outcomes),
     predictions: result.predictions?.length ?? 0,
     quantumUniverses: result.quantumInsights?.universesSimulated,
   };

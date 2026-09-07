@@ -810,6 +810,46 @@ interface ResultOutcome {
 }
 ```
 
+### `Determination`
+
+The run verdict, next to `passed` (adjudication claim 7, operator decision D3). `passed` is
+`determination.value === "verified"` and nothing else, so the third state - a run that produced
+no evidence either way - reaches the top level instead of being folded into `false`. Exit codes
+stay 0/1: `unverified` and `indeterminate` map to 1.
+
+```typescript
+type DeterminationValue = 'verified' | 'failed' | 'unverified' | 'indeterminate';
+
+interface Determination {
+  value: DeterminationValue;
+  basis: OutcomeBasis;            // the axis the value rests on
+  candidates: DeterminationValue[];  // the values the evidence could still support, worst first
+  reason: string;                 // the classified steps, blocking findings, coverage, declarations
+}
+
+determineRun(outcomes: ResultOutcome[], context?: {
+  expectations?: ExpectDeclaration[];
+  blockingFindings?: number;      // high/critical findings whose basis is `fault` or absent
+  coverage?: number;              // coverage.overall
+}): Determination
+```
+
+| Value | Reached when | Meaning |
+|-------|--------------|---------|
+| `failed` | any step basis `fault`, or a blocking finding | the run obtained evidence of a fault |
+| `indeterminate` | any step basis `indeterminate` | a step that may have changed the target never reported an outcome |
+| `unverified` | any step basis `no_evidence` or `contradiction`, or no measured coverage | the run obtained no evidence either way; not a claim about the target |
+| `verified` | at least one step basis `evidence`, nothing blocking, coverage above zero | the run obtained evidence that the target works |
+
+Precedence is `failed` > `indeterminate` > `unverified` > `verified`: a proven fault is evidence,
+and folding it into "nothing is known" would delete a fact rather than claim less. A finding
+whose outcome basis is not `fault` never counts as blocking, so an undeclared empty payload is
+`unverified` and never renders as a target failure.
+
+`TestResult` gains `determination` and `outcomes` (every classified step, in agent order), and
+`TestOperationSummary` gains `determination` plus the `outcomes` and `bases` counts with every
+key of the closed sets present.
+
 ### `ExpectDeclaration`
 
 The declaration that makes an empty payload acceptable. The keys are the config keys of

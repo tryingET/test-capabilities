@@ -2,7 +2,9 @@ import type { ZodType, ZodTypeDef } from "zod";
 import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
 import type { TestCapabilitiesConfig } from "../config.js";
+import type { Determination } from "../determination.js";
 import type { CoverageReport, TestResult } from "../orchestrator.js";
+import type { OutcomeBasis, OutcomeClass, ResultOutcome } from "../result-classification.js";
 
 export type OperationStatus = "implemented" | "unsupported";
 export type CliCommand =
@@ -137,8 +139,14 @@ export interface DoctorCheck {
 
 export interface TestOperationSummary {
   health: "pass" | "fail";
+  /** the run verdict with its basis; `health` is `pass` only for `verified` (D3) */
+  determination: Determination;
   findings: number;
   coverage: CoverageReport;
+  /** how many classified steps landed in each outcome class, zeros included */
+  outcomes: Record<OutcomeClass, number>;
+  /** how many classified steps landed on each basis, zeros included */
+  bases: Record<OutcomeBasis, number>;
   predictions: number;
   quantumUniverses?: number;
 }
@@ -230,6 +238,12 @@ export interface SurfExploreProbeResult {
   signal?: string;
   error?: string;
   code?: string;
+  /**
+   * The classified outcome of the surf command behind this probe (slice S4). `basis` is the
+   * attribution axis: `fault` is a target or transport failure, `no_evidence` is an empty
+   * payload nothing declared acceptable, and `evidence` is the only basis a verified probe has.
+   */
+  outcome?: ResultOutcome;
 }
 
 export interface SurfExplorePageResult {

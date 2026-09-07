@@ -24,6 +24,19 @@ export type {
 } from "./core/config.js";
 export { AgentConfigSchema, TargetSchema, TestCapabilitiesConfigSchema } from "./core/config.js";
 export type {
+  Determination,
+  DeterminationContext,
+  DeterminationValue,
+} from "./core/determination.js";
+export {
+  countOutcomeBases,
+  countOutcomeClasses,
+  DETERMINATION_VALUES,
+  determineRun,
+  outcomeEvidenceLines,
+  worstOutcome,
+} from "./core/determination.js";
+export type {
   CliCommand,
   CliOperationResult,
   CliRoute,

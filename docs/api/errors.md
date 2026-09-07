@@ -69,6 +69,8 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `invalid_route_payload` | A CLI route object reached the kernel without a usable command |
 | `config_invalid` | A config file or CLI input failed its schema; `details.issues` lists path and message |
 | `config_not_found` | `--config` (or the default path) names a file that does not exist |
+| `page_not_ready` | `surf explore` reached a page state it cannot probe (and no empty marker declared that state acceptable) |
+| `probe_unverified` | A `surf explore` probe produced no verified browser evidence, so no user-flow coverage may be claimed from it |
 | `unclassified_error` | The framework raised an error the registry does not name yet. It is never a verdict about the target |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:

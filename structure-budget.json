@@ -2,18 +2,19 @@
   "schema_version": 1,
   "default_max_lines": 700,
   "exceptions": {
-    "src/core/orchestrator.ts": 1538,
+    "src/core/orchestrator.ts": 1622,
     "src/core/surf-runtime.ts": 813,
-    "src/core/operations/surf-explore-operation.ts": 842,
+    "src/core/operations/surf-explore-operation.ts": 901,
     "src/healing/self-healing.ts": 821
   },
   "allowed_cycles": [],
   "pure_ring": [
-    "src/core/config.ts",
     "src/core/capability-matrix.ts",
+    "src/core/config.ts",
+    "src/core/determination.ts",
+    "src/core/error-codes.ts",
     "src/core/result-classification.ts",
     "src/core/result-payload.ts",
-    "src/core/error-codes.ts",
     "src/core/runtime-contract.ts"
   ],
   "ledger": [
@@ -51,6 +52,20 @@
       "to": 842,
       "reason": "one line: the `json` option on the explore input schema, so `surf explore --json` can print the operation envelope and, on failure, the {\"error\": {code, message, details}} envelope with exit 1 (slice S3 commit (3), result-classification packet 'Error codes'). Scheduled shrink: S6 turns explore into a step list over Session.",
       "ref": "20ae922"
+    },
+    {
+      "file": "src/core/orchestrator.ts",
+      "from": 1538,
+      "to": 1622,
+      "reason": "slice S4 commit (1): TestResult.determination and TestResult.outcomes next to passed (adjudication claim 7, operator decision D3), Finding.outcome and Observation.outcome, the blocking-finding rule that keeps a no_evidence finding out of failed, the correlation's inherited outcome, and the typed outcome:/basis: lines in normalizeKnownAgentResult. The pure outcome helpers live in src/core/determination.ts instead, which is why the growth is 84 lines and not 120. Scheduled shrink: correlation, root cause and propagation move to a diagnosis consumer (architecture adjudication Part 4).",
+      "ref": "9f6a46c"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 842,
+      "to": 901,
+      "reason": "slice S4 commits (1) and (3): the readiness refusal and the seed-probe refusal become FrameworkErrors carrying surf's own code and the classified outcome, so a page_login refusal and a runtime that never started stop rendering identically (adjudication claim 45); probes carry their outcome; the links emptiness declaration replaces the bare --allow-empty. Scheduled shrink: S6 turns explore into a step list over Session.",
+      "ref": "9f6a46c"
     }
   ]
 }

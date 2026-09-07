@@ -14,7 +14,8 @@ import { runBombadil, runBombadilTerminalTest } from "../../bombadil-runtime.js"
 import { cliAdapter } from "../../cli-adapter.js";
 import type { BombadilOptions, BombadilTerminalOptions, Target } from "../../config.js";
 import type { CoverageReport, Finding, Observation } from "../../orchestrator.js";
-import { executeSurfExploreOperation } from "../surf-explore-operation.js";
+import type { ExpectDeclaration, ResultOutcome } from "../../result-classification.js";
+import { executeSurfExploreOperation, outcomeFromError } from "../surf-explore-operation.js";
 
 export const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
 
@@ -23,6 +24,14 @@ export interface AgentResult {
   coverage: Partial<CoverageReport>;
   observations?: Observation[];
   observationSubject?: string;
+  /**
+   * Every step this agent classified. The run determination is computed over these
+   * (`determineRun`), so an agent that produces none is reported from the legacy signal
+   * (blocking findings and measured coverage) instead of being called unverified.
+   */
+  outcomes?: ResultOutcome[];
+  /** the declarations that were in force for those steps; named in the determination's reason */
+  expectations?: ExpectDeclaration[];
 }
 
 export interface TestAgent {
@@ -290,26 +299,143 @@ export class SurfAgent implements TestAgent {
       return {
         findings: [],
         coverage: { userFlows: envelope.result.coverage.userFlows },
+        outcomes: exploreOutcomes(envelope),
       };
     } catch (error) {
-      return {
-        findings: [
-          {
-            id: `${this.agentName}-runtime-failed`,
-            type: "bug",
-            severity: "critical",
-            component: "web",
-            description: `Surf runtime could not complete against ${targets.web}`,
-            evidence: [error instanceof Error ? error.message : String(error)],
-            recommendation:
-              "Ensure the surf CLI (nicobailon/surf-cli with wait.ready and extract) is resolvable through TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, and that the browser with the surf extension is running (surf doctor), then re-run the suite.",
-            timestamp: new Date(),
-          },
-        ],
-        coverage: { userFlows: 0 },
-      };
+      return this.refusal(targets.web, error);
     }
   }
+
+  /**
+   * One explore refusal, attributed from its classified outcome.
+   *
+   * Before slice S4 every error - a readiness refusal, a spawn failure, an empty payload -
+   * became the same critical "Surf runtime could not complete" finding, so a page that asked
+   * for a login and a surf binary that does not exist rendered identically (adjudication claim
+   * 45). The basis axis decides the attribution now, and the code names what happened.
+   */
+  private refusal(url: string, error: unknown): AgentResult {
+    const message = error instanceof Error ? error.message : String(error);
+    const outcome = outcomeFromError(error);
+    const shape = describeSurfRefusal(url, outcome);
+    return {
+      findings: [
+        {
+          id: `${this.agentName}-${shape.id}`,
+          type: "bug",
+          severity: shape.severity,
+          component: "web",
+          description: shape.description,
+          evidence: outcome ? [...outcome.evidence, message] : [message],
+          recommendation: shape.recommendation,
+          timestamp: new Date(),
+          ...(outcome ? { outcome } : {}),
+        },
+      ],
+      coverage: { userFlows: 0 },
+      ...(outcome ? { outcomes: [outcome] } : {}),
+    };
+  }
+}
+
+/** The classified outcome of every probe the explore run made, in page and probe order. */
+function exploreOutcomes(
+  envelope: Awaited<ReturnType<typeof executeSurfExploreOperation>>,
+): ResultOutcome[] {
+  return envelope.result.pages
+    .flatMap((page) => page.probes)
+    .map((probe) => probe.outcome)
+    .filter((outcome): outcome is ResultOutcome => outcome !== undefined);
+}
+
+/** surf's own readiness vocabulary: the page answered, and it answered with a refusal. */
+const SURF_PAGE_REFUSAL_CODES = new Set([
+  "page_login",
+  "page_challenge",
+  "page_not_found",
+  "page_error",
+  "page_timeout",
+  "page_not_ready",
+]);
+
+interface SurfRefusalShape {
+  id: string;
+  severity: Finding["severity"];
+  description: string;
+  recommendation: string;
+}
+
+const SURF_RUNTIME_RECOMMENDATION =
+  "Ensure the surf CLI (nicobailon/surf-cli with wait.ready and extract) is resolvable through TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, and that the browser with the surf extension is running (surf doctor), then re-run the suite.";
+
+function describeSurfRefusal(url: string, outcome: ResultOutcome | undefined): SurfRefusalShape {
+  if (outcome === undefined) {
+    // Legacy path: a framework-side refusal (a probe without browser evidence, an owned tab
+    // that reported no id) has no classified outcome and keeps the pre-S4 wording.
+    return {
+      id: "runtime-failed",
+      severity: "critical",
+      description: `Surf runtime could not complete against ${url}`,
+      recommendation: SURF_RUNTIME_RECOMMENDATION,
+    };
+  }
+
+  if (outcome.basis === "no_evidence") {
+    return {
+      id: "no-evidence",
+      severity: "critical",
+      description: `Surf produced no browser evidence for ${url} [${outcome.code}]`,
+      recommendation:
+        "This is the absence of evidence, not a fault in the target: the command exited successfully with an empty payload. Check that the page returns content for the probe, or declare the emptiness with expect.output: empty on this agent.",
+    };
+  }
+
+  if (outcome.basis === "contradiction") {
+    return {
+      id: "unclassifiable",
+      severity: "critical",
+      description: `Surf answered ${url} with a reply the result contract cannot classify [${outcome.code}]`,
+      recommendation:
+        "The reply contradicts itself (for example a success payload carrying an error field). Nothing downstream may reinterpret it; capture the raw output and fix the producer.",
+    };
+  }
+
+  if (outcome.basis === "indeterminate") {
+    return {
+      id: "outcome-unknown",
+      severity: "critical",
+      description: `Surf could not report an outcome for ${url} [${outcome.code}]`,
+      recommendation:
+        "A step that may have changed the target never reported a result, so nothing about the target is known. Inspect the page by hand before re-running.",
+    };
+  }
+
+  if (outcome.class === "spawn_failed" || outcome.class === "timeout") {
+    return {
+      id: "runtime-failed",
+      severity: "critical",
+      description: `Surf runtime could not be executed against ${url} [${outcome.code}]`,
+      recommendation: SURF_RUNTIME_RECOMMENDATION,
+    };
+  }
+
+  if (SURF_PAGE_REFUSAL_CODES.has(outcome.code)) {
+    return {
+      id: `page-${outcome.code}`,
+      severity: "high",
+      description: `Surf could not reach a settled page state on ${url} [${outcome.code}]`,
+      recommendation:
+        "The surf runtime worked and the page refused it: the page asked for a login, a challenge, or never settled. Point targets.web at a page the framework may read without credentials, or open the flow by hand first; do not treat this as a broken build.",
+    };
+  }
+
+  return {
+    id: "command-failed",
+    severity: "critical",
+    description: `Surf reported a failure while exploring ${url} [${outcome.code}]`,
+    recommendation:
+      "Read the outcome and transport lines in the evidence: the surf command ran and returned an error. Fix the target or the command before relying on browser coverage.",
+  };
 }
 
 export class CliTesterAgent implements TestAgent {

@@ -701,24 +701,126 @@ test(
         }).run();
 
         assert.equal(result.passed, false);
+        assert.equal(result.determination.value, "failed");
+        assert.equal(result.determination.basis, "fault");
         assert.equal(result.coverage.overall, 0);
+        // The surf command ran and reported a failure: the finding names the classified code
+        // and carries the outcome, so it is not the same shape as a runtime that never started
+        // (adjudication claim 45).
+        const failed = result.findings.find((finding) =>
+          /Surf reported a failure while exploring/.test(finding.description),
+        );
+        assert.ok(failed, "expected a classified surf command failure finding");
+        assert.match(failed.description, /\[exit_9\]/);
+        assert.equal(failed.outcome.basis, "fault");
+        assert.equal(failed.outcome.class, "error");
+        assert.equal(failed.outcome.code, "exit_9");
         assert.equal(
-          result.findings.some((finding) =>
-            /Surf runtime could not complete/.test(finding.description),
-          ),
+          failed.evidence.some((entry) => /surf exploded/.test(entry)),
           true,
         );
-        assert.equal(
-          result.findings.some((finding) =>
-            finding.evidence.some((entry) => /surf exploded/.test(entry)),
-          ),
-          true,
-        );
+        assert.equal(failed.evidence[0], "outcome:error:exit_9");
+        assert.equal(failed.evidence[1], "basis:fault");
         assert.equal(
           result.observations.some((observation) => observation.kind === "root_cause"),
           false,
         );
       });
+    } finally {
+      fake.cleanup();
+    }
+  },
+);
+
+/** One surf agent run against a fake surf, returning the whole TestResult. */
+async function runSurfAgent(name, surfPath, url = "https://example.com") {
+  return withFakeSurfEnv(surfPath, async () =>
+    new TestCapabilitiesOrchestrator({
+      version: "2.0",
+      name,
+      targets: { web: url },
+      agents: { web: { enabled: true, type: "surf", intensity: "normal" } },
+      intelligence: {
+        selfHealing: false,
+        prediction: false,
+        correlation: true,
+        collective: false,
+      },
+      quantum: { enabled: false },
+      chaos: { enabled: false },
+    }).run(),
+  );
+}
+
+test(
+  "a page readiness refusal and a surf runtime that never started are distinguishable findings",
+  { concurrency: false },
+  async () => {
+    // The page answered and refused: surf's own readiness code reaches the finding.
+    const login = createFakeSurf({
+      pages: readyPages({
+        "https://example.com/": { readiness: "login", evidence: ["login form detected"] },
+      }),
+    });
+    // A surf binary that is searchable but cannot be executed: the process never started.
+    const unstartable = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-surf-dir-"));
+
+    try {
+      const refused = await runSurfAgent("Surf Login Refusal", login.path);
+      const neverRan = await runSurfAgent("Surf Spawn Failure", unstartable);
+
+      const refusal = refused.findings.find((finding) => finding.outcome !== undefined);
+      const spawnFailure = neverRan.findings.find((finding) => finding.outcome !== undefined);
+
+      assert.ok(refusal, "the readiness refusal must carry a classified outcome");
+      assert.ok(spawnFailure, "the spawn failure must carry a classified outcome");
+
+      assert.equal(refusal.outcome.code, "page_login");
+      assert.equal(refusal.outcome.basis, "fault");
+      assert.equal(refusal.severity, "high");
+      assert.match(refusal.description, /could not reach a settled page state/);
+      assert.match(refusal.recommendation, /the page refused it/);
+
+      assert.equal(spawnFailure.outcome.class, "spawn_failed");
+      assert.equal(spawnFailure.outcome.code, "spawn_failed");
+      assert.equal(spawnFailure.severity, "critical");
+      assert.match(spawnFailure.description, /could not be executed/);
+      assert.match(spawnFailure.recommendation, /TEST_CAPABILITIES_SURF_BIN/);
+
+      // The two renderings differ in every field a reader acts on.
+      assert.notEqual(refusal.description, spawnFailure.description);
+      assert.notEqual(refusal.recommendation, spawnFailure.recommendation);
+      assert.notEqual(refusal.id, spawnFailure.id);
+      assert.equal(refused.determination.value, "failed");
+      assert.equal(neverRan.determination.value, "failed");
+    } finally {
+      login.cleanup();
+      rmSync(unstartable, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "a verified surf run reports determination verified with its classified probes",
+  { concurrency: false },
+  async () => {
+    const fake = createFakeSurf({
+      pages: readyPages({ "https://example.com/": { title: "Example Domain" } }),
+    });
+    try {
+      const result = await runSurfAgent("Surf Determination", fake.path);
+      assert.equal(result.passed, true);
+      assert.equal(result.determination.value, "verified");
+      assert.equal(result.determination.basis, "evidence");
+      assert.deepEqual(result.determination.candidates, ["verified"]);
+      assert.equal(result.outcomes.length, 2);
+      assert.equal(
+        result.outcomes.every((outcome) => outcome.ok && outcome.basis === "evidence"),
+        true,
+      );
+      assert.equal(result.observations[0].outcome.class, "success");
+      assert.equal(result.observations[0].evidence[0], "outcome:success:ok");
+      assert.equal(result.observations[0].evidence[1], "basis:evidence");
     } finally {
       fake.cleanup();
     }

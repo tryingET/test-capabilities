@@ -276,6 +276,8 @@ test("errors docs carry the error envelope, the code registry and the outcome cl
     "invalid_route_payload",
     "config_invalid",
     "config_not_found",
+    "page_not_ready",
+    "probe_unverified",
     "unclassified_error",
   ]) {
     assert.match(errorsDoc, new RegExp(`\`${code}\``), `errors.md does not document ${code}`);

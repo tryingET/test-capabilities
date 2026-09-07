@@ -35,6 +35,18 @@ export const CLI_ERROR_CODES = [
 ] as const;
 
 /**
+ * Refusals the surf explore step list raises when a page cannot be probed. They travel as
+ * `FrameworkError` codes so the CLI envelope, the surf agent and the report all read the same
+ * word for the same refusal (adjudication claim 45).
+ */
+export const EXPLORE_ERROR_CODES = [
+  /** `wait.ready` settled on a state the operation cannot probe and no marker declared it */
+  "page_not_ready",
+  /** a probe produced no verified browser evidence, so no coverage may be claimed from it */
+  "probe_unverified",
+] as const;
+
+/**
  * Classifier-owned outcome codes. Process codes (`exit_<n>`, `signal_<name>`), HTTP codes
  * (`http_<status>`) and surf codes are patterned or pass-through and are listed separately.
  */
@@ -83,11 +95,16 @@ export const RESULT_RECORDED_SIGNALS = [
 
 export type CapabilityErrorCode = (typeof CAPABILITY_ERROR_CODES)[number];
 export type CliErrorCode = (typeof CLI_ERROR_CODES)[number];
+export type ExploreErrorCode = (typeof EXPLORE_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
 /** Every code the framework raises through `FrameworkError` itself. */
-export const FRAMEWORK_ERROR_CODES = [...CAPABILITY_ERROR_CODES, ...CLI_ERROR_CODES] as const;
+export const FRAMEWORK_ERROR_CODES = [
+  ...CAPABILITY_ERROR_CODES,
+  ...CLI_ERROR_CODES,
+  ...EXPLORE_ERROR_CODES,
+] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];
 

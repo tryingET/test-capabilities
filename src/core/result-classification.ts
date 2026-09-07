@@ -85,16 +85,28 @@ export function isTransientCode(code: string): code is TransientCode {
   return (TRANSIENT_CODES as readonly string[]).includes(code);
 }
 
-export type OutcomeClass =
-  | "success"
-  | "declared_empty"
-  | "empty"
-  | "error"
-  | "timeout"
-  | "spawn_failed"
-  | "unclassifiable";
+/** The closed class set; exported as a value so consumers can enumerate it (S4 counts them). */
+export const OUTCOME_CLASSES = [
+  "success",
+  "declared_empty",
+  "empty",
+  "error",
+  "timeout",
+  "spawn_failed",
+  "unclassifiable",
+] as const;
 
-export type OutcomeBasis = "evidence" | "fault" | "no_evidence" | "contradiction" | "indeterminate";
+export type OutcomeClass = (typeof OUTCOME_CLASSES)[number];
+
+export const OUTCOME_BASES = [
+  "evidence",
+  "fault",
+  "no_evidence",
+  "contradiction",
+  "indeterminate",
+] as const;
+
+export type OutcomeBasis = (typeof OUTCOME_BASES)[number];
 
 export type PayloadKind = "stdout" | "json" | "rows" | "body" | "trace";
 

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { ResultOutcome } from "../result-classification.js";
+import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
 import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
   assertSurfExploreMechanisms,
@@ -76,21 +78,68 @@ type ProbeExecution = {
   links?: SurfExplorePageResult["links"];
 };
 
+/**
+ * The classified outcome behind a refusal, when the refusal came from a surf command. A
+ * framework-side refusal (a probe whose payload carries no browser evidence, an owned tab that
+ * reported no id) has none, and the consumer must not invent one.
+ */
+export function outcomeFromError(error: unknown): ResultOutcome | undefined {
+  if (
+    error instanceof SurfCommandError ||
+    error instanceof SurfExploreReadinessRefusal ||
+    error instanceof SurfExploreProbeRefusal
+  ) {
+    return error.outcome;
+  }
+  return undefined;
+}
+
 const SURF_EXPLORE_PROBE_FIELD = "__testCapabilitiesSurfExploreProbe";
 
 const SETTLED_READINESS_STATES: readonly SurfExploreReadinessState[] = ["ready", "empty"];
 
-class SurfExploreReadinessRefusal extends Error {
+/**
+ * A page that never reached a settled state. It carries surf's own readiness code
+ * (`page_login`, `page_challenge`, ...) so the CLI envelope and the surf agent can tell a page
+ * that refused the framework from a runtime that never ran (adjudication claim 45), and the
+ * classified outcome when one exists.
+ */
+export class SurfExploreReadinessRefusal extends FrameworkError {
   readonly readiness: SurfExplorePageReadiness;
+  readonly outcome: ResultOutcome | undefined;
 
-  constructor(url: string, readiness: SurfExplorePageReadiness) {
+  constructor(url: string, readiness: SurfExplorePageReadiness, outcome?: ResultOutcome) {
     const evidence =
       readiness.evidence.length > 0 ? ` Evidence: ${readiness.evidence.join("; ")}` : "";
     super(
+      readiness.code ?? "page_not_ready",
       `Surf explore refused ${url}: page readiness is '${readiness.state}' [${readiness.code ?? "page_not_ready"}]: ${readiness.message ?? "the page did not reach a settled state"}.${evidence}`,
+      { url, state: readiness.state, ...(readiness.href ? { href: readiness.href } : {}) },
     );
     this.name = "SurfExploreReadinessRefusal";
     this.readiness = readiness;
+    this.outcome = outcome;
+  }
+}
+
+/**
+ * The seed page produced no verified state probe. The refusal carries the probe's own code and
+ * classified outcome, so a page that refused the framework (`page_login`), a surf command that
+ * failed (`exit_9`) and a probe that answered with nothing (`empty_result`) reach the caller as
+ * three different refusals instead of one prose message (adjudication claim 45).
+ */
+export class SurfExploreProbeRefusal extends FrameworkError {
+  readonly outcome: ResultOutcome | undefined;
+
+  constructor(url: string, probe: SurfExploreProbeResult | undefined) {
+    super(
+      probe?.code ?? "probe_unverified",
+      probe?.error ??
+        `Surf explore produced no verified browser evidence from the seed page state probe for ${url}.`,
+      { url, ...(probe ? { probe: probe.kind } : {}) },
+    );
+    this.name = "SurfExploreProbeRefusal";
+    this.outcome = probe?.outcome;
   }
 }
 
@@ -148,7 +197,7 @@ function errorMessage(error: unknown): string {
 }
 
 function errorCode(error: unknown): string | undefined {
-  return error instanceof SurfCommandError ? error.code : undefined;
+  return isFrameworkError(error) ? error.code : undefined;
 }
 
 // ============================================
@@ -279,14 +328,18 @@ function gateReadiness(
     const failure = result.failure ?? { code: "error", message: "wait.ready failed" };
     if (isSurfReadinessErrorCode(failure.code)) {
       const details = failure.details;
-      throw new SurfExploreReadinessRefusal(url, {
-        state: readinessStateFromCode(failure.code, details),
-        code: failure.code,
-        message: failure.message,
-        href: isRecord(details) ? optionalString(details.href) : undefined,
-        title: isRecord(details) ? optionalString(details.title) : undefined,
-        evidence: isRecord(details) ? stringList(details.evidence) : [],
-      });
+      throw new SurfExploreReadinessRefusal(
+        url,
+        {
+          state: readinessStateFromCode(failure.code, details),
+          code: failure.code,
+          message: failure.message,
+          href: isRecord(details) ? optionalString(details.href) : undefined,
+          title: isRecord(details) ? optionalString(details.title) : undefined,
+          evidence: isRecord(details) ? stringList(details.evidence) : [],
+        },
+        result.outcome,
+      );
     }
     throw new SurfCommandError(result);
   }
@@ -298,11 +351,15 @@ function gateReadiness(
     );
   }
   if (!SETTLED_READINESS_STATES.includes(readiness.state)) {
-    throw new SurfExploreReadinessRefusal(url, {
-      ...readiness,
-      code: "page_not_ready",
-      message: `wait.ready returned state '${readiness.state}' instead of a settled page`,
-    });
+    throw new SurfExploreReadinessRefusal(
+      url,
+      {
+        ...readiness,
+        code: "page_not_ready",
+        message: `wait.ready returned state '${readiness.state}' instead of a settled page`,
+      },
+      result.outcome,
+    );
   }
 
   return { readiness, result };
@@ -480,6 +537,7 @@ function failedProbe(
 ): ProbeExecution {
   const message = errorMessage(error);
   const code = errorCode(error);
+  const outcome = outcomeFromError(error);
   return {
     probe: {
       kind,
@@ -488,6 +546,7 @@ function failedProbe(
       verified: false,
       error: message,
       ...(code ? { code } : {}),
+      ...(outcome ? { outcome } : {}),
     },
     stdout: "",
     stderr: message,
@@ -518,7 +577,7 @@ function runJsProbe(
     probeId,
   );
   return {
-    probe: { kind, url, depth, verified: true, signal: match.signal },
+    probe: { kind, url, depth, verified: true, signal: match.signal, outcome: result.outcome },
     stdout: result.stdout,
     stderr: result.stderr,
     discoveredUrls: [],
@@ -568,6 +627,7 @@ function runLinksProbe(
       depth,
       verified: true,
       signal: `${match.signal}; extract verified ${rowCount} same-origin link row(s) (zero rows accepted explicitly)`,
+      outcome: result.outcome,
     },
     stdout: result.stdout,
     stderr: result.stderr,
@@ -611,6 +671,7 @@ function failedPage(
 ): SurfExplorePageResult {
   const message = errorMessage(error);
   const code = readiness?.code ?? errorCode(error);
+  const outcome = outcomeFromError(error);
   return {
     url,
     depth,
@@ -624,6 +685,7 @@ function failedPage(
       verified: false,
       error: message,
       ...(code ? { code } : {}),
+      ...(outcome ? { outcome } : {}),
     })),
     discoveredUrls: [],
   };
@@ -791,10 +853,7 @@ async function runSurfExploreOperation(
 
   const seedStateProbe = pages[0]?.probes.find((probe) => probe.kind === "state");
   if (!seedStateProbe?.verified) {
-    throw new Error(
-      seedStateProbe?.error ??
-        "Surf explore produced no verified browser evidence from the seed page state probe.",
-    );
+    throw new SurfExploreProbeRefusal(normalizedTargetUrl, seedStateProbe);
   }
 
   const coverage = summarizeCoverage(requestedDepth, pages, scheduled.size);

@@ -20,6 +20,7 @@ import {
   resolveSurfRuntimeResolution,
   SURF_EXPLORE_REQUIRED_MECHANISMS,
   SURF_MECHANISM_COMMANDS,
+  SurfCommandError,
   type SurfMechanism,
   translateSurfArgs,
 } from "./surf-runtime.js";
@@ -49,21 +50,13 @@ export function probeSurfRuntime(
     timeoutMs: 15_000,
     env: options.env,
   });
-  if (!version.ok) {
-    throw new Error(
-      `surf at ${resolution.command} did not answer --version: ${version.failure?.message ?? "unknown failure"}`,
-    );
-  }
+  assertProbeAnswer(resolution, "--version", version);
 
   const help = runSurfCommand(resolution, ["--help-full"], {
     timeoutMs: 15_000,
     env: options.env,
   });
-  if (!help.ok) {
-    throw new Error(
-      `surf at ${resolution.command} did not answer --help-full: ${help.failure?.message ?? "unknown failure"}`,
-    );
-  }
+  assertProbeAnswer(resolution, "--help-full", help);
 
   const versionOutput = version.stdout.trim();
   const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
@@ -87,6 +80,30 @@ export function probeSurfRuntime(
     probeCache.set(resolution.command, probe);
   }
   return probe;
+}
+
+/**
+ * A probe that did not answer raises the classified failure, not a bare `Error`: a surf binary
+ * that never started (`spawn_failed`) and a surf binary that answered with an error must not
+ * render identically once the caller reads the basis (adjudication claim 45). The message keeps
+ * the shape it always had and gains the `[code]` suffix every framework error carries.
+ */
+function assertProbeAnswer(
+  resolution: SurfRuntimeResolution,
+  flag: string,
+  result: SurfCommandResult,
+): void {
+  if (result.ok) {
+    return;
+  }
+  throw new SurfCommandError({
+    ...result,
+    failure: {
+      code: result.failure?.code ?? "browser_error",
+      message: `surf at ${resolution.command} did not answer ${flag}: ${result.failure?.message ?? "unknown failure"}`,
+      ...(result.failure?.details ? { details: result.failure.details } : {}),
+    },
+  });
 }
 
 /** Builds the fully resolved invocation for one surf command. */

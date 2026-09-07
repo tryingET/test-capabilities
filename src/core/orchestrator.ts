@@ -14,6 +14,8 @@ import type {
   TestCapabilitiesConfig,
 } from "./config.js";
 import { TestCapabilitiesConfigSchema } from "./config.js";
+import type { Determination } from "./determination.js";
+import { determineRun, outcomeEvidenceLines, worstOutcome } from "./determination.js";
 import type { AgentResult, TestAgent } from "./operations/test/agents.js";
 import {
   BombadilAgent,
@@ -22,6 +24,7 @@ import {
   SurfAgent,
   TerminalFuzzerAgent,
 } from "./operations/test/agents.js";
+import type { ResultOutcome } from "./result-classification.js";
 
 // ============================================
 // TYPES & SCHEMAS
@@ -38,6 +41,13 @@ export interface Finding {
   evidence: string[];
   recommendation: string;
   timestamp: Date;
+  /**
+   * The classified outcome this finding was raised from (result-classification packet,
+   * "Backwards compatibility"). Optional: a finding without one is a legacy finding and the
+   * healer accepts it with a `legacy_evidence` note. `outcome.basis` is the attribution axis -
+   * only `fault` says the target is broken.
+   */
+  outcome?: ResultOutcome;
 }
 
 export type ObservationProtocol = "observation.v1";
@@ -97,6 +107,8 @@ export interface Observation {
   semantics?: ObservationSemantics;
   findingIds: string[];
   timestamp: Date;
+  /** the worst classified outcome the sensor produced; its first evidence lines mirror it */
+  outcome?: ResultOutcome;
 }
 
 export type FindingType =
@@ -113,7 +125,21 @@ export type FindingType =
 export type Severity = "low" | "medium" | "high" | "critical";
 
 export interface TestResult {
+  /** `determination.value === "verified"`; kept for compatibility with existing consumers */
   passed: boolean;
+  /**
+   * The run verdict with its basis (adjudication claim 7, operator decision D3). The third
+   * state - a run that produced no evidence either way - reaches the top level here instead of
+   * being folded into `passed: false`; exit codes stay 0/1 and `unverified`/`indeterminate`
+   * map to 1.
+   */
+  determination: Determination;
+  /**
+   * Every step the run classified, in agent order. The determination is a function of these
+   * and of the coverage report, so the verdict can be re-derived from the envelope alone
+   * (axiom A5). Empty when no agent classifies yet.
+   */
+  outcomes: ResultOutcome[];
   duration: number;
   findings: Finding[];
   coverage: CoverageReport;
@@ -335,12 +361,18 @@ export class TestCapabilitiesOrchestrator {
 
     const duration = Date.now() - startTime;
     const coverage = this.calculateCoverage(agentResults);
-    const blockingFindings = correlatedFindings.some(
-      (finding) => finding.severity === "high" || finding.severity === "critical",
-    );
+    const outcomes = agentResults.flatMap((result) => result.outcomes ?? []);
+    const expectations = agentResults.flatMap((result) => result.expectations ?? []);
+    const determination = determineRun(outcomes, {
+      expectations,
+      blockingFindings: countBlockingFindings(correlatedFindings),
+      coverage: coverage.overall,
+    });
 
     return {
-      passed: !blockingFindings && coverage.overall > 0,
+      passed: determination.value === "verified",
+      determination,
+      outcomes,
       duration,
       findings: correlatedFindings,
       coverage,
@@ -385,6 +417,7 @@ export class TestCapabilitiesOrchestrator {
       const distinctDescriptions = [
         ...new Set(componentFindings.map((finding) => finding.description)),
       ];
+      const carriedOutcome = inheritedOutcome(componentFindings);
       correlations.push({
         id: `corr-${component}`,
         type: "bug",
@@ -394,6 +427,9 @@ export class TestCapabilitiesOrchestrator {
         evidence: distinctDescriptions,
         recommendation: `Investigate ${component} as one systemic failure surface instead of isolated finding(s).`,
         timestamp: new Date(),
+        // A correlation of findings that all say "no evidence" is itself no evidence: it must
+        // not become the blocking target fault its inputs deliberately are not.
+        ...(carriedOutcome ? { outcome: carriedOutcome } : {}),
       });
     }
 
@@ -755,6 +791,41 @@ function findingEvidence(findings: Finding[]): string[] {
     .flatMap((finding) => finding.evidence)
     .filter(Boolean)
     .slice(0, 6);
+}
+
+/**
+ * A blocking finding is one the run may report as a target failure.
+ *
+ * A finding whose outcome basis is not `fault` describes the absence of information
+ * (`no_evidence`), a self-contradictory reply (`contradiction`) or an unknown effect
+ * (`indeterminate`); presenting it as a fault would be a claim the evidence does not support
+ * (result-classification packet, refinement). Such findings still block `passed` - they simply
+ * do so through the determination's `unverified`/`indeterminate` value instead of `failed`.
+ * A legacy finding without an outcome keeps the pre-S4 meaning and blocks.
+ */
+function countBlockingFindings(findings: Finding[]): number {
+  return findings.filter(
+    (finding) =>
+      (finding.severity === "high" || finding.severity === "critical") &&
+      (finding.outcome === undefined || finding.outcome.basis === "fault"),
+  ).length;
+}
+
+/**
+ * The outcome a synthesized correlation may carry: only when every correlated finding is
+ * classified and none of them is a target fault. A single legacy or `fault` input leaves the
+ * correlation unclassified, which keeps its pre-S4 blocking meaning.
+ */
+function inheritedOutcome(findings: Finding[]): ResultOutcome | undefined {
+  const outcomes = findings.map((finding) => finding.outcome);
+  if (outcomes.some((outcome) => outcome === undefined)) {
+    return undefined;
+  }
+  const classified = outcomes as ResultOutcome[];
+  if (classified.some((outcome) => outcome.basis === "fault")) {
+    return undefined;
+  }
+  return worstOutcome(classified);
 }
 
 function statusFromFindings(findings: Finding[]): ObservationStatus {
@@ -1403,7 +1474,14 @@ function normalizeKnownAgentResult(
   const findingIds = result.findings.map((finding) => finding.id);
   const failed = result.findings.length > 0;
   const status = failed ? statusFromFindings(result.findings) : "passed";
+  // The typed outcome is rendered, never re-derived: `outcome:<class>:<code>` and
+  // `basis:<basis>` lead every sensor's evidence so the verdict is replayable from the receipt
+  // (result-classification packet, "Backwards compatibility").
+  const outcome = worstOutcome(result.outcomes ?? []);
+  const outcomeLines = outcomeEvidenceLines(outcome);
+  const typed = outcome ? { outcome } : {};
   const evidence = failed ? findingEvidence(result.findings) : [];
+  const withOutcome = (lines: string[]): string[] => [...outcomeLines, ...lines];
 
   if (agent instanceof SurfAgent) {
     const coverage = result.coverage.userFlows ?? 0;
@@ -1418,7 +1496,7 @@ function normalizeKnownAgentResult(
           summary: failed
             ? "Surf exploration did not produce verified browser-state coverage."
             : `Surf verified user-flow coverage at ${coverage}%.`,
-          evidence: failed ? evidence : [`userFlows: ${coverage}%`],
+          evidence: withOutcome(failed ? evidence : [`userFlows: ${coverage}%`]),
           coverage: result.coverage,
           semantics: {
             component: "web",
@@ -1430,6 +1508,7 @@ function normalizeKnownAgentResult(
               : "Use this measured user-flow signal alongside property exploration.",
           },
           findingIds,
+          ...typed,
         }),
       ],
     };
@@ -1447,10 +1526,11 @@ function normalizeKnownAgentResult(
           summary: failed
             ? "Bombadil exploration surfaced a blocking runtime or property finding."
             : "Bounded Bombadil exploration completed without a surfaced violation.",
-          evidence:
+          evidence: withOutcome(
             evidence.length > 0
               ? evidence
               : ["bounded exploration completed without surfaced violation"],
+          ),
           coverage: result.coverage,
           semantics: {
             component: "web",
@@ -1462,6 +1542,7 @@ function normalizeKnownAgentResult(
               : "Pair this property signal with user-flow coverage for the web surface.",
           },
           findingIds,
+          ...typed,
         }),
       ],
     };
@@ -1479,10 +1560,11 @@ function normalizeKnownAgentResult(
           summary: failed
             ? "Bombadil terminal fuzzer surfaced a blocking runtime or terminal finding."
             : "Bounded Bombadil terminal fuzzer completed without a surfaced violation.",
-          evidence:
+          evidence: withOutcome(
             evidence.length > 0
               ? evidence
               : ["bombadil terminal test completed without surfaced violation"],
+          ),
           coverage: result.coverage,
           semantics: {
             component: "cli",
@@ -1494,6 +1576,7 @@ function normalizeKnownAgentResult(
               : "Treat this as a bounded terminal smoke/fuzz signal, not production autonomy proof.",
           },
           findingIds,
+          ...typed,
         }),
       ],
     };
@@ -1511,7 +1594,7 @@ function normalizeKnownAgentResult(
           summary: failed
             ? "CLI smoke did not complete successfully."
             : "CLI smoke completed successfully.",
-          evidence: failed ? evidence : ["--help exited successfully"],
+          evidence: withOutcome(failed ? evidence : ["--help exited successfully"]),
           coverage: result.coverage,
           semantics: {
             component: "cli",
@@ -1523,6 +1606,7 @@ function normalizeKnownAgentResult(
               : "Use this smoke signal as a baseline, not as full CLI behavior coverage.",
           },
           findingIds,
+          ...typed,
         }),
       ],
     };

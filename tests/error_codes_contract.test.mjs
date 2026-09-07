@@ -7,6 +7,7 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 const {
   CAPABILITY_ERROR_CODES,
   CLI_ERROR_CODES,
+  EXPLORE_ERROR_CODES,
   FRAMEWORK_ERROR_CODES,
   isKnownResultOutcomeCode,
   isRegisteredFrameworkErrorCode,
@@ -49,7 +50,7 @@ function listSourceFiles(dir) {
 }
 
 test("every registered code is unique across the namespaces", () => {
-  const all = [...CAPABILITY_ERROR_CODES, ...CLI_ERROR_CODES];
+  const all = [...CAPABILITY_ERROR_CODES, ...CLI_ERROR_CODES, ...EXPLORE_ERROR_CODES];
   assert.deepEqual([...new Set(all)].sort(), [...all].sort());
   assert.deepEqual([...FRAMEWORK_ERROR_CODES].sort(), [...all].sort());
 
