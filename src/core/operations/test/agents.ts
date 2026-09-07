@@ -226,20 +226,17 @@ export class TerminalFuzzerAgent implements TestAgent {
       };
     }
 
+    // The terminal runner has no typed way to distinguish a property violation from a crash
+    // (no trace, no `--exit-on-violation`), so this finding never claims one; the runtime
+    // reports `runtime_error` for every non-zero exit (S3, adjudication claim 46).
     return {
       findings: [
         {
-          id:
-            result.status === "violation"
-              ? `${this.agentName}-terminal-violation`
-              : `${this.agentName}-runtime-failed`,
+          id: `${this.agentName}-runtime-failed`,
           type: "bug",
-          severity: result.status === "violation" ? "high" : "critical",
+          severity: "critical",
           component: "cli",
-          description:
-            result.status === "violation"
-              ? `Bombadil terminal test surfaced a violation for ${command}`
-              : `Bombadil terminal test could not complete for ${command}`,
+          description: `Bombadil terminal test could not complete for ${command}`,
           evidence: summarizeBombadilEvidence({
             binaryPath: result.binaryPath,
             binaryProvider: result.binaryProvider,
@@ -251,7 +248,7 @@ export class TerminalFuzzerAgent implements TestAgent {
             usedDefaultSpecification: false,
           }),
           recommendation:
-            "Ensure Bombadil 0.5+ is available and the terminal target is safe, deterministic, and bounded before relying on this experimental signal.",
+            "Ensure Bombadil 0.5+ is available and the terminal target is safe, deterministic, and bounded before relying on this experimental signal. A non-zero exit from the terminal runner is not attributed to a property violation: it writes no trace and passes no --exit-on-violation, so nothing distinguishes a violation from a crash.",
           timestamp: new Date(),
         },
       ],

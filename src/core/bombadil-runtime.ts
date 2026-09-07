@@ -11,6 +11,9 @@ import { spawnStep } from "./spawn-step.js";
 /** Bombadil is always run under an explicit budget; this is the floor when a caller omits one. */
 const DEFAULT_BOMBADIL_TIMEOUT_MS = 10_000;
 
+/** Clock slack when deciding whether a trace file belongs to this run. */
+const TRACE_FRESHNESS_SLACK_MS = 1_000;
+
 const BUILT_BOMBADIL_RELATIVE_PATHS = [
   path.join("target", "release", "bombadil"),
   path.join("target", "debug", "bombadil"),
@@ -255,13 +258,22 @@ function appendBombadilOptionArgs(args: string[], options: BombadilRunOptions): 
  * Typed evidence that the process actually ran a test: Bombadil's own trace file, or, when it
  * writes none (the terminal runner), any output at all. Status is derived from this plus the
  * exit contract - never from a regex over stdout (adjudication claim 46).
+ *
+ * A trace file older than the run is not evidence about this run: `--output-path` can name a
+ * file a previous run left behind, and counting it would turn a crash into a "violation".
  */
-function traceEvidence(tracePath: string | undefined): { tracePath?: string; traceBytes?: number } {
+function traceEvidence(
+  tracePath: string | undefined,
+  startedAt: number,
+): { tracePath?: string; traceBytes?: number } {
   if (!tracePath) {
     return {};
   }
   try {
     const stats = statSync(tracePath);
+    if (stats.mtimeMs + TRACE_FRESHNESS_SLACK_MS < startedAt) {
+      return { tracePath };
+    }
     return { tracePath, traceBytes: stats.size };
   } catch {
     return { tracePath };
@@ -403,6 +415,7 @@ function renderBombadilStderr(run: BoundedBombadilRun): string {
 }
 
 export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunResult> {
+  const startedAt = Date.now();
   const options = input.options ?? {};
   const bombadilCommand = options.command ?? "test";
   const args: string[] = [bombadilCommand];
@@ -441,6 +454,7 @@ export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunR
 
   const trace = traceEvidence(
     extractTracePath(run.combinedOutput) ?? options.outputPath ?? options.reproduceTracePath,
+    startedAt,
   );
   const status = deriveBombadilStatus({
     spawnFailed: Boolean(run.raw.spawnFailure),
@@ -489,12 +503,15 @@ export async function runBombadilTerminalTest(
     durationMs: input.durationMs,
   });
 
-  // The terminal runner writes no trace file, so output is its only typed run evidence and its
-  // exit status is the only contract it has.
+  // The terminal runner writes no trace file and passes no `--exit-on-violation`, so nothing in
+  // its reply distinguishes a property violation from a crash or a bad invocation. Output proves
+  // only that something was emitted; calling that a violation would be a claim about the target
+  // that the evidence does not support, so a non-zero exit is a runtime failure until the runner
+  // grows a typed signal (a dedicated exit code or a result artifact). Peer consultation, S3.
   const status = deriveBombadilStatus({
     spawnFailed: Boolean(run.raw.spawnFailure),
     ranEvidence: run.ranOutput,
-    violationEvidence: run.ranOutput,
+    violationEvidence: false,
     timedOut: Boolean(run.raw.timedOut),
     exitCode: run.raw.exitCode,
   });

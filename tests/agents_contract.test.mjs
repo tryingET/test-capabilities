@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -198,6 +198,32 @@ test("bombadil renders a property violation with the trace and specification evi
   }
 });
 
+test("bombadil refuses a stale trace file as evidence for this run", async () => {
+  const dir = tempDir("bombadil-stale");
+  const binary = path.join(dir, "bombadil");
+  const trace = path.join(dir, "old-trace.jsonl");
+  writeFileSync(trace, "{}\n", "utf8");
+  // A trace an earlier run left behind, older than this run's start.
+  const stale = new Date(Date.now() - 60_000);
+  utimesSync(trace, stale, stale);
+  writeExecutable(
+    binary,
+    `#!/bin/sh\necho "storing trace in ${trace}" >&2\necho "boom" >&2\nexit 3\n`,
+  );
+
+  try {
+    const result = await withBombadilBinary(binary, () =>
+      new BombadilAgent("bombadil", 2_000, undefined).execute({ web: "https://example.com" }),
+    );
+
+    assert.equal(result.findings.length, 1);
+    assert.equal(result.findings[0].id, "bombadil-runtime-failed");
+    assert.deepEqual(result.coverage, { edgeCases: 0 });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("bombadil reports a runtime failure when the binary produces no evidence", async () => {
   const dir = tempDir("bombadil-noop");
   const binary = path.join(dir, "bombadil");
@@ -255,19 +281,22 @@ test("terminal-fuzzer runs its own command and reports the subject it exercised"
   }
 });
 
-test("terminal-fuzzer surfaces a terminal violation with the target as the subject", async () => {
-  const dir = tempDir("terminal-violation");
+test("terminal-fuzzer reports a non-zero terminal exit as a runtime failure it cannot attribute", async () => {
+  const dir = tempDir("terminal-nonzero");
   const binary = path.join(dir, "bombadil");
-  writeExecutable(binary, "#!/bin/sh\necho 'terminal property violation' >&2\nexit 4\n");
+  writeExecutable(binary, "#!/bin/sh\necho 'terminal property check failed' >&2\nexit 4\n");
 
   try {
     const result = await withBombadilBinary(binary, () =>
       new TerminalFuzzerAgent("terminal-fuzzer", 2_000, undefined).execute({ cli: "node" }),
     );
 
+    // The terminal runner writes no trace and passes no --exit-on-violation, so nothing
+    // distinguishes a property violation from a crash; the finding never claims one.
     assert.equal(result.findings.length, 1);
-    assert.equal(result.findings[0].id, "terminal-fuzzer-terminal-violation");
-    assert.equal(result.findings[0].severity, "high");
+    assert.equal(result.findings[0].id, "terminal-fuzzer-runtime-failed");
+    assert.equal(result.findings[0].severity, "critical");
+    assert.match(result.findings[0].recommendation, /not attributed to a property violation/);
     assert.equal(result.observationSubject, "node");
     assert.deepEqual(result.coverage, { edgeCases: 0 });
   } finally {
