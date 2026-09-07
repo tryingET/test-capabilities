@@ -257,3 +257,37 @@ test("errors docs include newly fail-closed quantum and surf config cases", () =
   assert.match(errorsDoc, /page readiness is 'login' \[page_login\]/);
   assert.match(errorsDoc, /surf-go fork runtime was retired/);
 });
+
+test("0.4.0 docs stop advertising the removed SurfClient, SurfFlowBuilder and Nexus exports", () => {
+  const readmeDoc = load("README.md");
+  const apiReferenceDoc = load("docs/api/api-reference.md");
+  const surfDoc = load("docs/api/api-surf.md");
+  const typesDoc = load("docs/api/types.md");
+  const patternsDoc = load("docs/api/patterns.md");
+  const productReadmeDoc = load("docs/TEST-CAPABILITIES-README.md");
+
+  assert.match(readmeDoc, /## Changes in 0\.4\.0/);
+  assert.match(readmeDoc, /`SurfClient` and `SurfFlowBuilder`/);
+  assert.match(readmeDoc, /`createNexus`, `NexusOrchestrator`, `NexusConfig`, the default export/);
+  assert.match(readmeDoc, /`Session` interface/);
+
+  for (const removed of [
+    /createNexus/,
+    /NexusOrchestrator/,
+    /NexusConfig/,
+    /new SurfClient\(/,
+    /new SurfFlowBuilder\(/,
+  ]) {
+    assert.doesNotMatch(
+      apiReferenceDoc.replace(/\(`createNexus`, `NexusOrchestrator`, `NexusConfig`[^)]*\)/, ""),
+      removed,
+    );
+    assert.doesNotMatch(patternsDoc, removed);
+    assert.doesNotMatch(typesDoc, removed);
+  }
+  assert.match(apiReferenceDoc, /createTestCapabilities\(config\)/);
+  assert.match(surfDoc, /Status at 0\.4\.0/);
+  assert.match(surfDoc, /no longer exported from the package root/);
+  assert.match(surfDoc, /kernel `Session` interface/);
+  assert.doesNotMatch(productReadmeDoc, /createNexus \/ createTestCapabilities/);
+});

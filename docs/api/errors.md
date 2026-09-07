@@ -164,7 +164,7 @@ Unsupported surf action(s): typo. Outside the current capability contract.
 
 **Fix**
 - Use `surf explore` for the current CLI wrapper
-- Use `SurfClient` directly if you need richer browser behavior programmatically
+- Richer programmatic browser behavior arrives as the kernel `Session` interface in the 0.4.0 release line (`SurfClient` is no longer exported)
 
 ---
 

@@ -44,6 +44,21 @@ test("capability passport projection records supported Bombadil runtime separate
   assert.equal(testCommand?.verification_state, "verified");
 });
 
+test("capability passport carries no SurfClient row after the 0.4.0 removal", () => {
+  const passport = loadPassport();
+
+  assert.equal(passport.package_version, "0.4.0");
+  assert.equal(
+    passport.capabilities.some((entry) => entry.id === "library:SurfClient"),
+    false,
+    "library:SurfClient must leave the passport with the export (D2)",
+  );
+  assert.equal(
+    passport.capabilities.some((entry) => entry.id === "library:executeCliOperation"),
+    true,
+  );
+});
+
 test("capability passport entries use declared vocabulary values", () => {
   const passport = loadPassport();
 

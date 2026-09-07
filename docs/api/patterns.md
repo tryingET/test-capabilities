@@ -36,10 +36,10 @@ Use this when you want the shipped fail-closed command surface from TypeScript w
 ## Pattern: Capability-backed CLI smoke
 
 ```typescript
-import { createNexus } from 'test-capabilities';
+import { createTestCapabilities } from 'test-capabilities';
 
 async function runCliSmoke(command: string) {
-  const suite = createNexus({
+  const suite = createTestCapabilities({
     version: '2.0',
     name: 'CLI Smoke',
     targets: { cli: command },
@@ -69,10 +69,10 @@ async function runCliSmoke(command: string) {
 ## Pattern: Bombadil property exploration
 
 ```typescript
-import { createNexus } from 'test-capabilities';
+import { createTestCapabilities } from 'test-capabilities';
 
 async function runBombadilExploration(origin: string) {
-  const suite = createNexus({
+  const suite = createTestCapabilities({
     version: '2.0',
     name: 'Bombadil Exploration',
     targets: { web: origin },
@@ -109,7 +109,7 @@ If you cloned the Bombadil source repo, build it first so `target/release|debug/
 test-capabilities surf explore --url https://example.com
 ```
 
-Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside the surf CLI and its browser extension. The CLI/orchestrator exploration path resolves `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, refuses builds without `wait.ready`/`extract`, and runs in an owned tab gated by typed readiness; the broader `SurfClient` library uses the same runtime and fails closed for unmapped methods.
+Use this when you want the TEST-CAPABILITIES command surface but the real work happens inside the surf CLI and its browser extension. The CLI/orchestrator exploration path resolves `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, refuses builds without `wait.ready`/`extract`, and runs in an owned tab gated by typed readiness; the internal `SurfClient` adapter (no longer exported since 0.4.0; the kernel `Session` interface replaces it in this release line) uses the same runtime and fails closed for unmapped methods.
 
 ---
 

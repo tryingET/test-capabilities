@@ -21,7 +21,6 @@ export type {
   RuntimeConfigLike,
   Target,
   TestCapabilitiesConfig,
-  TestCapabilitiesConfig as NexusConfig,
 } from "./core/config.js";
 export { AgentConfigSchema, TargetSchema, TestCapabilitiesConfigSchema } from "./core/config.js";
 export type {
@@ -91,11 +90,7 @@ export type {
   Severity,
   TestResult,
 } from "./core/orchestrator.js";
-export {
-  ROOT_CAUSE_FAILURE_CLASSES,
-  TestCapabilitiesOrchestrator,
-  TestCapabilitiesOrchestrator as NexusOrchestrator,
-} from "./core/orchestrator.js";
+export { ROOT_CAUSE_FAILURE_CLASSES, TestCapabilitiesOrchestrator } from "./core/orchestrator.js";
 export type {
   ReplacementValidationDiagnostic,
   ReplacementValidationRequest,
@@ -146,21 +141,9 @@ export type {
 } from "./healing/self-healing.js";
 // Self-healing
 export { SelfHealingEngine, TestFileHealer } from "./healing/self-healing.js";
-export type {
-  NetworkRequest,
-  SurfActionResult,
-  SurfConfig,
-  SurfElement,
-  SurfExtractOptions,
-  SurfExtractResult,
-  SurfFrameDiagnosis,
-  SurfReadiness,
-  SurfReadinessOptions,
-  SurfSnapshot,
-  SurfWaitReadyOptions,
-} from "./integrations/surf-client.js";
-// Surf Integration
-export { SurfClient, SurfFlowBuilder } from "./integrations/surf-client.js";
+// Browser surface: SurfClient and SurfFlowBuilder left the public API in 0.4.0
+// (operator decision D2). The kernel Session interface replaces them in this
+// release line; src/integrations/surf-client.ts is internal until then.
 export type {
   Prediction,
   PredictionInput,
@@ -209,7 +192,3 @@ export function createTestCapabilities(
 ): TestCapabilitiesOrchestrator {
   return new TestCapabilitiesOrchestrator(config);
 }
-
-export const createNexus = createTestCapabilities;
-
-export default TestCapabilitiesOrchestrator;

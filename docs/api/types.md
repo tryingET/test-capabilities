@@ -151,7 +151,7 @@ Runtime note:
 
 ## Core config types
 
-### `TestCapabilitiesConfig` / `NexusConfig`
+### `TestCapabilitiesConfig`
 
 ```typescript
 interface TestCapabilitiesConfig {

@@ -1,16 +1,18 @@
 ---
-summary: "API reference for SurfClient browser automation integration."
+summary: "Browser surface reference: the supported surf explore CLI path today, the internal SurfClient mappings, and the Session interface that replaces SurfClient in the 0.4.0 release line."
 read_when:
   - "You are automating browser interactions through surf-cli"
-  - "You need method-level details for SurfClient and flow APIs"
+  - "You need method-level details for the internal SurfClient mappings or want to know what replaced it"
 type: "reference"
 ---
 
-# SurfClient API
+# Browser surface (surf-cli)
 
 > Browser automation via surf-cli.
 
-`SurfClient` is a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. The runtime is the upstream nicobailon/surf-cli CLI (`surf`, v2.18.0 plus the `feat/site-independent-mechanisms` branch) for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, and the retired `surf-go` fork env vars fail closed. Only commands with explicit adapter mappings (checked against `surf <command> --help`) are routed with verified flags; unmapped methods and unverified flags fail closed. Non-zero exits reject with a `SurfCommandError` carrying the surf error `code` (from the `--json` error object or the `[code]` suffix), `message`, and `details`. Live-verified against Chromium (Agent): the `doctor`/`explore` path (`tab.new`, `wait.ready`, `js`, `extract`, `tab.close`, `doctor`); the remaining mappings follow the documented CLI shapes only.
+**Status at 0.4.0.** `SurfClient` and `SurfFlowBuilder` are no longer exported from the package root (operator decision D2): the class carried ambient browser authority into every consumer and its `parseSnapshot`/flow helpers were never live-verified. The public browser surface arrives as the kernel `Session` interface (`open`, `gate`, `step`, `observe`, `close`, always an owned tab closed in `finally`) later in this release line; until then the supported programmatic path is `executeCliOperation({ command: 'surf', action: 'explore' }, { url })`, and `src/integrations/surf-client.ts` is internal. The method reference below documents those internal mappings for maintainers; treat it as the shape `Session` will carry, not as a consumer API.
+
+`SurfClient` was a **library API**. The current CLI wrapper supports `test-capabilities surf explore`, including bounded `--depth 1..3` same-origin exploration with graded probe coverage, while richer browser behavior is exposed programmatically through this surface. The runtime is the upstream nicobailon/surf-cli CLI (`surf`, v2.18.0 plus the `feat/site-independent-mechanisms` branch) for both CLI/orchestrator use and `SurfClient`; resolution uses `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~/.local/bin/surf`, and the retired `surf-go` fork env vars fail closed. Only commands with explicit adapter mappings (checked against `surf <command> --help`) are routed with verified flags; unmapped methods and unverified flags fail closed. Non-zero exits reject with a `SurfCommandError` carrying the surf error `code` (from the `--json` error object or the `[code]` suffix), `message`, and `details`. Live-verified against Chromium (Agent): the `doctor`/`explore` path (`tab.new`, `wait.ready`, `js`, `extract`, `tab.close`, `doctor`); the remaining mappings follow the documented CLI shapes only.
 
 ---
 

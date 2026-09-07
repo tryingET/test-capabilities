@@ -37,7 +37,6 @@ import {
   CLI_ROUTE_MANIFEST,
   ROOT_CAUSE_FAILURE_CLASSES,
   assertSupportedCliCommand,
-  createNexus,
   createTestCapabilities,
   executeCliOperation,
   executeDemoOperation,
@@ -45,12 +44,7 @@ import {
   validateCapabilityContract,
 
   // Orchestrator
-  NexusOrchestrator,
   TestCapabilitiesOrchestrator,
-
-  // Browser
-  SurfClient,
-  SurfFlowBuilder,
 
   // Self-healing
   SelfHealingEngine,
@@ -66,7 +60,7 @@ import {
   QuantumTestRunner,
 
   // Types
-  NexusConfig,
+  TestCapabilitiesConfig,
   TestResult,
   Finding,
   Observation,
@@ -88,12 +82,11 @@ import {
 | Run zero-external-dependency diagnostics | `executeCliOperation({ command: 'doctor' }, {})` |
 | Generate a minimal starting config | `executeCliOperation({ command: 'init' }, { output: 'test-capabilities.yaml' })` or `executeInitOperation({ output })` |
 | Run built-in zero-external-dependency functional demo | `executeCliOperation({ command: 'demo' }, {})` or `executeDemoOperation({})` |
-| Run the supported orchestrator path | `createNexus(config).run()` |
+| Run the supported orchestrator path | `createTestCapabilities(config).run()` |
 | Run the primary CLI suite with machine-readable output | `test-capabilities test --config <file> --json` / `executeCliOperation({ command: 'test' }, { config, json: true })` |
 | Inspect bounded root-cause class vocabulary | `ROOT_CAUSE_FAILURE_CLASSES` / `RootCauseFailureClass` |
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
-| Browser control | `new SurfClient()` |
-| Build flows | `new SurfFlowBuilder(client)` |
+| Browser control from the library | not exported in 0.4.0: `SurfClient` and `SurfFlowBuilder` were removed (D2); the kernel `Session` interface arrives in this release line, see [api-surf.md](api-surf.md) |
 | Fix broken tests | `new SelfHealingEngine().heal(ctx)` |
 | Predict failures as a library API | `new PredictionEngine().analyze(metrics)` |
 | Run quantum simulation | `new QuantumTestRunner().run(url)` |
@@ -102,7 +95,7 @@ import {
 
 ## Detailed API docs
 
-- **[SurfClient](api-surf.md)** - Browser automation
+- **[Browser surface](api-surf.md)** - `surf explore` today; `Session` replaces the removed `SurfClient` in this release line
 - **[Self-Healing](api-healing.md)** - Auto-fix broken tests
 - **[Prediction](api-prediction.md)** - Prediction library APIs
 - **[Quantum](api-quantum.md)** - Parallel universe simulation
@@ -155,14 +148,14 @@ console.log(demo.summary.health); // 'pass' when the built-in CLI fixture succee
 
 ---
 
-## `createNexus(config)` / `createTestCapabilities(config)`
+## `createTestCapabilities(config)`
 
-Create an orchestrator instance.
+Create an orchestrator instance. (`createNexus`, `NexusOrchestrator`, `NexusConfig` and the default export were removed in 0.4.0; use `createTestCapabilities`, `TestCapabilitiesOrchestrator` and `TestCapabilitiesConfig`.)
 
 ```typescript
-import { createNexus } from 'test-capabilities';
+import { createTestCapabilities } from 'test-capabilities';
 
-const suite = createNexus({
+const suite = createTestCapabilities({
   version: '2.0',
   name: 'CLI Smoke',
   targets: {
@@ -235,5 +228,5 @@ console.log(ROOT_CAUSE_FAILURE_CLASSES.includes(knownClass)); // true
 
 ```typescript
 import { VERSION } from 'test-capabilities';
-console.log(VERSION); // '0.1.0'
+console.log(VERSION); // '0.4.0'
 ```

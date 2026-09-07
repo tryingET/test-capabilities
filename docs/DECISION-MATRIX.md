@@ -23,7 +23,7 @@ What are you testing?
 │
 ├─ Web UI (LLM sees & clicks) ─────→ agent-browser
 │
-├─ Web UI (typed readiness, owned-tab extraction, iframe diagnosis) → surf-cli (TEST-CAPABILITIES `surf explore` / SurfClient)
+├─ Web UI (typed readiness, owned-tab extraction, iframe diagnosis) → surf-cli (TEST-CAPABILITIES `surf explore`)
 │
 ├─ Desktop / OS control ───────────→ Open Interpreter
 │
@@ -120,7 +120,7 @@ agent-browser fill @e2 "text"
 
 ### 3b. Fail-closed exploration through TEST-CAPABILITIES (surf-cli)
 
-**Use**: `test-capabilities surf explore --url <url>` or `SurfClient`
+**Use**: `test-capabilities surf explore --url <url>` (the `SurfClient` library class was removed in 0.4.0; the kernel `Session` interface replaces it in this release line)
 
 ```bash
 test-capabilities doctor --json          # surf CLI version, mechanisms, `surf doctor` socket/manifest state

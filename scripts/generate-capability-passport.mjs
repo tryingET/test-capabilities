@@ -326,6 +326,8 @@ capabilities.push(
   }),
 );
 
+// library:SurfClient left the passport at 0.4.0 with the export (D2); the kernel
+// Session interface gets its own row when it ships (plan S6).
 const libraryCapabilities = [
   {
     id: "library:executeCliOperation",
@@ -334,16 +336,6 @@ const libraryCapabilities = [
     verificationState: "verified",
     evidence: {
       tests: ["tests/operation_kernel_contract.test.mjs"],
-      commands: ["npm test"],
-    },
-  },
-  {
-    id: "library:SurfClient",
-    name: "SurfClient",
-    surfaceKind: "library-api",
-    verificationState: "verified",
-    evidence: {
-      tests: ["tests/surf_client_contract.test.mjs"],
       commands: ["npm test"],
     },
   },

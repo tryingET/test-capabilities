@@ -22,7 +22,7 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 
 | Path | Description |
 |------|-------------|
-| `src/` | TEST-CAPABILITIES testing framework (operation kernel, orchestrator, self-healing, quantum simulator, prediction engine) |
+| `src/` | TEST-CAPABILITIES testing framework (operation kernel, orchestrator, self-healing; the quantum simulator and prediction engine are parked: present, tested, not testing capabilities) |
 | `bin/test-capabilities` | TEST-CAPABILITIES CLI |
 | `external/bombadil` | Parked repo-local Bombadil-compatible binary fallback, intentionally excluded from packed npm artifacts |
 | `examples/demo/` | Built-in zero-external-dependency demo fixture for first functional proof |
@@ -107,6 +107,18 @@ These surfaces fail clearly when enabled or invoked:
 - CLI commands: `predict`, `visualize`, `report`
 - `test` flags: `--autonomous`, `--self-heal`, `--predict`, `--fail-threshold`, `--upload-artifacts`, `--report`
 - surf actions: `flow`, `assert`, `compare`, `replay`
+
+## Changes in 0.4.0
+
+The 0.4.0 line removes surface before any quality floor is measured, then adds the kernel objects from the 2026-09-07 surf-learnings plan. Removed at 0.4.0 (each with its replacement):
+
+| Removed | Replacement |
+|---|---|
+| `SurfClient` and `SurfFlowBuilder` (library exports) and the `SurfConfig`/`SurfSnapshot`/`SurfElement`/`SurfActionResult`/`NetworkRequest`/`SurfExtract*`/`SurfReadiness*`/`SurfWaitReadyOptions`/`SurfFrameDiagnosis` types | the kernel `Session` interface (`open`, `gate`, `step`, `observe`, `close`; owned tab, closed in `finally`) arrives in this release line; until then use `test-capabilities surf explore` or `executeCliOperation({ command: 'surf', action: 'explore' }, { url })` |
+| `createNexus`, `NexusOrchestrator`, `NexusConfig`, the default export | `createTestCapabilities`, `TestCapabilitiesOrchestrator`, `TestCapabilitiesConfig` |
+| `command-runner` internals and `scripts/test-agent-browser.sh` | none (dead code; the script launched its own Chrome against the owned-browser rule) |
+
+Also in this line: the config schema lives in `src/core/config.ts` and is exported from the package root under the same names; `heal` derives `appliedCount` from proven writes and refuses to re-apply a healed selector as a prefix; the runtime import cycle that broke deep imports of `dist/core/operations/dispatch.js` is gone; `quantum` and the prediction engine are marked parked (see below). Later slices append here.
 
 ## Commands
 

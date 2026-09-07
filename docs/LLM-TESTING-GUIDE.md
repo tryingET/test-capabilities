@@ -31,7 +31,7 @@ type: "guide"
 - `PredictionEngine`
 - `SelfHealingEngine`
 - `QuantumSimulator`
-- `SurfClient`
+- `surf explore` operation (the `SurfClient` class left the public API in 0.4.0; `Session` replaces it in this release line)
 
 ```bash
 npm install
@@ -114,7 +114,7 @@ Everything        → TEST-CAPABILITIES where a capability-backed path exists
 | **Stagehand** | AI navigation with natural language |
 | **agent-browser** | CLI browser automation with @refs |
 | **pi-agent-browser** | LLM browsing integrated with pi |
-| **SurfClient / surf-cli** | Browser control through TEST-CAPABILITIES library + CLI wrapper |
+| **surf-cli** | Browser control through the TEST-CAPABILITIES `surf explore` wrapper (library `Session` interface pending in the 0.4.0 line) |
 
 **CLI Testing:**
 
@@ -244,7 +244,7 @@ npm install -g surf-cli
 surf install <extension-id>
 ```
 
-**Validated**: works as the browser integration behind TEST-CAPABILITIES `SurfClient` and the supported `test-capabilities surf explore` wrapper.
+**Validated**: works as the browser integration behind the supported `test-capabilities surf explore` wrapper (and the internal surf adapter the kernel `Session` will expose).
 
 ---
 

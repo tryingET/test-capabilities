@@ -3,7 +3,9 @@ import test from "node:test";
 import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { SurfClient, SurfCommandError, SurfFlowBuilder } = await importRuntimeModule("index.js");
+// SurfClient is internal since 0.4.0 (D2): it is exercised through its module, not the package root.
+const { SurfClient } = await importRuntimeModule("integrations/surf-client.js");
+const { SurfCommandError } = await importRuntimeModule("core/surf-runtime.js");
 
 const PAGES = readyPages({
   "https://example.com/": {
@@ -242,36 +244,4 @@ test("SurfClient rejects unsupported config knobs instead of silently ignoring t
     () => new SurfClient({ socketPath: "/tmp/custom.sock" }),
     /Unsupported SurfClient config option\(s\): socketPath/,
   );
-});
-
-test("SurfFlowBuilder fails when surf command exits non-zero", { concurrency: false }, async () => {
-  await withClient({ fake: { failOn: ["navigate"] } }, async (client) => {
-    let assertionRuns = 0;
-    await assert.rejects(() => client.goto("https://example.com"), /surf exploded/);
-
-    const flow = new SurfFlowBuilder(client)
-      .goto("https://example.com")
-      .assert("should never reach assertion success", async () => {
-        assertionRuns += 1;
-        return true;
-      });
-
-    const result = await flow.execute();
-    assert.equal(result.success, false);
-    assert.equal(result.steps[0]?.success, false);
-    assert.equal(assertionRuns, 0);
-    assert.deepEqual(result.assertions, []);
-    assert.match(result.steps[0]?.error ?? "", /surf exploded/);
-  });
-});
-
-test("SurfFlowBuilder accepts zero-duration waits", { concurrency: false }, async () => {
-  await withClient({ fake: { echo: true } }, async (client, fake) => {
-    const result = await new SurfFlowBuilder(client).wait(0).execute();
-
-    assert.equal(result.success, true);
-    assert.equal(result.steps[0]?.success, true);
-    assert.equal(result.steps[0]?.step.duration, 0);
-    assert.deepEqual(lastArgv(fake), ["wait", "0"]);
-  });
 });

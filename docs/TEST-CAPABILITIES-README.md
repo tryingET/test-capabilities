@@ -16,7 +16,7 @@ type: "reference"
 
 TEST-CAPABILITIES is a testing framework and library suite spanning:
 - orchestrated CLI smoke/testing flows
-- browser automation via `SurfClient`
+- browser exploration via `surf explore` (the `SurfClient` library class was removed in 0.4.0; the `Session` interface replaces it in this release line)
 - self-healing helpers
 - prediction APIs
 - quantum simulation
@@ -66,8 +66,7 @@ From a packaged consumer install, use the same `test-capabilities` command surfa
 - `PredictionEngine`
 - `SelfHealingEngine`
 - `QuantumSimulator`
-- `SurfClient`
-- `createNexus` / `createTestCapabilities`
+- `createTestCapabilities` (`SurfClient` and `createNexus` were removed in 0.4.0)
 
 ---
 
@@ -123,11 +122,10 @@ CLI/runtime contract
 
 Library surface
 ├── CLI_OPERATION_REGISTRY / executeCliOperation
-├── SurfClient
 ├── SelfHealingEngine
 ├── PredictionEngine
 ├── QuantumSimulator
-└── createNexus / createTestCapabilities
+└── createTestCapabilities
 ```
 
 ---

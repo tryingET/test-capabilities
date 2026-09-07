@@ -394,18 +394,24 @@ try {
     import assert from "node:assert/strict";
     import fs from "node:fs";
     import yaml from "js-yaml";
+    import * as packageRoot from "test-capabilities";
     import {
       CLI_OPERATION_REGISTRY,
       CLI_ROUTE_MANIFEST,
       VERSION,
-      NexusOrchestrator,
       TestCapabilitiesConfigSchema,
-      createNexus,
+      TestCapabilitiesOrchestrator,
       createTestCapabilities,
       executeCliOperation,
       executeDemoOperation,
       executeInitOperation,
     } from "test-capabilities";
+
+    // Removed at 0.4.0 (adjudication 17, 36, 44; D2): the packed surface must not carry them.
+    for (const removed of ["SurfClient", "SurfFlowBuilder", "createNexus", "NexusOrchestrator", "default"]) {
+      assert.equal(removed in packageRoot, false, "removed export still packed: " + removed);
+    }
+    assert.equal(packageRoot.VERSION, "0.4.0");
 
     const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
     const sampleConfig = yaml.load(fs.readFileSync(sampleConfigPath, "utf8"));
@@ -440,8 +446,8 @@ try {
       },
     };
 
-    assert.equal(createNexus, createTestCapabilities);
-    assert.equal(typeof NexusOrchestrator, "function");
+    assert.equal(typeof TestCapabilitiesOrchestrator, "function");
+    assert.equal(createTestCapabilities(effectiveConfig) instanceof TestCapabilitiesOrchestrator, true);
     assert.equal(CLI_OPERATION_REGISTRY.test.id, "test");
     assert.equal(CLI_OPERATION_REGISTRY.demo.id, "demo");
     assert.equal(CLI_OPERATION_REGISTRY.init.id, "init");
@@ -453,7 +459,7 @@ try {
     const initResult = await executeInitOperation({ output: "generated-from-api.yaml", print: true });
     const demoResult = await executeDemoOperation({});
     const first = await createTestCapabilities(effectiveConfig).run();
-    const second = await createNexus(effectiveConfig).run();
+    const second = await createTestCapabilities(effectiveConfig).run();
     const kernelResult = await executeCliOperation(
       { command: "test" },
       {
