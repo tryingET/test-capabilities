@@ -122,7 +122,7 @@ const actionEvidence = {
   explore: {
     tests: [
       "tests/operation_kernel_contract.test.mjs",
-      "tests/surf_client_contract.test.mjs",
+      "tests/surf_runtime_contract.test.mjs",
       "tests/capability_drill_contract.test.mjs",
     ],
     commands: ["npm run capability:drill -- --surf-mode shim --skip-build"],

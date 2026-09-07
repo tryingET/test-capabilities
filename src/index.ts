@@ -142,8 +142,10 @@ export type {
 // Self-healing
 export { SelfHealingEngine, TestFileHealer } from "./healing/self-healing.js";
 // Browser surface: SurfClient and SurfFlowBuilder left the public API in 0.4.0
-// (operator decision D2). The kernel Session interface replaces them in this
-// release line; src/integrations/surf-client.ts is internal until then.
+// (operator decision D2) and the internal src/integrations/surf-client.ts was
+// deleted ahead of the quality ratchet because nothing in the runtime imported
+// it (never-imported rule). The kernel Session interface replaces it in this
+// release line.
 export type {
   Prediction,
   PredictionInput,

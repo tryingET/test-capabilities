@@ -40,7 +40,7 @@ These look worthwhile, but they are less obviously the next best slice than the 
 
 | Area | Likely screened file(s) | Likely witness/evidence | Why later |
 |---|---|---|---|
-| surf explore operation | `src/core/operations/surf-explore-operation.ts` | `tests/operation_kernel_contract.test.mjs`, `tests/surf_client_contract.test.mjs` | Intentionally paused while the surf implementation/runtime choice may still change; do not start this slice until the runtime boundary stabilizes and the witness can stay focused. |
+| surf explore operation | `src/core/operations/surf-explore-operation.ts` | `tests/operation_kernel_contract.test.mjs`, `tests/surf_runtime_contract.test.mjs` | Intentionally paused while the surf implementation/runtime choice may still change; do not start this slice until the runtime boundary stabilizes and the witness can stay focused. |
 | heal operation | `src/core/operations/heal-operation.ts` | `tests/healing_contract.test.mjs` | Useful, but broader than the first rollout slices. |
 | config schema fail-closed | adjacent config-loading/runtime paths | `tests/config_contract.test.mjs` | Overlaps with the now-live config-override cluster until responsibilities are split more sharply. |
 | orchestrator fail-closed | orchestrator control-plane paths | `tests/orchestrator_fail_closed_contract.test.mjs` | Valuable, but broader and noisier than the current operation-kernel rollout pattern. |
