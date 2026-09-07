@@ -493,8 +493,13 @@ async function runHealOperation(
     );
   }
 
+  // appliedCount counts the proposals whose file rewrite was proven by
+  // applyProposals, never the proposals that were merely planned.
+  let appliedCount = 0;
   if (!normalized.dryRun) {
-    await healer.applyProposals(proposals);
+    const { written } = await healer.applyProposals(proposals);
+    const writtenFiles = new Set(written);
+    appliedCount = proposals.filter((proposal) => writtenFiles.has(proposal.file)).length;
   }
 
   const proposalArtifact = normalized.proposalOutput
@@ -516,7 +521,7 @@ async function runHealOperation(
     operationId: "heal",
     input: normalized,
     proposals,
-    appliedCount: normalized.dryRun ? 0 : proposals.length,
+    appliedCount,
     ...(proposalArtifact ? { proposalArtifact } : {}),
     ...(verification ? { verification } : {}),
     ...(verificationArtifact ? { verificationArtifact } : {}),

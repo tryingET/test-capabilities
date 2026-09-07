@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -594,6 +595,144 @@ test("TestFileHealer.analyzeFile with empty findings array produces no evidence-
       "empty findings should not trigger evidence-backed healing proposals",
     );
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Re-apply guard: a healed selector must not be matched again as a prefix of the new one.
+test("TestFileHealer.applyProposals refuses to re-apply a proposal whose old selector is a prefix of the healed one", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-reapply-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#btn').click(); });\n",
+    "utf8",
+  );
+  const proposal = {
+    file,
+    line: 1,
+    oldSelector: "#btn",
+    newSelector: "#btn-new",
+    confidence: 0.95,
+    strategy: "manual",
+    requiresReview: false,
+  };
+
+  try {
+    const healer = new TestFileHealer();
+    const first = await healer.applyProposals([proposal]);
+    assert.deepEqual(first, { written: [file] });
+    assert.match(readFileSync(file, "utf8"), /locator\('#btn-new'\)/);
+
+    await assert.rejects(
+      async () => healer.applyProposals([proposal]),
+      /Healing proposal selector mismatch at .*sample\.test\.ts:1\. Expected '#btn' as a whole token but found '#btn-new'/,
+    );
+    await assert.rejects(
+      async () => healer.applyProposals([{ ...proposal, column: 47 }]),
+      /Healing proposal selector mismatch at .*sample\.test\.ts:1:47\. Expected '#btn' as a whole token but found '#btn-new'/,
+    );
+    assert.equal(
+      readFileSync(file, "utf8"),
+      "test('one', async () => { await page.locator('#btn-new').click(); });\n",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.applyProposals skips a longer-token occurrence and rewrites the whole-token one", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-token-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#btn-new'); await page.locator('#btn'); await page.locator('[data-testid=my-btn]'); });\n",
+    "utf8",
+  );
+
+  try {
+    const healer = new TestFileHealer();
+    const result = await healer.applyProposals([
+      {
+        file,
+        line: 1,
+        oldSelector: "#btn",
+        newSelector: "#button",
+        confidence: 0.95,
+        strategy: "manual",
+        requiresReview: false,
+      },
+    ]);
+    assert.deepEqual(result, { written: [file] });
+    assert.equal(
+      readFileSync(file, "utf8"),
+      "test('one', async () => { await page.locator('#btn-new'); await page.locator('#button'); await page.locator('[data-testid=my-btn]'); });\n",
+    );
+
+    await assert.rejects(
+      async () =>
+        healer.applyProposals([
+          {
+            file,
+            line: 1,
+            oldSelector: "btn",
+            newSelector: "button",
+            confidence: 0.95,
+            strategy: "manual",
+            requiresReview: false,
+          },
+        ]),
+      /Expected 'btn' as a whole token but found 'btn-new'/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("TestFileHealer.applyProposals reports the written count and restores on a partial write failure", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-partial-"));
+  const okFile = path.join(dir, "a.test.ts");
+  const lockedDir = path.join(dir, "locked");
+  const lockedFile = path.join(lockedDir, "b.test.ts");
+  const original = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(okFile, original, "utf8");
+  mkdirSync(lockedDir);
+  writeFileSync(lockedFile, original, "utf8");
+  const proposalFor = (file) => ({
+    file,
+    line: 1,
+    oldSelector: "#old-login",
+    newSelector: "#new-login",
+    confidence: 0.95,
+    strategy: "manual",
+    requiresReview: false,
+  });
+
+  try {
+    if (process.getuid?.() === 0) {
+      return; // root ignores directory modes; the write cannot be made to fail this way
+    }
+    // The second file's directory refuses new entries, so its temp file cannot be created.
+    chmodSync(lockedDir, 0o500);
+    const healer = new TestFileHealer();
+    await assert.rejects(
+      async () => healer.applyProposals([proposalFor(okFile), proposalFor(lockedFile)]),
+      (error) => {
+        assert.match(
+          error.message,
+          /Healing apply wrote 1 of 2 file\(s\) before failing: .*EACCES|EPERM/,
+        );
+        assert.match(
+          error.message,
+          /Restored 1 file\(s\) to their original content: .*a\.test\.ts/,
+        );
+        return true;
+      },
+    );
+    assert.equal(readFileSync(okFile, "utf8"), original);
+    assert.equal(readFileSync(lockedFile, "utf8"), original);
+  } finally {
+    chmodSync(lockedDir, 0o700);
     rmSync(dir, { recursive: true, force: true });
   }
 });

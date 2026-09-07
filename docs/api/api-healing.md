@@ -213,12 +213,15 @@ await executeHealOperation({
 
 ### `applyProposals(proposals)`
 
-Apply a batch of proposals transactionally.
-The current runtime validates the full per-file batch against the original file content before it writes anything, which prevents same-line proposal sets from drifting into partial mutations.
+Apply a batch of proposals transactionally and return the files whose rewrite was proven.
+The current runtime validates the full per-file batch against the original file content before it writes anything, which prevents same-line proposal sets from drifting into partial mutations. A selector only matches as a whole token: a proposal `#btn` -> `#btn-new` re-applied to an already healed line is refused as a selector mismatch instead of producing `#btn-new-new`. When a write fails after earlier files were written, the written files are restored and the error names how many files were written and whether every restore landed.
 
 ```typescript
-await healer.applyProposals(proposals);
+const { written } = await healer.applyProposals(proposals);
+// written: absolute paths of the files that were rewritten
 ```
+
+The `heal` envelope's `appliedCount` is the number of proposals whose file appears in `written`, never the number of planned proposals.
 
 ### Example
 

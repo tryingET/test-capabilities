@@ -1348,3 +1348,40 @@ test("executeCliOperation fails clearly for unsupported or unknown routes", asyn
     /Unsupported CLI command\(s\): typo/,
   );
 });
+
+test("executeCliOperation heal derives appliedCount from proven writes and reports zero when the write fails", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-applied-count-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+
+  try {
+    if (process.getuid?.() === 0) {
+      return; // root ignores directory modes; the write cannot be made to fail this way
+    }
+    chmodSync(dir, 0o500);
+    await assert.rejects(
+      async () =>
+        executeCliOperation(
+          { command: "heal" },
+          { dir, dryRun: false, checkpointRef: "checkpoint/heal-applied-count-001" },
+        ),
+      /Healing apply wrote 0 of 1 file\(s\) before failing/,
+    );
+    chmodSync(dir, 0o700);
+    assert.match(readFileSync(file, "utf8"), /#old-login/);
+
+    const applied = await executeCliOperation(
+      { command: "heal" },
+      { dir, dryRun: false, checkpointRef: "checkpoint/heal-applied-count-002" },
+    );
+    assert.equal(applied.appliedCount, 1);
+    assert.match(readFileSync(file, "utf8"), /#login/);
+  } finally {
+    chmodSync(dir, 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

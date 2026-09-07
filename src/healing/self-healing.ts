@@ -321,6 +321,42 @@ export class SelfHealingEngine {
 // TEST FILE HEALER
 // ============================================
 
+const SELECTOR_TOKEN_CHAR = /[A-Za-z0-9_-]/;
+
+function isSelectorTokenBoundary(line: string, column: number, length: number): boolean {
+  const before = column > 0 ? line[column - 1] : "";
+  const after = line[column + length] ?? "";
+  return !SELECTOR_TOKEN_CHAR.test(before) && !SELECTOR_TOKEN_CHAR.test(after);
+}
+
+function readSelectorToken(line: string, column: number, length: number): string {
+  let start = column;
+  while (start > 0 && SELECTOR_TOKEN_CHAR.test(line[start - 1])) {
+    start -= 1;
+  }
+  let end = column + length;
+  while (end < line.length && SELECTOR_TOKEN_CHAR.test(line[end])) {
+    end += 1;
+  }
+  return line.slice(start, end);
+}
+
+/** First occurrence of `selector` in `line` that is a whole token, or -1. */
+function findSelectorTokenColumn(line: string, selector: string): number {
+  let from = 0;
+  while (from <= line.length) {
+    const index = line.indexOf(selector, from);
+    if (index < 0) {
+      return -1;
+    }
+    if (isSelectorTokenBoundary(line, index, selector.length)) {
+      return index;
+    }
+    from = index + 1;
+  }
+  return -1;
+}
+
 export class TestFileHealer {
   private engine: SelfHealingEngine;
   private readonly rootRealPath?: string;
@@ -437,9 +473,16 @@ export class TestFileHealer {
     };
   }
 
-  async applyProposals(proposals: HealingProposal[]): Promise<void> {
+  /**
+   * Apply proposals file by file. Returns the files whose rewrite was proven
+   * (temp file written and renamed into place). On a failure after the first
+   * write, every written file is restored from its original content and the
+   * thrown error reports how many files were written and whether every restore
+   * landed; a restore that fails is reported instead of hidden.
+   */
+  async applyProposals(proposals: HealingProposal[]): Promise<{ written: string[] }> {
     if (proposals.length === 0) {
-      return;
+      return { written: [] };
     }
 
     const proposalsByFile = new Map<string, HealingProposal[]>();
@@ -458,24 +501,44 @@ export class TestFileHealer {
       updates.set(file, this.applyProposalsToContent(content, fileProposals));
     }
 
-    const writtenFiles: string[] = [];
+    const written: string[] = [];
 
     try {
       for (const [file, updated] of updates) {
         await this.writeFile(file, updated);
-        writtenFiles.push(file);
+        written.push(file);
       }
     } catch (error) {
-      await Promise.all(
-        writtenFiles.map(async (file) => {
-          const original = originals.get(file);
-          if (original !== undefined) {
-            await this.writeFile(file, original);
-          }
-        }),
+      const cause = error instanceof Error ? error.message : String(error);
+      const restoreFailures: string[] = [];
+      for (const file of written) {
+        const original = originals.get(file);
+        if (original === undefined) {
+          continue;
+        }
+        try {
+          await this.writeFile(file, original);
+        } catch (restoreError) {
+          restoreFailures.push(
+            `${file}: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`,
+          );
+        }
+      }
+
+      const summary = `Healing apply wrote ${written.length} of ${updates.size} file(s) before failing: ${cause}`;
+      if (restoreFailures.length > 0) {
+        throw new Error(
+          `${summary}. Restore failed for ${restoreFailures.length} file(s); healed content remains on disk: ${restoreFailures.join("; ")}`,
+        );
+      }
+      throw new Error(
+        written.length > 0
+          ? `${summary}. Restored ${written.length} file(s) to their original content: ${written.join(", ")}`
+          : summary,
       );
-      throw error;
     }
+
+    return { written };
   }
 
   private applyProposalsToContent(content: string, proposals: HealingProposal[]): string {
@@ -506,9 +569,16 @@ export class TestFileHealer {
       const targetLine = lines[lineIndex];
       const targetColumn = proposal.column
         ? proposal.column - 1
-        : targetLine.indexOf(proposal.oldSelector);
+        : findSelectorTokenColumn(targetLine, proposal.oldSelector);
 
       if (targetColumn < 0) {
+        const rawColumn = targetLine.indexOf(proposal.oldSelector);
+        if (rawColumn >= 0) {
+          const found = readSelectorToken(targetLine, rawColumn, proposal.oldSelector.length);
+          throw new Error(
+            `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}' as a whole token but found '${found}' (already healed or a longer selector).`,
+          );
+        }
         throw new Error(
           `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}. Expected '${proposal.oldSelector}'.`,
         );
@@ -520,6 +590,16 @@ export class TestFileHealer {
       ) {
         throw new Error(
           `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}${proposal.column ? `:${proposal.column}` : ""}. Expected '${proposal.oldSelector}'.`,
+        );
+      }
+
+      // Boundary guard: the match must be a whole selector token. Without it a
+      // proposal '#btn' -> '#btn-new' re-applied to an already healed line
+      // matches the prefix of '#btn-new' and yields '#btn-new-new'.
+      if (!isSelectorTokenBoundary(targetLine, targetColumn, proposal.oldSelector.length)) {
+        const found = readSelectorToken(targetLine, targetColumn, proposal.oldSelector.length);
+        throw new Error(
+          `Healing proposal selector mismatch at ${proposal.file}:${proposal.line}${proposal.column ? `:${proposal.column}` : ""}. Expected '${proposal.oldSelector}' as a whole token but found '${found}' (already healed or a longer selector).`,
         );
       }
 
