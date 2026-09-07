@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { ResultOutcome } from "../result-classification.js";
+import type { ExpectDeclaration, ResultOutcome } from "../result-classification.js";
 import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
 import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
@@ -96,7 +96,15 @@ export function outcomeFromError(error: unknown): ResultOutcome | undefined {
 
 const SURF_EXPLORE_PROBE_FIELD = "__testCapabilitiesSurfExploreProbe";
 
-const SETTLED_READINESS_STATES: readonly SurfExploreReadinessState[] = ["ready", "empty"];
+/**
+ * Only `ready` settles a page for probing.
+ *
+ * surf reports `empty` when a page rendered its own "no results" state, which it can only know
+ * from an `--empty-text` marker the caller passed. This operation passes none, so an `empty`
+ * here is surf saying "nothing was found" with nothing to check it against: an undeclared
+ * emptiness, refused rather than probed (result-classification packet, refinement; plan S4).
+ */
+const SETTLED_READINESS_STATES: readonly SurfExploreReadinessState[] = ["ready"];
 
 /**
  * A page that never reached a settled state. It carries surf's own readiness code
@@ -211,13 +219,27 @@ function resolveExploreRuntime(): SurfExploreRuntime {
   return { resolution, probe };
 }
 
+/**
+ * The one emptiness this operation declares on its own authority: a page may legitimately have
+ * no same-origin links, and the operation knows that because it wrote the probe. It replaces the
+ * bare `--allow-empty` flag, which told surf to permit zero rows but left the framework with no
+ * record of who permitted it (result-classification packet, "Declaring acceptable emptiness";
+ * plan S4). Every other empty payload in this operation stays an absence of evidence.
+ */
+const SURF_EXPLORE_LINKS_EMPTINESS: ExpectDeclaration = {
+  output: "empty",
+  declaredBy: "operation:surf.explore.links",
+};
+
 function runMapped(
   runtime: SurfExploreRuntime,
   command: string,
   args: string[],
+  expect?: ExpectDeclaration,
 ): SurfCommandResult {
   return runSurfCommand(runtime.resolution, translateSurfArgs(command, args), {
     timeoutMs: SURF_EXPLORE_COMMAND_TIMEOUT_MS,
+    ...(expect ? { expect } : {}),
   });
 }
 
@@ -225,8 +247,9 @@ function runMappedOrThrow(
   runtime: SurfExploreRuntime,
   command: string,
   args: string[],
+  expect?: ExpectDeclaration,
 ): SurfCommandResult {
-  const result = runMapped(runtime, command, args);
+  const result = runMapped(runtime, command, args, expect);
   if (!result.ok) {
     throw new SurfCommandError(result);
   }
@@ -356,7 +379,10 @@ function gateReadiness(
       {
         ...readiness,
         code: "page_not_ready",
-        message: `wait.ready returned state '${readiness.state}' instead of a settled page`,
+        message:
+          readiness.state === "empty"
+            ? "wait.ready returned state 'empty' and this operation declared no empty marker, so the emptiness is undeclared and the page is not probed"
+            : `wait.ready returned state '${readiness.state}' instead of a settled page`,
       },
       result.outcome,
     );
@@ -592,15 +618,20 @@ function runLinksProbe(
   acceptedUrls: Set<string>,
 ): ProbeExecution {
   const probeId = randomUUID();
-  const result = runMappedOrThrow(runtime, "extract", [
-    "--tab-id",
-    String(tabId),
-    "--code",
-    buildProbeExpression("links", probeId),
-    "--allow-empty",
-    "--ready-timeout",
-    String(SURF_EXPLORE_READY_TIMEOUT_MS),
-  ]);
+  const result = runMappedOrThrow(
+    runtime,
+    "extract",
+    [
+      "--tab-id",
+      String(tabId),
+      "--code",
+      buildProbeExpression("links", probeId),
+      "--allow-empty",
+      "--ready-timeout",
+      String(SURF_EXPLORE_READY_TIMEOUT_MS),
+    ],
+    SURF_EXPLORE_LINKS_EMPTINESS,
+  );
   const { data } = parseSurfJsonOutput(result.stdout, "extract");
   if (!isRecord(data)) {
     throw new Error(

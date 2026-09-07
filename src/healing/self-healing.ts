@@ -26,6 +26,13 @@ export interface HealingFinding {
   component: string;
   description: string;
   evidence: string[];
+  /**
+   * The classified outcome the finding was rendered from, when the producer classified it.
+   * Only `basis: "fault"` is a statement about the target, and only such a finding may drive a
+   * selector rewrite; a finding without an outcome is legacy input and keeps its pre-S4 meaning
+   * (result-classification packet, refinement; plan S4).
+   */
+  outcome?: { basis: string };
 }
 
 export interface HealingStrategy {
@@ -764,10 +771,23 @@ function selectorAliases(selector: string): string[] {
   return [...aliases];
 }
 
+/**
+ * Whether a finding may drive a selector rewrite.
+ *
+ * A classified finding qualifies only on `basis: "fault"`: `no_evidence` says the run learned
+ * nothing, `contradiction` says the reply cannot be read at all, and `indeterminate` says a step
+ * may already have changed the target. Rewriting a selector from any of those would be acting on
+ * information the run does not have. An unclassified finding is legacy input and is accepted, so
+ * receipts written before S4 still heal.
+ */
+function isHealableFinding(finding: HealingFinding): boolean {
+  return finding.outcome === undefined || finding.outcome.basis === "fault";
+}
+
 function extractSelectorsFromEvidence(findings: HealingFinding[]): Map<string, string> {
   const selectorToFindingId = new Map<string, string>();
 
-  for (const finding of findings) {
+  for (const finding of findings.filter(isHealableFinding)) {
     for (const evidenceLine of finding.evidence) {
       // Match common selector patterns in evidence text
       const selectorPatterns = [

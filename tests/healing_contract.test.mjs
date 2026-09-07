@@ -736,3 +736,44 @@ test("TestFileHealer.applyProposals reports the written count and restores on a 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Only a fault is a statement about the target, so only a fault may drive a selector rewrite.
+// A no_evidence, contradiction or indeterminate finding describes the run, not the code
+// (result-classification packet, refinement; plan S4).
+test("the healer proposes from a fault finding only, and still accepts unclassified legacy input", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-basis-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-login').click(); });\n",
+    "utf8",
+  );
+
+  const finding = (basis) => ({
+    id: `finding-${basis ?? "legacy"}`,
+    component: "web",
+    description: "login step failed",
+    evidence: ["selector: old-login"],
+    ...(basis === undefined ? {} : { outcome: { basis } }),
+  });
+
+  try {
+    const healer = new TestFileHealer();
+
+    for (const basis of ["no_evidence", "contradiction", "indeterminate"]) {
+      const proposals = await healer.analyzeFile(file, [finding(basis)]);
+      assert.deepEqual(proposals, [], `expected no proposal from a ${basis} finding`);
+    }
+
+    const fromFault = await healer.analyzeFile(file, [finding("fault")]);
+    assert.equal(fromFault.length, 1);
+    assert.equal(fromFault[0]?.triggeringFindingId, "finding-fault");
+
+    // A receipt written before S4 carries no outcome and keeps its meaning.
+    const fromLegacy = await healer.analyzeFile(file, [finding(undefined)]);
+    assert.equal(fromLegacy.length, 1);
+    assert.equal(fromLegacy[0]?.triggeringFindingId, "finding-legacy");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

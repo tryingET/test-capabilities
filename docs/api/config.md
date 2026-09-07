@@ -131,8 +131,38 @@ Supported fields:
 | `intensity` | `gentle | normal | aggressive` |
 | `duration` | string |
 | `focus` | string[] |
+| `expect` | object | Optional declaration of the payload shape this agent's steps produce |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
 | `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |
+
+### `agents.<name>.expect`
+
+A step that exits successfully and produces no payload obtained no evidence, so the run is
+reported as `unverified` rather than passed. That is the default because an empty result read as
+a pass is a silent false negative. When emptiness is the expected shape, declare it here and the
+outcome becomes `declared_empty`, which passes and records who declared it.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `output` | `required \| empty` | `empty` accepts a payload-free run as a pass |
+| `empty_marker` | string | The fixed line the command prints when it legitimately has nothing to report; checked against the payload |
+| `payload` | `opaque \| json` | `json` lets the classifier read a structured error object; `opaque` means text nothing may interpret |
+| `error_envelope` | boolean | The command reports errors as a JSON envelope, so an error field is authoritative |
+
+```yaml
+agents:
+  cli:
+    enabled: true
+    type: cli-tester
+    expect:
+      output: empty
+      empty_marker: 'No results'
+```
+
+The declaration appears in the run's determination as `config:agents.<name>.expect`. Operations
+may declare on their own authority instead (for example `operation:surf.explore.links`, where a
+page legitimately has no same-origin links), and an agent with no config declares what it knows
+about the step it ran as `author:<agent>`.
 
 Bombadil-specific fields under `agents.<name>.bombadil`:
 

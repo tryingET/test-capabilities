@@ -141,6 +141,12 @@ const HealingFindingSchema = z
     component: z.string().min(1),
     description: z.string().min(1),
     evidence: z.array(z.string()).min(1),
+    // Carried through from `test --json` so the healer reads the typed basis rather than the
+    // rendered `basis:` evidence line (adjudication axiom A7). Absent on pre-S4 receipts.
+    outcome: z
+      .object({ basis: z.string().min(1) })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 

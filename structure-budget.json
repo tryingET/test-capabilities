@@ -4,8 +4,8 @@
   "exceptions": {
     "src/core/orchestrator.ts": 1622,
     "src/core/surf-runtime.ts": 813,
-    "src/core/operations/surf-explore-operation.ts": 901,
-    "src/healing/self-healing.ts": 821
+    "src/core/operations/surf-explore-operation.ts": 932,
+    "src/healing/self-healing.ts": 841
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -66,6 +66,20 @@
       "to": 901,
       "reason": "slice S4 commits (1) and (3): the readiness refusal and the seed-probe refusal become FrameworkErrors carrying surf's own code and the classified outcome, so a page_login refusal and a runtime that never started stop rendering identically (adjudication claim 45); probes carry their outcome; the links emptiness declaration replaces the bare --allow-empty. Scheduled shrink: S6 turns explore into a step list over Session.",
       "ref": "9f6a46c"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 901,
+      "to": 932,
+      "reason": "slice S4 commit (3): SURF_EXPLORE_LINKS_EMPTINESS as a named declaration threaded through runMapped/runMappedOrThrow (the bare --allow-empty flag told surf to permit zero rows but left the framework with no record of who permitted it), and 'empty' removed from the settled readiness states because this operation passes no --empty-text marker, so surf's 'empty' is an undeclared emptiness and the page is refused rather than probed. Most of the growth is the contract documentation of those two rules. Scheduled shrink: S6 turns explore into a step list over Session. Final size includes the formatter's line breaks.",
+      "ref": "6b67b9a"
+    },
+    {
+      "file": "src/healing/self-healing.ts",
+      "from": 821,
+      "to": 841,
+      "reason": "slice S4 commit (3): HealingFinding carries the typed outcome basis and isHealableFinding gates selector extraction on basis 'fault', so a no_evidence, contradiction or indeterminate finding no longer drives a selector rewrite while unclassified legacy findings keep healing (result-classification packet refinement; adjudication axiom A7). Scheduled shrink: the healer's strategy list moves behind the ReceiptStore seam in S5.",
+      "ref": "6b67b9a"
     }
   ]
 }
