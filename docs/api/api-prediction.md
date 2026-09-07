@@ -10,6 +10,8 @@ type: "reference"
 
 > Prediction is currently a **library surface**. The fail-closed CLI wrapper does **not** expose `test-capabilities predict` as a supported command today.
 
+> **Status: parked** (operator decision D1, 2026-09-07). The exports stay and their tests pass, but the engine produces no target evidence: it never writes a `Finding` or `Observation`, never influences `TestResult.passed` or the run determination, and the `intelligence.prediction` config flag remains unsupported and fails closed.
+
 ---
 
 ## PredictionEngine

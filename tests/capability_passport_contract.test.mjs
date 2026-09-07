@@ -44,6 +44,28 @@ test("capability passport projection records supported Bombadil runtime separate
   assert.equal(testCommand?.verification_state, "verified");
 });
 
+test("capability passport marks quantum and prediction as parked (D1)", () => {
+  const passport = loadPassport();
+  const quantumCommand = passport.capabilities.find((entry) => entry.id === "cli:quantum");
+  const quantumLibrary = passport.capabilities.find(
+    (entry) => entry.id === "library:QuantumSimulator",
+  );
+  const predictionLibrary = passport.capabilities.find(
+    (entry) => entry.id === "library:PredictionEngine",
+  );
+
+  for (const entry of [quantumCommand, quantumLibrary, predictionLibrary]) {
+    assert.equal(entry?.support_state, "parked", `${entry?.id} must be parked`);
+    assert.equal(entry?.presence_state, "present");
+    assert.match(entry?.notes ?? "", /produces no target evidence/);
+    assert.match(entry?.notes ?? "", /never writes? a Finding or Observation/);
+  }
+  assert.equal(
+    passport.capabilities.find((entry) => entry.id === "cli:test")?.support_state,
+    "supported",
+  );
+});
+
 test("capability passport carries no SurfClient row after the 0.4.0 removal", () => {
   const passport = loadPassport();
 

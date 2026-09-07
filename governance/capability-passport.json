@@ -194,7 +194,7 @@
       "name": "quantum command",
       "surface_kind": "cli-command",
       "presence_state": "present",
-      "support_state": "supported",
+      "support_state": "parked",
       "verification_state": "verified",
       "evidence": {
         "tests": [
@@ -206,7 +206,8 @@
         "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
       },
       "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
-      "activation_requirements": []
+      "activation_requirements": [],
+      "notes": "Parked (operator decision D1, 2026-09-07): the route stays registered and its simulator tests pass, but it contacts no target and produces no target evidence. It must never write a Finding or Observation and never influences TestResult.passed or the run determination; dist/quantum/** is excluded from the coverage floor. It is not a testing capability in the sense of the capability contract."
     },
     {
       "id": "cli:replacement-validation",
@@ -302,7 +303,7 @@
       "name": "PredictionEngine",
       "surface_kind": "library-api",
       "presence_state": "present",
-      "support_state": "library_only",
+      "support_state": "parked",
       "verification_state": "verified",
       "evidence": {
         "tests": [
@@ -312,21 +313,23 @@
         "commands": ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"]
       },
       "attach_points": ["src/index.ts"],
-      "activation_requirements": []
+      "activation_requirements": [],
+      "notes": "Parked (operator decision D1, 2026-09-07): a library API with passing contract tests that produces no target evidence. It must never write a Finding or Observation and never influences TestResult.passed or the run determination; the intelligence.prediction config flag stays unsupported and fails closed; dist/prediction/** is excluded from the coverage floor."
     },
     {
       "id": "library:QuantumSimulator",
       "name": "QuantumSimulator",
       "surface_kind": "library-api",
       "presence_state": "present",
-      "support_state": "library_only",
+      "support_state": "parked",
       "verification_state": "verified",
       "evidence": {
         "tests": ["tests/quantum_simulator_contract.test.mjs"],
         "commands": ["npm test"]
       },
       "attach_points": ["src/index.ts"],
-      "activation_requirements": []
+      "activation_requirements": [],
+      "notes": "Parked (operator decision D1, 2026-09-07): the route stays registered and its simulator tests pass, but it contacts no target and produces no target evidence. It must never write a Finding or Observation and never influences TestResult.passed or the run determination; dist/quantum/** is excluded from the coverage floor. It is not a testing capability in the sense of the capability contract."
     },
     {
       "id": "library:SelfHealingEngine",

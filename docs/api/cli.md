@@ -209,7 +209,7 @@ This command is a validation membrane. It selects explicit target-owned validati
 
 ### `test-capabilities quantum`
 
-Run the shared quantum simulator.
+Run the shared quantum simulator. **Parked** (D1): the route stays registered, contacts no target and produces no target evidence; its output is never a `Finding`, an `Observation` or a test verdict.
 
 ```bash
 test-capabilities quantum --target https://example.com --branches 100 --collapse

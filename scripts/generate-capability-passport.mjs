@@ -133,19 +133,31 @@ const actionEvidence = {
   replay: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
 };
 
+const PARKED_QUANTUM_NOTE =
+  "Parked (operator decision D1, 2026-09-07): the route stays registered and its simulator tests pass, but it contacts no target and produces no target evidence. It must never write a Finding or Observation and never influences TestResult.passed or the run determination; dist/quantum/** is excluded from the coverage floor. It is not a testing capability in the sense of the capability contract.";
+const PARKED_PREDICTION_NOTE =
+  "Parked (operator decision D1, 2026-09-07): a library API with passing contract tests that produces no target evidence. It must never write a Finding or Observation and never influences TestResult.passed or the run determination; the intelligence.prediction config flag stays unsupported and fails closed; dist/prediction/** is excluded from the coverage floor.";
+
 const capabilities = [];
 
+// Routes that stay registered but are not testing capabilities (D1).
+const parkedCommands = {
+  quantum: PARKED_QUANTUM_NOTE,
+};
+
 for (const [command, status] of Object.entries(capabilityMatrix.cli.commands)) {
+  const parkedNote = parkedCommands[command];
   capabilities.push(
     capabilityEntry({
       id: `cli:${command}`,
       name: `${command} command`,
       surfaceKind: "cli-command",
       presenceState: "present",
-      supportState: status === "implemented" ? "supported" : "unsupported",
+      supportState: parkedNote ? "parked" : status === "implemented" ? "supported" : "unsupported",
       verificationState: status === "implemented" ? "verified" : "contract_only",
       evidence: commandEvidence[command],
       attachPoints: ["src/core/operations.ts", "src/core/capabilities.ts"],
+      ...(parkedNote ? { notes: parkedNote } : {}),
     }),
   );
 }
@@ -343,16 +355,19 @@ const libraryCapabilities = [
     id: "library:QuantumSimulator",
     name: "QuantumSimulator",
     surfaceKind: "library-api",
+    supportState: "parked",
     verificationState: "verified",
     evidence: {
       tests: ["tests/quantum_simulator_contract.test.mjs"],
       commands: ["npm test"],
     },
+    notes: PARKED_QUANTUM_NOTE,
   },
   {
     id: "library:PredictionEngine",
     name: "PredictionEngine",
     surfaceKind: "library-api",
+    supportState: "parked",
     verificationState: "verified",
     evidence: {
       tests: [
@@ -361,6 +376,7 @@ const libraryCapabilities = [
       ],
       commands: ["npm test", "npm run capability:drill -- --surf-mode shim --skip-build"],
     },
+    notes: PARKED_PREDICTION_NOTE,
   },
   {
     id: "library:SelfHealingEngine",
@@ -389,7 +405,7 @@ for (const libraryCapability of libraryCapabilities) {
     capabilityEntry({
       ...libraryCapability,
       presenceState: "present",
-      supportState: "library_only",
+      supportState: libraryCapability.supportState ?? "library_only",
       attachPoints: ["src/index.ts"],
     }),
   );

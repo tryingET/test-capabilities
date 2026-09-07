@@ -10,6 +10,8 @@ type: "reference"
 
 > Parallel universe test simulation.
 
+> **Status: parked** (operator decision D1, 2026-09-07). The `quantum` route and the `QuantumSimulator`/`QuantumTestRunner` exports stay in the runtime and their tests pass, but they contact no target and produce no target evidence: they never write a `Finding` or `Observation` and never influence `TestResult.passed` or the run determination. Treat the output as simulator output, not as a test verdict.
+
 ---
 
 ## Concept

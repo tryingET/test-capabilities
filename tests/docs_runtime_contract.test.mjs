@@ -291,3 +291,22 @@ test("0.4.0 docs stop advertising the removed SurfClient, SurfFlowBuilder and Ne
   assert.match(surfDoc, /kernel `Session` interface/);
   assert.doesNotMatch(productReadmeDoc, /createNexus \/ createTestCapabilities/);
 });
+
+test("README, posture and API docs mark quantum and prediction as parked instead of Implemented (D1)", () => {
+  const readmeDoc = load("README.md");
+  const postureDoc = load("docs/project/product-posture.md");
+  const quantumDoc = load("docs/api/api-quantum.md");
+  const predictionDoc = load("docs/api/api-prediction.md");
+  const apiReferenceDoc = load("docs/api/api-reference.md");
+
+  assert.doesNotMatch(readmeDoc, /\| `quantum` command \| Implemented/);
+  assert.match(readmeDoc, /### Parked \(present, tested, not testing capabilities\)/);
+  assert.match(readmeDoc, /\| `quantum` command \| Parked \|/);
+  assert.match(readmeDoc, /`PredictionEngine`[^|]*\| Parked \|/);
+  assert.match(postureDoc, /a parked `quantum` route and parked prediction library API/);
+  assert.match(postureDoc, /`quantum` route\/`QuantumSimulator` are parked/);
+  assert.match(quantumDoc, /\*\*Status: parked\*\*/);
+  assert.match(predictionDoc, /\*\*Status: parked\*\*/);
+  assert.match(apiReferenceDoc, /Prediction \(parked, D1/);
+  assert.match(apiReferenceDoc, /Quantum \(parked, D1/);
+});

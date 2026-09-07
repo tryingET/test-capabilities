@@ -91,11 +91,20 @@ Packed npm consumers should treat Bombadil as an external tool requirement: the 
 | `terminal-fuzzer` orchestrator agent | Implemented | Experimental bounded wrapper for `bombadil terminal test -- <command> [args...]`; emits `observation.v1` runtime evidence for the resolved CLI/terminal command and fails closed on missing Bombadil or target command |
 | `surf` orchestrator agent | Implemented | Runs the supported `surf explore` operation against `targets.web`; resolves the surf CLI from `TEST_CAPABILITIES_SURF_BIN`, `PATH`, or `~/.local/bin/surf`, then reports graded user-flow coverage from verified browser-state/DOM probes |
 | `cli-tester` orchestrator agent | Implemented | Executes `<targets.cli> --help` as a capability-backed smoke |
-| `quantum` command | Implemented | Uses the shared simulator path |
 | `surf explore` | Implemented | Opens an owned surf tab, gates it with `wait.ready` typed states, runs explicit browser-state/DOM probes, optionally follows same-origin links through `extract` with `--depth 1..3`, and fails closed unless the seed page verifies browser-state evidence |
 | `heal` command | Implemented | Heuristic selector repair workflow; `--findings-input` accepts orchestrator findings JSON so proposals cite diagnostic evidence as `triggeringFindingId`; apply mode can consume a reviewed `--proposal-input` artifact and still requires an external `--checkpoint-ref` |
 | normalized observations | Implemented | Supported orchestrator agents emit `observation.v1` diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution; when correlation is enabled, runs can also include component-level semantic synthesis, suite-level observation correlation, deterministic `root_cause` observations for at least two same-component independent failed-or-errored observed evidence units that agree on the same failure class, and low-calibration non-authoritative `propagation` observations across configured dependency edges |
 | finding correlation | Implemented | Cross-finding synthesis inside the orchestrator; observation-native synthesis and calibrated root-cause observations summarize multi-sensor meaning without becoming pass/fail authority or prediction |
+
+### Parked (present, tested, not testing capabilities)
+
+Operator decision D1 (2026-09-07) keeps these in the runtime with no route deletion, marked truthfully:
+
+| Surface | Status | Notes |
+|---|---|---|
+| `quantum` command | Parked | The route stays registered and its simulator tests pass, but it contacts no target and produces no target evidence; it never writes a `Finding` or `Observation` and never influences `TestResult.passed` or the run determination; `dist/quantum/**` is excluded from the coverage floor |
+| `QuantumSimulator` / `QuantumTestRunner` library API | Parked | Same rule as the command; exported for library consumers, not a testing capability |
+| `PredictionEngine` / `PredictionCollector` / `GradientBoostingPredictor` library API | Parked | Produces no target evidence; the `intelligence.prediction` config flag stays unsupported and fails closed; `dist/prediction/**` is excluded from the coverage floor |
 
 ### Explicitly unsupported for now
 
@@ -143,7 +152,7 @@ npm run test-capabilities                # Run TEST-CAPABILITIES CLI
 node ./bin/test-capabilities init --output ./test-capabilities.yaml --target node --force
 node ./bin/test-capabilities doctor --config ./test-capabilities.yaml --target node --json
 node ./bin/test-capabilities test --config ./test-capabilities.yaml --json
-node ./bin/test-capabilities quantum --target https://example.com
+node ./bin/test-capabilities quantum --target https://example.com   # parked route (D1): simulator output, no target evidence
 node ./bin/test-capabilities surf explore --url https://example.com
 node ./bin/test-capabilities heal --dir ./tests --dry-run
 node ./bin/test-capabilities heal --dir ./tests --dry-run \

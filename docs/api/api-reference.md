@@ -50,12 +50,12 @@ import {
   SelfHealingEngine,
   TestFileHealer,
 
-  // Prediction
+  // Prediction (parked, D1: exported, tested, produces no target evidence)
   PredictionEngine,
   GradientBoostingPredictor,
   PredictionCollector,
 
-  // Quantum
+  // Quantum (parked, D1: exported, tested, produces no target evidence)
   QuantumSimulator,
   QuantumTestRunner,
 
@@ -88,8 +88,8 @@ import {
 | Validate a config against the capability contract | `validateCapabilityContract(config)` |
 | Browser control from the library | not exported in 0.4.0: `SurfClient` and `SurfFlowBuilder` were removed (D2); the kernel `Session` interface arrives in this release line, see [api-surf.md](api-surf.md) |
 | Fix broken tests | `new SelfHealingEngine().heal(ctx)` |
-| Predict failures as a library API | `new PredictionEngine().analyze(metrics)` |
-| Run quantum simulation | `new QuantumTestRunner().run(url)` |
+| Predict failures as a library API (parked) | `new PredictionEngine().analyze(metrics)` |
+| Run quantum simulation (parked) | `new QuantumTestRunner().run(url)` |
 
 ---
 
@@ -97,8 +97,8 @@ import {
 
 - **[Browser surface](api-surf.md)** - `surf explore` today; `Session` replaces the removed `SurfClient` in this release line
 - **[Self-Healing](api-healing.md)** - Auto-fix broken tests
-- **[Prediction](api-prediction.md)** - Prediction library APIs
-- **[Quantum](api-quantum.md)** - Parallel universe simulation
+- **[Prediction](api-prediction.md)** - Prediction library APIs (parked)
+- **[Quantum](api-quantum.md)** - Parallel universe simulation (parked)
 - **[Types](types.md)** - Full type definitions
 
 ---
