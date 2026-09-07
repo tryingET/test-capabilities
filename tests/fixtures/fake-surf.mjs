@@ -344,7 +344,7 @@ const READINESS_CODES = {
   loading: "page_timeout",
 };
 
-function readinessResult(page, tab) {
+function readinessResult(page) {
   return {
     state: page.readiness,
     evidence: page.evidence,
@@ -358,7 +358,7 @@ function readinessResult(page, tab) {
 }
 
 function readinessGate(page, tab, { accept = [], wait = true } = {}) {
-  const result = readinessResult(page, tab);
+  const result = readinessResult(page);
   if (!wait) {
     return result;
   }
