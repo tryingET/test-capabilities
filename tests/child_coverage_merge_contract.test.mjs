@@ -95,13 +95,24 @@ test("a CLI child run under NODE_V8_COVERAGE leaves hits for the child-only test
   }
 });
 
-test("the default build ships no source maps while TEST_CAPABILITIES_BUILD_SOURCEMAP=1 is a coverage-only switch", () => {
-  const distRoot = resolveRuntimeDistRoot();
-  const operationsDir = path.join(distRoot, "core", "operations");
-  const maps = readdirSync(operationsDir).filter((name) => name.endsWith(".js.map"));
-  if (process.env.TEST_CAPABILITIES_BUILD_SOURCEMAP === "1") {
-    assert.ok(maps.length > 0, "a sourcemap build produced no dist/core/operations/*.js.map");
-    return;
+test("dist/ is self-consistent about source maps: a map file exists exactly for the modules that reference one", () => {
+  // The default build emits no sourceMappingURL comment and no map; the
+  // TEST_CAPABILITIES_BUILD_SOURCEMAP=1 build emits both. Either way the two
+  // must agree, so a coverage build can be remapped and a default build never
+  // carries a dangling reference. The npm pack never contains a map
+  // (scripts/consumer_contract_smoke.mjs asserts it on the packed file list).
+  const operationsDir = path.join(resolveRuntimeDistRoot(), "core", "operations");
+  const entries = readdirSync(operationsDir);
+  const scripts = entries.filter((name) => name.endsWith(".js"));
+  const maps = new Set(entries.filter((name) => name.endsWith(".js.map")));
+  assert.ok(scripts.length > 0, "no built operation modules found");
+  for (const script of scripts) {
+    const source = readFileSync(path.join(operationsDir, script), "utf8");
+    const referencesMap = /\/\/# sourceMappingURL=/.test(source);
+    assert.equal(
+      maps.has(`${script}.map`),
+      referencesMap,
+      `${script}: sourceMappingURL comment (${referencesMap}) and map file (${maps.has(`${script}.map`)}) disagree`,
+    );
   }
-  assert.deepEqual(maps, [], "the default build must not emit dist/**/*.js.map");
 });
