@@ -49,7 +49,8 @@ implementation is this repo; the surf-cli side is described as a later upstream 
   at `src/core/operations/dispatch-manifest.ts:60-93`). They compose existing surf primitives the way
   `surf explore` does (owned tab, `wait.ready`, pure-expression `js`, `tab.close`;
   `src/core/operations/surf-explore-operation.ts:187-208`, `:266-309`, `:315-335`). `SurfClient.type` loses its
-  `submit` option and `SurfFlowBuilder` loses its `click`/`type` steps (removed, not gated: D8); the only code path
+  `submit` option and `SurfFlowBuilder` is deleted outright (removed, not gated: D8; revised by architecture review:
+  A3); the only code path
   that can click a form control is the apply runner of §4.3, and packet 1's classification hook sees `surf.apply` as
   the one mutating surf operation.
 - **surf-cli later (upstream proposal, not in scope).** After PRs A-H
@@ -101,11 +102,14 @@ the tab. Nothing is typed or clicked. Plan artifact `test-capabilities.surf.plan
   "fingerprint": { "url": "...", "form_count": 1, "field_signature": "sha256:...", "control_signature": "sha256:..." },
   "approval_token": "sha256:...",
   "policy": { "dry_run_default": true, "value_via_field_input_only": true, "never_retry_submit": true,
-              "approval_binds_to": "content_hash", "authority": ["config.surf.submit.allowOrigins", "apply_runner"] } }
+              "approval_binds_to": "content_hash", "authority": ["config.mutation.allowOrigins", "apply_runner"] } }
 ```
 
 `approval_token` is `sha256` over the canonical JSON of `{ target.origin, fields[].resolved_selector,
-fields[].intended_value, submit.control.selector }`; `surf plan` prints it in its summary line. It is deliberately
+fields[].intended_value, submit.control.selector }`, canonical per RFC 8785 (JCS: object keys sorted by UTF-16 code
+units, no insignificant whitespace, UTF-8, shortest round-trip numbers), with one fixture plan and its expected token
+committed in the contract test (revised by architecture review: A11); `surf plan` prints it in its summary line, and
+in text mode that summary line is the only line on stdout so the operator can copy it. It is deliberately
 not a secret: whoever can read the plan can present it. It binds an approval to reviewed content, so that an edited
 plan (a changed value, a swapped submit selector) no longer matches; it confers no authority (Refinement, hazard 3).
 Authority sits in two places the test-running agent does not own: the operator's allowlist and the construction of
@@ -135,28 +139,37 @@ rule); a field inside a cross-origin iframe or a shadow root (`plan_field_unreac
   a safe one (Refinement, clash 3). Closes the tab even on failure; the draft is discarded. Exit 0 with
   `submitted: false` only when every read-back matched and nothing navigated.
 - **Submit mode.** Requires all of, checked in this order before any tab is opened, each refusal owning one
-  hazard (Refinement, Mode 3): (1) config `surf.submit.allowOrigins` contains `target.origin`
+  hazard (Refinement, Mode 3): (1) config `mutation.allowOrigins` contains `target.origin`
   (`submit_origin_not_allowed`; the world); (2) `--submit` is present and `--confirm-plan <approval_token>` equals
   the token recomputed from the plan file's content (`submit_gate_closed` without `--submit`,
   `submit_plan_mismatch` when the token differs or the file no longer hashes to its own `approval_token`; the
-  intent); (3) no receipt for `plan_id` exists in `surf.receipts.dir`, whatever its outcome, `attempting` and
-  `unknown` included (`submit_already_attempted`; at-most-once); (4) `submit.status === "identified"`
+  intent); (3) no submit-mode receipt for `plan_id` exists in `receipts.dir`, queried as
+  `ledger.listReceipts({ planId, mode: "submit" })`, whatever its outcome, `attempting` and `unknown` included
+  (`submit_already_attempted`; at-most-once); fill-mode receipts never block a later submit of the same plan, so
+  fill → review → submit on one plan is the supported workflow (revised by architecture review: A2); (4) `submit.status === "identified"`
   (`plan_submit_ambiguous`, `plan_submit_missing`). After a successful fill (navigation check included) the runner
   re-resolves the submit control by its plan selector, waits up to `surf.submit.controlEnableTimeoutMs` for
   `disabled` to clear, and refuses if it is still disabled, no longer unique, or no longer inside the fields'
-  owning form (`submit_control_disabled`, `submit_control_changed`). It then writes the receipt with
-  `outcome: "attempting"` durably (temp file, fsync, rename), clicks the control exactly once through
+  owning form (`submit_control_disabled`, `submit_control_changed`). It then writes the mutation receipt with
+  `outcome: "attempting"` durably through the kernel artifact writer (temp file, fsync on file and directory, rename;
+  A9), clicks the control exactly once through
   `clickSubmit()` (§4.3), waits for the post-condition (`--until-*`, default: URL leaves `target.url`), and
   finalises the receipt. Post-condition timeout is `submit_postcondition_unmet` with `submitted: "unknown"`,
   receipt `outcome: "unknown"`, exit non-zero; it is never retried, and the plan can never be submitted again
   because rule (3) now holds for it.
-- **Config keys** (`test-capabilities.yaml`): `surf.submit.allowOrigins: []` (default empty, so every submit is
-  refused), `surf.submit.postconditionTimeoutMs: 15000`, `surf.submit.controlEnableTimeoutMs: 5000`,
-  `surf.receipts.dir: .test-capabilities/receipts`. There is no environment variable that opens the gate and no
+- **Config keys** (`test-capabilities.yaml`): `mutation.allowOrigins: []` (default empty, so every submit is
+  refused; revised by architecture review: A13, Q1, the key is named for what it gates and is consulted by every
+  `mutating/target` step whose subject is a web origin, Bombadil included), `surf.submit.postconditionTimeoutMs: 15000`,
+  `surf.submit.controlEnableTimeoutMs: 5000`; receipts live in packet 1's `receipts.dir`, and `surf.receipts.dir`
+  does not exist (A1). There is no environment variable that opens the gate and no
   CLI flag that adds an origin (`--allow-origin` does not exist); a CI variable must not be able to turn dry-run
   into submit. The allowlist is a declaration about the world (Refinement, hazard 2) and belongs to whoever owns
   the world, which is the operator editing the config, never the agent running the test.
-- **Receipt** `test-capabilities.surf.receipt` v1, one file per apply attempt, written durably before the click in
+- **Receipt** (revised by architecture review: A1): one packet-1 `test-capabilities.mutation.receipt` v1 per apply
+  attempt, with `details { plan_id, mode: "fill"|"submit", fields: [{ id, set, read_back, matched }], submit: { clicked,
+  control, post_condition }, surf_calls: [] }` and packet 1's outcome vocabulary (`ok` is `applied`; a refusal before
+  any act is an envelope error, not a receipt). The field names below are kept for reference only; the former
+  standalone shape was `test-capabilities.surf.receipt` v1, one file per apply attempt, written durably before the click in
   submit mode: `{ schema_version, artifact_kind, receipt_id, plan_id, mode: "fill"|"submit", attempt: 1,
   started_at, finished_at, target, fields: [{ id, set: bool, read_back, matched }], submit: { clicked, control,
   post_condition: { kind, expected, observed, satisfied } }, outcome: "ok"|"refused"|"attempting"|"failed"|"unknown",
@@ -168,7 +181,9 @@ rule); a field inside a cross-origin iframe or a shadow root (`plan_field_unreac
 ### 4.3 The apply runner (capability restriction; the load-bearing layer)
 
 `surf.apply` never holds a general `SurfClient`. It constructs a `SurfApplyRunner` from the plan and the mode, and
-the runner is the only object in the operation with a surf runtime handle. Its whole surface is:
+the runner is the only object in the operation with a surf runtime handle. The runner is built from an owned-tab
+`BrowserSession` opened in fill or submit mode, and each of its methods is a packet-1 `EffectStep` over that session
+(revised by architecture review: A8). Its whole surface is:
 
 | method | emits | addressable set |
 |---|---|---|
@@ -194,10 +209,12 @@ compile-time `never` check on the excluded members) and through `calls.log`.
   (`fill_side_effect_observed`), a second submit candidate appearing after the fill: each refuses with a code, and
   in submit mode the refusal happens before the click. The only step that cannot be undone is the single click, and
   it is preceded by a durable receipt.
-- Submit mode is operator-invoked only. `surf apply --submit` is not reachable from `agents.<name>` config, the
-  orchestrator, `heal`, `SurfFlowBuilder` or any retry hook; the dispatch manifest marks `surf.apply` as
-  `mutation: external` with `operator_only: true` for submit mode, and packet 1's scheduling hook refuses it. There
-  is no confirmation prompt and no two-person rule: a ritual repeated by automation stops being deliberate
+- Submit mode is not wired to any agent, hook or retry path in this repo (revised by architecture review: A12):
+  `surf apply --submit` is unreachable from `agents.<name>` config, the orchestrator and `heal`, but the kernel is a
+  public library and `executeCliOperation({ command: "surf", action: "apply" }, { submit, confirmPlan })` is reachable
+  like every operation. The dispatch manifest's `mutation: external` and `operator_only: true`, and the passport row
+  for `surf-action:apply`, document intent and are not a control; the controls are `mutation.allowOrigins` and the
+  runner's construction. There is no confirmation prompt and no two-person rule: a ritual repeated by automation stops being deliberate
   (Refinement, clash 4), so reachability replaces it.
 - Submit control identification: candidates are the owning form's `button[type=submit]`, `input[type=submit]`
   and `button` elements without a `type` (implicit submit), in tree order; `--submit-text` narrows by
@@ -263,7 +280,9 @@ auto-wait and step-delay semantics hide which call clicked).
 
 ## 9. Verification and dogfood plan
 
-- **fake-surf** (`tests/fixtures/fake-surf.mjs`): add page fixtures with `fields` and `controls`, and commands
+- **fake-surf** (`tests/fixtures/fake-surf.mjs`): add page fixtures with `fields` and `controls` (one page-model
+  schema bump shared with packet 3's `frames` and `changeNavigatesTo`, fed by `tests/fixtures/captures/` with a
+  fidelity test; revised by architecture review: A17), and commands
   `type --into`, `click --selector`, `select`, plus `js` support for `value` read-back; every call lands in
   `calls.log` (`tests/helpers/fake-surf.mjs:35-80`). Contract test `tests/surf_submit_gate_contract.test.mjs`:
   (a) plan written, submit identified, mode 0600; (b) two submit candidates → `submit.status: ambiguous`, plan
@@ -275,7 +294,8 @@ auto-wait and step-delay semantics hide which call clicked).
   `submit_already_attempted`; (i) fingerprint drift → `plan_stale`; (j) `page_login` on apply → passthrough code;
   (k) plan file edited after `surf plan` (one `intended_value` changed, `plan_id` kept) → `submit_plan_mismatch`,
   no tab opened; (l) fixture page whose `change` handler navigates → `fill_side_effect_observed`, exit non-zero,
-  receipt `outcome: failed`; (m) a receipt with `outcome: attempting` already present → `submit_already_attempted`;
+  receipt `outcome: failed`; (m) a submit-mode receipt with `outcome: attempting` already present → `submit_already_attempted`, while a fill-mode
+  receipt alone does not block (A2);
   (n) across every case, no `forbidden_controls` selector ever appears in `calls.log`, and a type-level test proves
   `SurfApplyRunner` has no member that accepts a free selector, no `press`, and no `clickSubmit` in fill mode.
 - **Local live submit proof**: a throwaway `node:http` fixture server serving one form and recording POST bodies,
@@ -296,7 +316,8 @@ auto-wait and step-delay semantics hide which call clicked).
   in §8. Revisit only if a live run records a `fill_side_effect_observed` on a non-allowlisted origin.
 - Q2: Per-field `--verify-js` expression for framework state, or leave read-back as the only check in v1?
 - Q3 (closed by refinement): origin only (D9); a path prefix is not an isolation boundary.
-- Q4: Receipt location and format are packet 1's call; do receipts also feed the root-cause corpus as evidence?
+- Q4 (closed by architecture review, A1): one receipt kind under packet 1's `receipts.dir`, this packet's fields as
+  `details`; whether receipts also feed the root-cause corpus as evidence stays open.
 - Q5 (closed by refinement): removed, not gated (D8); a gated capability is still a held capability.
 - Q6: Upstream naming (`form.plan`/`form.apply` vs `form.prepare`/`form.submit`) and whether upstream wants the
   approval token at all, or only the `--submit` flag.
@@ -335,6 +356,19 @@ auto-wait and step-delay semantics hide which call clicked).
   `heal`, `SurfFlowBuilder` and every retry hook; there is no confirmation prompt and no two-person rule.
 - D11 (2026-09-07, by refinement): a navigation or form loss during fill is `fill_side_effect_observed`, a failed
   dry-run, never a passed one; fill is documented as bounded, not safe.
+- D12 (2026-09-07, revised by architecture review: A1, A9, A10): no `test-capabilities.surf.receipt` and no
+  `surf.receipts.dir`; the apply receipt is packet 1's `mutation.receipt` with this packet's payload under `details`,
+  written through the kernel artifact writer; on-disk plan and receipt files carry values, envelope copies carry
+  hashes, codes and the artifact path. D5 and D6 are read with this entry.
+- D13 (2026-09-07, revised by architecture review: A2): `submit_already_attempted` is keyed on submit-mode receipts
+  only (`listReceipts({ planId, mode: "submit" })`); a fill-mode dry run never blocks the submit of its own plan.
+- D14 (2026-09-07, revised by architecture review: A11): the approval token's canonicalisation is RFC 8785 JCS,
+  fixed by a committed fixture plan and expected token. D2 is read with this entry.
+- D15 (2026-09-07, revised by architecture review: A12, A13, Q1): "operator-invoked only" is documentation of intent,
+  not a control; the controls are the origin allowlist, renamed `mutation.allowOrigins` and shared with every
+  mutating/target step (Bombadil included), and the runner's construction. D9 and D10 are read with this entry.
+- D16 (2026-09-07, revised by architecture review: A3, A8): `SurfFlowBuilder` is deleted, not trimmed; the apply
+  runner is built from an owned-tab `BrowserSession` and its methods are `EffectStep`s. D8 is read with this entry.
 
 ## Refinement (many-of-the-greats)
 

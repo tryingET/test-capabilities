@@ -141,8 +141,9 @@ check (the candidate list); it is refused outright when the framework cannot (`c
 construction; `undetermined`/`unavailable`: no candidate list to check). Apply mode never consumes a refusal or a
 caveated proposal.
 
-**Evidence fields** (typed `FrameRootCause`, attached to the failing probe/step result and rendered into
-`Finding.evidence[]` as one line per item, prefixed `frame-root-cause:`):
+**Evidence fields** (typed `FrameRootCause`, attached to the failing probe/step result and to the finding as
+`Finding.frameRootCause?` (revised by architecture review: A20), and rendered into `Finding.evidence[]` as one line per
+item, prefixed `frame-root-cause:`):
 `determination`, `primaryTag` (of the confirmed candidate; null otherwise), `hint` (echoed, if any), `candidates[]`
 (`domIndex`, `origin`, `src` abbreviated to 160 chars, `rect`, `sandbox`, `shadowHost`, `crossOrigin`, `outOfProcess`,
 `hidden`, `extensionFrameIds`, `cdpFrameIds`, `contentScriptReachable`, `tags[]`, `primaryTag`), `excludedHidden[]`,
@@ -150,12 +151,13 @@ caveated proposal.
 `source {tabId, browserEpoch, command, durationMs}`, `reason` (for `undetermined`/`unavailable`).
 The first evidence line is the machine marker, fixed format:
 `frame-root-cause: determination=<value> tag=<primaryTag|none> candidates=<n> hint=<echo|none>`.
-`SurfFrameDiagnosis` becomes fully typed from the captured shape.
+`SurfFrameDiagnosis` becomes fully typed from the captured shape. Consumers (`inferRootCauseClass`, the healer) read
+the typed field first and parse the marker line only for legacy findings without it (A20).
 
 **Root-cause report.** A new `RootCauseFailureClass` value `frame_boundary` joins the list at `orchestrator.ts:268-281`.
 It is a test-defect class (the fix is a structural change to the step, not a selector substitution and not a change in
-the system under test), which is why it is not a sub-field of `selector_or_dom_drift`. `inferRootCauseClass` parses the
-marker line first: `determination=confirmed` returns `frame_boundary` before any regex runs; `suspected`,
+the system under test), which is why it is not a sub-field of `selector_or_dom_drift`. `inferRootCauseClass` reads `Finding.frameRootCause` first and the
+marker line only for legacy findings (revised by architecture review: A20): `determination=confirmed` returns `frame_boundary` before any regex runs; `suspected`,
 `undetermined` and `unavailable` return `browser_coverage_gap` with the diagnosis attached; `excluded` falls through
 to the existing rules. Calibration rules are unchanged: a single surf sensor still yields no `root_cause` observation;
 the finding carries the diagnosis regardless. Surf explore's page result gains `probes[].frameRootCause?`
@@ -167,7 +169,9 @@ artifact gains `refusals[]` (`{ triggeringFindingId, selector, reason, code, sug
 `{ kind: "frame.switch", index?, selector?, urlPrefix, hops }`) and `HealingProposal` gains `frameCaveat?`. Refusals
 and caveated proposals are review artifacts; apply mode never acts on them.
 
-**Error codes** (framework side, `[code]` suffix like surf): `element_unreachable` (trigger), `frame_diagnosis_failed`
+**Error codes** (framework side; carried by `FrameworkError { code, details }`, registered as
+`FRAME_ROOT_CAUSE_ERROR_CODES` in `src/core/error-codes.ts`, `[code]` suffix in text mode and the
+`{"error": {code, message, details}}` envelope under `--json`; revised by architecture review: A6): `element_unreachable` (trigger), `frame_diagnosis_failed`
 (surf non-zero, non-JSON, or `frame.diagnose` missing from the probed mechanisms), `frame_diagnosis_undetermined`
 (revised by refinement: was `frame_diagnosis_unclassified`), `heal_frame_refused` (with the determination and, when
 confirmed, the tag in the message). Surf-side codes pass through unchanged (`page_timeout`, `no_tab`,
@@ -175,8 +179,9 @@ confirmed, the tag in the message). Surf-side codes pass through unchanged (`pag
 
 ## Behaviour and failure modes
 
-- Diagnosis runs in the same owned tab, before `tab.close`, inside explore's `try` (`surf-explore-operation.ts:645-690`),
-  with the explore command timeout (`:33`). The `[surf tab=... window=...]` stderr line is stripped as today (`:138`).
+- Diagnosis is a read-only `observe` step registered on the owned-tab `BrowserSession` (revised by architecture review:
+  A8), run in the same tab before the session closes (today's `surf-explore-operation.ts:645-690` `try`), with the
+  explore command timeout (`:33`). The `[surf tab=... window=...]` stderr line is stripped as today (`:138`).
 - Fail closed: if `frame.diagnose` fails, the step result keeps `element_unreachable` and adds
   `frameDiagnosis: { status: "failed", code, message }`; the finding says "frame diagnosis unavailable", the marker
   line says `determination=unavailable` (never defaulted to `excluded`), the root-cause class is
@@ -233,7 +238,11 @@ text or from healer strategy output.
 
 ## Verification and dogfood plan
 
-- Fixtures: commit the three captured JSON documents under `tests/fixtures/frame-diagnose/` (example-com, mdn-iframe,
+- Truth gate: re-read `assertCurrentSurfaceAvoidsCausalityOverclaim` (`capability-truth-gate.mjs:192-209`) against the
+  words `frame_boundary`/`confirmed` in README, posture and passport before the slice lands, and add a guard fixture
+  (revised by architecture review: A15).
+- Fixtures: commit the three captured JSON documents under `tests/fixtures/captures/frame-diagnose/` (the shared
+  capture corpus the fake learns from, A17) (example-com, mdn-iframe,
   claude-login) plus synthetic ones per tag (in-process cross-origin, nested srcdoc from dogfood §4b, hidden 0x0,
   closed-shadow mismatch, unreachable content script). Unit tests on the pure classifier: one per tag, precedence, one
   per determination, hint selecting one/zero/several candidates, hint on an unreachable candidate, hidden rule on 1x1,
@@ -297,6 +306,13 @@ text or from healer strategy output.
   warning prose is quoted verbatim as evidence and never parsed for a decision.
 - 2026-09-07 (refinement): the only v1 source of a positive selector-to-frame link is the test author's `frameHint`;
   the in-frame positive probe is deferred (Open question 5). Selector text and healer strategy output are not links.
+- 2026-09-07, revised by architecture review (A20): `Finding.frameRootCause?` is the authoritative typed field; the
+  marker line is its rendered form for legacy readers and is parsed only when the field is absent.
+- 2026-09-07, revised by architecture review (A8): the diagnosis is an `observe` step on the surf adapter's
+  `BrowserSession`, not a hook inside explore; it inherits the effect class, attempt log and outcome of every step.
+- 2026-09-07, revised by architecture review (A6, A15, A17): codes are carried by `FrameworkError` from the registry;
+  the overclaim grep in the truth gate is re-read against `frame_boundary`/`confirmed` before landing; captures live
+  under `tests/fixtures/captures/`.
 
 ## Refinement (many-of-the-greats)
 

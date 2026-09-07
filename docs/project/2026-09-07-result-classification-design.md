@@ -64,6 +64,12 @@ orchestrator agents (`CliTesterAgent`, `SurfAgent`, `BombadilAgent`, `TerminalFu
 (`test-operation.ts`, `docs/api/types.md`) read `ResultOutcome` and nothing else. Config declarations live in the
 strict zod schema in `src/core/orchestrator.ts:44-176` and in `docs/api/config.md`; operations declare in code.
 
+Revised by architecture review (A7, Q3): this module defines `RawResult { source, exitCode, signal, stdout, stderr,
+durationMs, httpStatus?, body? }`, and the kernel owns one process boundary, `spawnStep(source, argv, { timeoutMs, env }):
+RawResult`. `SurfClient.run`, `runSurfCommand`, `command-runner-core.runCommand`, `CliTesterAgent.runCommand` and
+`runBombadil` become callers of it, so the classifier has one input shape and the mutation-safety packet's `runStep` can
+be the only mutating caller (checked by a contract test that greps `src/` for `spawn(`/`spawnSync(` outside the kernel).
+
 ## Current state
 
 - Exit-code-only classification in the CLI tester and command runner; surf paths have error codes (`SurfCommandError`,
@@ -83,7 +89,10 @@ strict zod schema in `src/core/orchestrator.ts:44-176` and in `docs/api/config.m
 export type OutcomeClass = "success" | "declared_empty" | "empty" | "error" | "timeout" | "spawn_failed" | "unclassifiable";
 // revised by refinement: `basis` separates "no evidence" from "target fault" so the healer and report never
 // present an undeclared empty run as a bug in the target.
-export type OutcomeBasis = "evidence" | "fault" | "no_evidence" | "contradiction";
+export type OutcomeBasis = "evidence" | "fault" | "no_evidence" | "contradiction" | "indeterminate";
+// revised by architecture review (A4): `indeterminate` = transport failed with no signal from the target (timeout,
+// signal, null exit) on a mutating step; set by the mutation ledger when its outcome is `unknown`; healer and report
+// treat it like `contradiction` (nothing to heal, not a target fault).
 export interface ResultOutcome {
   class: OutcomeClass;
   ok: boolean;                         // true only for "success" | "declared_empty"
@@ -108,7 +117,8 @@ export interface ResultOutcome {
 ### Classification order (deterministic; the first matching step decides)
 
 1. Transport failure: spawn error → `spawn_failed`; timeout/kill signal → `timeout` (code `timeout` or `signal_<name>`).
-   Basis `fault`.
+   Basis `fault` for read-only steps; `indeterminate` when the step is mutating and the mutation ledger records
+   `unknown` (revised by architecture review: A4).
 2. Separate channels, before any judgement (revised by refinement: stderr is a channel, not candidate payload, so
    the progress-line pattern list is gone). Exit code, signal and HTTP status go to `transport`; stderr goes whole
    (trimmed, capped) to `transport.stderr` and is never payload, never the basis for `empty`, never pattern-stripped.
@@ -178,7 +188,11 @@ Surf codes pass through unchanged (`page_login`, `page_challenge`, `page_not_fou
 `row_error`, `invalid_output`, `unclassifiable`. The vocabulary is exported as `RESULT_OUTCOME_CODES` and asserted by
 a contract test; unknown codes from surf are kept verbatim and marked `error`, never `success`. Recorded-signal
 names (`stderr_error_line`, `payload_error_key_present`, `tester_verdict_overruled`) are exported as
-`RESULT_RECORDED_SIGNALS` and asserted the same way; a recorded signal never changes a class.
+`RESULT_RECORDED_SIGNALS` and asserted the same way; a recorded signal never changes a class. Framework codes are carried by `FrameworkError { code, details }`
+(`src/core/runtime-contract.ts`) and registered in `src/core/error-codes.ts` as namespaced `as const` arrays with a
+uniqueness test; the CLI prints `[code]` in text mode and `{"error": {code, message, details}}` with exit 1 under
+`--json`, the same shape this classifier parses from surf; `docs/api/errors.md` is updated with it (revised by
+architecture review: A6, Q5).
 
 ### Backwards compatibility
 
@@ -197,10 +211,12 @@ names (`stderr_error_line`, `payload_error_key_present`, `tester_verdict_overrul
 - Fail closed: `unclassifiable` and `empty` are failures with `severity: critical` findings for CLI and browser
   sensors (they block `TestResult.passed` and set the sensor's coverage to 0). Revised by refinement: the finding for
   `empty` describes "no evidence", not a target failure; its recommendation names both resolutions, fix the target's
-  output or declare `expect.output: empty`, and the evidence carries `basis:no_evidence`. The finding for
+  output or declare `expect.output: empty` (verbatim, and `init` writes `# expect: { output: empty }` as a commented
+  hint; revised by architecture review: A16), and the evidence carries `basis:no_evidence`. The finding for
   `unclassifiable` describes the contradiction and carries `basis:contradiction`.
 - The healer proposes only from findings with `basis: fault` (revised by refinement); it refuses `no_evidence`
-  (no selector evidence can exist) and `contradiction` (nothing to heal from contradictory evidence). Legacy findings
+  (no selector evidence can exist), `contradiction` (nothing to heal from contradictory evidence) and `indeterminate`
+  (the mutation ledger's `unknown`; nothing is known about the target, A4). Legacy findings
   without an outcome are accepted with a `legacy_evidence` note until the cutover test flips.
 - LLM testers (`prompts/cli-tester.md`, `prompts/api-tester.md`) receive the outcome as their floor (revised by
   refinement): a tester may add findings and may lower a verdict, but a tester `verdict: pass` for a step whose
@@ -310,6 +326,14 @@ vocabulary; rewriting the LLM prompts beyond stating the contract; classifying B
   replayable function of recorded fields and must not be steerable through the payload it judges.
 - 2026-09-07 (added by refinement): a Bombadil `completed` run is `success` only with a non-empty trace payload.
   Reason: `completed` → `edgeCases: 100` without a payload is the same silent pass as `targets.cli: "true"`.
+- 2026-09-07 (revised by architecture review: A4): `basis` gains `indeterminate` so the mutation-safety packet's
+  `unknown` never renders as a target fault.
+- 2026-09-07 (revised by architecture review: A7, Q3): `RawResult` and one kernel `spawnStep` are defined here; the
+  five process runners become callers.
+- 2026-09-07 (revised by architecture review: A6, Q5): the framework adopts surf's error envelope and `[code]` suffix
+  through `FrameworkError` and the code registry.
+- 2026-09-07 (revised by architecture review: A16): the `empty` finding names `expect.output: empty` verbatim and `init`
+  emits the commented hint.
 
 ## Refinement (many-of-the-greats)
 

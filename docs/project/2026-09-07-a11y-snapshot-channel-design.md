@@ -40,7 +40,7 @@ Confirmed placement: an **observer** attached to browser operations, resolved an
 
 Integration points:
 - `src/core/a11y-snapshot-runtime.ts` (new): resolution, probes, argv allowlist, artifact and assertion types.
-- `src/core/operations/surf-explore-operation.ts:632-694` (`explorePage`): observer call between the probes and `closeOwnedTab`; teardown in the `finally` before `tab.close`.
+- the surf adapter's owned-tab `BrowserSession`: the observer is a registered read-only `observe` step run after the probes and torn down before the session closes (revised by architecture review: A8); `explorePage` (`surf-explore-operation.ts:632-694`) becomes a step list over the session, so the observer inherits the effect class, attempt log and outcome of every step.
 - `src/core/operations/types.ts:233-245`: `observations?: A11ySnapshotArtifact[]` on `SurfExplorePageResult`; envelope `runtime` gains `a11yChannel`.
 - `src/core/operations/doctor-operation.ts`: `external.agent_browser` next to `external.surf`; `src/core/capabilities.ts:46`: the new explore option in `SURF_EXPLORE_OPTION_SUPPORT`.
 - `src/core/orchestrator.ts:202-210`: `observation` block on `AgentConfig`; `:2096` passes it to the explore operation.
@@ -66,12 +66,12 @@ Integration points:
 **Config keys**: `surf explore --a11y-snapshot[=required]` (added to `SURF_EXPLORE_OPTION_SUPPORT`; the default stays off so existing runs are byte-compatible); `agents.<name>.observation.a11ySnapshot: off|optional|required` for the surf agent (`AgentConfig`, `src/core/orchestrator.ts:202-210`, next to `bombadil`/`terminal`); `TEST_CAPABILITIES_AGENT_BROWSER_BIN`, `TEST_CAPABILITIES_CDP_ENDPOINT`, `TEST_CAPABILITIES_AGENT_BROWSER_SESSION_PREFIX` (default `test-capabilities`). `optional` records `unavailable` and continues; `required` fails the page as unverified with the reason. Unknown values are refused.
 
 **Session and tab binding**:
-- one agent-browser session per run, `--session <prefix>-<runId>`, `--pin-tab` on the first command (sticky per session);
+- one agent-browser session per run, `--session <prefix>-<runId>`, `--pin-tab` on the first command (sticky per session); `runId` is the kernel `RunContext.runId` minted by `executeCliOperation` (A5);
 - the surf-owned tab is located through `GET /json/list` (read-only HTTP, no agent-browser side effects), matching `type == "page"` and `url == readiness.href` from `wait.ready`; exactly one match is required, `tab_bind_ambiguous` otherwise;
 - the first agent-browser command is `tab <targetId>` (verified: binds the pinned session without creating a tab); the CDP target id is the same string in `/json/list` and in `tab list --json`;
 - the recorded binding is `{surfTabId, targetId, url, title}` and every later command of the run is checked against it (`get url` must still equal the bound URL before an assertion is evaluated).
 
-**Snapshot artifact** (`a11y-snapshot.v1`, stored in the page result as `pages[].observations[]` and, when `--record`/receipts land, as a receipt file next to the run):
+**Snapshot artifact** (`a11y-snapshot.v1`, written through the kernel artifact writer `src/core/artifacts.ts` under `receipts.dir/<run>/` as kind `a11y-snapshot` (A9); the page result's `pages[].observations[]` carries `digest`, `refs`, `roleCounts`, `semanticCoverage`, `status` and the artifact path, never the 8 KB text (revised by architecture review: A10)):
 ```
 { schemaVersion: 1, kind: "a11y-snapshot", channel: "agent-browser-cdp",
   tool: { command, version }, endpoint: { url, browser },
@@ -137,7 +137,7 @@ unique on this page, say so instead of picking one.
 
 ## Cost
 
-Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (~18 KB, 50-90 ms) and one agent-browser daemon per run (Rust binary attached over a websocket, exempt from idle shutdown when attached, hence explicit teardown). The artifact adds ~8 KB text plus ~10 KB refs to the page result, about 2 k tokens when handed to a tester prompt, versus 22 KB for `surf page.read` or a screenshot. Implementation: runtime module (~300 lines), observer hook in `surf-explore-operation.ts`, doctor check, fake fixture and fake CDP endpoint, docs; comparable to the surf migration.
+Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (~18 KB, 50-90 ms) and one agent-browser daemon per run (Rust binary attached over a websocket, exempt from idle shutdown when attached, hence explicit teardown). The artifact file holds ~8 KB text plus ~10 KB refs; the page result carries refs, counts and digest (A10), and the text is about 2 k tokens when handed to a tester prompt, versus 22 KB for `surf page.read` or a screenshot. Implementation: runtime module (~300 lines), observer hook in `surf-explore-operation.ts`, doctor check, fake fixture and fake CDP endpoint, docs; comparable to the surf migration.
 
 ## Non-goals
 
@@ -157,7 +157,7 @@ Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (
 
 ## Verification and dogfood plan
 
-1. `tests/fixtures/fake-agent-browser.mjs` + `tests/helpers/fake-agent-browser.mjs` (pattern: `tests/fixtures/fake-surf.mjs:1-30`, `tests/helpers/fake-surf.mjs:37`): speaks `--version`, `tab list --json`, `tab <targetId>`, `snapshot -i --json` from a `FAKE_AB_PAGES` map, `get text|attr|box|url`, `is visible`, `Unknown ref`, `tab_gone`, and refuses any other verb with exit 1; env knobs for `--version` below minimum, empty snapshot, origin mismatch, and a log of argv per call so tests can assert that `--cdp`, `--session`, `--pin-tab` were passed and that no action verb ever ran.
+1. `tests/fixtures/fake-agent-browser.mjs` + `tests/helpers/fake-agent-browser.mjs` (pattern: `tests/fixtures/fake-surf.mjs:1-30`, `tests/helpers/fake-surf.mjs:37`): speaks `--version`, `tab list --json`, `tab <targetId>`, `snapshot -i --json` from a `FAKE_AB_PAGES` map fed by the captured `snapshot -i --json` under `tests/fixtures/captures/agent-browser/` with a fidelity test (A17), `get text|attr|box|url`, `is visible`, `Unknown ref`, `tab_gone`, and refuses any other verb with exit 1; env knobs for `--version` below minimum, empty snapshot, origin mismatch, and a log of argv per call so tests can assert that `--cdp`, `--session`, `--pin-tab` were passed and that no action verb ever ran.
 2. A fake CDP endpoint (`node:http` on `127.0.0.1:0`, serving `/json/version` and `/json/list`; precedent `scripts/capability-fixture-server.mjs`) so the probe, the loopback rule, the tab binding and `tab_bind_ambiguous` are tested without a browser.
 3. `tests/a11y_snapshot_runtime_contract.test.mjs` (resolution order, version floor, endpoint refusal, argv allowlist), `tests/a11y_snapshot_observer_contract.test.mjs` (artifact schema, digest, unavailable-vs-required, origin mismatch, teardown order), doctor check added to `tests/surf_runtime_contract.test.mjs` style coverage, passport regeneration (`scripts/generate-capability-passport.mjs`).
 4. Live dogfood on `https://github.com/nicobailon/surf-cli/releases`: `surf explore --url … --a11y-snapshot=required` must reproduce the table above (204 refs, digest identical across two runs, tab count unchanged before/after, no session left in `agent-browser session list`, `roleCounts` matching the role mix, `semanticCoverage` recorded with the `dom` probe's counts); then the ref round trip (*revised by refinement, Clash 5*): write an `a11y-ref` assertion for `searchbox "Find a release"` from run 1, evaluate it in run 2 (same digest → `passed`); reload via surf between snapshot and evaluation (tree identical → same digest → `passed`); navigate the tab via surf to `https://github.com/nicobailon/surf-cli/tags` between snapshot and evaluation (different digest → `ref_context_drift`); evaluate the `a11y-role` form for `link "Releases"` (`passed`) and for a name that repeats on the page (`unverified`, `role_name_ambiguous`, candidates listed).
@@ -182,6 +182,9 @@ Per page: one `/json/list` GET, one `tab <targetId>`, one `snapshot -i --json` (
 - 2026-09-07 (refinement): the artifact records `roleCounts` and `semanticCoverage` (DOM counts from the `dom` probe against tree counts); a gap is evidence of the channel's blind spot on that page and routes the tester to surf selectors for the unnamed controls.
 - 2026-09-07 (refinement): `a11y-role` ambiguity is `unverified` with `role_name_ambiguous`; no `nth`, no first-match; landmark scoping deferred to a producer with parent links.
 - 2026-09-07 (refinement): `visible` is a computed predicate; perceptual evidence (overlap, clipping, contrast) is out of this channel by name; screenshots stay in surf.
+- 2026-09-07, revised by architecture review (A8): the observer is an `observe` step on the surf adapter's `BrowserSession`, not a hook inside `explorePage`.
+- 2026-09-07, revised by architecture review (A5, A9, A10): the session name derives from the kernel `RunContext.runId`; the artifact is written through `src/core/artifacts.ts`; the envelope carries digest, refs and counts and names the file, the text stays in the file.
+- 2026-09-07, revised by architecture review (A17): the fake agent-browser is fed by captured `snapshot -i --json` shapes under `tests/fixtures/captures/` with a fidelity test.
 
 ## Refinement (many-of-the-greats)
 

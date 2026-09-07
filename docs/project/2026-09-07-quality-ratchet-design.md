@@ -85,8 +85,9 @@ Files (committed, formatted by Biome, JSON):
   an AK task or commit `ref`. *Revised by refinement:* there is no `changed_lines_min` field; the changed-lines
   requirement is `floors.lines` and rises with it (Clash 1 — a fixed 95 % is a target above demonstrated truth).
 - `structure-budget.json`: `{"schema_version":1,"default_max_lines":700,"exceptions":{"src/core/orchestrator.ts":2293,…},
-  "allowed_cycles":["src/core/capabilities.ts -> … -> src/core/capabilities.ts"],"ledger":[]}`. The initial file lists
-  exactly the five files and the one cycle measured above. *Revised by refinement:* exceptions may shrink or disappear
+  "allowed_cycles":[],"ledger":[]}`. The initial file lists exactly the five files; the one cycle measured above is
+  broken before the gate lands by a leaf `src/core/capability-matrix.ts` holding the agent/intelligence statics that
+  `orchestrator.ts` imports, so `capabilities.ts` only computes CLI statuses (revised by architecture review: A18, Q4). *Revised by refinement:* exceptions may shrink or disappear
   freely; adding or growing an exception, or adding an allowed cycle, requires a `ledger` entry
   `{"file"|"cycle","from","to","reason","ref"}` in the same commit — the same shape and rule as a floor drop (Clash 3:
   a block on a 2293-line file with no fix path is a wall, the ledger is the fix path; this also repairs the earlier
@@ -121,7 +122,9 @@ Scripts (`scripts/quality/`, ESM, Node-only, no new runtime dependency):
   command set from `bin/test-capabilities --help` equals the name set of `CLI_ROUTE_MANIFEST`, and each `status` in the
   manifest equals the status column of the table under `docs/api/cli.md:294`; every subcommand `--help` is captured into
   `docs/api/cli-help.generated.md` (Biome ignores `*.generated.*`, `biome.jsonc:20`) and must be byte-equal to the
-  committed file; (c) `schemas/*.schema.json` byte-equal to a deterministic generator from the zod definitions.
+  committed file; (c) `schemas/*.schema.json` byte-equal to a deterministic generator from the zod definitions; (d) the `CliRoute` and
+  `CliOperationResult` unions rendered in `docs/api/types.md` equal `src/core/operations/types.ts` (revised by
+  architecture review: A20).
 
 Stages and exact commands (`scripts/quality-gate.sh`):
 
@@ -141,7 +144,9 @@ Approving a legitimate drop: edit `coverage-baseline.json` in the same commit as
 `reductions` entry with the reason and the AK ref, and name the file in the commit subject
 (`quality: lower lines floor 85.18→84.90 (delete prediction engine, AK #…)`). The gate then passes; without the ledger
 entry it fails with `floor lowered without a reductions entry`. The same rule and message shape apply to adding or
-growing a `structure-budget.json` exception or allowed cycle (`exception grown without a ledger entry`). Raising a
+growing a `structure-budget.json` exception or allowed cycle (`exception grown without a ledger entry`). A ledger entry with a
+missing `ref` fails; an unresolvable AK ref warns; this check is independent of `TEST_CAPABILITIES_REQUIRE_AK_DIRECTION`
+(revised by architecture review: A15). Raising a
 floor, shrinking an exception or removing a cycle needs no ledger entry.
 
 What the ratchet claims and what it does not (*added by refinement*): the floors are a memory of what the fixture
@@ -182,8 +187,10 @@ evidence; nothing in this packet moves it.
   (the CLI file has no `.js` extension and is outside `dist/**`; it is exercised but not measured in v1).
 - Coverage from the real-binary lanes (`bombadil:smoke`, `capability:drill`, `test:runtime`): they stay outside `npm test`.
 - Replacing the docs regex tests in `tests/docs_runtime_contract.test.mjs`; contract-sync adds a stricter check beside them.
-- Splitting `orchestrator.ts` or breaking the cycle inside this work: the budget file freezes them; the splits are
-  separate commits with their own AK tasks.
+- Splitting `orchestrator.ts` beyond the pure move of its four agent classes into `src/core/agents/*.ts` (one commit
+  before the classification consumers land; revised by architecture review: A19): the budget file freezes the remaining
+  size; further splits are separate commits with their own AK tasks. Breaking the runtime cycle is no longer a non-goal
+  (A18): it is broken before the gate lands.
 
 ## Risks
 
@@ -266,6 +273,9 @@ surfaces), the budget exceptions and the allowed cycle.
 - 2026-09-07: A changed file with no coverage record counts as 0 % (fail closed), diverging from pic.
 - 2026-09-07: Structure check in `pre-commit`; coverage and contract-sync in `pre-push`/`ci` only.
 - 2026-09-07: Existing oversized files and the one cycle are frozen as exceptions, not fixed in this work.
+  *Revised by architecture review (A18, Q4):* the cycle is broken before the gate lands (leaf `capability-matrix.ts`) and
+  `allowed_cycles` starts empty; only the five oversized files are frozen, and `orchestrator.ts` shrinks by the agent
+  extraction (A19) before it is measured.
   *Revised by refinement:* frozen, but not walled — an exception may grow or be added through a `structure-budget.json`
   ledger entry with `from`/`to`/reason/ref in the same commit, the same mechanism as a floor drop. Reason: a
   stop-the-line with no fix path is bypassed, not obeyed (Clash 3), and the earlier text contradicted itself.
@@ -280,6 +290,10 @@ surfaces), the budget exceptions and the allowed cycle.
   the gate proves execution, screening's mutation lane proves detection, and the packet states that dependency.
 - 2026-09-07, *added by refinement:* the ratchet is a floor on the fixture corpus and is not evidence about real-binary
   behaviour; that claim stays with the drill/smoke lanes and the passport.
+- 2026-09-07, *revised by architecture review (A15):* the ledger `ref` check is its own rule (missing fails, unresolvable
+  warns) and does not inherit the truth gate's `TEST_CAPABILITIES_REQUIRE_AK_DIRECTION` optionality.
+- 2026-09-07, *revised by architecture review (A20):* contract-sync also checks the `CliRoute`/`CliOperationResult`
+  unions in `docs/api/types.md`, the drift the review found in the current tree.
 
 ## Refinement (many-of-the-greats)
 
