@@ -28,6 +28,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
+          # (else HEAD^), so the history must be present.
+          fetch-depth: 0
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -45,6 +49,8 @@ jobs:
         run: npm install
 
       - name: Run smoke lane
+        env:
+          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run release:check
 
   full:
@@ -53,6 +59,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
+          # (else HEAD^), so the history must be present.
+          fetch-depth: 0
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -70,6 +80,8 @@ jobs:
         run: npm install
 
       - name: Run full lane
+        env:
+          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run release:check
 
   deep:
@@ -78,6 +90,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
+          # (else HEAD^), so the history must be present.
+          fetch-depth: 0
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -95,6 +111,8 @@ jobs:
         run: npm install
 
       - name: Run deep lane
+        env:
+          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           npm run release:check
           npm run docs:list -- --docs . --strict
