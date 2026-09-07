@@ -1,0 +1,81 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": [
+    "extract",
+    "https://docs.python.org/3/",
+    "--code",
+    "return (() => { const rows = Array.from(document.querySelectorAll(\"a[href]\")).map((a) => new URL(a.getAttribute(\"href\"), location.href).href).filter((h) => new URL(h).origin === location.origin).slice(0, 5).map((href) => ({ href })); return { __testCapabilitiesSurfExploreProbe: \"capture\", href: location.href, title: document.title, readyState: document.readyState, kind: \"links\", rows }; })();",
+    "--allow-empty",
+    "--json"
+  ],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "data": {
+      "__testCapabilitiesSurfExploreProbe": "capture",
+      "href": "https://docs.python.org/3/",
+      "kind": "links",
+      "readyState": "complete",
+      "rows": [
+        {
+          "href": "https://docs.python.org/3/download.html"
+        },
+        {
+          "href": "https://docs.python.org/3.16/"
+        },
+        {
+          "href": "https://docs.python.org/3.15/"
+        },
+        {
+          "href": "https://docs.python.org/3.14/"
+        },
+        {
+          "href": "https://docs.python.org/3.13/"
+        }
+      ],
+      "title": "3.14.7 Documentation"
+    },
+    "rows": [
+      {
+        "href": "https://docs.python.org/3/download.html"
+      },
+      {
+        "href": "https://docs.python.org/3.16/"
+      },
+      {
+        "href": "https://docs.python.org/3.15/"
+      },
+      {
+        "href": "https://docs.python.org/3.14/"
+      },
+      {
+        "href": "https://docs.python.org/3.13/"
+      }
+    ],
+    "readiness": {
+      "accepted": false,
+      "state": "ready",
+      "evidence": ["document.readyState is complete"],
+      "href": "https://docs.python.org/3/",
+      "title": "3.14.7 Documentation",
+      "readyState": "complete",
+      "tabStatus": "complete",
+      "polls": 2,
+      "waited": 409,
+      "timeout": 20000,
+      "interval": 400
+    },
+    "rowCount": 5,
+    "attempts": 1,
+    "mode": "owned-tab",
+    "url": "https://docs.python.org/3/",
+    "tabId": null
+  },
+  "stderr": ""
+}

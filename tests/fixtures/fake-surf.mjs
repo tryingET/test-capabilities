@@ -23,6 +23,8 @@
  * - FAKE_SURF_DOCTOR      "ok" (default) | "socket-missing"
  * - FAKE_SURF_FAIL_ON     comma list of commands that exit 9 with "surf exploded" on stderr
  * - FAKE_SURF_EMPTY_ON    comma list of commands that exit 0 with no output
+ * - FAKE_SURF_ZERO_ROWS_ON       comma list of commands whose extract payload has zero rows
+ * - FAKE_SURF_BOOKKEEPING_ONLY_ON comma list of commands that answer with bookkeeping keys only
  * - FAKE_SURF_LOG         file that receives one JSON line per invocation (argv)
  * - FAKE_SURF_ECHO        "1": echo argv (one per line) for every command except version/help/doctor
  */
@@ -109,11 +111,22 @@ function emit(data, target) {
 const command = argv[0];
 const explode = (process.env.FAKE_SURF_FAIL_ON || "").split(",").filter(Boolean);
 const silent = (process.env.FAKE_SURF_EMPTY_ON || "").split(",").filter(Boolean);
+const zeroRows = (process.env.FAKE_SURF_ZERO_ROWS_ON || "").split(",").filter(Boolean);
+const bookkeepingOnly = (process.env.FAKE_SURF_BOOKKEEPING_ONLY_ON || "")
+  .split(",")
+  .filter(Boolean);
 if (explode.includes(command)) {
   console.error("surf exploded");
   process.exit(9);
 }
 if (silent.includes(command)) {
+  process.exit(0);
+}
+// Exit 0 with nothing but the transport's own bookkeeping keys: the HOSTERR shape.
+if (bookkeepingOnly.includes(command)) {
+  console.log(
+    JSON.stringify({ id: 1, _resolvedWindowId: 2, _resolvedTabId: 3, _hint: "cached" }, null, 2),
+  );
   process.exit(0);
 }
 
@@ -330,8 +343,17 @@ function resolveTab(state) {
   return { id: Number(lastId), ...state.tabs[lastId], explicit: false };
 }
 
+// Shape from the captures' `target` block (explicit-tab admission).
 function targetMeta(tab) {
-  return tab.explicit ? { tabId: tab.id, windowId: 1, admission: "explicit" } : undefined;
+  return tab.explicit
+    ? {
+        source: "explicit-tab",
+        tabId: tab.id,
+        windowId: 1,
+        browserEpoch: "00000000-0000-4000-8000-000000000000",
+        queuedMs: 0,
+      }
+    : undefined;
 }
 
 // ---------------------------------------------------------------- readiness
@@ -344,8 +366,10 @@ const READINESS_CODES = {
   loading: "page_timeout",
 };
 
+// Shape from tests/fixtures/captures/surf/wait-ready-ready.json (surf 2.18.0, live capture).
 function readinessResult(page) {
   return {
+    accepted: false,
     state: page.readiness,
     evidence: page.evidence,
     href: page.url,
@@ -354,6 +378,8 @@ function readinessResult(page) {
     tabStatus: "complete",
     polls: 1,
     waited: 1,
+    timeout: 20000,
+    interval: 400,
   };
 }
 
@@ -539,11 +565,14 @@ switch (command) {
     }
     const page = pageFor(tab.url);
     const readiness = readinessGate(page, tab);
+    const forceZeroRows = zeroRows.includes(command);
     // Like the real CLI, extract always prefixes the SURF_OPTIONS prelude, so the script runs in
     // statement mode and a bare expression yields nothing (no_output).
     const options = flag("--options") ? JSON.parse(flag("--options")) : {};
     const prelude = `const SURF_OPTIONS = Object.freeze(${JSON.stringify(options)});\n`;
-    const data = jsonClone(evaluateScript(prelude + code, page, options));
+    const data = forceZeroRows
+      ? { rows: [], rowCount: 0, mode }
+      : jsonClone(evaluateScript(prelude + code, page, options));
     if (data === undefined) {
       fail(
         "no_output",
@@ -578,15 +607,17 @@ switch (command) {
       delete state.tabs[tab.id];
       saveState(state);
     }
+    // Key order and shape from tests/fixtures/captures/surf/extract-{rows,owned-tab}.json:
+    // owned-tab replies carry `tabId` (null once the tab is closed), target replies do not.
     const payload = {
       data,
       rows,
+      readiness,
       rowCount: Array.isArray(rows) ? rows.length : null,
       attempts: 1,
-      readiness,
       mode,
       url: url ?? null,
-      tabId: mode === "owned-tab" && !hasFlag("--keep-tab") ? null : tab.id,
+      ...(mode === "owned-tab" ? { tabId: hasFlag("--keep-tab") ? tab.id : null } : {}),
     };
     if (wantJson) {
       console.log(JSON.stringify(payload, null, 2));

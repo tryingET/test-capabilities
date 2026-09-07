@@ -1,0 +1,36 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": ["wait.ready", "--tab-id", "1075142004", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "accepted": false,
+      "state": "ready",
+      "evidence": ["document.readyState is complete"],
+      "href": "https://example.com/",
+      "title": "Example Domain",
+      "readyState": "complete",
+      "tabStatus": "complete",
+      "polls": 2,
+      "waited": 404,
+      "timeout": 20000,
+      "interval": 400
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1075142004,
+      "windowId": 1075141964,
+      "browserEpoch": "ff605f84-5ee7-4960-ac6c-785ae425233e",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1075142004 window=1075141964]\n"
+}

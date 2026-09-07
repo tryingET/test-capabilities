@@ -1,0 +1,81 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": [
+    "extract",
+    "--tab-id",
+    "1075142006",
+    "--code",
+    "return (() => { const seen = new Set(); const rows = Array.from(document.querySelectorAll(\"a[href]\")).map((anchor) => new URL(anchor.getAttribute(\"href\"), location.href).href).filter((href) => { const url = new URL(href); if (url.origin !== location.origin) return false; url.hash = \"\"; if (seen.has(url.href)) return false; seen.add(url.href); return true; }).slice(0, 5).map((href) => ({ href })); return { __testCapabilitiesSurfExploreProbe: \"capture\", href: location.href, title: document.title, readyState: document.readyState, kind: \"links\", rows }; })();",
+    "--allow-empty",
+    "--json"
+  ],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "data": {
+      "__testCapabilitiesSurfExploreProbe": "capture",
+      "href": "https://docs.python.org/3/",
+      "kind": "links",
+      "readyState": "complete",
+      "rows": [
+        {
+          "href": "https://docs.python.org/3/download.html"
+        },
+        {
+          "href": "https://docs.python.org/3.16/"
+        },
+        {
+          "href": "https://docs.python.org/3.15/"
+        },
+        {
+          "href": "https://docs.python.org/3.14/"
+        },
+        {
+          "href": "https://docs.python.org/3.13/"
+        }
+      ],
+      "title": "3.14.7 Documentation"
+    },
+    "rows": [
+      {
+        "href": "https://docs.python.org/3/download.html"
+      },
+      {
+        "href": "https://docs.python.org/3.16/"
+      },
+      {
+        "href": "https://docs.python.org/3.15/"
+      },
+      {
+        "href": "https://docs.python.org/3.14/"
+      },
+      {
+        "href": "https://docs.python.org/3.13/"
+      }
+    ],
+    "readiness": {
+      "accepted": false,
+      "state": "ready",
+      "evidence": ["document.readyState is complete"],
+      "href": "https://docs.python.org/3/",
+      "title": "3.14.7 Documentation",
+      "readyState": "complete",
+      "tabStatus": "complete",
+      "polls": 1,
+      "waited": 3,
+      "timeout": 20000,
+      "interval": 400
+    },
+    "rowCount": 5,
+    "attempts": 1,
+    "mode": "target",
+    "url": null
+  },
+  "stderr": ""
+}

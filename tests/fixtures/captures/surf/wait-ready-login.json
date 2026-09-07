@@ -1,0 +1,19 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": ["wait.ready", "--tab-id", "1075142008", "--json"],
+  "exitCode": 1,
+  "stdoutKind": "json",
+  "stdout": {
+    "error": {
+      "code": "page_login",
+      "message": "Page is not ready: login at https://github.com/login (1 visible password field(s); URL path /login looks like a login route; title \"Sign in to GitHub \u00b7 GitHub\" mentions signing in)"
+    }
+  },
+  "stderr": "[surf tab=1075142008 window=1075141964]\nError: Page is not ready: login at https://github.com/login (1 visible password field(s); URL path /login looks like a login route; title \"Sign in to GitHub \u00b7 GitHub\" mentions signing in) [page_login]\n"
+}

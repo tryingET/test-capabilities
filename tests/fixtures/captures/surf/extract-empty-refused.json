@@ -1,0 +1,29 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": [
+    "extract",
+    "--tab-id",
+    "1075142004",
+    "--code",
+    "return (() => ({ __testCapabilitiesSurfExploreProbe: \"capture\", href: location.href, title: document.title, readyState: document.readyState, kind: \"links\", rows: [] }))();",
+    "--json"
+  ],
+  "exitCode": 1,
+  "stdoutKind": "json",
+  "stdout": {
+    "error": {
+      "code": "empty_result",
+      "message": "The extraction returned zero rows (the page may be logged out, blocked, or the selectors missed). Pass --allow-empty to accept an empty result, or --empty-text to recognise the page's own no-results message.",
+      "details": {
+        "rows": 0
+      }
+    }
+  },
+  "stderr": ""
+}

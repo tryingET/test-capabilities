@@ -1,0 +1,49 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-07",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152.0.7977.64"
+  },
+  "command": [
+    "extract",
+    "--tab-id",
+    "1075142004",
+    "--code",
+    "return (() => ({ __testCapabilitiesSurfExploreProbe: \"capture\", href: location.href, title: document.title, readyState: document.readyState, kind: \"links\", rows: [] }))();",
+    "--allow-empty",
+    "--json"
+  ],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "data": {
+      "__testCapabilitiesSurfExploreProbe": "capture",
+      "href": "https://example.com/",
+      "kind": "links",
+      "readyState": "complete",
+      "rows": [],
+      "title": "Example Domain"
+    },
+    "rows": [],
+    "readiness": {
+      "accepted": false,
+      "state": "ready",
+      "evidence": ["document.readyState is complete"],
+      "href": "https://example.com/",
+      "title": "Example Domain",
+      "readyState": "complete",
+      "tabStatus": "complete",
+      "polls": 1,
+      "waited": 1,
+      "timeout": 20000,
+      "interval": 400
+    },
+    "rowCount": 0,
+    "attempts": 1,
+    "mode": "target",
+    "url": null
+  },
+  "stderr": ""
+}
