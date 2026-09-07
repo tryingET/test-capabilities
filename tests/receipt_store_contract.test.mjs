@@ -251,3 +251,132 @@ test("the filter helper answers without a store", () => {
   assert.equal(matchesReceiptFilter(receipt(), { planId: "p" }), false);
   assert.equal(matchesReceiptFilter(stored, { inDoubt: true }), true);
 });
+
+const {
+  createRunContext,
+  DEFAULT_RECEIPTS_DIR,
+  detectEphemeralStore,
+  RECEIPTS_DIR_ENV,
+  RECEIPTS_EPHEMERAL_ENV,
+  readConfigReceiptsSection,
+  receiptsBaseFor,
+  resolveReceiptsSettings,
+} = await importRuntimeModule("core/run-context.js");
+
+const READ_ONLY = { effect: "read_only", reason: "reads only" };
+
+test("where receipts live is defined per operation, because most operations have no config", () => {
+  const cwd = "/work/project";
+  assert.deepEqual(receiptsBaseFor("test", { config: "conf/tc.yaml" }, cwd), {
+    base: "/work/project/conf",
+    source: "the directory of --config conf/tc.yaml",
+  });
+  assert.equal(receiptsBaseFor("heal", { dir: "./tests" }, cwd).base, "/work/project/tests");
+  assert.equal(receiptsBaseFor("init", {}, cwd).base, cwd);
+  assert.equal(receiptsBaseFor("replacement-validation", undefined, cwd).base, cwd);
+  assert.equal(receiptsBaseFor("test", {}, cwd).base, cwd, "no --config falls back to the cwd");
+});
+
+test("the receipts directory resolves env over config over the default", () => {
+  const cwd = "/work/project";
+  const base = { operationId: "heal", effect: READ_ONLY, input: { dir: "tests" }, cwd, env: {} };
+
+  const fallback = resolveReceiptsSettings(base);
+  assert.equal(fallback.dir, path.join("/work/project/tests", DEFAULT_RECEIPTS_DIR));
+  assert.match(fallback.source, /^the default, under --dir tests$/);
+  assert.equal(fallback.ephemeral, false);
+
+  const declared = resolveReceiptsSettings({
+    ...base,
+    config: { receipts: { dir: "../receipts", ephemeral: true } },
+  });
+  assert.equal(declared.dir, "/work/project/receipts");
+  assert.match(declared.source, /^receipts\.dir, resolved against --dir tests$/);
+  assert.equal(declared.ephemeral, true);
+
+  const fromEnv = resolveReceiptsSettings({
+    ...base,
+    env: { [RECEIPTS_DIR_ENV]: "elsewhere", [RECEIPTS_EPHEMERAL_ENV]: "1" },
+    config: { receipts: { dir: "../receipts", ephemeral: false } },
+  });
+  assert.equal(fromEnv.dir, "/work/project/elsewhere");
+  assert.equal(fromEnv.source, RECEIPTS_DIR_ENV);
+  assert.equal(fromEnv.ephemeral, true);
+
+  for (const off of ["", "0", "false", undefined]) {
+    assert.equal(
+      resolveReceiptsSettings({ ...base, env: { [RECEIPTS_EPHEMERAL_ENV]: off } }).ephemeral,
+      false,
+    );
+  }
+});
+
+test("a store that does not survive the run is detected and named", () => {
+  const tmpRoot = fs.realpathSync(os.tmpdir());
+  assert.match(
+    detectEphemeralStore(path.join(tmpRoot, "job", "receipts"), {}),
+    /inside the temporary directory/,
+  );
+  assert.equal(detectEphemeralStore("/durable/receipts", { TMPDIR: tmpRoot }), undefined);
+  assert.match(
+    detectEphemeralStore("/gha/work/repo/receipts", {
+      CI: "true",
+      GITHUB_WORKSPACE: "/gha/work/repo",
+    }),
+    /inside the CI job workspace/,
+  );
+  assert.equal(
+    detectEphemeralStore("/elsewhere/receipts", { CI: "true", GITHUB_WORKSPACE: "/gha/work/repo" }),
+    undefined,
+  );
+  assert.match(detectEphemeralStore("/anywhere", { CI: "1" }), /CI is set/);
+  assert.equal(detectEphemeralStore("/anywhere", { CI: "false" }), undefined);
+
+  const worktree = scratch();
+  fs.mkdirSync(path.join(worktree, "nested"), { recursive: true });
+  writeFileSync(path.join(worktree, ".git"), "gitdir: /repo/.git/worktrees/wt\n");
+  assert.match(
+    detectEphemeralStore(path.join(worktree, "nested"), { TMPDIR: "/no/such" }),
+    /inside the linked git worktree/,
+  );
+
+  const checkout = scratch();
+  fs.mkdirSync(path.join(checkout, ".git"), { recursive: true });
+  assert.equal(detectEphemeralStore(checkout, { TMPDIR: "/no/such" }), undefined);
+});
+
+test("a config file's receipts and mutation sections are read without loading the whole config", () => {
+  const dir = scratch();
+  const configPath = path.join(dir, "tc.yaml");
+  writeFileSync(
+    configPath,
+    "version: '2.0'\nname: x\ntargets: {}\nreceipts:\n  dir: './r'\n  ephemeral: true\nmutation:\n  allow_origins: ['https://a.example']\n",
+  );
+  const section = readConfigReceiptsSection(configPath);
+  assert.deepEqual(section.receipts, { dir: "./r", ephemeral: true });
+  assert.deepEqual(section.mutation, { allowOrigins: ["https://a.example"] });
+
+  assert.deepEqual(readConfigReceiptsSection(path.join(dir, "missing.yaml")), {});
+  writeFileSync(path.join(dir, "broken.yaml"), "a: [1,\n");
+  assert.deepEqual(readConfigReceiptsSection(path.join(dir, "broken.yaml")), {});
+  writeFileSync(path.join(dir, "list.yaml"), "- one\n");
+  assert.deepEqual(readConfigReceiptsSection(path.join(dir, "list.yaml")), {});
+  writeFileSync(path.join(dir, "wrong.yaml"), "receipts:\n  ephemeral: 'yes please'\n");
+  assert.throws(() => readConfigReceiptsSection(path.join(dir, "wrong.yaml")));
+
+  const minted = createRunContext({
+    operationId: "test",
+    effect: READ_ONLY,
+    input: { config: configPath },
+    env: {},
+    cwd: dir,
+  });
+  assert.equal(minted.config.receipts.dir, path.join(dir, "r"));
+  assert.equal(minted.config.receipts.ephemeral, true);
+  assert.deepEqual(minted.config.mutation.allowOrigins, ["https://a.example"]);
+  assert.match(minted.runId, /^[0-9a-f-]{36}$/);
+  assert.equal(minted.operationId, "test");
+  assert.deepEqual(Object.keys(minted.adapters).sort(), ["bombadil", "cli", "surf"]);
+  assert.equal(minted.receiptStore.dir, path.join(dir, "r"));
+  assert.equal(minted.ledger.receipts().length, 0);
+});

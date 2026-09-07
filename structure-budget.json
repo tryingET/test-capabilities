@@ -12,6 +12,7 @@
     "src/core/capability-matrix.ts",
     "src/core/config.ts",
     "src/core/determination.ts",
+    "src/core/effects.ts",
     "src/core/error-codes.ts",
     "src/core/receipt-store.ts",
     "src/core/result-classification.ts",

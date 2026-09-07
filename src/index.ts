@@ -53,6 +53,27 @@ export {
   worstOutcome,
 } from "./core/determination.js";
 export type {
+  AttemptLogEntry,
+  EffectAttempt,
+  EffectClass,
+  EffectDeclaration,
+  EffectSettlement,
+  EffectStep,
+  LedgerContext,
+  MutationScope,
+} from "./core/effects.js";
+export {
+  countInDoubt,
+  defaultMutationOutcomeForError,
+  idempotencyKeyFor,
+  MutationError,
+  MutationLedger,
+  READ_ONLY_ATTEMPT_CAP,
+  resolveEffectDeclaration,
+  webOriginOf,
+  worstEffect,
+} from "./core/effects.js";
+export type {
   CliCommand,
   CliOperationResult,
   CliRoute,
@@ -150,6 +171,23 @@ export {
   REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
   ReplacementValidationRequestSchema,
 } from "./core/replacement-validation.js";
+export type {
+  ConfigReceiptsSection,
+  CreateRunContextOptions,
+  ReceiptsSettings,
+  RunConfigView,
+  RunContext,
+  RunMutationSettings,
+} from "./core/run-context.js";
+export {
+  createRunContext,
+  DEFAULT_RECEIPTS_DIR,
+  detectEphemeralStore,
+  RECEIPTS_DIR_ENV,
+  RECEIPTS_EPHEMERAL_ENV,
+  receiptsBaseFor,
+  resolveReceiptsSettings,
+} from "./core/run-context.js";
 export type { ErrorEnvelope } from "./core/runtime-contract.js";
 export {
   FrameworkError,
