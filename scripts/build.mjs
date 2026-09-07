@@ -170,6 +170,39 @@ function publishDist(stagedDistDir) {
   assertSafeGeneratedDirectory(distDir, "dist");
   cpSync(stagedDistDir, distDir, { recursive: true, force: true, dereference: false });
   removeEntriesMissingFromSource(distDir, stagedDistDir);
+  relocateSourceMaps(stagedDistDir, distDir);
+}
+
+// The compiler writes `sources` relative to the staged map under .tmp/; once
+// the map is published under dist/ those paths would point outside the repo,
+// so every consumer of the map (coverage remap, c8) would attribute hits to a
+// file that does not exist. Rewrite them relative to the published location.
+function relocateSourceMaps(stagedDistDir, publishedDir) {
+  for (const entry of readdirSync(publishedDir, { withFileTypes: true })) {
+    const publishedPath = path.join(publishedDir, entry.name);
+    const stagedPath = path.join(stagedDistDir, entry.name);
+    if (entry.isDirectory()) {
+      relocateSourceMaps(stagedPath, publishedPath);
+      continue;
+    }
+    if (!entry.name.endsWith(".map")) {
+      continue;
+    }
+    const map = JSON.parse(readFileSync(publishedPath, "utf8"));
+    if (!Array.isArray(map.sources)) {
+      continue;
+    }
+    const sourceRoot = typeof map.sourceRoot === "string" ? map.sourceRoot : "";
+    map.sources = map.sources.map((source) => {
+      const absolute = path.resolve(path.dirname(stagedPath), sourceRoot, source);
+      const relative = path
+        .relative(path.dirname(publishedPath), absolute)
+        .replaceAll(path.sep, "/");
+      return relative.startsWith(".") ? relative : `./${relative}`;
+    });
+    map.sourceRoot = "";
+    writeFileSync(publishedPath, JSON.stringify(map), "utf8");
+  }
 }
 
 function assertSafeGeneratedDirectory(directory, label) {

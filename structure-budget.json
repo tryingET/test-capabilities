@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "default_max_lines": 700,
+  "exceptions": {
+    "src/core/orchestrator.ts": 2078,
+    "src/core/surf-runtime.ts": 1006,
+    "src/core/operations/surf-explore-operation.ts": 842,
+    "src/healing/self-healing.ts": 821
+  },
+  "allowed_cycles": [],
+  "pure_ring": ["src/core/config.ts", "src/core/capability-matrix.ts"],
+  "ledger": [
+    {
+      "file": "src/core/orchestrator.ts",
+      "from": null,
+      "to": 2078,
+      "reason": "frozen at the size measured after the 0.4.0 removals and the surf-client deletion (S2 first ratchet commit); not fixed here. Scheduled shrink: S3 moves the four agent classes out of orchestrator.ts; explore becomes a step list over Session in S6.",
+      "ref": "a4d2e9a"
+    },
+    {
+      "file": "src/core/surf-runtime.ts",
+      "from": null,
+      "to": 1006,
+      "reason": "frozen at the size measured after the 0.4.0 removals and the surf-client deletion (S2 first ratchet commit); not fixed here. Scheduled shrink: S3 moves the four agent classes out of orchestrator.ts; explore becomes a step list over Session in S6.",
+      "ref": "a4d2e9a"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": null,
+      "to": 842,
+      "reason": "frozen at the size measured after the 0.4.0 removals and the surf-client deletion (S2 first ratchet commit); not fixed here. Scheduled shrink: S3 moves the four agent classes out of orchestrator.ts; explore becomes a step list over Session in S6.",
+      "ref": "a4d2e9a"
+    },
+    {
+      "file": "src/healing/self-healing.ts",
+      "from": null,
+      "to": 821,
+      "reason": "frozen at the size measured after the 0.4.0 removals and the surf-client deletion (S2 first ratchet commit); not fixed here. Scheduled shrink: S3 moves the four agent classes out of orchestrator.ts; explore becomes a step list over Session in S6.",
+      "ref": "a4d2e9a"
+    }
+  ]
+}

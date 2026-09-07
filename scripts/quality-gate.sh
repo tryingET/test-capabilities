@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 STAGE="${1:-}"
 
 usage() {
-  echo "Usage: bash ./scripts/quality-gate.sh <lint|fix|typecheck|pre-commit|pre-push|ci>" >&2
+  echo "Usage: bash ./scripts/quality-gate.sh <lint|fix|typecheck|structure|coverage|pre-commit|pre-push|ci>" >&2
 }
 
 has_biome_config() {
@@ -105,9 +105,26 @@ run_tests() {
   fi
 }
 
+# Structure budget (scripts/quality/check-structure.mjs): size budget with
+# ledgered exceptions, runtime import cycles, never-imported modules, the pure
+# ring rule and the passport byte check. No build; the passport check reads the
+# existing dist/ and fails closed when it is missing.
+run_structure() {
+  node "$ROOT_DIR/scripts/quality/check-structure.mjs"
+}
+
+# Coverage ratchet (scripts/quality/coverage-ratchet.mjs): builds with source
+# maps, runs the corpus once more under c8, enforces the floors keyed by Node
+# major, the changed-lines gate and the reductions ledger. Needs a base ref
+# (COVERAGE_BASE, else HEAD on a dirty tree, else HEAD^).
+run_coverage() {
+  node "$ROOT_DIR/scripts/quality/coverage-ratchet.mjs"
+}
+
 run_pre_commit() {
   echo "== quality gate: pre-commit"
   run_lint
+  run_structure
 }
 
 run_pre_push() {
@@ -115,6 +132,7 @@ run_pre_push() {
   run_lint
   run_typecheck
   run_tests
+  run_coverage
 }
 
 run_ci() {
@@ -122,6 +140,7 @@ run_ci() {
   run_lint
   run_typecheck
   run_tests
+  run_coverage
 }
 
 case "$STAGE" in
@@ -133,6 +152,12 @@ case "$STAGE" in
     ;;
   typecheck)
     run_typecheck
+    ;;
+  structure)
+    run_structure
+    ;;
+  coverage)
+    run_coverage
     ;;
   pre-commit)
     run_pre_commit
