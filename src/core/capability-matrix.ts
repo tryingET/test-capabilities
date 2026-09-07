@@ -55,6 +55,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
       "agent type(s)",
       unsupportedAgents,
       "Disable them or switch to the supported 'bombadil', 'surf', 'cli-tester', and/or 'terminal-fuzzer' orchestrator paths.",
+      "unsupported_agent_type",
     );
   }
 
@@ -71,6 +72,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
       "intelligence capability/capabilities",
       unsupportedIntelligence,
       "Set them to false or omit them until they are wired to a real runtime implementation.",
+      "unsupported_intelligence",
     );
   }
 
@@ -81,6 +83,7 @@ export function validateCapabilityContract(config: RuntimeConfigLike): void {
       "config section(s)",
       ["chaos"],
       "Remove chaos settings until a real chaos execution path exists.",
+      "unsupported_config_section",
     );
   }
 

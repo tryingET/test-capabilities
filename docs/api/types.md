@@ -664,6 +664,7 @@ interface SurfExploreOperationResultEnvelope {
   input: {
     url: string;
     depth?: string;
+    json?: boolean;
     record?: boolean;
     validate?: boolean;
     baseline?: string;
@@ -739,3 +740,135 @@ Runtime note:
 - the operation opens an owned surf tab, gates it with `wait.ready` typed states, verifies explicit browser-state and DOM `js` probes, uses `extract` (zero rows accepted explicitly) for same-origin depth expansion, and closes the tab
 - `coverage.userFlows` is a graded score from verified probes over required probes; unsupported or failed deeper pages reduce the score instead of becoming fake 100% coverage
 - `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path
+
+---
+
+## Kernel boundary and result types
+
+These are the kernel objects slice S3 introduced: one boundary (`Adapter.invoke`), one transport
+behind it (`spawn-step.ts`), one classifier and one error carrier. `RawResult`, `ResultOutcome`,
+`ExpectDeclaration` and `FrameworkError` are in the pure ring: they import neither `node:fs` nor
+`node:child_process`, so a verdict is a replayable function of recorded fields.
+
+### `RawResult`
+
+What every transport answers with, before any judgement.
+
+```typescript
+interface RawResult {
+  source: 'cli' | 'surf' | 'http' | 'bombadil';
+  exitCode: number | null;      // null when killed by a signal or never started
+  signal?: string | null;
+  stdout: string;
+  stderr: string;               // diagnostics; never payload
+  durationMs?: number;
+  timedOut?: boolean;           // the framework's own budget killed the step
+  spawnFailure?: string;        // the transport never produced a result
+  httpStatus?: number;
+  httpMethod?: string;          // so HEAD can declare its own emptiness
+  body?: string;
+  trace?: { path?: string; bytes?: number };   // Bombadil's typed run evidence
+  effect?: 'read_only' | 'mutating';           // a mutating transport failure is indeterminate
+}
+```
+
+### `ResultOutcome`
+
+```typescript
+type OutcomeClass =
+  | 'success' | 'declared_empty' | 'empty' | 'error' | 'timeout' | 'spawn_failed' | 'unclassifiable';
+type OutcomeBasis = 'evidence' | 'fault' | 'no_evidence' | 'contradiction' | 'indeterminate';
+
+interface ResultOutcome {
+  class: OutcomeClass;
+  ok: boolean;                  // true only for 'success' and 'declared_empty'
+  basis: OutcomeBasis;
+  code: string;                 // 'ok' | 'declared_empty' | 'empty_result' | 'exit_<n>' |
+                                // 'signal_<NAME>' | 'timeout' | 'spawn_failed' | 'invalid_output' |
+                                // 'unclassifiable' | 'row_error' | a surf code | 'http_<status>'
+  source: 'cli' | 'surf' | 'http' | 'bombadil';
+  transport: {
+    exitCode: number | null;
+    signal?: string;
+    httpStatus?: number;
+    durationMs?: number;
+    stderr: string;                        // whole channel, trimmed and capped
+    bookkeeping: Record<string, unknown>;  // surf only; every stripped key lands here
+    contradictions: string[];              // e.g. 'exit 0 with error object'
+  };
+  payload: { kind: 'stdout' | 'json' | 'rows' | 'body' | 'trace'; bytes: number; rowCount?: number; empty: boolean };
+  emptiness?: { declared: boolean; declaredBy: string; marker?: string; markerMatched?: boolean };
+  error?: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+    origin: 'json_error_object' | 'stderr_code_line' | 'exit_code' | 'payload_error_field' | 'http_status';
+  };
+  recorded: string[];           // signals seen under no contract: 'stderr_error_line',
+                                // 'payload_error_key_present', 'tester_verdict_overruled'
+  evidence: string[];           // first line 'outcome:<class>:<code>', second 'basis:<basis>'
+}
+```
+
+### `ExpectDeclaration`
+
+The declaration that makes an empty payload acceptable. The keys are the config keys of
+`agents.<name>.expect`, so a declaration travels from the config file to the classifier without a
+hand-written mirror; `declaredBy` records where it came from (`config:agents.<name>.expect`,
+`operation:surf.explore.links`, `protocol:http_204`, `author:<tester>`).
+
+```typescript
+interface ExpectDeclaration {
+  output?: 'required' | 'empty';
+  empty_marker?: string;
+  payload?: 'opaque' | 'json';
+  error_envelope?: boolean;
+  declaredBy: string;
+}
+```
+
+Runtime note: the `expect` block is not yet read from the config schema; operations and adapters
+pass declarations in code, and slice S4 adds `AgentConfigSchema.expect`.
+
+### `Adapter`
+
+Every sensor is one of these, and `invokeAdapter` is the only composition of its members.
+
+```typescript
+interface Adapter<TResolution, TProbe> {
+  readonly id: 'cli' | 'surf' | 'http' | 'bombadil' | 'agent-browser';
+  resolve(env?: NodeJS.ProcessEnv): TResolution;
+  probe(resolution: TResolution): TProbe;
+  translate(step: AdapterStep, resolution: TResolution): AdapterInvocation;
+  effects(step: AdapterStep): AdapterEffect;
+  invoke(invocation: AdapterInvocation, context?: AdapterContext): Promise<RawResult>;
+  normalize(raw: RawResult, declaration?: ExpectDeclaration): ResultOutcome;
+}
+
+interface AdapterEffect {
+  effect: 'read_only' | 'mutating' | 'unclassified';
+  scope?: 'target' | 'workspace' | 'browser_session';
+  reason: string;               // one line; it is rendered in receipts and refusals
+}
+```
+
+Runtime note: `effects` is a declaration today; slice S5 adds the ledger that enforces it and
+turns `unclassified` into an `effect_unclassified` refusal.
+
+### `FrameworkError` and `ErrorEnvelope`
+
+```typescript
+class FrameworkError extends Error {
+  readonly code: string;                              // registered in src/core/error-codes.ts
+  readonly details: Record<string, unknown> | undefined;
+}
+
+interface ErrorEnvelope {
+  error: { code: string; message: string; details?: Record<string, unknown> };
+}
+```
+
+`toErrorEnvelope(error)` produces the `--json` shape and `renderErrorLine(error)` the
+`<message> [code]` text line; both are exported from the package root. `SurfCommandError` extends
+`FrameworkError` and passes surf's own code through verbatim. See `docs/api/errors.md` for the
+code vocabulary and the outcome classes.

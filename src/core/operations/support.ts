@@ -21,6 +21,7 @@ export const TEST_OPTION_SUPPORT = {
 export const SURF_EXPLORE_OPTION_SUPPORT = {
   url: "implemented",
   depth: "implemented",
+  json: "implemented",
   record: "unsupported",
   validate: "unsupported",
   baseline: "unsupported",
@@ -50,7 +51,12 @@ export function assertSupportedTestOptions(
   const unsupported = collectUnsupportedOptions(TEST_OPTION_SUPPORT, options);
 
   if (unsupported.length > 0) {
-    throw renderUnsupported("option(s) for 'test'", unsupported, unsupportedTestOptionGuidance);
+    throw renderUnsupported(
+      "option(s) for 'test'",
+      unsupported,
+      unsupportedTestOptionGuidance,
+      "unsupported_option",
+    );
   }
 }
 
@@ -64,6 +70,7 @@ export function assertSupportedSurfExploreOptions(
       "option(s) for 'surf explore'",
       unsupported,
       unsupportedSurfExploreOptionGuidance,
+      "unsupported_option",
     );
   }
 }

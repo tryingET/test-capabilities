@@ -39,6 +39,7 @@ export const SurfExploreOperationInputSchema = z
       })
       .url("Surf explore target must be a valid URL."),
     depth: z.string().optional(),
+    json: z.boolean().optional().default(false),
     record: z.boolean().optional().default(false),
     validate: z.boolean().optional().default(false),
     baseline: z.string().optional(),

@@ -105,6 +105,13 @@ export {
   REPLACEMENT_VALIDATION_RESULT_SCHEMA_VERSION,
   ReplacementValidationRequestSchema,
 } from "./core/replacement-validation.js";
+export type { ErrorEnvelope } from "./core/runtime-contract.js";
+export {
+  FrameworkError,
+  isFrameworkError,
+  renderErrorLine,
+  toErrorEnvelope,
+} from "./core/runtime-contract.js";
 export { probeSurfRuntime, runSurfCommand } from "./core/surf-adapter.js";
 export type {
   SurfCommandFailure,

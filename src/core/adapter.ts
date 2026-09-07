@@ -13,7 +13,12 @@
  * or return a shape the classifier cannot read.
  */
 
-import type { RawResult, ResultSource } from "./result-classification.js";
+import type {
+  ExpectDeclaration,
+  RawResult,
+  ResultOutcome,
+  ResultSource,
+} from "./result-classification.js";
 
 export type AdapterId = ResultSource | "agent-browser";
 
@@ -39,6 +44,8 @@ export interface AdapterStep {
   env?: NodeJS.ProcessEnv;
   /** what the step acts on: a URL, a tab, a file, a command display */
   subject?: string;
+  /** what the caller declares about the payload (emptiness, JSON envelope); see the classifier */
+  expect?: ExpectDeclaration;
 }
 
 /** A fully resolved invocation: nothing here is derived from prose any more. */
@@ -71,6 +78,8 @@ export interface Adapter<TResolution = unknown, TProbe = unknown> {
   translate(step: AdapterStep, resolution: TResolution): AdapterInvocation;
   effects(step: AdapterStep): AdapterEffect;
   invoke(invocation: AdapterInvocation, context?: AdapterContext): Promise<RawResult>;
+  /** the closed verdict for a reply; every adapter classifies through the same pure function */
+  normalize(raw: RawResult, declaration?: ExpectDeclaration): ResultOutcome;
 }
 
 export function assertAdapterInvocation(invocation: AdapterInvocation, adapterId: AdapterId): void {
@@ -121,6 +130,7 @@ export async function invokeAdapter<TResolution, TProbe>(
   context: AdapterContext = {},
 ): Promise<{
   raw: RawResult;
+  outcome: ResultOutcome;
   effect: AdapterEffect;
   invocation: AdapterInvocation;
   resolution: TResolution;
@@ -131,5 +141,6 @@ export async function invokeAdapter<TResolution, TProbe>(
   const effect = adapter.effects(step);
   const raw = await adapter.invoke(invocation, context);
   assertRawResult(raw, adapter.id);
-  return { raw, effect, invocation, resolution };
+  const outcome = adapter.normalize(raw, step.expect);
+  return { raw, outcome, effect, invocation, resolution };
 }

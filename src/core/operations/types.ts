@@ -64,6 +64,7 @@ export interface TestOperationInput {
 export interface SurfExploreOperationInput {
   url?: string;
   depth?: string;
+  json?: boolean;
   record?: boolean;
   validate?: boolean;
   baseline?: string;

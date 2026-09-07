@@ -4,7 +4,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import type { Adapter, AdapterEffect, AdapterInvocation, AdapterStep } from "./adapter.js";
 import { invokeAdapter } from "./adapter.js";
-import type { RawResult } from "./result-classification.js";
+import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-classification.js";
+import { classifyResult } from "./result-classification.js";
 import { spawnStep } from "./spawn-step.js";
 
 /** Bombadil is always run under an explicit budget; this is the floor when a caller omits one. */
@@ -341,6 +342,10 @@ export const bombadilAdapter: Adapter<BombadilBinaryResolution, BombadilAdapterP
       timeoutMs: invocation.timeoutMs,
       ...(invocation.env ? { env: invocation.env } : {}),
     });
+  },
+
+  normalize(raw: RawResult, declaration?: ExpectDeclaration): ResultOutcome {
+    return classifyResult(raw, declaration);
   },
 };
 

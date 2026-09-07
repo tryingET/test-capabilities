@@ -253,9 +253,48 @@ test("errors docs include newly fail-closed quantum and surf config cases", () =
   assert.match(errorsDoc, /Quantum target must be a valid URL/);
   assert.match(errorsDoc, /Surf explore target must be a valid URL/);
   assert.match(errorsDoc, /Invalid JSON output from surf network/);
-  assert.match(errorsDoc, /Unsupported SurfClient config option\(s\): socketPath/);
   assert.match(errorsDoc, /page readiness is 'login' \[page_login\]/);
   assert.match(errorsDoc, /surf-go fork runtime was retired/);
+});
+
+test("errors docs carry the error envelope, the code registry and the outcome classes", () => {
+  const errorsDoc = load("docs/api/errors.md");
+
+  // the two renderings of one contract
+  assert.match(errorsDoc, /Surf explore requires --url with a valid URL\. \[config_invalid\]/);
+  assert.match(errorsDoc, /"error": \{\n\s+"code": "config_not_found"/);
+  assert.match(errorsDoc, /exit 1, and nothing else on stdout/);
+
+  // every registered framework code is documented
+  for (const code of [
+    "unsupported_command",
+    "unsupported_surf_action",
+    "unsupported_option",
+    "unsupported_agent_type",
+    "unsupported_intelligence",
+    "unsupported_config_section",
+    "invalid_route_payload",
+    "config_invalid",
+    "config_not_found",
+    "unclassified_error",
+  ]) {
+    assert.match(errorsDoc, new RegExp(`\`${code}\``), `errors.md does not document ${code}`);
+  }
+
+  // the closed outcome class set with its basis vocabulary
+  for (const entry of [
+    "success",
+    "declared_empty",
+    "empty",
+    "unclassifiable",
+    "no_evidence",
+    "contradiction",
+    "indeterminate",
+  ]) {
+    assert.match(errorsDoc, new RegExp(`\`${entry}\``), `errors.md does not document ${entry}`);
+  }
+  assert.match(errorsDoc, /outcome:<class>:<code>/);
+  assert.match(errorsDoc, /expect:\n\s+output: empty/);
 });
 
 test("0.4.0 docs stop advertising the removed SurfClient, SurfFlowBuilder and Nexus exports", () => {

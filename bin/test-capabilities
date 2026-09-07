@@ -24,9 +24,13 @@ function runtimeModuleUrl(modulePath) {
   return pathToFileURL(path.join(resolveRuntimeDistRoot(), modulePath)).href;
 }
 
-const { VERSION, assertSupportedCliCommand, executeCliOperation } = await import(
-  runtimeModuleUrl("index.js"),
-);
+const {
+  VERSION,
+  assertSupportedCliCommand,
+  executeCliOperation,
+  renderErrorLine,
+  toErrorEnvelope,
+} = await import(runtimeModuleUrl("index.js"));
 
 const program = new Command();
 
@@ -76,26 +80,22 @@ function printSuiteSummary(summary) {
   }
 }
 
-function renderError(error) {
-  if (error && typeof error === "object" && Array.isArray(error.issues)) {
-    const messages = error.issues
-      .map((issue) => issue?.message)
-      .filter((message) => typeof message === "string" && message.length > 0);
-
-    if (messages.length > 0) {
-      return messages.join("\n");
-    }
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
-
-function exitWithError(error, spinner, message) {
+/**
+ * Every failure leaves through here: `<message> [code]` on stderr in text mode, and the
+ * surf-shaped envelope `{"error": {code, message, details}}` on stdout under `--json`, always
+ * with exit 1 (result-classification packet, "Error codes"; architecture review A6; D3).
+ */
+function exitWithError(error, spinner, message, options = {}) {
   if (spinner) {
     spinner.fail(message);
   }
 
-  console.error(chalk.red(renderError(error)));
+  if (options.json) {
+    console.log(JSON.stringify(toErrorEnvelope(error), null, 2));
+  } else {
+    console.error(chalk.red(renderErrorLine(error)));
+  }
+
   process.exit(1);
 }
 
@@ -142,7 +142,7 @@ program
         process.exit(1);
       }
     } catch (error) {
-      exitWithError(error, spinner, "Doctor failed!");
+      exitWithError(error, spinner, "Doctor failed!", { json: shouldPrintJson });
     }
   });
 
@@ -175,7 +175,7 @@ program
         console.log(chalk.dim(`Then: ${output.nextCommands[1]}`));
       }
     } catch (error) {
-      exitWithError(error, spinner, "Init failed!");
+      exitWithError(error, spinner, "Init failed!", { json: shouldPrintJson });
     }
   });
 
@@ -210,7 +210,7 @@ program
         process.exit(1);
       }
     } catch (error) {
-      exitWithError(error, spinner, "Demo failed!");
+      exitWithError(error, spinner, "Demo failed!", { json: shouldPrintJson });
     }
   });
 
@@ -259,7 +259,7 @@ program
         process.exit(1);
       }
     } catch (error) {
-      exitWithError(error, spinner, "Testing failed!");
+      exitWithError(error, spinner, "Testing failed!", { json: shouldPrintJson });
     }
   });
 
@@ -277,28 +277,38 @@ program
   )
   .option("--ai-diff", "Reserved surf explore flag; currently fails until implemented")
   .option("-f, --file <path>", "Reserved surf flag; currently fails until implemented")
+  .option("--json", "Print the full machine-readable operation envelope")
   .action(async (action, options) => {
-    showBanner();
-    const spinner = ora(`Resolving surf ${action} through the operation kernel...`).start();
+    const shouldPrintJson = Boolean(options.json);
+    if (!shouldPrintJson) {
+      showBanner();
+    }
+    const spinner = shouldPrintJson
+      ? undefined
+      : ora(`Resolving surf ${action} through the operation kernel...`).start();
 
     try {
       assertSupportedCliCommand("surf");
       const output = await executeCliOperation({ command: "surf", action }, options);
 
-      spinner.succeed(`Surf ${action} complete.`);
-      if (output.result.stdout) {
-        console.log(output.result.stdout);
-      }
-      if (output.result.stderr) {
-        console.error(output.result.stderr);
-      }
-      if (output.result.coverage) {
-        console.log(
-          `Surf coverage: userFlows=${output.result.coverage.userFlows}% probes=${output.result.coverage.probesVerified}/${output.result.coverage.probesRequired} status=${output.result.coverage.status}`,
-        );
+      if (shouldPrintJson) {
+        console.log(JSON.stringify(output, null, 2));
+      } else {
+        spinner?.succeed(`Surf ${action} complete.`);
+        if (output.result.stdout) {
+          console.log(output.result.stdout);
+        }
+        if (output.result.stderr) {
+          console.error(output.result.stderr);
+        }
+        if (output.result.coverage) {
+          console.log(
+            `Surf coverage: userFlows=${output.result.coverage.userFlows}% probes=${output.result.coverage.probesVerified}/${output.result.coverage.probesRequired} status=${output.result.coverage.status}`,
+          );
+        }
       }
     } catch (error) {
-      exitWithError(error, spinner, `Surf ${action} failed!`);
+      exitWithError(error, spinner, `Surf ${action} failed!`, { json: shouldPrintJson });
     }
   });
 
@@ -456,7 +466,7 @@ program
         process.exit(1);
       }
     } catch (error) {
-      exitWithError(error, spinner, "Replacement validation planning failed!");
+      exitWithError(error, spinner, "Replacement validation planning failed!", { json: shouldPrintJson });
     }
   });
 

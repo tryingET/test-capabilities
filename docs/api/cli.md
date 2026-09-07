@@ -168,6 +168,7 @@ Options:
 |--------|-------------|
 | `--url <url>` | Required target URL |
 | `--depth <n>` | Optional bounded same-origin exploration depth, integer `1`-`3`; deeper pages contribute graded coverage only when their probes verify |
+| `--json` | Print the full machine-readable operation envelope; a failure prints `{"error": {code, message, details}}` and exits 1 |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--baseline <dir>` | Fails with an unsupported-option error until wired to a real runtime path |

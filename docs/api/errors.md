@@ -1,8 +1,9 @@
 ---
-summary: "Troubleshooting guide for common TEST-CAPABILITIES errors and recovery steps."
+summary: "Error contract for TEST-CAPABILITIES: the [code] text line, the {\"error\": {code, message, details}} JSON envelope, the registered code vocabulary, the result-outcome classes the classifier assigns, and recovery steps for the common failures."
 read_when:
   - "A command or integration is failing and you need recovery guidance"
-  - "You are documenting or diagnosing expected failure modes"
+  - "You parse the CLI output and need the error envelope, the exit codes and the code vocabulary"
+  - "You add a refusal to the runtime and need to know where its code is registered"
 type: "reference"
 ---
 
@@ -19,6 +20,101 @@ type: "reference"
 | `0` | Supported command completed successfully |
 | `1` | Configuration error, unsupported surface, or runtime failure |
 
+The framework keeps two exit codes (operator decision D3). The third state - a run that produced
+no evidence either way - is carried in the envelope, not in the exit status: from slice S4 every
+`test` envelope has `determination: { value, basis, reason }` next to `passed`, and `unverified`
+and `indeterminate` map to exit 1 like a failure. Exit code 2 is revisited once consumers read
+the envelope.
+
+---
+
+## Error shape
+
+Every failure the runtime raises carries a registered code (`src/core/error-codes.ts`) on a
+`FrameworkError`, and leaves the CLI in one of two renderings:
+
+Text mode - one red line on **stderr**, with the code in brackets, the same shape surf uses:
+
+```text
+Surf explore requires --url with a valid URL. [config_invalid]
+```
+
+`--json` - the envelope on **stdout**, exit 1, and nothing else on stdout:
+
+```json
+{
+  "error": {
+    "code": "config_not_found",
+    "message": "Config file not found: /repo/test-capabilities.yaml",
+    "details": { "path": "/repo/test-capabilities.yaml" }
+  }
+}
+```
+
+`details` is optional and its shape depends on the code: `{ category, values }` for an
+unsupported surface, `{ issues: [{ path, message }] }` for a schema failure, `{ path }` for a
+missing config file. The library exports `FrameworkError`, `isFrameworkError`, `toErrorEnvelope`
+and `renderErrorLine` so a programmatic caller renders the same two shapes.
+
+### Registered codes
+
+| Code | Raised when |
+|------|-------------|
+| `unsupported_command` | A registered but unimplemented CLI command (`predict`, `visualize`, `report`) was invoked |
+| `unsupported_surf_action` | A `surf` action other than `explore` was invoked, or the action was missing |
+| `unsupported_option` | An option outside the implemented set was passed to `test` or `surf explore` |
+| `unsupported_agent_type` | An enabled agent has a type the orchestrator contract does not implement |
+| `unsupported_intelligence` | An `intelligence.*` capability was enabled that is not wired to a runtime |
+| `unsupported_config_section` | A config section (today: `chaos`) was enabled without a runtime |
+| `invalid_route_payload` | A CLI route object reached the kernel without a usable command |
+| `config_invalid` | A config file or CLI input failed its schema; `details.issues` lists path and message |
+| `config_not_found` | `--config` (or the default path) names a file that does not exist |
+| `unclassified_error` | The framework raised an error the registry does not name yet. It is never a verdict about the target |
+
+Codes from tools the framework does not own pass through verbatim and are never rewritten:
+surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,
+`empty_result`, `no_output`, `browser_error`, `spawn_failed`.
+
+---
+
+## Result outcomes
+
+A failure is not the only way a run can produce no verdict. Every sensor result (CLI process,
+surf command, HTTP call, Bombadil run) is classified once, by one pure function
+(`classifyResult`, `src/core/result-classification.ts`), into a closed class set with an explicit
+basis. `ok` is true only for `success` and `declared_empty`.
+
+| Class | `ok` | Basis | Code | Meaning |
+|-------|------|-------|------|---------|
+| `success` | yes | `evidence` | `ok` | A payload was produced and no error signal was found |
+| `declared_empty` | yes | `evidence` | `declared_empty` | The payload was empty and emptiness was declared (config `expect`, operation code, or an HTTP protocol fact) |
+| `empty` | no | `no_evidence` | `empty_result` | The payload was empty and nothing declared that acceptable. This is the absence of information, not a claim that the target is broken |
+| `error` | no | `fault` | surf code, `exit_<n>`, `http_<status>`, `row_error` | An error signal arrived under a contract the framework owns or the operator declared |
+| `timeout` | no | `fault` or `indeterminate` | `timeout`, `signal_<NAME>` | The step was killed at its budget or by a signal. On a mutating step the basis is `indeterminate`: nothing is known about the target |
+| `spawn_failed` | no | `fault` or `indeterminate` | `spawn_failed` | The process never started |
+| `unclassifiable` | no | `contradiction` | `unclassifiable`, `invalid_output` | The reply contradicts itself (exit 0 with an error envelope in a declared JSON payload, `success: true` carrying an error, a JSON payload that does not parse). Nothing downstream may reinterpret it |
+
+Two rules follow from the basis, and both are deliberate: the healer proposes only from
+`basis: fault`, and a finding for `empty` says "no evidence", never "bug in the target". The
+first two evidence lines of every classified step are `outcome:<class>:<code>` and
+`basis:<basis>`, so a verdict can be replayed from the receipt.
+
+Signals that arrive under no contract are recorded and change no class: `stderr_error_line`
+(an `Error:` line on stderr from a CLI target that exited 0), `payload_error_key_present` (an
+`error` key in opaque stdout), `tester_verdict_overruled` (an LLM tester's `pass` on a step whose
+outcome is not `ok`).
+
+An empty payload is a failure by default. Declare it where emptiness is correct:
+
+```yaml
+agents:
+  cli-smoke:
+    type: cli-tester
+    expect:
+      output: empty          # required (default) | empty
+      empty_marker: "no results"   # optional; must match the trimmed stdout or surf's empty state
+```
+
 ---
 
 ## Common errors
@@ -26,7 +122,7 @@ type: "reference"
 ### Config file missing
 
 ```text
-Config file not found: /path/to/test-capabilities.yaml
+Config file not found: /path/to/test-capabilities.yaml [config_not_found]
 ```
 
 **Cause**
@@ -42,7 +138,7 @@ Config file not found: /path/to/test-capabilities.yaml
 ### Unsupported command
 
 ```text
-Unsupported CLI command(s): predict. Outside the current capability contract.
+Unsupported CLI command(s): predict. Outside the current capability contract. This command currently has no capability-backed implementation. [unsupported_command]
 ```
 
 **Cause**
@@ -57,7 +153,7 @@ Unsupported CLI command(s): predict. Outside the current capability contract.
 ### Unsupported test option
 
 ```text
-Unsupported option(s) for 'test': --predict. Outside the current capability contract.
+Unsupported option(s) for 'test': --predict. Outside the current capability contract. [unsupported_option]
 ```
 
 **Cause**
@@ -74,7 +170,7 @@ Unsupported option(s) for 'test': --predict. Outside the current capability cont
 ### Unsupported surf explore option
 
 ```text
-Unsupported option(s) for 'surf explore': --record. Outside the current capability contract.
+Unsupported option(s) for 'surf explore': --record. Outside the current capability contract. [unsupported_option]
 ```
 
 **Cause**
@@ -83,6 +179,8 @@ Unsupported option(s) for 'surf explore': --record. Outside the current capabili
 **Fix**
 - Use only:
   - `--url`
+  - `--depth`
+  - `--json`
 
 ---
 
@@ -156,7 +254,7 @@ TEST_CAPABILITIES_SURF_GO_BIN is set, but the surf-go fork runtime was retired (
 ### Unsupported surf action
 
 ```text
-Unsupported surf action(s): typo. Outside the current capability contract.
+Unsupported surf action(s): typo. Outside the current capability contract. [unsupported_surf_action]
 ```
 
 **Cause**
@@ -210,7 +308,7 @@ Quantum target must be a valid URL.
 
 ---
 
-### Invalid SurfClient JSON payload
+### Invalid JSON payload from a surf command
 
 ```text
 Invalid JSON output from surf network: warning: capture disabled
@@ -218,7 +316,7 @@ Invalid JSON output from surf network: warning: capture disabled
 
 **Cause**
 - A surf command that should return JSON printed warnings or plain text without a parseable payload
-- The current runtime now fails clearly instead of silently treating malformed structured output as empty data
+- The runtime fails clearly instead of silently treating malformed structured output as empty data
 
 **Fix**
 - Re-run the underlying surf command directly to inspect stdout/stderr
@@ -226,19 +324,23 @@ Invalid JSON output from surf network: warning: capture disabled
 
 ---
 
-### Unsupported SurfClient config option
+### Empty result where output was required
 
 ```text
-Unsupported SurfClient config option(s): socketPath. Outside the current capability contract.
+outcome:empty:empty_result
+basis:no_evidence
 ```
 
 **Cause**
-- You passed a `SurfClient` constructor option that the current runtime does not wire to real surf behavior
-- Currently only `autoScreenshot` and `screenshotResize` are supported
+- The command, page or endpoint produced no payload: an empty stdout, `{}`/`[]`/`null`, zero extract rows, a zero-byte HTTP body, or a Bombadil run without a trace
+- Nothing declared that emptiness acceptable
 
 **Fix**
-- Remove `socketPath`, `networkCapture`, and `networkPath`
-- Use only the supported config keys until the runtime grows a real implementation path
+1. Fix the target so it produces output, or
+2. Declare it: `expect: { output: empty }` on the agent (with an optional `empty_marker`), which turns the run into `declared_empty`
+
+This is the one refusal that says nothing about the target: `basis: no_evidence` means the run
+carries no information, so the healer refuses to propose from it.
 
 ---
 
@@ -292,7 +394,7 @@ Configure at least one enabled `bombadil`, `surf`, or `cli-tester` agent.
 ### Unsupported agent type
 
 ```text
-Unsupported agent type(s): api:api-fuzzer. Outside the current capability contract.
+Unsupported agent type(s): api:api-fuzzer. Outside the current capability contract. [unsupported_agent_type]
 ```
 
 **Cause**
@@ -390,7 +492,7 @@ Add a web target or disable quantum for that run.
 ### Chaos enabled without runtime support
 
 ```text
-Unsupported config section(s): chaos. Outside the current capability contract.
+Unsupported config section(s): chaos. Outside the current capability contract. [unsupported_config_section]
 ```
 
 **Cause**

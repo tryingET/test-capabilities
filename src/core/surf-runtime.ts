@@ -12,6 +12,13 @@ import { accessSync, constants } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import type { ResultErrorPayload, ResultOutcome } from "./result-classification.js";
+import { isRecord, tryParseSurfJson } from "./result-payload.js";
+import { FrameworkError } from "./runtime-contract.js";
+
+// The classifier owns the shapes surf owns: its JSON parsing and its error contract live in the
+// pure ring and are re-exported here so the public runtime surface keeps its names.
+export { parseSurfErrorOutput, tryParseSurfJson } from "./result-payload.js";
 
 export type SurfRuntimeFlavor = "surf";
 
@@ -48,11 +55,8 @@ export interface SurfRuntimeProbe {
   missingExploreMechanisms: string[];
 }
 
-export interface SurfCommandFailure {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
+/** The classifier's error payload; the surf runtime keeps the name it always had. */
+export type SurfCommandFailure = ResultErrorPayload;
 
 export interface SurfCommandResult {
   ok: boolean;
@@ -61,29 +65,31 @@ export interface SurfCommandResult {
   stderr: string;
   commandDisplay: string[];
   failure?: SurfCommandFailure;
+  /** the classified outcome of this command; additive, and the only verdict S4 consumers read */
+  outcome: ResultOutcome;
 }
 
-export class SurfCommandError extends Error {
-  readonly code: string;
-  readonly details: Record<string, unknown> | undefined;
+export class SurfCommandError extends FrameworkError {
   readonly exitCode: number | null;
   readonly stdout: string;
   readonly stderr: string;
   readonly commandDisplay: string[];
+  /** the classified outcome the failure came from; carries the basis the healer reads (S4) */
+  readonly outcome: ResultOutcome | undefined;
 
   constructor(result: SurfCommandResult) {
     const failure = result.failure ?? {
       code: "error",
       message: `${result.commandDisplay.join(" ")} exited with code ${result.code ?? "null"}`,
     };
-    super(`${failure.message} [${failure.code}]`);
+    // surf codes pass through verbatim: the framework never rewrites a code it does not own.
+    super(failure.code, `${failure.message} [${failure.code}]`, failure.details);
     this.name = "SurfCommandError";
-    this.code = failure.code;
-    this.details = failure.details;
     this.exitCode = result.code;
     this.stdout = result.stdout;
     this.stderr = result.stderr;
     this.commandDisplay = result.commandDisplay;
+    this.outcome = result.outcome;
   }
 }
 
@@ -217,47 +223,6 @@ export function resolveSurfRuntimeResolution(
 
 export const DEFAULT_SURF_TIMEOUT_MS = 90_000;
 
-function looksLikeJsonStart(value: string): boolean {
-  return /^(?:\{|\[|"|-?\d|true\b|false\b|null\b)/.test(value);
-}
-
-function jsonCandidates(raw: string): string[] {
-  const trimmed = raw.trim();
-  const candidates = new Set<string>();
-  if (trimmed.length > 0) {
-    candidates.add(trimmed);
-  }
-
-  const lines = trimmed.split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    if (!looksLikeJsonStart(lines[index].trim())) {
-      continue;
-    }
-    candidates.add(lines.slice(index).join("\n"));
-    candidates.add(lines[index].trim());
-    break;
-  }
-
-  return [...candidates];
-}
-
-export function tryParseSurfJson(
-  raw: string,
-): { parsed: true; value: unknown } | { parsed: false } {
-  for (const candidate of jsonCandidates(raw)) {
-    try {
-      return { parsed: true, value: JSON.parse(candidate) };
-    } catch {
-      // Try the next candidate shape.
-    }
-  }
-  return { parsed: false };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export interface SurfJsonOutput {
   data: unknown;
   target?: unknown;
@@ -293,48 +258,6 @@ export function parseSurfJsonOutput(stdout: string, commandLabel: string): SurfJ
   }
 
   return { data: value };
-}
-
-/**
- * Extract the branch CLI's error contract: `{"error": {code, message, details}}` on stdout under
- * `--json`, and `Error: <message> [code]` as the first stderr line in every mode.
- */
-export function parseSurfErrorOutput(
-  stdout: string,
-  stderr: string,
-  exitCode: number | null,
-  commandDisplay: string[],
-): SurfCommandFailure {
-  const parsed = tryParseSurfJson(stdout);
-  if (parsed.parsed && isRecord(parsed.value) && isRecord(parsed.value.error)) {
-    const errorObject = parsed.value.error;
-    const code = typeof errorObject.code === "string" ? errorObject.code : "error";
-    const message =
-      typeof errorObject.message === "string" ? errorObject.message : JSON.stringify(errorObject);
-    return {
-      code,
-      message,
-      ...(isRecord(errorObject.details) ? { details: errorObject.details } : {}),
-    };
-  }
-
-  const errorLine = stderr
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => /^Error:/.test(line));
-  if (errorLine) {
-    const match = errorLine.match(/^Error:\s*(.*?)(?:\s\[([A-Za-z0-9_.-]+)\])?$/);
-    return {
-      code: match?.[2] ?? "error",
-      message: match?.[1]?.trim() || errorLine,
-    };
-  }
-
-  const fallback = stderr.trim() || stdout.trim();
-  return {
-    code: "error",
-    message: fallback || `${commandDisplay.join(" ")} exited with code ${exitCode ?? "null"}`,
-  };
 }
 
 /** `tab.new` answers with the text "Created tab <id>: <url>" even under `--json`. */

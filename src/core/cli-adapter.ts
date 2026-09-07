@@ -16,7 +16,8 @@ import type {
   AdapterInvocation,
   AdapterStep,
 } from "./adapter.js";
-import type { RawResult } from "./result-classification.js";
+import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-classification.js";
+import { classifyResult } from "./result-classification.js";
 import { spawnStep } from "./spawn-step.js";
 
 export const DEFAULT_CLI_STEP_TIMEOUT_MS = 10_000;
@@ -140,5 +141,9 @@ export const cliAdapter: Adapter<CliAdapterResolution, CliAdapterProbe> = {
       ...((invocation.env ?? context.env) ? { env: invocation.env ?? context.env } : {}),
       ...(invocation.maxOutputChars ? { maxOutputChars: invocation.maxOutputChars } : {}),
     });
+  },
+
+  normalize(raw: RawResult, declaration?: ExpectDeclaration): ResultOutcome {
+    return classifyResult(raw, declaration);
   },
 };

@@ -643,3 +643,66 @@ test("unsupported CLI commands fail clearly instead of emitting placeholders", (
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /Unsupported CLI command\(s\): predict/);
 });
+
+// ---------------------------------------------------------------- error envelope (S3)
+
+test("a --json failure prints the surf-shaped error envelope on stdout and exits 1", () => {
+  const result = runCli(["surf", "explore", "--json"], {
+    PATH: path.dirname(process.execPath),
+    HOME: noSurfHome,
+  });
+
+  assert.equal(result.status, 1);
+  const payload = JSON.parse(result.stdout);
+  assert.deepEqual(Object.keys(payload), ["error"]);
+  assert.equal(payload.error.code, "config_invalid");
+  assert.match(payload.error.message, /Surf explore requires --url with a valid URL\./);
+  assert.equal(
+    payload.error.details.issues.some((issue) => issue.path === "url"),
+    true,
+  );
+});
+
+test("the same failure in text mode carries the [code] suffix on stderr", () => {
+  const result = runCli(["surf", "explore"], {
+    PATH: path.dirname(process.execPath),
+    HOME: noSurfHome,
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Surf explore requires --url with a valid URL\. \[config_invalid\]/);
+  assert.equal(result.stdout.includes('"error"'), false);
+});
+
+test("an unsupported command names its registered code in both modes", () => {
+  const text = runCli(["predict"]);
+  assert.equal(text.status, 1);
+  assert.match(text.stderr, /\[unsupported_command\]$/m);
+
+  const json = runCli(["test", "--config", "/definitely-missing-config.yaml", "--json"]);
+  assert.equal(json.status, 1);
+  const payload = JSON.parse(json.stdout);
+  assert.equal(payload.error.code, "config_not_found");
+  assert.equal(payload.error.details.path, "/definitely-missing-config.yaml");
+});
+
+test("surf explore --json prints the operation envelope on a successful run", () => {
+  const fake = createFakeSurf({
+    pages: readyPages({ "https://example.com/": { links: [] } }),
+  });
+
+  try {
+    const result = runCli(["surf", "explore", "--url", "https://example.com/", "--json"], {
+      TEST_CAPABILITIES_SURF_BIN: fake.path,
+    });
+
+    assert.equal(result.status, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.operationId, "surf.explore");
+    assert.equal(payload.input.url, "https://example.com/");
+    assert.equal(payload.input.json, true);
+    assert.equal(typeof payload.result.coverage.userFlows, "number");
+  } finally {
+    fake.cleanup();
+  }
+});

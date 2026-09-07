@@ -243,6 +243,10 @@ test("invokeAdapter composes resolve, translate, effects and invoke exactly once
         stderr: "",
       });
     },
+    normalize(raw) {
+      calls.push(`normalize:${raw.stdout}`);
+      return { class: "success", ok: true, basis: "evidence", code: "ok" };
+    },
   };
 
   const outcome = await invokeAdapter(
@@ -253,7 +257,14 @@ test("invokeAdapter composes resolve, translate, effects and invoke exactly once
     },
   );
 
-  assert.deepEqual(calls, ["resolve:m", "translate:version:m", "effects", "invoke:node --version"]);
+  assert.deepEqual(calls, [
+    "resolve:m",
+    "translate:version:m",
+    "effects",
+    "invoke:node --version",
+    "normalize:v1",
+  ]);
+  assert.equal(outcome.outcome.ok, true);
   assert.equal(outcome.raw.stdout, "v1");
   assert.deepEqual(outcome.effect, { effect: "read_only", reason: "test double" });
   assert.deepEqual(outcome.resolution, { marker: "m" });
@@ -274,6 +285,7 @@ test("invokeAdapter refuses an adapter whose invoke answers with the wrong shape
     }),
     effects: () => ({ effect: "read_only", reason: "test double" }),
     invoke: () => Promise.resolve({ ok: true }),
+    normalize: () => ({ class: "success", ok: true, basis: "evidence", code: "ok" }),
   };
 
   await assert.rejects(

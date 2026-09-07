@@ -10,12 +10,13 @@
 
 import process from "node:process";
 import type { Adapter, AdapterEffect, AdapterInvocation, AdapterStep } from "./adapter.js";
-import type { RawResult } from "./result-classification.js";
+import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-classification.js";
+import { classifyResult } from "./result-classification.js";
+import { parseSurfErrorOutput } from "./result-payload.js";
 import { spawnStepSync } from "./spawn-step.js";
 import type { SurfCommandResult, SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
 import {
   DEFAULT_SURF_TIMEOUT_MS,
-  parseSurfErrorOutput,
   resolveSurfRuntimeResolution,
   SURF_EXPLORE_REQUIRED_MECHANISMS,
   SURF_MECHANISM_COMMANDS,
@@ -105,22 +106,33 @@ export function surfInvocation(
   };
 }
 
-/** Turns one transport reply into the surf runtime's command result. */
+/**
+ * Turns one transport reply into the surf runtime's command result.
+ *
+ * The classified `outcome` is attached to every result (slice S3): it is the additive typed
+ * verdict the step lists, the explore probes, the healer and the report switch to in S4. `ok`
+ * and `failure` keep the transport meaning they had, so this slice changes no verdict on its
+ * own; the declarations that make `empty` a refusal (`expect.output`, the explore link
+ * emptiness constant, the readiness gate) arrive with their consumers.
+ */
 function surfCommandResultFromRaw(
   raw: RawResult,
   invocation: AdapterInvocation,
+  declaration?: ExpectDeclaration,
 ): SurfCommandResult {
   const commandDisplay = invocation.display;
-  const stdout = raw.stdout;
-  const stderr = raw.stderr;
+  const base = {
+    code: raw.exitCode,
+    stdout: raw.stdout,
+    stderr: raw.stderr,
+    commandDisplay,
+    outcome: classifyResult(raw, declaration),
+  };
 
   if (raw.timedOut) {
     return {
+      ...base,
       ok: false,
-      code: raw.exitCode,
-      stdout,
-      stderr,
-      commandDisplay,
       failure: {
         code: "timeout",
         message: `${commandDisplay.join(" ")} timed out after ${invocation.timeoutMs}ms`,
@@ -130,11 +142,8 @@ function surfCommandResultFromRaw(
 
   if (raw.spawnFailure) {
     return {
+      ...base,
       ok: false,
-      code: raw.exitCode,
-      stdout,
-      stderr,
-      commandDisplay,
       failure: {
         code: "spawn_failed",
         message: `Failed to run ${commandDisplay.join(" ")}: ${raw.spawnFailure}`,
@@ -144,25 +153,22 @@ function surfCommandResultFromRaw(
 
   if (raw.exitCode !== 0) {
     return {
+      ...base,
       ok: false,
-      code: raw.exitCode,
-      stdout,
-      stderr,
-      commandDisplay,
-      failure: parseSurfErrorOutput(stdout, stderr, raw.exitCode, commandDisplay),
+      failure: parseSurfErrorOutput(raw.stdout, raw.stderr, raw.exitCode, commandDisplay),
     };
   }
 
-  return { ok: true, code: 0, stdout, stderr, commandDisplay };
+  return { ...base, ok: true };
 }
 
 export function runSurfCommand(
   resolution: SurfRuntimeResolution,
   argv: string[],
-  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv } = {},
+  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv; expect?: ExpectDeclaration } = {},
 ): SurfCommandResult {
   const invocation = surfInvocation(resolution, argv, options);
-  return surfCommandResultFromRaw(spawnStepSync(invocation), invocation);
+  return surfCommandResultFromRaw(spawnStepSync(invocation), invocation, options.expect);
 }
 
 /**
@@ -275,5 +281,9 @@ export const surfAdapter: Adapter<SurfRuntimeResolution, SurfRuntimeProbe> = {
     // surf commands are short and the explore step lists are synchronous today; the sync path
     // of the same transport keeps one process boundary without an async rewrite.
     return Promise.resolve(spawnStepSync(invocation));
+  },
+
+  normalize(raw: RawResult, declaration?: ExpectDeclaration): ResultOutcome {
+    return classifyResult(raw, declaration);
   },
 };

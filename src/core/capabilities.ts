@@ -48,6 +48,7 @@ export function assertSupportedCliCommand(command: CliCommand): void {
       "CLI command(s)",
       [command],
       "This command currently has no capability-backed implementation.",
+      "unsupported_command",
     );
   }
 }
@@ -59,6 +60,7 @@ export function assertSupportedSurfAction(action: string): asserts action is Sur
       "surf action(s)",
       [action],
       "Only 'explore' is currently backed by a real surf execution path.",
+      "unsupported_surf_action",
     );
   }
 }

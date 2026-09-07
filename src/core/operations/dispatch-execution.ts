@@ -1,4 +1,4 @@
-import { renderUnsupported } from "../runtime-contract.js";
+import { FrameworkError, renderUnsupported } from "../runtime-contract.js";
 import {
   CLI_OPERATION_REGISTRY,
   getSurfActionStatus,
@@ -26,6 +26,7 @@ export function assertKnownSurfExecutionRoute(routeRecord: RouteRecord): void {
       "surf action(s)",
       ["(missing action)"],
       "Specify the implemented 'explore' action.",
+      "unsupported_surf_action",
     );
   }
 
@@ -34,6 +35,7 @@ export function assertKnownSurfExecutionRoute(routeRecord: RouteRecord): void {
       "surf action(s)",
       [routeRecord.action],
       "Only 'explore' is currently backed by a real surf execution path.",
+      "unsupported_surf_action",
     );
   }
 }
@@ -44,10 +46,15 @@ export function throwUnsupportedCommand(routeRecord: RouteRecord, route: CliRout
       "CLI command(s)",
       [routeRecord.command],
       "This command currently has no capability-backed implementation.",
+      "unsupported_command",
     );
   }
 
-  throw new Error(`Invalid CLI route payload: ${JSON.stringify(route)}`);
+  throw new FrameworkError(
+    "invalid_route_payload",
+    `Invalid CLI route payload: ${JSON.stringify(route)}`,
+    { route },
+  );
 }
 
 export function requireManifestEntry(route: CliRoute): CliRouteManifestEntry {
@@ -68,6 +75,7 @@ export function throwUnavailableManifestEntry(manifestEntry: CliRouteManifestEnt
       "surf action(s)",
       [manifestEntry.action],
       "Only 'explore' is currently backed by a real surf execution path.",
+      "unsupported_surf_action",
     );
   }
 
@@ -75,6 +83,7 @@ export function throwUnavailableManifestEntry(manifestEntry: CliRouteManifestEnt
     "CLI command(s)",
     [manifestEntry.command],
     "This command currently has no capability-backed implementation.",
+    "unsupported_command",
   );
 }
 
