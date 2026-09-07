@@ -89,7 +89,8 @@ function sanitizedExternalToolEnv(packageRoot, nodeBinDir) {
 try {
   const packResult = run("npm", ["pack", "--json"]);
   const packOutput = JSON.parse(packResult.stdout);
-  const packEntry = packOutput[0];
+  // npm <= 11 prints an array; npm 12 prints an object keyed by package name.
+  const packEntry = Array.isArray(packOutput) ? packOutput[0] : Object.values(packOutput ?? {})[0];
   const tarballName = packEntry?.filename;
   const packedFiles = Array.isArray(packEntry?.files)
     ? packEntry.files.map((entry) => entry?.path).filter((value) => typeof value === "string")
