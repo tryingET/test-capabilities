@@ -2,7 +2,7 @@
   "schema_version": 1,
   "default_max_lines": 700,
   "exceptions": {
-    "src/core/orchestrator.ts": 2078,
+    "src/core/orchestrator.ts": 1538,
     "src/core/surf-runtime.ts": 1006,
     "src/core/operations/surf-explore-operation.ts": 842,
     "src/healing/self-healing.ts": 821
