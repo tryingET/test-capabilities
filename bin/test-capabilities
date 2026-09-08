@@ -294,6 +294,10 @@ program
     "surf explore: 'urlPrefix=<prefix>' or 'selector=<css>' asserting which frame the --ready-selector target lives in; the only way to confirm a frame boundary",
   )
   .option(
+    "--a11y-snapshot [mode]",
+    "surf explore: attach the read-only accessibility observation channel (agent-browser over the loopback CDP endpoint); 'optional' (default) records an unavailable channel and continues, 'required' fails the page",
+  )
+  .option(
     "--field <locator=value>",
     "surf plan: a field to fill, as '<label|selector|name>:<locator>=<value>'; repeatable",
     collectRepeated,

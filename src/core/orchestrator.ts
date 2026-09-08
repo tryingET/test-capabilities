@@ -309,7 +309,7 @@ export class TestCapabilitiesOrchestrator {
           break;
         }
         case "surf": {
-          this.agents.set(name, new SurfAgent(name));
+          this.agents.set(name, new SurfAgent(name, agentConfig.observation));
           break;
         }
         case "cli-tester": {

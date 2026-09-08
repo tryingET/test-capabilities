@@ -3,6 +3,12 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import {
+  AGENT_BROWSER_MIN_VERSION,
+  probeAgentBrowser,
+  probeCdpEndpoint,
+  resolveAgentBrowserResolution,
+} from "../a11y-snapshot-runtime.js";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { MutationReceipt } from "../receipt-store.js";
@@ -369,6 +375,59 @@ function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorChec
 }
 
 /**
+ * The a11y observation channel as an optional external, next to `external.surf` (a11y-snapshot
+ * packet, "Placement"; slice S9).
+ *
+ * Three gates, reported in the order a run would hit them: the binary, its version, and the
+ * loopback DevTools endpoint. Every one of them is a warning rather than a failure - the channel
+ * is off by default and its absence never blocks a run - but the detail names the exact refusal
+ * an `--a11y-snapshot=required` run would get, so `doctor` answers the question before the run
+ * asks it.
+ */
+async function checkOptionalAgentBrowser(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<DoctorCheck> {
+  const id = "external.agent_browser";
+  const label = "Optional a11y snapshot channel (agent-browser over CDP)";
+
+  let resolution: ReturnType<typeof resolveAgentBrowserResolution>;
+  try {
+    resolution = resolveAgentBrowserResolution(env);
+  } catch (error) {
+    return warn(id, label, errorMessage(error));
+  }
+
+  let version: string;
+  try {
+    version = (await probeAgentBrowser(resolution, { env })).version;
+  } catch (error) {
+    return {
+      ...warn(id, label, errorMessage(error)),
+      data: { command: resolution.command, provider: resolution.provider, version: null },
+    };
+  }
+
+  const base = {
+    command: resolution.command,
+    provider: resolution.provider,
+    version,
+    minVersion: AGENT_BROWSER_MIN_VERSION,
+    endpoint: resolution.endpoint.url,
+  };
+  const describe = `agent-browser ${version} via ${resolution.provider} (${resolution.command}); CDP ${resolution.endpoint.url}`;
+
+  try {
+    const browser = await probeCdpEndpoint(resolution);
+    return {
+      ...pass(id, label, `${describe}: ${browser.browser}`, false),
+      data: { ...base, browser: browser.browser },
+    };
+  } catch (error) {
+    return { ...warn(id, label, `${describe}: ${errorMessage(error)}`), data: base };
+  }
+}
+
+/**
  * What the interlock looks like from here: where the receipts live, whether that store survives
  * the run, and how many receipts are still in doubt. A receipt in doubt is not an error - it is
  * a mutating attempt nobody has resolved, and it will refuse its key's next run until an
@@ -452,6 +511,7 @@ async function runDoctorOperation(
     ...(targetCheck ? [targetCheck] : []),
     checkOptionalSurf(),
     checkOptionalBombadil(),
+    await checkOptionalAgentBrowser(),
     await checkReceiptStore(context),
   ];
   const requiredFailed = checks.filter((check) => check.required && check.status === "fail");

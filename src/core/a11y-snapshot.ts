@@ -24,6 +24,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { FrameworkError } from "./runtime-contract.js";
 
 export const A11Y_SNAPSHOT_SCHEMA_VERSION = 1;
 export const A11Y_SNAPSHOT_KIND = "a11y-snapshot";
@@ -168,6 +169,31 @@ export type A11ySnapshotMode = (typeof A11Y_SNAPSHOT_MODES)[number];
 
 export function isA11ySnapshotMode(value: unknown): value is A11ySnapshotMode {
   return typeof value === "string" && (A11Y_SNAPSHOT_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * The mode a caller asked for: `--a11y-snapshot` with no value is `optional`, `=required` fails
+ * the page when the channel cannot observe, and `off` (or nothing at all) leaves the run
+ * byte-identical to one from before this channel existed.
+ *
+ * An unknown value is refused rather than defaulted, because the difference between `optional`
+ * and `required` is the difference between a recorded gap and a verdict.
+ */
+export function parseA11ySnapshotMode(
+  value: string | boolean | undefined,
+): "optional" | "required" | undefined {
+  if (value === undefined || value === false) {
+    return undefined;
+  }
+  const normalized = value === true || value.trim() === "" ? "optional" : value.trim();
+  if (!isA11ySnapshotMode(normalized)) {
+    throw new FrameworkError(
+      "config_invalid",
+      `--a11y-snapshot takes one of ${A11Y_SNAPSHOT_MODES.join(", ")}; '${String(value)}' is none of them.`,
+      { option: "--a11y-snapshot", value: String(value) },
+    );
+  }
+  return normalized === "off" ? undefined : normalized;
 }
 
 // ============================================

@@ -1561,7 +1561,12 @@ test("a nested operation runs inside its parent's run, not a new one", async () 
     new URL("../src/core/operations/test/agents.ts", import.meta.url),
     "utf8",
   );
-  assert.match(agentsSource, /executeSurfExploreOperation\(\{ url: targets\.web \}, context\)/);
+  // The call shape gained the S9 observation mode; what this case pins is that `context` is the
+  // second argument, so the nested explore joins the run rather than minting one.
+  assert.match(
+    agentsSource,
+    /executeSurfExploreOperation\(\s*\{[\s\S]*?url: targets\.web[\s\S]*?\},\s*context,\s*\)/,
+  );
 });
 
 test("the library entry points mint their own run when the kernel did not", async () => {

@@ -43,6 +43,18 @@ export {
   snapshotDigest,
 } from "./core/a11y-snapshot.js";
 export type {
+  A11ySnapshotObserverHandle,
+  A11ySnapshotObserverOptions,
+} from "./core/a11y-snapshot-observer.js";
+export {
+  A11Y_SNAPSHOT_ARTIFACT_KIND,
+  A11Y_SNAPSHOT_EFFECT,
+  A11Y_SNAPSHOT_OBSERVER_NAME,
+  bindOwnedTab,
+  createA11ySnapshotObserver,
+  tabLeakOf,
+} from "./core/a11y-snapshot-observer.js";
+export type {
   AgentBrowserProbe,
   AgentBrowserResolution,
   CdpEndpoint,

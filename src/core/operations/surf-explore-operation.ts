@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { A11yDomProbeCounts } from "../a11y-snapshot.js";
+import { parseA11ySnapshotMode } from "../a11y-snapshot.js";
+import {
+  A11Y_SNAPSHOT_OBSERVER_NAME,
+  a11yChannelSummary,
+  createA11ySnapshotObserver,
+  observationsOf,
+} from "../a11y-snapshot-observer.js";
 import type { BrowserStep, SessionReadiness, SessionReply } from "../browser-session.js";
 import type { EffectAttempt, EffectDeclaration } from "../effects.js";
 import { ElementUnreachable, isElementReachFailure } from "../frame-diagnosis.js";
@@ -60,6 +68,7 @@ export const SurfExploreOperationInputSchema = z.preprocess(
       json: z.boolean().optional().default(false),
       readySelector: z.string().min(1).optional(),
       frameHint: z.string().min(1).optional(),
+      a11ySnapshot: z.union([z.string().min(1), z.boolean()]).optional(),
       record: z.boolean().optional().default(false),
       validate: z.boolean().optional().default(false),
       baseline: z.string().optional(),
@@ -70,6 +79,7 @@ export const SurfExploreOperationInputSchema = z.preprocess(
       assertSupportedSurfExploreOptions(input);
       parseSurfExploreDepth(input.depth);
       assertFrameHintUsable(input);
+      parseA11ySnapshotMode(input.a11ySnapshot);
       return input;
     }),
 );
@@ -91,6 +101,8 @@ type ProbeExecution = {
   stderr: string;
   discoveredUrls: string[];
   links?: SurfExplorePageResult["links"];
+  /** the `dom` probe's element counts; the a11y channel measures its blind spot against them */
+  domCounts?: A11yDomProbeCounts;
 };
 
 /**
@@ -590,14 +602,29 @@ function jsProbeStep(
     read: (reply: SessionReply): ProbeExecution => {
       const { data } = parseSurfJsonOutput(reply.stdout, "js");
       const match = assertProbeEvidence(data, reply.stdout, reply.display, acceptedUrls, probeId);
+      const domCounts = kind === "dom" ? domProbeCounts(match.record) : undefined;
       return {
         probe: { kind, url, depth, verified: true, signal: match.signal, outcome: reply.outcome },
         stdout: reply.stdout,
         stderr: reply.stderr,
         discoveredUrls: [],
+        ...(domCounts ? { domCounts } : {}),
       };
     },
   };
+}
+
+/**
+ * The three counts the a11y channel compares the tree against. All three or none: a partial
+ * count would make the blind spot look smaller than it is, and the honest answer to a probe that
+ * did not report them is `dom_probe_missing` (a11y-snapshot packet, refinement Clash 1).
+ */
+function domProbeCounts(record: Record<string, unknown>): A11yDomProbeCounts | undefined {
+  const { anchors, buttons, inputs } = record;
+  if (typeof anchors !== "number" || typeof buttons !== "number" || typeof inputs !== "number") {
+    return undefined;
+  }
+  return { anchors, buttons, inputs };
 }
 
 function linksProbeStep(
@@ -742,6 +769,7 @@ async function explorePage(
   depth: number,
   requestedDepth: number,
   pageIndex: number,
+  a11yMode: "optional" | "required" | undefined,
 ): Promise<{ page: SurfExplorePageResult; stdout: string[]; stderr: string[] }> {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -756,6 +784,22 @@ async function explorePage(
   const tabId = opened.tab.id;
   if (opened.reply.stdout) {
     stdout.push(opened.reply.stdout);
+  }
+
+  let domCounts: A11yDomProbeCounts | undefined;
+  // Registered before the probes and run after them: the observer reads the page the probe list
+  // left, and it reads the `dom` probe's counts through a getter because those do not exist yet
+  // at registration time (a11y-snapshot packet, "Coexistence with surf on the same tab").
+  const a11y = a11yMode
+    ? createA11ySnapshotObserver({
+        context,
+        required: a11yMode === "required",
+        sequence: pageIndex,
+        domCounts: () => domCounts,
+      })
+    : undefined;
+  if (a11y) {
+    session.observe(A11Y_SNAPSHOT_OBSERVER_NAME, a11y.observer);
   }
 
   let page: SurfExplorePageResult;
@@ -780,6 +824,9 @@ async function explorePage(
       if (execution.stderr) {
         stderr.push(execution.stderr);
       }
+      if (execution.domCounts) {
+        domCounts = execution.domCounts;
+      }
       if (kind === "links") {
         discoveredUrls = execution.discoveredUrls;
         links = execution.links;
@@ -795,6 +842,7 @@ async function explorePage(
       verified: probes.every((probe) => probe.verified),
       readiness: gate.readiness,
       probes,
+      ...observationsOf(a11y),
       discoveredUrls,
       ...(links ? { links } : {}),
     };
@@ -802,7 +850,10 @@ async function explorePage(
     const readiness = error instanceof SessionReadinessRefusal ? error.readiness : undefined;
     stderr.push(errorMessage(error));
     const unreachable = await diagnoseUnreachable(session, input, error, readiness);
-    page = failedPage(url, depth, requestedDepth, unreachable ?? error, readiness, tabId);
+    page = {
+      ...failedPage(url, depth, requestedDepth, unreachable ?? error, readiness, tabId),
+      ...observationsOf(a11y),
+    };
   } finally {
     await session.close();
     stderr.push(...session.notes());
@@ -866,6 +917,7 @@ async function runSurfExploreOperation(
   }
 
   const runtime = resolveSurfSessionRuntime();
+  const a11yMode = parseA11ySnapshotMode(normalized.a11ySnapshot);
   const queue: Array<{ url: string; depth: number }> = [{ url: normalizedTargetUrl, depth: 1 }];
   const scheduled = new Set<string>([
     normalizeVisitKey(normalizedTargetUrl) ?? normalizedTargetUrl,
@@ -889,6 +941,7 @@ async function runSurfExploreOperation(
         next.depth,
         requestedDepth,
         pages.length + 1,
+        a11yMode,
       );
       pages.push(pageResult.page);
       stdout.push(...pageResult.stdout);
@@ -938,6 +991,10 @@ async function runSurfExploreOperation(
           resolutionNotes: runtime.resolution.resolutionNotes,
           version: runtime.probe.version,
           mechanisms: runtime.probe.mechanisms,
+          ...a11yChannelSummary(
+            a11yMode,
+            pages.flatMap((page) => page.observations ?? []),
+          ),
         },
         stdout: stdout.filter(Boolean).join("\n"),
         stderr: stderr.map(stripSurfContextLines).filter(Boolean).join("\n"),

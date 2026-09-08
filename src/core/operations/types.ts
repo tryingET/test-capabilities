@@ -5,6 +5,7 @@ import type {
   HealingRefusal,
 } from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
+import type { A11ySnapshotObservation } from "../a11y-snapshot.js";
 import type { ApplyFieldResult, ApplyMode } from "../browser-session.js";
 import type { TestCapabilitiesConfig } from "../config.js";
 import type { Determination } from "../determination.js";
@@ -89,6 +90,8 @@ export interface SurfExploreOperationInput {
   readySelector?: string;
   /** `urlPrefix=…` or `selector=…`; the only v1 route to a `confirmed` frame determination */
   frameHint?: string;
+  /** `off` (default) | `optional` | `required`: the a11y observation channel (slice S9) */
+  a11ySnapshot?: string | boolean;
   record?: boolean;
   validate?: boolean;
   baseline?: string;
@@ -305,6 +308,13 @@ export interface SurfExplorePageResult {
   verified: boolean;
   readiness?: SurfExplorePageReadiness;
   probes: SurfExploreProbeResult[];
+  /**
+   * What the registered read-only observers saw on this page (slice S9). Each entry carries the
+   * digest, the refs map, the counts and the artifact's path - never the snapshot text, which
+   * stays in the 0600 file (architecture review A10). Absent when no channel was asked for, so
+   * an existing run's envelope is byte-identical.
+   */
+  observations?: A11ySnapshotObservation[];
   discoveredUrls: string[];
   links?: {
     rowCount: number;
@@ -324,6 +334,16 @@ export interface SurfExploreOperationResultEnvelope extends OperationEffectEnvel
       resolutionNotes: string[];
       version?: string;
       mechanisms?: Record<string, boolean>;
+      /** the a11y observation channel this run asked for, when it asked for one (slice S9) */
+      a11yChannel?: {
+        mode: "optional" | "required";
+        channel: string;
+        tool?: string;
+        version?: string;
+        endpoint?: string;
+        status: "captured" | "unavailable";
+        reason?: string;
+      };
     };
     stdout: string;
     stderr: string;

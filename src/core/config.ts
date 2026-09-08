@@ -104,6 +104,24 @@ export const AgentExpectSchema = z.preprocess(
     .strict(),
 );
 
+/**
+ * Which second observation channels this agent's browser runs attach (a11y-snapshot packet,
+ * "Config keys"; slice S9).
+ *
+ * `off` is the default, so an existing config produces a byte-identical envelope. `optional`
+ * records an `unavailable` observation and continues; `required` fails the page as unverified
+ * with the reason - which is the whole point of having a mode rather than a boolean: a channel
+ * that silently skips is indistinguishable from a channel that found nothing.
+ */
+export const ObservationConfigSchema = z.preprocess(
+  (value) => withAliases(value, { a11y_snapshot: "a11ySnapshot" }),
+  z
+    .object({
+      a11ySnapshot: z.enum(["off", "optional", "required"]).default("off"),
+    })
+    .strict(),
+);
+
 export const AgentConfigSchema = z
   .object({
     type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
@@ -112,6 +130,7 @@ export const AgentConfigSchema = z
     duration: z.string().optional(),
     focus: z.array(z.string()).optional(),
     expect: AgentExpectSchema.optional(),
+    observation: ObservationConfigSchema.optional(),
     bombadil: BombadilOptionsSchema.optional(),
     terminal: BombadilTerminalOptionsSchema.optional(),
   })
@@ -294,6 +313,11 @@ export interface AgentExpect {
   error_envelope?: boolean;
 }
 
+/** See {@link ObservationConfigSchema}. */
+export interface ObservationConfig {
+  a11ySnapshot?: "off" | "optional" | "required";
+}
+
 export interface AgentConfig {
   type: "bombadil" | "surf" | "api-fuzzer" | "cli-tester" | "terminal-fuzzer";
   enabled?: boolean;
@@ -301,6 +325,7 @@ export interface AgentConfig {
   duration?: string;
   focus?: string[];
   expect?: AgentExpect;
+  observation?: ObservationConfig;
   bombadil?: BombadilOptions;
   terminal?: BombadilTerminalOptions;
 }

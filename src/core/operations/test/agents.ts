@@ -17,6 +17,7 @@ import type {
   AgentExpect,
   BombadilOptions,
   BombadilTerminalOptions,
+  ObservationConfig,
   Target,
 } from "../../config.js";
 import type { EffectDeclaration } from "../../effects.js";
@@ -453,9 +454,12 @@ export class TerminalFuzzerAgent implements TestAgent {
 export class SurfAgent implements TestAgent {
   readonly effect = AGENT_EFFECTS.surf;
   private readonly agentName: string;
+  /** `agents.<name>.observation.a11ySnapshot`, forwarded to the nested explore (slice S9). */
+  private readonly observation: ObservationConfig | undefined;
 
-  constructor(agentName: string) {
+  constructor(agentName: string, observation?: ObservationConfig) {
     this.agentName = agentName;
+    this.observation = observation;
   }
 
   async execute(targets: Target, context: RunContext): Promise<AgentResult> {
@@ -481,7 +485,14 @@ export class SurfAgent implements TestAgent {
     try {
       // The nested operation runs inside this run: one run id, one ledger, one store
       // (architecture review A5, adjudication claim 1).
-      const envelope = await executeSurfExploreOperation({ url: targets.web }, context);
+      const a11ySnapshot = this.observation?.a11ySnapshot;
+      const envelope = await executeSurfExploreOperation(
+        {
+          url: targets.web,
+          ...(a11ySnapshot && a11ySnapshot !== "off" ? { a11ySnapshot } : {}),
+        },
+        context,
+      );
       return {
         findings: [],
         coverage: { userFlows: envelope.result.coverage.userFlows },

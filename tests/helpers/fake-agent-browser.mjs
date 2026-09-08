@@ -50,7 +50,14 @@ function shellQuote(value) {
 export function createFakeAgentBrowser(options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-fake-ab-"));
   const stateDir = path.join(dir, "state");
-  const logFile = options.log === false ? undefined : path.join(dir, "calls.log");
+  // A string `log` points both fakes at one file, so a test can prove the order two tools
+  // acted in (the a11y channel's teardown before surf closes the tab).
+  const logFile =
+    options.log === false
+      ? undefined
+      : typeof options.log === "string"
+        ? options.log
+        : path.join(dir, "calls.log");
   const env = {
     FAKE_AB_STATE_DIR: stateDir,
     FAKE_AB_PAGES: options.pages ? JSON.stringify(options.pages) : undefined,
