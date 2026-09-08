@@ -354,10 +354,27 @@ try {
     import assert from "node:assert/strict";
     import { createTestCapabilities } from "test-capabilities";
 
+    // The fuzzer changes the target, so the packed surface refuses an origin the operator has
+    // not declared - before anything is spawned (slice S5, architecture review A13).
+    const refused = await createTestCapabilities({
+      version: "2.0",
+      name: "Packed Consumer Bombadil Without An Allowlist",
+      targets: { web: "https://example.com" },
+      agents: {
+        web: { enabled: true, type: "bombadil", intensity: "gentle", duration: "10ms" },
+      },
+      quantum: { enabled: false },
+      chaos: { enabled: false },
+    }).run();
+    assert.equal(refused.passed, false);
+    assert.match(refused.findings[0].description, /allowOrigins/);
+    assert.equal(refused.mutations, undefined);
+
     const result = await createTestCapabilities({
       version: "2.0",
       name: "Packed Consumer Bombadil External Requirement",
       targets: { web: "https://example.com" },
+      mutation: { allowOrigins: ["https://example.com"] },
       agents: {
         web: {
           enabled: true,

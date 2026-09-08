@@ -2,9 +2,9 @@
   "schema_version": 1,
   "default_max_lines": 700,
   "exceptions": {
-    "src/core/orchestrator.ts": 1622,
+    "src/core/orchestrator.ts": 1653,
     "src/core/surf-runtime.ts": 813,
-    "src/core/operations/surf-explore-operation.ts": 932,
+    "src/core/operations/surf-explore-operation.ts": 957,
     "src/healing/self-healing.ts": 841
   },
   "allowed_cycles": [],
@@ -82,6 +82,20 @@
       "to": 841,
       "reason": "slice S4 commit (3): HealingFinding carries the typed outcome basis and isHealableFinding gates selector extraction on basis 'fault', so a no_evidence, contradiction or indeterminate finding no longer drives a selector rewrite while unclassified legacy findings keep healing (result-classification packet refinement; adjudication axiom A7). Scheduled shrink: the healer's strategy list moves behind the ReceiptStore seam in S5.",
       "ref": "6b67b9a"
+    },
+    {
+      "file": "src/core/orchestrator.ts",
+      "from": 1622,
+      "to": 1653,
+      "reason": "slice S5 commit (3): run(context?) takes the kernel RunContext and threads it to every agent so a nested explore shares one run id, one ledger and one receipt store (architecture review A5, adjudication claim 1); a library caller that passes none still gets one minted from the parsed config, so a mutating agent can never run outside the ledger; TestResult gains the redacted mutations[] of the run. Scheduled shrink: correlation, root cause and propagation move to a diagnosis consumer (architecture adjudication Part 4).",
+      "ref": "a8eaea2"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 932,
+      "to": 957,
+      "reason": "slice S5 commit (3): the operation declares SURF_EXPLORE_OPERATION_EFFECT (read_only with browser_session scope, because explore owns the tab it opens), takes the RunContext through to executeSurfExploreOperation so the surf agent's nested explore shares the run, and returns through finalizeEnvelope carrying its own class (a nested explore reports the run of its parent and the class of itself). Scheduled shrink: S6 turns explore into a step list over Session.",
+      "ref": "a8eaea2"
     }
   ]
 }

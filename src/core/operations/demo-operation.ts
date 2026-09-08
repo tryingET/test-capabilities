@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import type { TestCapabilitiesConfig } from "../config.js";
 import { countOutcomeBases, countOutcomeClasses } from "../determination.js";
+import type { EffectDeclaration } from "../effects.js";
 import type { TestResult } from "../orchestrator.js";
 import { TestCapabilitiesOrchestrator } from "../orchestrator.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import type {
   CoreUseCaseGuide,
   DemoOperationInput,
@@ -102,29 +105,44 @@ function buildDemoConfig(packageRoot: string): TestCapabilitiesConfig {
 
 async function runDemoOperation(
   normalized: NormalizedDemoOperationInput,
+  context: RunContext,
 ): Promise<DemoOperationResultEnvelope> {
   const packageRoot = resolvePackageRoot();
   const config = buildDemoConfig(packageRoot);
   const result = await new TestCapabilitiesOrchestrator(config).run();
 
-  return {
-    operationId: "demo",
-    input: normalized,
-    packageRoot,
-    demo: {
-      name: config.name,
-      cliFixture: path.join(packageRoot, "examples", "demo", "cli-demo.mjs"),
-      configFixture: path.join(packageRoot, "examples", "demo", "test-capabilities.yaml"),
+  return finalizeEnvelope(
+    {
+      operationId: "demo",
+      input: normalized,
+      packageRoot,
+      demo: {
+        name: config.name,
+        cliFixture: path.join(packageRoot, "examples", "demo", "cli-demo.mjs"),
+        configFixture: path.join(packageRoot, "examples", "demo", "test-capabilities.yaml"),
+      },
+      coreUseCase: buildCoreUseCaseGuide(),
+      effectiveConfig: config,
+      summary: summarizeTestResult(result),
+      result,
     },
-    coreUseCase: buildCoreUseCaseGuide(),
-    effectiveConfig: config,
-    summary: summarizeTestResult(result),
-    result,
-  };
+    context,
+    DEMO_OPERATION_EFFECT,
+  );
 }
+
+/**
+ * The demo runs the packaged cli-tester fixture against a bundled script: it spawns `--help` on
+ * a file this package ships and touches nothing else.
+ */
+export const DEMO_OPERATION_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  reason: "runs the packaged cli-tester fixture; spawns the demo CLI with --help only",
+};
 
 export const DEMO_OPERATION = {
   id: "demo",
+  effect: DEMO_OPERATION_EFFECT,
   route: { command: "demo" },
   description: "Run the built-in zero-external-dependency demo fixture",
   inputSchema: DemoOperationInputSchema,
@@ -133,6 +151,11 @@ export const DEMO_OPERATION = {
 
 export async function executeDemoOperation(
   input: DemoOperationInput,
+  context?: RunContext,
 ): Promise<DemoOperationResultEnvelope> {
-  return runDemoOperation(DemoOperationInputSchema.parse(input));
+  const normalized = DemoOperationInputSchema.parse(input);
+  return runDemoOperation(
+    normalized,
+    context ?? mintOperationContext("demo", DEMO_OPERATION_EFFECT, normalized),
+  );
 }

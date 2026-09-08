@@ -4,6 +4,9 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
+import type { EffectDeclaration } from "../effects.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
   describeSurfRuntime,
@@ -366,6 +369,7 @@ function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorChec
 
 async function runDoctorOperation(
   normalized: NormalizedDoctorOperationInput,
+  context: RunContext,
 ): Promise<DoctorOperationResultEnvelope> {
   const packageRoot = resolvePackageRoot();
   const targetCheck = checkTargetExecutable(normalized);
@@ -381,22 +385,33 @@ async function runDoctorOperation(
   const requiredFailed = checks.filter((check) => check.required && check.status === "fail");
   const optionalWarnings = checks.filter((check) => !check.required && check.status === "warn");
 
-  return {
-    operationId: "doctor",
-    input: normalized,
-    packageRoot,
-    status: requiredFailed.length === 0 ? "pass" : "fail",
-    summary: {
-      requiredPassed: checks.filter((check) => check.required && check.status === "pass").length,
-      requiredFailed: requiredFailed.length,
-      optionalWarnings: optionalWarnings.length,
+  return finalizeEnvelope(
+    {
+      operationId: "doctor",
+      input: normalized,
+      packageRoot,
+      status: requiredFailed.length === 0 ? "pass" : "fail",
+      summary: {
+        requiredPassed: checks.filter((check) => check.required && check.status === "pass").length,
+        requiredFailed: requiredFailed.length,
+        optionalWarnings: optionalWarnings.length,
+      },
+      checks,
     },
-    checks,
-  };
+    context,
+    DOCTOR_OPERATION_EFFECT,
+  );
 }
+
+/** Doctor resolves binaries, reads package files and asks `surf doctor`; it changes nothing. */
+export const DOCTOR_OPERATION_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  reason: "resolves binaries and reads package files; the only command it runs is `surf doctor`",
+};
 
 export const DOCTOR_OPERATION = {
   id: "doctor",
+  effect: DOCTOR_OPERATION_EFFECT,
   route: { command: "doctor" },
   description: "Run zero-external-dependency package and environment diagnostics",
   inputSchema: DoctorOperationInputSchema,
@@ -405,6 +420,11 @@ export const DOCTOR_OPERATION = {
 
 export async function executeDoctorOperation(
   input: DoctorOperationInput,
+  context?: RunContext,
 ): Promise<DoctorOperationResultEnvelope> {
-  return runDoctorOperation(DoctorOperationInputSchema.parse(input));
+  const normalized = DoctorOperationInputSchema.parse(input);
+  return runDoctorOperation(
+    normalized,
+    context ?? mintOperationContext("doctor", DOCTOR_OPERATION_EFFECT, normalized),
+  );
 }

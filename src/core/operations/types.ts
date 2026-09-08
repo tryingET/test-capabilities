@@ -3,8 +3,10 @@ import type { HealingProposal, HealingProposalVerification } from "../../healing
 import type { QuantumResult } from "../../quantum/simulator.js";
 import type { TestCapabilitiesConfig } from "../config.js";
 import type { Determination } from "../determination.js";
+import type { EffectDeclaration } from "../effects.js";
 import type { CoverageReport, TestResult } from "../orchestrator.js";
 import type { OutcomeBasis, OutcomeClass, ResultOutcome } from "../result-classification.js";
+import type { OperationEffectEnvelope, RunContext } from "../run-context.js";
 
 export type OperationStatus = "implemented" | "unsupported";
 export type CliCommand =
@@ -151,7 +153,7 @@ export interface TestOperationSummary {
   quantumUniverses?: number;
 }
 
-export interface TestOperationResultEnvelope {
+export interface TestOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "test";
   mode: "quick" | "standard";
   input: Required<Pick<TestOperationInput, "config" | "quick" | "json">> &
@@ -161,7 +163,7 @@ export interface TestOperationResultEnvelope {
   result: TestResult;
 }
 
-export interface DoctorOperationResultEnvelope {
+export interface DoctorOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "doctor";
   input: Required<Pick<DoctorOperationInput, "json">> & Omit<DoctorOperationInput, "json">;
   packageRoot: string;
@@ -183,7 +185,7 @@ export interface CoreUseCaseGuide {
   nextSteps: string[];
 }
 
-export interface DemoOperationResultEnvelope {
+export interface DemoOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "demo";
   input: Required<DemoOperationInput>;
   packageRoot: string;
@@ -198,7 +200,7 @@ export interface DemoOperationResultEnvelope {
   result: TestResult;
 }
 
-export interface InitOperationResultEnvelope {
+export interface InitOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "init";
   input: Required<InitOperationInput>;
   template: "cli-smoke";
@@ -260,7 +262,7 @@ export interface SurfExplorePageResult {
   };
 }
 
-export interface SurfExploreOperationResultEnvelope {
+export interface SurfExploreOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "surf.explore";
   input: Required<Pick<SurfExploreOperationInput, "url">> & Omit<SurfExploreOperationInput, "url">;
   result: {
@@ -299,7 +301,7 @@ export interface SurfExploreOperationResultEnvelope {
   };
 }
 
-export interface QuantumOperationResultEnvelope {
+export interface QuantumOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "quantum";
   input: Required<Pick<QuantumOperationInput, "target" | "branches" | "collapse">>;
   result: QuantumResult;
@@ -318,7 +320,7 @@ export interface HealVerificationArtifactRef {
   proposalCount: number;
 }
 
-export interface ReplacementValidationOperationResultEnvelope {
+export interface ReplacementValidationOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "replacement-validation";
   input: Required<Pick<ReplacementValidationOperationInput, "action" | "request" | "json">> &
     Pick<ReplacementValidationOperationInput, "out">;
@@ -326,7 +328,7 @@ export interface ReplacementValidationOperationResultEnvelope {
   result: import("../replacement-validation.js").ReplacementValidationResult;
 }
 
-export interface HealOperationResultEnvelope {
+export interface HealOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "heal";
   input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
     Pick<HealOperationInput, "proposalOutput" | "verificationOutput" | "proposalInput">;
@@ -367,5 +369,19 @@ export interface OperationDefinition<
   route: Extract<CliRoute, { command: CliCommand }>;
   description: string;
   inputSchema: ZodType<TParsedInput, ZodTypeDef, TRawInput>;
-  execute: (input: TParsedInput) => Promise<TResult>;
+  /**
+   * What this operation may do to the world (mutation-safety packet, "Declaration points").
+   * The function form is for mode-dependent operations (`heal --dry-run` reads, `heal
+   * --proposal-input` writes). The registry resolves it *before* `execute` and refuses with
+   * `effect_unclassified` if the result is not one of the two classes: there is no default.
+   */
+  effect: EffectDeclaration | ((input: TParsedInput) => EffectDeclaration);
+  /**
+   * The kernel mints the {@link RunContext} and passes it in, so an operation - and any
+   * operation nested inside it - shares one run id, one ledger and one receipt store
+   * (architecture review A5, adjudication claim 1).
+   */
+  execute: (input: TParsedInput, context: RunContext) => Promise<TResult>;
 }
+
+export type { OperationEffectEnvelope, RunContext };

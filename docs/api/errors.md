@@ -77,6 +77,7 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `mutation_retry_refused` | A mutating step declared `maxAttempts > 1` or a `retryOn` list. Mutating steps are attempted exactly once |
 | `mutation_replay_refused` | The same idempotency key twice in one run, or a receipt for it on disk that is still `attempting` or `unknown`. The message names the receipt and the exact `--supersede-receipt <id>` line |
 | `mutation_outcome_unknown` | A mutating step reported nothing (timeout, signal, tab gone) and no `verify` promoted it. The run fails closed; `error.details.receipts` carries the receipt |
+| `mutation_step_not_started` | A mutating step's process never started (the binary could not be executed). Nothing happened, so the receipt settles `failed` and the key is not locked |
 | `mutation_receipt_write_failed` | The `attempting` receipt did not reach disk. The step was not run |
 | `precondition_failed` | The content a workspace write expected to find is not what is there now. Nothing was written |
 | `read_only_violation` | A `read_only` claim failed the static denylist before the step ran. Declare `mutating` instead of weakening the list |

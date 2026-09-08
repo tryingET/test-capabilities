@@ -1,3 +1,5 @@
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { FrameworkError, renderUnsupported } from "../runtime-contract.js";
 import {
   CLI_OPERATION_REGISTRY,
@@ -100,12 +102,33 @@ export function requireRegisteredOperation(
   return operation;
 }
 
-export function executeCliOperation(
+/** Options an entry point may pass into the run it is minting (`--supersede-receipt`). */
+export interface ExecuteCliOperationOptions {
+  supersedeReceiptId?: string;
+}
+
+/**
+ * The one entry point that runs an operation, and the place the run is minted.
+ *
+ * The order matters: the input is parsed, the effect class is resolved from the parsed input
+ * (an operation that resolves to neither class refuses with `effect_unclassified` before
+ * anything runs), the run is minted with that class, and only then does `execute` see it. The
+ * envelope leaves with the run id, the class and the run's receipts on it (mutation-safety
+ * packet, "Declaration points" and "Envelope changes"; architecture review A5).
+ */
+export async function executeCliOperation(
   route: CliRoute,
   rawInput: CliOperationInputUnion,
+  options: ExecuteCliOperationOptions = {},
 ): Promise<CliOperationResult> {
   const manifestEntry = requireManifestEntry(route);
   const operation = requireRegisteredOperation(manifestEntry);
   const normalizedInput = operation.inputSchema.parse(rawInput);
-  return operation.execute(normalizedInput);
+  const context: RunContext = mintOperationContext(
+    operation.id,
+    operation.effect,
+    normalizedInput as object,
+    options.supersedeReceiptId ? { supersedeReceiptId: options.supersedeReceiptId } : {},
+  );
+  return finalizeEnvelope(await operation.execute(normalizedInput, context), context);
 }

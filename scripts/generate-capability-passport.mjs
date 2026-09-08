@@ -185,6 +185,36 @@ capabilities.push(
   }),
 );
 
+capabilities.push(
+  capabilityEntry({
+    id: "kernel:mutation-ledger",
+    name: "effect classes, mutation receipts and the in-doubt interlock",
+    surfaceKind: "kernel",
+    presenceState: "present",
+    supportState: "supported",
+    verificationState: "verified",
+    evidence: {
+      tests: [
+        "tests/effects_contract.test.mjs",
+        "tests/receipt_store_contract.test.mjs",
+        "tests/spawn_boundary_contract.test.mjs",
+        "tests/operation_kernel_contract.test.mjs",
+      ],
+      commands: ["npm test"],
+    },
+    attachPoints: [
+      "src/core/effects.ts",
+      "src/core/run-context.ts",
+      "src/core/receipt-store.ts",
+      "src/core/artifacts.ts",
+      "src/core/config.ts",
+    ],
+    activationRequirements: [],
+    notes:
+      "Every operation and agent declares an effect class with a reason, and the kernel refuses an unclassified one before it runs. A mutating step is attempted at most once behind a receipt that is fsynced to receipts.dir before the act; a receipt left attempting or unknown refuses the next run for that key until an operator passes --supersede-receipt. Workspace writes are conditional on a precondition hash. A mutating step whose subject is a web origin runs only when mutation.allowOrigins names it, Bombadil included, and a receipt store that does not survive the run is refused unless receipts.ephemeral is set.",
+  }),
+);
+
 for (const [action, status] of Object.entries(capabilityMatrix.cli.surfActions)) {
   capabilities.push(
     capabilityEntry({

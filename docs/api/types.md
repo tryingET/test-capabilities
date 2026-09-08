@@ -59,6 +59,75 @@ type CliOperationResult =
 
 These shapes back the exported `CLI_OPERATION_REGISTRY`, `CLI_ROUTE_MANIFEST`, and `executeCliOperation(...)` kernel.
 
+Every member also carries the run fields the kernel stamps on it (additive, optional so older
+envelopes stay valid):
+
+```typescript
+interface OperationEffectEnvelope {
+  runId?: string;                            // the run; a nested operation shares its parent's
+  effect?: EffectDeclaration;                // this operation's class, with the reason rendered
+  mutations?: MutationReceiptEnvelopeCopy[]; // the run's receipts, redacted
+}
+```
+
+### `EffectDeclaration`
+
+```typescript
+type EffectClass = "read_only" | "mutating";
+type MutationScope = "target" | "workspace" | "browser_session";
+
+interface EffectDeclaration {
+  effect: EffectClass;
+  scope?: MutationScope; // required when mutating; browser_session is also legal read-only
+  reason: string;        // one line, rendered in every receipt and refusal
+}
+```
+
+Every operation declares one, as a value or as a function of its input (`heal --dry-run` reads,
+`heal --proposal-input` writes). There is no default class: an operation that resolves to
+neither is refused with `effect_unclassified` before its input is executed. `test` resolves to
+the worst class of the agents it enables.
+
+### `MutationReceipt`
+
+One receipt per mutating step, written to `receipts.dir` **before** the step acts and rewritten
+atomically after it (`artifact_kind: "test-capabilities.mutation.receipt"`, `schema_version: 1`):
+
+```typescript
+interface MutationReceipt {
+  schema_version: 1;
+  artifact_kind: "test-capabilities.mutation.receipt";
+  receipt_id: string;
+  run_id: string;
+  operation_id: string;
+  step_id: string;
+  effect: "mutating";
+  scope: MutationScope;
+  subject: string;             // a file path, a URL, a command display
+  intent: string;
+  idempotency_key: string;     // sha256(operation | step | subject | intent) by default
+  attempt: 1;
+  started_at: string;
+  finished_at?: string;
+  precondition?: string;       // workspace only: the sha256 the write expected to find
+  outcome: "attempting" | "applied" | "failed" | "unknown";
+  verified_by?: "post_read";
+  evidence: string[];
+  error?: { code: string; message: string };
+  checkpoint_ref?: string;
+  compensation_of?: string;    // a restore of a sibling file, never after `unknown`
+  supersedes?: string;         // set by --supersede-receipt
+  ephemeral_store?: boolean;   // the store was declared ephemeral (receipts.ephemeral)
+  details?: Record<string, unknown>;
+}
+```
+
+`attempting` and `unknown` are *in doubt*: while a receipt for a key is in either state, the
+next run of that step is refused with `mutation_replay_refused` naming the receipt and the exact
+`--supersede-receipt <id>` line. `applied` and `failed` are definite and do not block. The
+envelope copies (`mutations[]`, `TestResult.mutations`) carry hashes, codes, refs and counts
+only, plus the `path` of the file on disk; the file itself may carry values.
+
 ### `DoctorOperationResultEnvelope`
 
 ```typescript
@@ -285,11 +354,14 @@ Runtime capability note:
 
 ```typescript
 interface TestResult {
-  passed: boolean;
+  passed: boolean;              // determination.value === "verified" and nothing else
+  determination: Determination; // the run verdict with its basis (D3)
+  outcomes: ResultOutcome[];    // every step the run classified, in agent order
   duration: number;
   findings: Finding[];
   coverage: CoverageReport;
   observations?: Observation[];
+  mutations?: MutationReceiptEnvelopeCopy[]; // absent when the run mutated nothing
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }

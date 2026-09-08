@@ -9,6 +9,24 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 const { BombadilAgent, CliTesterAgent, SurfAgent, TerminalFuzzerAgent } = await importRuntimeModule(
   "core/operations/test/agents.js",
 );
+const { createRunContext } = await importRuntimeModule("core/run-context.js");
+
+/**
+ * A run the fuzzing agents may act under: a receipt store of its own (so one test never
+ * inherits another's interlock) and the operator's origin declaration (review A13).
+ */
+function agentContext(allowOrigins = ["https://example.com"]) {
+  return createRunContext({
+    operationId: "test",
+    effect: { effect: "mutating", scope: "target", reason: "agent contract test" },
+    env: {
+      ...process.env,
+      TEST_CAPABILITIES_RECEIPTS_DIR: tempDir("receipts"),
+      TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+    },
+    config: { mutation: { allowOrigins } },
+  });
+}
 
 function tempDir(label) {
   return mkdtempSync(path.join(os.tmpdir(), `test-capabilities-agents-${label}-`));
@@ -54,7 +72,7 @@ test("every agent refuses a missing target with a critical finding and zero cove
   ];
 
   for (const { agent, id } of cases) {
-    const result = await agent.execute({});
+    const result = await agent.execute({}, agentContext());
     assert.equal(result.findings.length, 1, id);
     assert.equal(result.findings[0].id, id);
     assert.equal(result.findings[0].severity, "critical");
@@ -70,7 +88,10 @@ test("cli-tester reports a successful --help run as edge-case coverage", async (
   writeExecutable(target, "#!/bin/sh\necho 'usage: ok-cli [options]'\nexit 0\n");
 
   try {
-    const result = await new CliTesterAgent("cli-tester", 5_000).execute({ cli: target });
+    const result = await new CliTesterAgent("cli-tester", 5_000).execute(
+      { cli: target },
+      agentContext(),
+    );
     assert.deepEqual(result.findings, []);
     assert.deepEqual(result.coverage, { edgeCases: 100 });
   } finally {
@@ -84,7 +105,10 @@ test("cli-tester fails closed on a non-zero --help exit and renders the stderr c
   writeExecutable(target, "#!/bin/sh\necho 'boom on stderr' >&2\nexit 3\n");
 
   try {
-    const result = await new CliTesterAgent("cli-tester", 5_000).execute({ cli: target });
+    const result = await new CliTesterAgent("cli-tester", 5_000).execute(
+      { cli: target },
+      agentContext(),
+    );
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].id, "cli-tester-help-failed");
     assert.equal(result.findings[0].description.includes("--help"), true);
@@ -104,7 +128,10 @@ test("cli-tester kills a hanging --help run at the timeout and names the budget"
   writeExecutable(target, "#!/bin/sh\nsleep 30\n");
 
   try {
-    const result = await new CliTesterAgent("cli-tester", 120).execute({ cli: target });
+    const result = await new CliTesterAgent("cli-tester", 120).execute(
+      { cli: target },
+      agentContext(),
+    );
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].id, "cli-tester-help-failed");
     // The outcome and basis lines lead the evidence since S4; the budget line stays last.
@@ -118,9 +145,10 @@ test("cli-tester kills a hanging --help run at the timeout and names the budget"
 });
 
 test("cli-tester reports a command that cannot be spawned as a spawn failure, not a target fault", async () => {
-  const result = await new CliTesterAgent("cli-tester", 5_000).execute({
-    cli: "definitely-missing-test-capabilities-binary",
-  });
+  const result = await new CliTesterAgent("cli-tester", 5_000).execute(
+    { cli: "definitely-missing-test-capabilities-binary" },
+    agentContext(),
+  );
 
   assert.equal(result.findings.length, 1);
   assert.equal(result.findings[0].id, "cli-tester-spawn-failed");
@@ -133,7 +161,10 @@ test("cli-tester reports a command that cannot be spawned as a spawn failure, no
 });
 
 test("cli-tester refuses an unparseable target command line", async () => {
-  const result = await new CliTesterAgent("cli-tester", 5_000).execute({ cli: `node "--version` });
+  const result = await new CliTesterAgent("cli-tester", 5_000).execute(
+    { cli: `node "--version` },
+    agentContext(),
+  );
 
   assert.equal(result.findings.length, 1);
   assert.equal(result.findings[0].id, "cli-tester-spawn-failed");
@@ -163,7 +194,7 @@ test("bombadil forwards its 0.5 options and reports a completed bounded run", as
         chromeGrantPermissions: ["local-network-access"],
         headless: true,
         noSandbox: true,
-      }).execute({ web: "https://example.com" }),
+      }).execute({ web: "https://example.com" }, agentContext()),
     );
 
     assert.deepEqual(result.findings, []);
@@ -184,7 +215,10 @@ test("bombadil renders a property violation with the trace and specification evi
 
   try {
     const result = await withBombadilBinary(binary, () =>
-      new BombadilAgent("bombadil", 2_000, undefined).execute({ web: "https://example.com" }),
+      new BombadilAgent("bombadil", 2_000, undefined).execute(
+        { web: "https://example.com" },
+        agentContext(),
+      ),
     );
 
     assert.equal(result.findings.length, 1);
@@ -219,7 +253,10 @@ test("bombadil refuses a stale trace file as evidence for this run", async () =>
 
   try {
     const result = await withBombadilBinary(binary, () =>
-      new BombadilAgent("bombadil", 2_000, undefined).execute({ web: "https://example.com" }),
+      new BombadilAgent("bombadil", 2_000, undefined).execute(
+        { web: "https://example.com" },
+        agentContext(),
+      ),
     );
 
     assert.equal(result.findings.length, 1);
@@ -230,22 +267,50 @@ test("bombadil refuses a stale trace file as evidence for this run", async () =>
   }
 });
 
-test("bombadil reports a runtime failure when the binary produces no evidence", async () => {
+test("a bombadil run that leaves no trace and no output is in doubt, not a plain failure", async () => {
   const dir = tempDir("bombadil-noop");
   const binary = path.join(dir, "bombadil");
   writeExecutable(binary, "#!/bin/sh\nexit 0\n");
+  const receipts = tempDir("bombadil-noop-receipts");
+  const context = () =>
+    createRunContext({
+      operationId: "test",
+      effect: { effect: "mutating", scope: "target", reason: "agent contract test" },
+      env: {
+        ...process.env,
+        TEST_CAPABILITIES_RECEIPTS_DIR: receipts,
+        TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+      },
+      config: { mutation: { allowOrigins: ["https://example.com"] } },
+    });
 
   try {
+    // The process started, so "nothing happened" is not something the framework knows: the
+    // receipt settles `unknown` and the finding says so instead of blaming the runtime.
     const result = await withBombadilBinary(binary, () =>
-      new BombadilAgent("bombadil", 2_000, undefined).execute({ web: "https://example.com" }),
+      new BombadilAgent("bombadil", 2_000, undefined).execute(
+        { web: "https://example.com" },
+        context(),
+      ),
     );
 
     assert.equal(result.findings.length, 1);
-    assert.equal(result.findings[0].id, "bombadil-runtime-failed");
+    assert.equal(result.findings[0].id, "bombadil-outcome-unknown");
     assert.equal(result.findings[0].severity, "critical");
     assert.deepEqual(result.coverage, { edgeCases: 0 });
+
+    // and the in-doubt receipt blocks the next identical run until it is superseded
+    const rerun = await withBombadilBinary(binary, () =>
+      new BombadilAgent("bombadil", 2_000, undefined).execute(
+        { web: "https://example.com" },
+        context(),
+      ),
+    );
+    assert.equal(rerun.findings[0].id, "bombadil-mutation-replay-refused");
+    assert.match(rerun.findings[0].evidence[0], /--supersede-receipt /);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+    rmSync(receipts, { recursive: true, force: true });
   }
 });
 
@@ -256,7 +321,10 @@ test("bombadil records an exhausted budget as evidence instead of a violation", 
 
   try {
     const result = await withBombadilBinary(binary, () =>
-      new BombadilAgent("bombadil", 150, undefined).execute({ web: "https://example.com" }),
+      new BombadilAgent("bombadil", 150, undefined).execute(
+        { web: "https://example.com" },
+        agentContext(),
+      ),
     );
 
     assert.deepEqual(result.findings, []);
@@ -276,7 +344,7 @@ test("terminal-fuzzer runs its own command and reports the subject it exercised"
       new TerminalFuzzerAgent("terminal-fuzzer", 2_000, {
         command: "node",
         args: ["--version"],
-      }).execute({}),
+      }).execute({}, agentContext()),
     );
 
     assert.deepEqual(result.findings, []);
@@ -294,7 +362,10 @@ test("terminal-fuzzer reports a non-zero terminal exit as a runtime failure it c
 
   try {
     const result = await withBombadilBinary(binary, () =>
-      new TerminalFuzzerAgent("terminal-fuzzer", 2_000, undefined).execute({ cli: "node" }),
+      new TerminalFuzzerAgent("terminal-fuzzer", 2_000, undefined).execute(
+        { cli: "node" },
+        agentContext(),
+      ),
     );
 
     // The terminal runner writes no trace and passes no --exit-on-violation, so nothing
@@ -322,7 +393,10 @@ test("surf agent turns a runtime failure into one finding that names the resolut
   process.env.PATH = path.dirname(process.execPath);
 
   try {
-    const result = await new SurfAgent("surf").execute({ web: "https://example.com" });
+    const result = await new SurfAgent("surf").execute(
+      { web: "https://example.com" },
+      agentContext(),
+    );
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].id, "surf-runtime-failed");
     assert.equal(result.findings[0].severity, "critical");
@@ -342,4 +416,143 @@ test("surf agent turns a runtime failure into one finding that names the resolut
     process.env.PATH = previous.path;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+const { describeCliOutcome, describeLedgerRefusal, describeSurfRefusal, AGENT_EFFECTS } =
+  await importRuntimeModule("core/operations/test/agent-findings.js");
+const { classifyResult } = await importRuntimeModule("core/result-classification.js");
+const { FrameworkError } = await importRuntimeModule("core/runtime-contract.js");
+
+test("every agent type declares a class, and only the fuzzers may change a target", () => {
+  assert.deepEqual(Object.keys(AGENT_EFFECTS).sort(), [
+    "api-fuzzer",
+    "bombadil",
+    "cli-tester",
+    "surf",
+    "terminal-fuzzer",
+  ]);
+  for (const [type, declaration] of Object.entries(AGENT_EFFECTS)) {
+    assert.equal(["read_only", "mutating"].includes(declaration.effect), true, type);
+    assert.equal(declaration.reason.length > 0, true, type);
+  }
+  assert.equal(AGENT_EFFECTS["cli-tester"].effect, "read_only");
+  assert.match(AGENT_EFFECTS["cli-tester"].reason, /assumed read-only, not verified/);
+  assert.equal(AGENT_EFFECTS.surf.scope, "browser_session");
+  assert.equal(AGENT_EFFECTS.bombadil.scope, "target");
+  assert.equal(AGENT_EFFECTS["terminal-fuzzer"].scope, "target");
+});
+
+test("each ledger refusal renders as its own finding, never as a target fault", () => {
+  const cases = [
+    ["mutation_origin_not_allowed", "origin-not-allowed", /mutation\.allowOrigins/],
+    ["mutation_replay_refused", "mutation-replay-refused", /still in doubt/],
+    ["mutation_receipts_ephemeral", "receipts-ephemeral", /does not survive this run/],
+    ["mutation_outcome_unknown", "outcome-unknown", /reported no outcome/],
+    ["unclassified_error", "runtime-failed", /could not complete/],
+  ];
+  for (const [code, id, description] of cases) {
+    const shape = describeLedgerRefusal(
+      "web",
+      "https://example.com",
+      new FrameworkError(code, "refused"),
+    );
+    assert.equal(shape.id, id, code);
+    assert.equal(shape.severity, "critical", code);
+    assert.match(shape.description, description, code);
+    assert.equal(shape.recommendation.length > 0, true, code);
+  }
+  assert.equal(
+    describeLedgerRefusal("cli", "node", new Error("plain")).id,
+    "runtime-failed",
+    "an error with no registered code is still a runtime failure, never a violation",
+  );
+});
+
+test("the surf and cli describers keep the basis axis out of the target's blame", () => {
+  const surfNoEvidence = describeSurfRefusal(
+    "https://example.com",
+    classifyResult({ source: "surf", exitCode: 0, stdout: "", stderr: "" }),
+  );
+  assert.equal(surfNoEvidence.id, "no-evidence");
+  assert.match(surfNoEvidence.recommendation, /absence of evidence, not a fault/);
+
+  const surfUnclassifiable = describeSurfRefusal(
+    "https://example.com",
+    // a reply that claims success and carries an error is self-contradictory
+    classifyResult({
+      source: "surf",
+      exitCode: 0,
+      stdout: '{"success":true,"error":"boom"}',
+      stderr: "",
+    }),
+  );
+  assert.equal(surfUnclassifiable.id, "unclassifiable");
+
+  const surfIndeterminate = describeSurfRefusal(
+    "https://example.com",
+    classifyResult({
+      source: "surf",
+      exitCode: null,
+      stdout: "",
+      stderr: "",
+      timedOut: true,
+      effect: "mutating",
+    }),
+  );
+  assert.equal(surfIndeterminate.id, "outcome-unknown");
+  assert.match(surfIndeterminate.recommendation, /Inspect the page by hand/);
+  assert.equal(describeSurfRefusal("https://example.com", undefined).id, "runtime-failed");
+
+  const cliContradiction = describeCliOutcome(
+    "tool",
+    "tool --help",
+    // a declared JSON payload that does not parse: the declaration and the bytes disagree
+    classifyResult(
+      { source: "cli", exitCode: 0, stdout: "not json", stderr: "" },
+      { payload: "json", declaredBy: "config:agents.cli.expect" },
+    ),
+    "agents.cli.expect",
+  );
+  assert.equal(cliContradiction.id, "unclassifiable");
+
+  const cliIndeterminate = describeCliOutcome(
+    "tool",
+    "tool --help",
+    classifyResult({
+      source: "cli",
+      exitCode: null,
+      stdout: "",
+      stderr: "",
+      timedOut: true,
+      effect: "mutating",
+    }),
+    "agents.cli.expect",
+  );
+  assert.equal(cliIndeterminate.id, "outcome-unknown");
+});
+
+test("a terminal fuzzer whose binary cannot be executed reports a definite failure", async () => {
+  const receipts = tempDir("terminal-spawn-receipts");
+  const result = await withBombadilBinary(path.join(tempDir("terminal-spawn"), "missing"), () =>
+    new TerminalFuzzerAgent("terminal-fuzzer", 500, undefined).execute(
+      { cli: "node" },
+      createRunContext({
+        operationId: "test",
+        effect: { effect: "mutating", scope: "target", reason: "agent contract test" },
+        env: {
+          ...process.env,
+          TEST_CAPABILITIES_RECEIPTS_DIR: receipts,
+          TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+        },
+        config: { mutation: { allowOrigins: [] } },
+      }),
+    ),
+  );
+
+  // the process never started, so nothing happened: a `failed` receipt, not a locked key
+  assert.equal(result.findings.length, 1);
+  assert.equal(result.findings[0].id, "terminal-fuzzer-runtime-failed");
+  assert.equal(result.observationSubject, "node");
+  assert.match(result.findings[0].evidence[0], /could not be executed/);
+  rmSync(receipts, { recursive: true, force: true });
 });

@@ -245,6 +245,12 @@ test("CLI test command accepts URL overrides when surf is the supported web cons
       "name: 'Surf CLI Contract'",
       "targets:",
       "  web: 'https://placeholder.example.com'",
+      // The fuzzer changes the target, so the operator has to say which origin it may change
+      // (mutation.allowOrigins, architecture review A13); --target overrides targets.web.
+      "mutation:",
+      "  allow_origins: ['https://example.com']",
+      "receipts:",
+      "  ephemeral: true",
       "agents:",
       "  web:",
       "    enabled: true",
@@ -306,6 +312,12 @@ test("CLI test command accepts URL overrides when bombadil is the supported web 
       "name: 'Bombadil CLI Contract'",
       "targets:",
       "  web: 'https://placeholder.example.com'",
+      // The fuzzer changes the target, so the operator has to say which origin it may change
+      // (mutation.allowOrigins, architecture review A13); --target overrides targets.web.
+      "mutation:",
+      "  allow_origins: ['https://example.com']",
+      "receipts:",
+      "  ephemeral: true",
       "agents:",
       "  web:",
       "    enabled: true",

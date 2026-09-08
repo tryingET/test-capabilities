@@ -31,8 +31,8 @@ import { bombadilAdapter } from "./bombadil-runtime.js";
 import { cliAdapter } from "./cli-adapter.js";
 import { MutationConfigSchema, ReceiptsConfigSchema } from "./config.js";
 import type { EffectDeclaration, LedgerContext } from "./effects.js";
-import { MutationLedger } from "./effects.js";
-import type { ReceiptStore } from "./receipt-store.js";
+import { MutationLedger, resolveEffectDeclaration } from "./effects.js";
+import type { MutationReceiptEnvelopeCopy, ReceiptStore } from "./receipt-store.js";
 import { surfAdapter } from "./surf-adapter.js";
 
 export const RECEIPTS_DIR_ENV = "TEST_CAPABILITIES_RECEIPTS_DIR";
@@ -163,6 +163,7 @@ export function detectEphemeralStore(
   return undefined;
 }
 
+/** The two input fields the receipts base is derived from; every parsed input may carry them. */
 type ReceiptsInput = { config?: unknown; dir?: unknown };
 
 /** The base a relative `receipts.dir` is resolved against, per operation (claim 47). */
@@ -217,11 +218,63 @@ export function readConfigReceiptsSection(configPath: string): ConfigReceiptsSec
   };
 }
 
+/**
+ * The fields every operation envelope gains (mutation-safety packet, "Envelope changes"). They
+ * are additive and optional, so an envelope built before the kernel filled them is still valid;
+ * `finalizeEnvelope` fills them for every operation the kernel runs.
+ */
+/**
+ * Resolve an operation's declaration and mint its run in one step. Every entry point uses it -
+ * the CLI dispatcher and the library `execute<X>Operation` wrappers alike - so no operation can
+ * reach the world without a class (mutation-safety packet, "Declaration points").
+ */
+export function mintOperationContext<TInput extends object>(
+  operationId: string,
+  effect: EffectDeclaration | ((input: TInput) => EffectDeclaration),
+  input: TInput,
+  overrides: Partial<CreateRunContextOptions> = {},
+): RunContext {
+  const declaration = resolveEffectDeclaration(
+    typeof effect === "function" ? effect(input) : effect,
+    `operation '${operationId}'`,
+  );
+  return createRunContext({ operationId, effect: declaration, input, ...overrides });
+}
+
+export interface OperationEffectEnvelope {
+  /** the run that produced this envelope; a nested operation shares its parent's id */
+  runId?: string;
+  /** the class this operation resolved to, with the reason rendered (adjudication claim 50) */
+  effect?: EffectDeclaration;
+  /** the redacted receipts of the run: hashes, codes, refs and counts (review A10) */
+  mutations?: MutationReceiptEnvelopeCopy[];
+}
+
+/**
+ * Stamp the run identity, the effect class and the run's receipts onto an envelope.
+ *
+ * `runId` and `mutations` belong to the *run*, so a nested operation reports its parent's; the
+ * class belongs to the *operation*, so a nested one reports its own and `effect` defaults to the
+ * run's only when the caller does not say otherwise.
+ */
+export function finalizeEnvelope<T extends object>(
+  envelope: T,
+  context: RunContext,
+  effect: EffectDeclaration = context.effect,
+): T & OperationEffectEnvelope {
+  return {
+    ...envelope,
+    runId: context.runId,
+    effect,
+    mutations: context.ledger.envelopeReceipts(),
+  };
+}
+
 export interface CreateRunContextOptions {
   operationId: string;
   effect: EffectDeclaration;
   /** the parsed operation input; only `config` and `dir` are read, for the receipts base */
-  input?: ReceiptsInput;
+  input?: object;
   /** a config the caller has already parsed; it wins over the file on disk */
   config?: {
     receipts?: { dir?: string; ephemeral?: boolean };
@@ -238,13 +291,18 @@ export interface CreateRunContextOptions {
 export function resolveReceiptsSettings(options: CreateRunContextOptions): ReceiptsSettings {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  const { base, source } = receiptsBaseFor(options.operationId, options.input, cwd);
+  const { base, source } = receiptsBaseFor(
+    options.operationId,
+    options.input as ReceiptsInput | undefined,
+    cwd,
+  );
 
+  const inputPaths = (options.input ?? {}) as ReceiptsInput;
   const fromFile =
     options.config === undefined &&
     options.operationId === "test" &&
-    typeof options.input?.config === "string"
-      ? readConfigReceiptsSection(path.resolve(cwd, options.input.config))
+    typeof inputPaths.config === "string"
+      ? readConfigReceiptsSection(path.resolve(cwd, inputPaths.config))
       : {};
   const declared = options.config?.receipts ?? fromFile.receipts;
 
@@ -279,10 +337,11 @@ function resolveAllowOrigins(options: CreateRunContextOptions): string[] {
   if (options.config !== undefined) {
     return [];
   }
-  if (options.operationId === "test" && typeof options.input?.config === "string") {
+  const inputPaths = (options.input ?? {}) as ReceiptsInput;
+  if (options.operationId === "test" && typeof inputPaths.config === "string") {
     return [
-      ...(readConfigReceiptsSection(path.resolve(cwd, options.input.config)).mutation
-        ?.allowOrigins ?? []),
+      ...(readConfigReceiptsSection(path.resolve(cwd, inputPaths.config)).mutation?.allowOrigins ??
+        []),
     ];
   }
   return [];

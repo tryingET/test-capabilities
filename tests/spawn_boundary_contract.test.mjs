@@ -82,3 +82,70 @@ test("the spawn transport is reachable from the adapters and from nothing else",
     "src/core/surf-adapter.ts",
   ]);
 });
+
+/** Source with comments and string bodies blanked, so offsets stay but text cannot lie. */
+function maskLiterals(source) {
+  let masked = source.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "));
+  masked = masked.replace(/\/\/[^\n]*/g, (line) => line.replace(/[^\n]/g, " "));
+  return masked.replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, (literal) =>
+    literal.replace(/[^\n]/g, " "),
+  );
+}
+
+/** The half-open range of the call whose opening parenthesis is at `open`. */
+function callSpan(masked, open) {
+  let depth = 0;
+  for (let index = open; index < masked.length; index += 1) {
+    if (masked[index] === "(") {
+      depth += 1;
+    } else if (masked[index] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return [open, index];
+      }
+    }
+  }
+  return [open, masked.length];
+}
+
+test("a mutating runtime is only ever entered from inside ledger.runStep", () => {
+  // The two runtimes whose steps change a target. `Adapter.invoke` is reachable from many
+  // read-only callers; what the mutation-safety packet forbids (review A7, adjudication claim 2)
+  // is a *mutating* invocation that no ledger step opened a receipt for.
+  const mutatingEntries = /\b(runBombadil|runBombadilTerminalTest)\s*\(/g;
+  const definitionSite = "src/core/bombadil-runtime.ts";
+  const offenders = [];
+
+  for (const file of listSourceFiles(srcRoot)) {
+    const name = relative(file);
+    if (name === definitionSite) {
+      continue;
+    }
+    const masked = maskLiterals(readFileSync(file, "utf8"));
+    const ledgerSpans = [];
+    const runStepCalls = /\bledger\.runStep\s*(?:<[^>]*>\s*)?\(/g;
+    for (const match of masked.matchAll(runStepCalls)) {
+      ledgerSpans.push(callSpan(masked, match.index + match[0].length - 1));
+    }
+    for (const match of masked.matchAll(mutatingEntries)) {
+      const inside = ledgerSpans.some(([open, close]) => match.index > open && match.index < close);
+      if (!inside) {
+        offenders.push(`${name}:${masked.slice(0, match.index).split("\n").length}: ${match[1]}`);
+      }
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "a mutating runtime must be entered from inside context.ledger.runStep, so the receipt is on disk before the act",
+  );
+});
+
+test("the ledger is the only module that opens a mutation receipt", () => {
+  const offenders = listSourceFiles(srcRoot)
+    .filter((file) => /receiptStore\.append\s*\(/.test(maskLiterals(readFileSync(file, "utf8"))))
+    .map(relative);
+
+  assert.deepEqual(offenders, ["src/core/effects.ts"]);
+});

@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { QuantumTestRunner } from "../../quantum/simulator.js";
+import type { EffectDeclaration } from "../effects.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import type {
   OperationDefinition,
   QuantumOperationInput,
@@ -35,6 +38,7 @@ function parsePositiveIntegerOption(value: string, optionName: string): number {
 
 async function runQuantumOperation(
   normalized: NormalizedQuantumOperationInput,
+  context: RunContext,
 ): Promise<QuantumOperationResultEnvelope> {
   const branches = parsePositiveIntegerOption(normalized.branches, "--branches");
   const runner = new QuantumTestRunner({
@@ -43,18 +47,33 @@ async function runQuantumOperation(
     seed: 42,
   });
 
-  return {
-    operationId: "quantum",
-    input: {
-      ...normalized,
-      branches: String(branches),
+  return finalizeEnvelope(
+    {
+      operationId: "quantum",
+      input: {
+        ...normalized,
+        branches: String(branches),
+      },
+      result: await runner.run(normalized.target),
     },
-    result: await runner.run(normalized.target),
-  };
+    context,
+    QUANTUM_OPERATION_EFFECT,
+  );
 }
+
+/**
+ * Parked (operator decision D1). The simulator is a seeded in-memory computation: it contacts no
+ * target, so it can produce no target evidence, and `tests/parked_runtime_contract.test.mjs`
+ * pins that it never writes a Finding or an Observation and never reaches a determination.
+ */
+export const QUANTUM_OPERATION_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  reason: "parked; produces no target evidence",
+};
 
 export const QUANTUM_OPERATION = {
   id: "quantum",
+  effect: QUANTUM_OPERATION_EFFECT,
   route: { command: "quantum" },
   description: "Run the shared quantum simulator",
   inputSchema: QuantumOperationInputSchema,
@@ -63,6 +82,11 @@ export const QUANTUM_OPERATION = {
 
 export async function executeQuantumOperation(
   input: QuantumOperationInput,
+  context?: RunContext,
 ): Promise<QuantumOperationResultEnvelope> {
-  return runQuantumOperation(QuantumOperationInputSchema.parse(input));
+  const normalized = QuantumOperationInputSchema.parse(input);
+  return runQuantumOperation(
+    normalized,
+    context ?? mintOperationContext("quantum", QUANTUM_OPERATION_EFFECT, normalized),
+  );
 }

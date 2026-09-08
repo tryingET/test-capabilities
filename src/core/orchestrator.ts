@@ -16,6 +16,8 @@ import type {
 import { TestCapabilitiesConfigSchema } from "./config.js";
 import type { Determination } from "./determination.js";
 import { determineRun, outcomeEvidenceLines, worstOutcome } from "./determination.js";
+import { worstEffect } from "./effects.js";
+import { AGENT_EFFECTS } from "./operations/test/agent-findings.js";
 import type { AgentResult, TestAgent } from "./operations/test/agents.js";
 import {
   BombadilAgent,
@@ -24,7 +26,10 @@ import {
   SurfAgent,
   TerminalFuzzerAgent,
 } from "./operations/test/agents.js";
+import type { MutationReceiptEnvelopeCopy } from "./receipt-store.js";
 import type { ResultOutcome } from "./result-classification.js";
+import type { RunContext } from "./run-context.js";
+import { createRunContext } from "./run-context.js";
 
 // ============================================
 // TYPES & SCHEMAS
@@ -144,6 +149,12 @@ export interface TestResult {
   findings: Finding[];
   coverage: CoverageReport;
   observations?: Observation[];
+  /**
+   * The redacted receipts of every mutating step the run took (mutation-safety packet,
+   * "Envelope changes"). Optional for one release so historical envelopes stay valid; absent
+   * when the run mutated nothing, which is the read-only case.
+   */
+  mutations?: MutationReceiptEnvelopeCopy[];
   predictions?: Prediction[];
   quantumInsights?: QuantumInsights;
 }
@@ -304,7 +315,24 @@ export class TestCapabilitiesOrchestrator {
     }
   }
 
-  async run(): Promise<TestResult> {
+  /**
+   * Run the suite. The kernel mints the {@link RunContext} and passes it in; a library caller
+   * that does not, gets one minted from this config so every mutating agent still runs behind
+   * the ledger and its receipts (architecture review A5, adjudication claim 1).
+   */
+  async run(context?: RunContext): Promise<TestResult> {
+    const runContext =
+      context ??
+      createRunContext({
+        operationId: "test",
+        effect: worstEffect(
+          Object.values(this.config.agents ?? {})
+            .filter((agent) => agent.enabled !== false)
+            .map((agent) => AGENT_EFFECTS[agent.type]),
+        ),
+        config: this.config,
+      });
+
     if (this.agents.size === 0) {
       throw new Error(
         "No enabled agents were initialized. Refine the config so at least one supported agent can run.",
@@ -318,7 +346,7 @@ export class TestCapabilitiesOrchestrator {
         normalizeKnownAgentResult(
           agentName,
           agent,
-          await agent.execute(this.config.targets),
+          await agent.execute(this.config.targets, runContext),
           this.config.targets,
         ),
       ),
@@ -369,6 +397,8 @@ export class TestCapabilitiesOrchestrator {
       coverage: coverage.overall,
     });
 
+    const mutations = runContext.ledger.envelopeReceipts();
+
     return {
       passed: determination.value === "verified",
       determination,
@@ -377,6 +407,7 @@ export class TestCapabilitiesOrchestrator {
       findings: correlatedFindings,
       coverage,
       observations,
+      ...(mutations.length > 0 ? { mutations } : {}),
       predictions: this.predictions,
       quantumInsights,
     };

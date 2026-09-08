@@ -10,6 +10,7 @@
  */
 
 import { invokeAdapter } from "../../adapter.js";
+import type { BombadilRunResult, BombadilTerminalRunResult } from "../../bombadil-runtime.js";
 import { runBombadil, runBombadilTerminalTest } from "../../bombadil-runtime.js";
 import { cliAdapter } from "../../cli-adapter.js";
 import type {
@@ -18,10 +19,21 @@ import type {
   BombadilTerminalOptions,
   Target,
 } from "../../config.js";
+import type { EffectDeclaration } from "../../effects.js";
+import { defaultMutationOutcomeForError } from "../../effects.js";
 import type { CoverageReport, Finding, Observation } from "../../orchestrator.js";
 import type { ExpectDeclaration, ResultOutcome } from "../../result-classification.js";
 import { classifyResult } from "../../result-classification.js";
+import type { RunContext } from "../../run-context.js";
+import { FrameworkError } from "../../runtime-contract.js";
 import { executeSurfExploreOperation, outcomeFromError } from "../surf-explore-operation.js";
+import {
+  AGENT_EFFECTS,
+  BOMBADIL_RUNTIME_RECOMMENDATION,
+  describeCliOutcome,
+  describeLedgerRefusal,
+  describeSurfRefusal,
+} from "./agent-findings.js";
 
 export const DEFAULT_CLI_TESTER_TIMEOUT_MS = 10_000;
 
@@ -41,7 +53,9 @@ export interface AgentResult {
 }
 
 export interface TestAgent {
-  execute(targets: Target): Promise<AgentResult>;
+  /** what this agent may do to the world; `test` resolves to the worst class it enables */
+  readonly effect: EffectDeclaration;
+  execute(targets: Target, context: RunContext): Promise<AgentResult>;
 }
 
 function summarizeBombadilEvidence(
@@ -96,6 +110,7 @@ function summarizeBombadilEvidence(
 }
 
 export class BombadilAgent implements TestAgent {
+  readonly effect = AGENT_EFFECTS.bombadil;
   private readonly agentName: string;
   private readonly durationMs: number;
   private readonly options: BombadilOptions | undefined;
@@ -106,47 +121,68 @@ export class BombadilAgent implements TestAgent {
     this.options = options;
   }
 
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(targets: Target, context: RunContext): Promise<AgentResult> {
     if (!targets.web) {
-      return {
-        findings: [
-          {
-            id: `${this.agentName}-missing-web-target`,
-            type: "bug",
-            severity: "critical",
-            component: "web",
-            description: "Web target is missing for the bombadil agent",
-            evidence: ["targets.web was not configured"],
-            recommendation:
-              "Set targets.web to a valid origin before running the Bombadil-backed orchestrator path.",
-            timestamp: new Date(),
-          },
-        ],
-        coverage: { edgeCases: 0 },
-      };
+      return missingTarget(
+        this.agentName,
+        "web",
+        "Web target is missing for the bombadil agent",
+        "targets.web was not configured",
+        "Set targets.web to a valid origin before running the Bombadil-backed orchestrator path.",
+      );
     }
 
-    const result = await runBombadil({
-      origin: targets.web,
-      durationMs: this.durationMs,
-      options: this.options
-        ? {
-            command: this.options.command,
-            outputPath: this.options.outputPath,
-            headers: this.options.headers,
-            reproduceTracePath: this.options.reproduceTrace,
-            width: this.options.width,
-            height: this.options.height,
-            deviceScaleFactor: this.options.deviceScaleFactor,
-            instrumentJavaScript: this.options.instrumentJavaScript,
-            chromeGrantPermissions: this.options.chromeGrantPermissions,
-            headless: this.options.headless,
-            noSandbox: this.options.noSandbox,
-            remoteDebugger: this.options.remoteDebugger,
-            createTarget: this.options.createTarget,
+    const origin = targets.web;
+    let attempted: BombadilRunResult | undefined;
+    let result: BombadilRunResult;
+    try {
+      // The agent's one mutating step. The receipt is on disk before Bombadil is spawned, and
+      // an origin the operator has not declared never gets that far (review A13).
+      result = await context.ledger.runStep<BombadilRunResult>({
+        id: `${this.agentName}.bombadil`,
+        effect: this.effect,
+        subject: origin,
+        intent: "bounded fuzz",
+        details: { agent: this.agentName, budget_ms: this.durationMs },
+        run: async () => {
+          const run = await runBombadil({
+            origin,
+            durationMs: this.durationMs,
+            options: this.options
+              ? {
+                  command: this.options.command,
+                  outputPath: this.options.outputPath,
+                  headers: this.options.headers,
+                  reproduceTracePath: this.options.reproduceTrace,
+                  width: this.options.width,
+                  height: this.options.height,
+                  deviceScaleFactor: this.options.deviceScaleFactor,
+                  instrumentJavaScript: this.options.instrumentJavaScript,
+                  chromeGrantPermissions: this.options.chromeGrantPermissions,
+                  headless: this.options.headless,
+                  noSandbox: this.options.noSandbox,
+                  remoteDebugger: this.options.remoteDebugger,
+                  createTarget: this.options.createTarget,
+                }
+              : undefined,
+          });
+          attempted = run;
+          if (run.spawnFailed) {
+            // The process never started: nothing happened, and that is knowledge rather than
+            // doubt, so the receipt settles `failed` instead of locking the key.
+            throw new FrameworkError(
+              "mutation_step_not_started",
+              `Bombadil could not be executed against ${origin}`,
+              { binary: run.binaryPath, provider: run.binaryProvider },
+            );
           }
-        : undefined,
-    });
+          return run;
+        },
+        settle: (attempt) => settleBombadilAttempt(attempt.error, attempt.value),
+      });
+    } catch (error) {
+      return this.refusal(origin, error, attempted);
+    }
 
     if (result.status === "completed" || result.status === "budget_exhausted") {
       return {
@@ -163,7 +199,7 @@ export class BombadilAgent implements TestAgent {
             type: "bug",
             severity: "high",
             component: "web",
-            description: `Bombadil found a property violation while exploring ${targets.web}`,
+            description: `Bombadil found a property violation while exploring ${origin}`,
             evidence: summarizeBombadilEvidence(result),
             recommendation:
               "Review the Bombadil trace and logs, then fix or tighten the violated browser behavior before relying on this target.",
@@ -181,10 +217,32 @@ export class BombadilAgent implements TestAgent {
           type: "bug",
           severity: "critical",
           component: "web",
-          description: `Bombadil runtime could not complete against ${targets.web}`,
+          description: `Bombadil runtime could not complete against ${origin}`,
           evidence: summarizeBombadilEvidence(result),
-          recommendation:
-            "Ensure Bombadil is available through TEST_CAPABILITIES_BOMBADIL_BIN, a built TEST_CAPABILITIES_BOMBADIL_REPO/workspace contrib checkout, repo-local external/bombadil, or bombadil on PATH, then re-run the suite.",
+          recommendation: BOMBADIL_RUNTIME_RECOMMENDATION.web,
+          timestamp: new Date(),
+        },
+      ],
+      coverage: { edgeCases: 0 },
+    };
+  }
+
+  /** A refusal by the ledger, or a run that never reported: never a claim about the target. */
+  private refusal(origin: string, error: unknown, attempted?: BombadilRunResult): AgentResult {
+    const shape = describeLedgerRefusal("web", origin, error);
+    return {
+      findings: [
+        {
+          id: `${this.agentName}-${shape.id}`,
+          type: "bug",
+          severity: shape.severity,
+          component: "web",
+          description: shape.description,
+          evidence: [
+            error instanceof Error ? error.message : String(error),
+            ...(attempted ? summarizeBombadilEvidence(attempted) : []),
+          ],
+          recommendation: shape.recommendation,
           timestamp: new Date(),
         },
       ],
@@ -193,7 +251,60 @@ export class BombadilAgent implements TestAgent {
   }
 }
 
+/**
+ * What a bounded fuzz attempt means, from typed facts only (adjudication claim 46): a run that
+ * left a trace or output did something to the target and is `applied` whatever its exit; a run
+ * that left neither is `unknown`, because nothing says what it did.
+ */
+function settleBombadilAttempt(
+  error: unknown,
+  value:
+    | { ranEvidence: boolean; status: string; tracePath?: string; traceBytes?: number }
+    | undefined,
+): { outcome: "applied" | "failed" | "unknown"; evidence?: string[] } {
+  if (error !== undefined) {
+    return { outcome: defaultMutationOutcomeForError(error) };
+  }
+  if (!value?.ranEvidence) {
+    return { outcome: "unknown", evidence: ["the run left no trace and no output"] };
+  }
+  return {
+    outcome: "applied",
+    evidence: [
+      `status: ${value.status}`,
+      ...(value.tracePath ? [`trace: ${value.tracePath}`] : []),
+      `traceBytes: ${value.traceBytes ?? 0}`,
+    ],
+  };
+}
+
+/** The finding an agent renders when its target is not configured; nothing was attempted. */
+function missingTarget(
+  agentName: string,
+  component: "web" | "cli",
+  description: string,
+  evidence: string,
+  recommendation: string,
+): AgentResult {
+  return {
+    findings: [
+      {
+        id: `${agentName}-missing-${component}-target`,
+        type: "bug",
+        severity: "critical",
+        component,
+        description,
+        evidence: [evidence],
+        recommendation,
+        timestamp: new Date(),
+      },
+    ],
+    coverage: component === "web" ? { edgeCases: 0 } : { edgeCases: 0 },
+  };
+}
+
 export class TerminalFuzzerAgent implements TestAgent {
+  readonly effect = AGENT_EFFECTS["terminal-fuzzer"];
   private readonly agentName: string;
   private readonly durationMs: number;
   private readonly options: BombadilTerminalOptions | undefined;
@@ -204,34 +315,49 @@ export class TerminalFuzzerAgent implements TestAgent {
     this.options = options;
   }
 
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(targets: Target, context: RunContext): Promise<AgentResult> {
     const command = this.options?.command ?? targets.cli;
     if (!command) {
-      return {
-        findings: [
-          {
-            id: `${this.agentName}-missing-cli-target`,
-            type: "bug",
-            severity: "critical",
-            component: "cli",
-            description: "CLI target is missing for the terminal-fuzzer agent",
-            evidence: ["targets.cli or agents.<name>.terminal.command was not configured"],
-            recommendation:
-              "Set targets.cli or agents.<name>.terminal.command before running the Bombadil terminal fuzzer path.",
-            timestamp: new Date(),
-          },
-        ],
-        coverage: { edgeCases: 0 },
-      };
+      return missingTarget(
+        this.agentName,
+        "cli",
+        "CLI target is missing for the terminal-fuzzer agent",
+        "targets.cli or agents.<name>.terminal.command was not configured",
+        "Set targets.cli or agents.<name>.terminal.command before running the Bombadil terminal fuzzer path.",
+      );
     }
 
-    const result = await runBombadilTerminalTest({
-      target: {
-        command,
-        args: this.options?.args,
-      },
-      durationMs: this.durationMs,
-    });
+    let attempted: BombadilTerminalRunResult | undefined;
+    let result: BombadilTerminalRunResult;
+    try {
+      // A terminal subject is not a web origin, so `mutation.allowOrigins` does not apply; the
+      // receipt and the at-most-once rule do.
+      result = await context.ledger.runStep<BombadilTerminalRunResult>({
+        id: `${this.agentName}.bombadil-terminal`,
+        effect: this.effect,
+        subject: command,
+        intent: "bounded terminal fuzz",
+        details: { agent: this.agentName, budget_ms: this.durationMs },
+        run: async () => {
+          const run = await runBombadilTerminalTest({
+            target: { command, args: this.options?.args },
+            durationMs: this.durationMs,
+          });
+          attempted = run;
+          if (run.spawnFailed) {
+            throw new FrameworkError(
+              "mutation_step_not_started",
+              `Bombadil terminal test could not be executed for ${command}`,
+              { binary: run.binaryPath, provider: run.binaryProvider },
+            );
+          }
+          return run;
+        },
+        settle: (attempt) => settleBombadilAttempt(attempt.error, attempt.value),
+      });
+    } catch (error) {
+      return this.refusal(command, error, attempted);
+    }
 
     if (result.status === "completed" || result.status === "budget_exhausted") {
       return {
@@ -262,10 +388,48 @@ export class TerminalFuzzerAgent implements TestAgent {
             durationMs: result.durationMs,
             usedDefaultSpecification: false,
           }),
-          recommendation:
-            "Ensure Bombadil 0.5+ is available and the terminal target is safe, deterministic, and bounded before relying on this experimental signal. A non-zero exit from the terminal runner is not attributed to a property violation: it writes no trace and passes no --exit-on-violation, so nothing distinguishes a violation from a crash.",
+          recommendation: BOMBADIL_RUNTIME_RECOMMENDATION.cli,
           timestamp: new Date(),
         },
+      ],
+      coverage: { edgeCases: 0 },
+      observationSubject: command,
+    };
+  }
+
+  private refusal(
+    command: string,
+    error: unknown,
+    attempted?: BombadilTerminalRunResult,
+  ): AgentResult {
+    const shape = describeLedgerRefusal("cli", command, error);
+    return {
+      findings: [
+        {
+          id: `${this.agentName}-${shape.id}`,
+          type: "bug",
+          severity: shape.severity,
+          component: "cli",
+          description: shape.description.replace("fuzz", "fuzz the terminal target"),
+          evidence: [
+            error instanceof Error ? error.message : String(error),
+            ...(attempted
+              ? summarizeBombadilEvidence({
+                  binaryPath: attempted.binaryPath,
+                  binaryProvider: attempted.binaryProvider,
+                  resolutionNotes: attempted.resolutionNotes,
+                  stderr: attempted.stderr,
+                  stdout: attempted.stdout,
+                  timedOut: attempted.timedOut,
+                  durationMs: attempted.durationMs,
+                  usedDefaultSpecification: false,
+                })
+              : []),
+          ],
+          recommendation: shape.recommendation,
+          timestamp: new Date(),
+          observationSubject: undefined,
+        } as Finding,
       ],
       coverage: { edgeCases: 0 },
       observationSubject: command,
@@ -274,13 +438,14 @@ export class TerminalFuzzerAgent implements TestAgent {
 }
 
 export class SurfAgent implements TestAgent {
+  readonly effect = AGENT_EFFECTS.surf;
   private readonly agentName: string;
 
   constructor(agentName: string) {
     this.agentName = agentName;
   }
 
-  async execute(targets: Target): Promise<AgentResult> {
+  async execute(targets: Target, context: RunContext): Promise<AgentResult> {
     if (!targets.web) {
       return {
         findings: [
@@ -301,7 +466,9 @@ export class SurfAgent implements TestAgent {
     }
 
     try {
-      const envelope = await executeSurfExploreOperation({ url: targets.web });
+      // The nested operation runs inside this run: one run id, one ledger, one store
+      // (architecture review A5, adjudication claim 1).
+      const envelope = await executeSurfExploreOperation({ url: targets.web }, context);
       return {
         findings: [],
         coverage: { userFlows: envelope.result.coverage.userFlows },
@@ -355,147 +522,8 @@ function exploreOutcomes(
 }
 
 /** surf's own readiness vocabulary: the page answered, and it answered with a refusal. */
-const SURF_PAGE_REFUSAL_CODES = new Set([
-  "page_login",
-  "page_challenge",
-  "page_not_found",
-  "page_error",
-  "page_timeout",
-  "page_not_ready",
-]);
-
-interface SurfRefusalShape {
-  id: string;
-  severity: Finding["severity"];
-  description: string;
-  recommendation: string;
-}
-
-const SURF_RUNTIME_RECOMMENDATION =
-  "Ensure the surf CLI (nicobailon/surf-cli with wait.ready and extract) is resolvable through TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, and that the browser with the surf extension is running (surf doctor), then re-run the suite.";
-
-function describeSurfRefusal(url: string, outcome: ResultOutcome | undefined): SurfRefusalShape {
-  if (outcome === undefined) {
-    // Legacy path: a framework-side refusal (a probe without browser evidence, an owned tab
-    // that reported no id) has no classified outcome and keeps the pre-S4 wording.
-    return {
-      id: "runtime-failed",
-      severity: "critical",
-      description: `Surf runtime could not complete against ${url}`,
-      recommendation: SURF_RUNTIME_RECOMMENDATION,
-    };
-  }
-
-  if (outcome.basis === "no_evidence") {
-    return {
-      id: "no-evidence",
-      severity: "critical",
-      description: `Surf produced no browser evidence for ${url} [${outcome.code}]`,
-      recommendation:
-        "This is the absence of evidence, not a fault in the target: the command exited successfully with an empty payload. Check that the page returns content for the probe, or declare the emptiness with expect.output: empty on this agent.",
-    };
-  }
-
-  if (outcome.basis === "contradiction") {
-    return {
-      id: "unclassifiable",
-      severity: "critical",
-      description: `Surf answered ${url} with a reply the result contract cannot classify [${outcome.code}]`,
-      recommendation:
-        "The reply contradicts itself (for example a success payload carrying an error field). Nothing downstream may reinterpret it; capture the raw output and fix the producer.",
-    };
-  }
-
-  if (outcome.basis === "indeterminate") {
-    return {
-      id: "outcome-unknown",
-      severity: "critical",
-      description: `Surf could not report an outcome for ${url} [${outcome.code}]`,
-      recommendation:
-        "A step that may have changed the target never reported a result, so nothing about the target is known. Inspect the page by hand before re-running.",
-    };
-  }
-
-  if (outcome.class === "spawn_failed" || outcome.class === "timeout") {
-    return {
-      id: "runtime-failed",
-      severity: "critical",
-      description: `Surf runtime could not be executed against ${url} [${outcome.code}]`,
-      recommendation: SURF_RUNTIME_RECOMMENDATION,
-    };
-  }
-
-  if (SURF_PAGE_REFUSAL_CODES.has(outcome.code)) {
-    return {
-      id: `page-${outcome.code}`,
-      severity: "high",
-      description: `Surf could not reach a settled page state on ${url} [${outcome.code}]`,
-      recommendation:
-        "The surf runtime worked and the page refused it: the page asked for a login, a challenge, or never settled. Point targets.web at a page the framework may read without credentials, or open the flow by hand first; do not treat this as a broken build.",
-    };
-  }
-
-  return {
-    id: "command-failed",
-    severity: "critical",
-    description: `Surf reported a failure while exploring ${url} [${outcome.code}]`,
-    recommendation:
-      "Read the outcome and transport lines in the evidence: the surf command ran and returned an error. Fix the target or the command before relying on browser coverage.",
-  };
-}
-
-/**
- * The finding a classified CLI outcome renders as.
- *
- * Only `fault` is a statement about the target. `no_evidence` says the command ran and wrote
- * nothing, which is why the recommendation names the declaration that would make that shape
- * legitimate instead of asking anyone to fix a target that may be fine (result-classification
- * packet, refinement; plan S4).
- */
-function describeCliOutcome(
-  target: string,
-  commandDisplay: string,
-  outcome: ResultOutcome,
-  declarationKey: string,
-): SurfRefusalShape {
-  if (outcome.basis === "no_evidence") {
-    return {
-      id: "empty-result",
-      severity: "high",
-      description: `CLI smoke command produced no output: ${commandDisplay} [${outcome.code}]`,
-      recommendation: `The command exited successfully and wrote nothing, so the run obtained no evidence about '${target}'. Point targets.cli at a command that prints, or declare the shape with '${declarationKey}: { output: empty }' (add empty_marker when the command prints a fixed no-results line).`,
-    };
-  }
-
-  if (outcome.basis === "contradiction") {
-    return {
-      id: "unclassifiable",
-      severity: "critical",
-      description: `CLI smoke command answered with a reply the result contract cannot classify: ${commandDisplay} [${outcome.code}]`,
-      recommendation:
-        "The reply contradicts itself (for example a declared error envelope on a zero exit). Nothing downstream may reinterpret it; capture the raw output and fix the producer.",
-    };
-  }
-
-  if (outcome.basis === "indeterminate") {
-    return {
-      id: "outcome-unknown",
-      severity: "critical",
-      description: `CLI smoke command never reported an outcome: ${commandDisplay} [${outcome.code}]`,
-      recommendation:
-        "A step that may have changed the target never reported a result, so nothing about the target is known. Inspect the environment by hand before re-running.",
-    };
-  }
-
-  return {
-    id: "help-failed",
-    severity: "critical",
-    description: `CLI smoke command failed: ${commandDisplay} [${outcome.code}]`,
-    recommendation: `Ensure '${target}' is executable and '--help' exits successfully.`,
-  };
-}
-
 export class CliTesterAgent implements TestAgent {
+  readonly effect = AGENT_EFFECTS["cli-tester"];
   private readonly agentName: string;
   private readonly timeoutMs: number;
   private readonly expect: AgentExpect | undefined;

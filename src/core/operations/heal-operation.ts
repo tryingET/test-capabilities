@@ -9,6 +9,9 @@ import type {
 } from "../../healing/self-healing.js";
 import { TestFileHealer } from "../../healing/self-healing.js";
 import { writeJsonArtifact } from "../artifacts.js";
+import type { EffectDeclaration } from "../effects.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import type {
   HealOperationInput,
   HealOperationResultEnvelope,
@@ -369,6 +372,7 @@ async function readJsonInputFile(
 
 async function runHealOperation(
   normalized: NormalizedHealOperationInput,
+  context: RunContext,
 ): Promise<HealOperationResultEnvelope> {
   if ((normalized.proposalOutput || normalized.verificationOutput) && !normalized.dryRun) {
     throw new Error(
@@ -451,20 +455,42 @@ async function runHealOperation(
       )
     : undefined;
 
-  return {
-    operationId: "heal",
-    input: normalized,
-    proposals,
-    appliedCount,
-    ...(proposalArtifact ? { proposalArtifact } : {}),
-    ...(verification ? { verification } : {}),
-    ...(verificationArtifact ? { verificationArtifact } : {}),
-    ...(normalized.checkpointRef ? { checkpointRef: normalized.checkpointRef } : {}),
-  };
+  return finalizeEnvelope(
+    {
+      operationId: "heal",
+      input: normalized,
+      proposals,
+      appliedCount,
+      ...(proposalArtifact ? { proposalArtifact } : {}),
+      ...(verification ? { verification } : {}),
+      ...(verificationArtifact ? { verificationArtifact } : {}),
+      ...(normalized.checkpointRef ? { checkpointRef: normalized.checkpointRef } : {}),
+    },
+    context,
+    healOperationEffect(normalized),
+  );
+}
+
+/**
+ * A dry run reads the tests and writes only the artifacts the operator asked for; an apply
+ * rewrites files in the workspace, one conditional `EffectStep` per file.
+ */
+export function healOperationEffect(input: {
+  dryRun?: boolean;
+  proposalInput?: string;
+}): EffectDeclaration {
+  return input.dryRun
+    ? { effect: "read_only", reason: "analyses test files and proposes; writes no test file" }
+    : {
+        effect: "mutating",
+        scope: "workspace",
+        reason: "rewrites selectors in the test files under --dir",
+      };
 }
 
 export const HEAL_OPERATION = {
   id: "heal",
+  effect: healOperationEffect,
   route: { command: "heal" },
   description: "Run the selector-healing workflow",
   inputSchema: HealOperationInputSchema,
@@ -473,6 +499,11 @@ export const HEAL_OPERATION = {
 
 export async function executeHealOperation(
   input: HealOperationInput,
+  context?: RunContext,
 ): Promise<HealOperationResultEnvelope> {
-  return runHealOperation(HealOperationInputSchema.parse(input));
+  const normalized = HealOperationInputSchema.parse(input);
+  return runHealOperation(
+    normalized,
+    context ?? mintOperationContext("heal", healOperationEffect, normalized),
+  );
 }

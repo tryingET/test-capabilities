@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { EffectDeclaration } from "../effects.js";
 import type { ExpectDeclaration, ResultOutcome } from "../result-classification.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
 import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
 import {
@@ -832,6 +835,7 @@ function buildAggregateEvidence(
 
 async function runSurfExploreOperation(
   normalized: NormalizedSurfExploreOperationInput,
+  context: RunContext,
 ): Promise<SurfExploreOperationResultEnvelope> {
   const requestedDepth = parseSurfExploreDepth(normalized.depth);
   const normalizedTargetUrl = normalizeUrl(normalized.url);
@@ -891,31 +895,47 @@ async function runSurfExploreOperation(
   const evidence = buildAggregateEvidence(normalizedTargetUrl, coverage);
   const seedArgs = translateSurfArgs("tab.new", [normalizedTargetUrl]);
 
-  return {
-    operationId: "surf.explore",
-    input: normalized,
-    result: {
-      command: runtime.resolution.command,
-      args: [...runtime.resolution.baseArgs, ...seedArgs],
-      runtime: {
-        flavor: runtime.resolution.flavor,
-        provider: runtime.resolution.provider,
-        resolutionNotes: runtime.resolution.resolutionNotes,
-        version: runtime.probe.version,
-        mechanisms: runtime.probe.mechanisms,
+  return finalizeEnvelope(
+    {
+      operationId: "surf.explore" as const,
+      input: normalized,
+      result: {
+        command: runtime.resolution.command,
+        args: [...runtime.resolution.baseArgs, ...seedArgs],
+        runtime: {
+          flavor: runtime.resolution.flavor,
+          provider: runtime.resolution.provider,
+          resolutionNotes: runtime.resolution.resolutionNotes,
+          version: runtime.probe.version,
+          mechanisms: runtime.probe.mechanisms,
+        },
+        stdout: stdout.filter(Boolean).join("\n"),
+        stderr: stderr.map(stripSurfContextLines).filter(Boolean).join("\n"),
+        code: 0,
+        evidence,
+        coverage,
+        pages,
       },
-      stdout: stdout.filter(Boolean).join("\n"),
-      stderr: stderr.map(stripSurfContextLines).filter(Boolean).join("\n"),
-      code: 0,
-      evidence,
-      coverage,
-      pages,
     },
-  };
+    context,
+    SURF_EXPLORE_OPERATION_EFFECT,
+  );
 }
+
+/**
+ * Explore opens a tab it owns, reads the page through `wait.ready`, `js` probes and `extract`,
+ * and closes the tab in `finally`. The tab lifecycle is a `browser_session` effect: it changes
+ * the browser the run brought with it, never the target.
+ */
+export const SURF_EXPLORE_OPERATION_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  scope: "browser_session",
+  reason: "opens a tab it owns, reads the page and closes the tab; no step changes the target",
+};
 
 export const SURF_EXPLORE_OPERATION = {
   id: "surf.explore",
+  effect: SURF_EXPLORE_OPERATION_EFFECT,
   route: { command: "surf", action: "explore" },
   description: "Run the resolved surf CLI runtime through the supported explore action",
   inputSchema: SurfExploreOperationInputSchema,
@@ -927,6 +947,11 @@ export const SURF_EXPLORE_OPERATION = {
 
 export async function executeSurfExploreOperation(
   input: SurfExploreOperationInput,
+  context?: RunContext,
 ): Promise<SurfExploreOperationResultEnvelope> {
-  return runSurfExploreOperation(SurfExploreOperationInputSchema.parse(input));
+  const normalized = SurfExploreOperationInputSchema.parse(input);
+  return runSurfExploreOperation(
+    normalized,
+    context ?? mintOperationContext("surf.explore", SURF_EXPLORE_OPERATION_EFFECT, normalized),
+  );
 }

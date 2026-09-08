@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -8,6 +8,17 @@ import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { TestCapabilitiesOrchestrator } = await importRuntimeModule("index.js");
+
+// Mutating agents write a receipt before they act (slice S5). Keep this suite's receipts out of
+// the checkout and out of one another's way, and accept the store as ephemeral the way an
+// operator would for a throwaway directory (operator decision D5).
+process.env.TEST_CAPABILITIES_RECEIPTS_DIR = mkdtempSync(
+  path.join(os.tmpdir(), "test-capabilities-orchestrator-receipts-"),
+);
+process.env.TEST_CAPABILITIES_RECEIPTS_EPHEMERAL = "1";
+
+/** The operator's declaration that this suite's fuzzers may act on the fixture origin. */
+const ALLOW_EXAMPLE = { mutation: { allowOrigins: ["https://example.com"] } };
 
 // The fake writes the trace file it announces, exactly as Bombadil does: the trace is the typed
 // evidence the runtime reads for the run status (adjudication claim 46), so a fake that only
@@ -335,6 +346,7 @@ test(
         version: "2.0",
         name: "Bombadil Budget Success",
         targets: { web: "https://example.com" },
+        ...ALLOW_EXAMPLE,
         agents: {
           web: {
             enabled: true,
@@ -392,6 +404,7 @@ test(
         version: "2.0",
         name: "Bombadil Violation",
         targets: { web: "https://example.com" },
+        ...ALLOW_EXAMPLE,
         agents: {
           webA: {
             enabled: true,
@@ -467,6 +480,7 @@ test(
         version: "2.0",
         name: "Bombadil Missing Binary",
         targets: { web: "https://example.com" },
+        ...ALLOW_EXAMPLE,
         agents: {
           web: {
             enabled: true,
@@ -1636,3 +1650,102 @@ test("a CLI target that prints nothing is unverified, and a declaration makes it
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test(
+  "a bombadil agent whose origin is not in mutation.allowOrigins never spawns",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeBombadil(`
+      echo 'this must never run' >&2
+      echo '{}' > "$TRACE_PATH"
+      exit 0
+    `);
+    const previousBinary = process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+    process.env.TEST_CAPABILITIES_BOMBADIL_BIN = fake.path;
+
+    try {
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Bombadil Without An Allowlist",
+        targets: { web: "https://example.com" },
+        agents: {
+          web: { enabled: true, type: "bombadil", intensity: "normal", duration: "50ms" },
+        },
+        quantum: { enabled: false },
+        chaos: { enabled: false },
+      }).run();
+
+      // Which origins this suite may change is the operator's declaration, and the default is
+      // none: the refusal happens before the process is spawned (architecture review A13, Q1).
+      assert.equal(result.passed, false);
+      assert.equal(result.findings.length, 1);
+      assert.equal(result.findings[0].id, "web-origin-not-allowed");
+      assert.match(result.findings[0].description, /mutation\.allowOrigins/);
+      assert.match(result.findings[0].evidence[0], /add 'https:\/\/example\.com'/);
+      assert.equal(result.coverage.edgeCases, 0);
+      assert.equal(result.mutations, undefined, "a step that never ran writes no receipt");
+      assert.equal(
+        existsSync(fake.tracePath),
+        false,
+        "the fake bombadil must not have been executed",
+      );
+    } finally {
+      if (previousBinary === undefined) {
+        delete process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+      } else {
+        process.env.TEST_CAPABILITIES_BOMBADIL_BIN = previousBinary;
+      }
+      fake.cleanup();
+    }
+  },
+);
+
+test(
+  "a bombadil run that produced a trace carries a redacted receipt on the result",
+  { concurrency: false },
+  async () => {
+    const fake = withFakeBombadil(`
+      echo 'using default specification' >&2
+      echo '{}' > "$TRACE_PATH"
+      echo "storing trace in $TRACE_PATH" >&2
+      exit 0
+    `);
+    const previousBinary = process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+    process.env.TEST_CAPABILITIES_BOMBADIL_BIN = fake.path;
+
+    try {
+      const result = await new TestCapabilitiesOrchestrator({
+        version: "2.0",
+        name: "Bombadil Receipt",
+        targets: { web: "https://example.com" },
+        ...ALLOW_EXAMPLE,
+        agents: {
+          web: { enabled: true, type: "bombadil", intensity: "normal", duration: "2s" },
+        },
+        quantum: { enabled: false },
+        chaos: { enabled: false },
+      }).run();
+
+      assert.equal(result.mutations.length, 1);
+      const receipt = result.mutations[0];
+      assert.equal(receipt.outcome, "applied");
+      assert.equal(receipt.effect, "mutating");
+      assert.equal(receipt.scope, "target");
+      assert.equal(receipt.subject, "https://example.com");
+      assert.equal(receipt.intent, "bounded fuzz");
+      assert.match(receipt.idempotency_key, /^sha256:[0-9a-f]{64}$/);
+      assert.equal(receipt.ephemeral_store, true);
+      assert.equal(receipt.path.endsWith(`${receipt.receipt_id}.json`), true);
+      // the envelope copy carries no page text and no trace body, only hashes and counts
+      assert.deepEqual(receipt.evidence, []);
+      assert.deepEqual(receipt.details, { agent: "web", budget_ms: 2000 });
+    } finally {
+      if (previousBinary === undefined) {
+        delete process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
+      } else {
+        process.env.TEST_CAPABILITIES_BOMBADIL_BIN = previousBinary;
+      }
+      fake.cleanup();
+    }
+  },
+);

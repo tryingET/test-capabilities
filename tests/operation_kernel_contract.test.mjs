@@ -1385,3 +1385,156 @@ test("executeCliOperation heal derives appliedCount from proven writes and repor
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Effect declarations (slice S5): every operation says what it may do, and the
+// kernel resolves that before `execute` ever sees the input.
+// ---------------------------------------------------------------------------
+
+const { createRunContext, mintOperationContext } = await importRuntimeModule("core/run-context.js");
+
+/** A parsed input good enough to resolve each operation's class. */
+const EFFECT_INPUT_SAMPLES = {
+  test: { config: "test-capabilities.yaml", quick: false },
+  doctor: { json: false },
+  demo: { json: false },
+  init: { print: true, output: "test-capabilities.yaml" },
+  "surf.explore": { url: "https://example.com" },
+  quantum: { target: "https://example.com" },
+  heal: { dir: "./tests", dryRun: true },
+  "replacement-validation": { action: "plan", request: "request.json" },
+};
+
+test("every registered operation resolves an effect class with a reason", () => {
+  const seen = [];
+  for (const [operationId, operation] of Object.entries(CLI_OPERATION_REGISTRY)) {
+    const sample = EFFECT_INPUT_SAMPLES[operationId];
+    assert.notEqual(sample, undefined, `add an input sample for ${operationId}`);
+    const declaration =
+      typeof operation.effect === "function" ? operation.effect(sample) : operation.effect;
+    assert.equal(
+      ["read_only", "mutating"].includes(declaration.effect),
+      true,
+      `${operationId} resolved '${declaration.effect}'`,
+    );
+    assert.equal(typeof declaration.reason, "string");
+    assert.equal(declaration.reason.length > 0, true, `${operationId} has no reason`);
+    if (declaration.effect === "mutating") {
+      assert.equal(
+        ["target", "workspace", "browser_session"].includes(declaration.scope),
+        true,
+        `${operationId} is mutating without a scope`,
+      );
+    }
+    seen.push(operationId);
+  }
+  assert.equal(seen.length, 8);
+});
+
+test("the mode-dependent operations change class with their mode", () => {
+  const heal = CLI_OPERATION_REGISTRY.heal.effect;
+  assert.equal(heal({ dir: "./tests", dryRun: true }).effect, "read_only");
+  assert.deepEqual(heal({ dir: "./tests", dryRun: false }), {
+    effect: "mutating",
+    scope: "workspace",
+    reason: "rewrites selectors in the test files under --dir",
+  });
+
+  const init = CLI_OPERATION_REGISTRY.init.effect;
+  assert.equal(init({ print: true }).effect, "read_only");
+  assert.equal(init({ print: false }).scope, "workspace");
+
+  const replacement = CLI_OPERATION_REGISTRY["replacement-validation"].effect;
+  assert.equal(replacement({ action: "plan", request: "r.json" }).effect, "read_only");
+  assert.equal(
+    replacement({ action: "plan", request: "r.json", out: "p.json" }).scope,
+    "workspace",
+  );
+});
+
+test("an operation that declares no class is refused before its input is executed", () => {
+  assert.throws(
+    () => mintOperationContext("made-up", undefined, {}),
+    (error) => {
+      assert.equal(error.code, "effect_unclassified");
+      assert.match(error.message, /operation 'made-up'/);
+      assert.match(error.message, /no default class/);
+      return true;
+    },
+  );
+  assert.throws(() => mintOperationContext("made-up", { effect: "mutating", reason: "x" }, {}), {
+    code: "effect_declaration_invalid",
+  });
+});
+
+test("a nested operation runs inside its parent's run, not a new one", async () => {
+  const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": {} }) });
+  const context = createRunContext({
+    operationId: "test",
+    effect: { effect: "read_only", reason: "kernel contract test" },
+  });
+
+  const envelope = await withFakeSurfEnv(fake.path, () =>
+    executeSurfExploreOperation({ url: "https://example.com/" }, context),
+  );
+
+  assert.equal(envelope.runId, context.runId, "the nested envelope carries the parent's run id");
+  assert.equal(envelope.effect.effect, "read_only");
+  assert.equal(envelope.effect.scope, "browser_session");
+  assert.deepEqual(envelope.mutations, []);
+
+  // and the surf agent is the caller that threads it (the alternative - re-entering the
+  // operation without a context - would mint a second run inside the first; review A5)
+  const agentsSource = readFileSync(
+    new URL("../src/core/operations/test/agents.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(agentsSource, /executeSurfExploreOperation\(\{ url: targets\.web \}, context\)/);
+});
+
+test("the library entry points mint their own run when the kernel did not", async () => {
+  const {
+    executeDemoOperation,
+    executeDoctorOperation,
+    executeInitOperation,
+    executeReplacementValidationOperation,
+  } = await importRuntimeModule("core/operations.js");
+
+  const demo = await executeDemoOperation({ json: true });
+  assert.equal(demo.effect.effect, "read_only");
+  assert.match(demo.effect.reason, /packaged cli-tester fixture/);
+  assert.deepEqual(demo.mutations, []);
+  assert.match(demo.runId, /^[0-9a-f-]{36}$/);
+
+  const doctor = await executeDoctorOperation({ json: true });
+  assert.equal(doctor.effect.effect, "read_only");
+  assert.deepEqual(doctor.mutations, []);
+
+  // `init --print` writes nothing, so it stays read-only; the same operation writing a file is
+  // mutating/workspace (the class is a property of the mode, not of the command name)
+  const printed = await executeInitOperation({ print: true });
+  assert.equal(printed.effect.effect, "read_only");
+  assert.equal(printed.written, false);
+
+  const dir = mkdtempSync(path.join(os.tmpdir(), "tc-kernel-entry-"));
+  const requestPath = path.join(dir, "request.json");
+  writeFileSync(
+    requestPath,
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "dep-surgeon.replacement.request",
+      request_id: "req-1",
+      repo: "test-capabilities",
+      dependency: { name: "left-pad", current_version: "1.0.0" },
+      replacement: { name: "right-pad", version: "2.0.0" },
+      commands: [{ id: "unit", kind: "unit", command: "npm test" }],
+    }),
+  );
+  const plan = await executeReplacementValidationOperation({
+    action: "plan",
+    request: requestPath,
+  });
+  assert.equal(plan.effect.effect, "read_only");
+  assert.deepEqual(plan.mutations, []);
+  rmSync(dir, { recursive: true, force: true });
+});

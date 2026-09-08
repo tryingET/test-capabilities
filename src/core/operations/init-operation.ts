@@ -4,6 +4,9 @@ import process from "node:process";
 import yaml from "js-yaml";
 import { z } from "zod";
 import { TestCapabilitiesConfigSchema } from "../config.js";
+import type { EffectDeclaration } from "../effects.js";
+import type { RunContext } from "../run-context.js";
+import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import type {
   InitOperationInput,
   InitOperationResultEnvelope,
@@ -70,6 +73,7 @@ function validateRenderedConfig(configText: string): void {
 
 async function runInitOperation(
   normalized: NormalizedInitOperationInput,
+  context: RunContext,
 ): Promise<InitOperationResultEnvelope> {
   const configText = renderInitConfig(normalized.target);
   validateRenderedConfig(configText);
@@ -89,25 +93,41 @@ async function runInitOperation(
     written = true;
   }
 
-  return {
-    operationId: "init",
-    input: normalized,
-    template: "cli-smoke",
-    outputPath,
-    written,
-    configText,
-    nextCommands: [
-      normalized.print
-        ? `test-capabilities init --output ${normalized.output}`
-        : `test-capabilities doctor --config ${normalized.output}`,
-      `test-capabilities test --config ${normalized.output} --quick`,
-      `test-capabilities test --config ${normalized.output} --json`,
-    ],
-  };
+  return finalizeEnvelope(
+    {
+      operationId: "init",
+      input: normalized,
+      template: "cli-smoke",
+      outputPath,
+      written,
+      configText,
+      nextCommands: [
+        normalized.print
+          ? `test-capabilities init --output ${normalized.output}`
+          : `test-capabilities doctor --config ${normalized.output}`,
+        `test-capabilities test --config ${normalized.output} --quick`,
+        `test-capabilities test --config ${normalized.output} --json`,
+      ],
+    },
+    context,
+    initOperationEffect(normalized),
+  );
+}
+
+/** `--print` writes nothing; anything else creates the config file in the working directory. */
+export function initOperationEffect(input: { print?: boolean }): EffectDeclaration {
+  return input.print
+    ? { effect: "read_only", reason: "prints the template to stdout and writes no file" }
+    : {
+        effect: "mutating",
+        scope: "workspace",
+        reason: "writes the generated test-capabilities.yaml into the workspace",
+      };
 }
 
 export const INIT_OPERATION = {
   id: "init",
+  effect: initOperationEffect,
   route: { command: "init" },
   description: "Generate a minimal fail-closed test-capabilities.yaml config",
   inputSchema: InitOperationInputSchema,
@@ -116,6 +136,11 @@ export const INIT_OPERATION = {
 
 export function executeInitOperation(
   input: InitOperationInput,
+  context?: RunContext,
 ): Promise<InitOperationResultEnvelope> {
-  return runInitOperation(InitOperationInputSchema.parse(input));
+  const normalized = InitOperationInputSchema.parse(input);
+  return runInitOperation(
+    normalized,
+    context ?? mintOperationContext("init", initOperationEffect, normalized),
+  );
 }

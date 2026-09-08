@@ -63,6 +63,8 @@ export const EFFECT_ERROR_CODES = [
   "mutation_replay_refused",
   /** the step ran and reported nothing; nothing about the target is known */
   "mutation_outcome_unknown",
+  /** the mutating step's process never started, so nothing happened: a definite `failed` */
+  "mutation_step_not_started",
   /** the `attempting` receipt did not reach disk, so the step was not run */
   "mutation_receipt_write_failed",
   /** the content the write expected to find is not what is there now; nothing was written */

@@ -80,6 +80,10 @@ export interface BombadilRunResult {
   traceBytes?: number;
   usedDefaultSpecification: boolean;
   timedOut: boolean;
+  /** the process never started, so nothing happened: a definite outcome, not a doubt (S5) */
+  spawnFailed: boolean;
+  /** the run left something behind (a trace, or output): the typed "it ran" fact (S5) */
+  ranEvidence: boolean;
 }
 
 export interface BombadilAdapterProbe {
@@ -110,6 +114,10 @@ export interface BombadilTerminalRunResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** the process never started, so nothing happened (S5) */
+  spawnFailed: boolean;
+  /** the run emitted something: the typed "it ran" fact (S5) */
+  ranEvidence: boolean;
 }
 
 function resolvePackageRoot(env: NodeJS.ProcessEnv = process.env): string {
@@ -456,9 +464,11 @@ export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunR
     extractTracePath(run.combinedOutput) ?? options.outputPath ?? options.reproduceTracePath,
     startedAt,
   );
+  const spawnFailed = Boolean(run.raw.spawnFailure);
+  const ranEvidence = run.ranOutput || (trace.traceBytes ?? 0) > 0;
   const status = deriveBombadilStatus({
-    spawnFailed: Boolean(run.raw.spawnFailure),
-    ranEvidence: run.ranOutput || (trace.traceBytes ?? 0) > 0,
+    spawnFailed,
+    ranEvidence,
     // `--exit-on-violation` stops the run and leaves the trace; that trace is the evidence.
     violationEvidence: (trace.traceBytes ?? 0) > 0,
     timedOut: Boolean(run.raw.timedOut),
@@ -482,6 +492,8 @@ export async function runBombadil(input: BombadilRunInput): Promise<BombadilRunR
     ...(trace.traceBytes === undefined ? {} : { traceBytes: trace.traceBytes }),
     usedDefaultSpecification: /using default specification/i.test(run.combinedOutput),
     timedOut: Boolean(run.raw.timedOut),
+    spawnFailed,
+    ranEvidence,
   };
 }
 
@@ -508,9 +520,11 @@ export async function runBombadilTerminalTest(
   // only that something was emitted; calling that a violation would be a claim about the target
   // that the evidence does not support, so a non-zero exit is a runtime failure until the runner
   // grows a typed signal (a dedicated exit code or a result artifact). Peer consultation, S3.
+  const spawnFailed = Boolean(run.raw.spawnFailure);
+  const ranEvidence = run.ranOutput;
   const status = deriveBombadilStatus({
-    spawnFailed: Boolean(run.raw.spawnFailure),
-    ranEvidence: run.ranOutput,
+    spawnFailed,
+    ranEvidence,
     violationEvidence: false,
     timedOut: Boolean(run.raw.timedOut),
     exitCode: run.raw.exitCode,
@@ -530,5 +544,7 @@ export async function runBombadilTerminalTest(
     stdout: run.raw.spawnFailure ? "" : run.stdout,
     stderr: renderBombadilStderr(run),
     timedOut: Boolean(run.raw.timedOut),
+    spawnFailed,
+    ranEvidence,
   };
 }
