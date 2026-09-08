@@ -1,5 +1,5 @@
 ---
-summary: "Slice S8: the frame root cause. `surf frame.diagnose` becomes a read-only observation over the tab a run already owns, its inventory becomes typed topology, and the gate every consumer reads is a separate five-value determination in the kernel's determination shape - `confirmed` only from the test author's `--frame-hint`, `frame_boundary` only on `confirmed`, everything short of exclusion filed as a coverage gap of the sensor. Six commits, 517 -> 563 tests, coverage 96.24 -> 96.35 % lines. Records the live run (MDN suspected then confirmed, claude.ai/login read twice with two honest answers), the hidden-rule deviation the w3schools page forced, the peer consultation on it, and what S9 and S10 must know."
+summary: "Slice S8: the frame root cause. `surf frame.diagnose` becomes a read-only observation over the tab a run already owns, its inventory becomes typed topology, and the gate every consumer reads is a separate five-value determination in the kernel's determination shape - `confirmed` only from the test author's `--frame-hint`, `frame_boundary` only on `confirmed`, everything short of exclusion filed as a coverage gap of the sensor. Seven commits, 517 -> 563 tests, coverage 96.24 -> 96.35 % lines. Records the live run (MDN suspected then confirmed, claude.ai/login read twice with two honest answers), the hidden-rule deviation the w3schools page forced, the peer consultation on it, and what S9 and S10 must know."
 read_when:
   - "You pick up slice S9 or S10 and need the shape of FrameTopology, FrameRootCause, explainUnreachable or the healer's refuse/caveat/heal rule."
   - "A run refuses with element_unreachable, frame_diagnosis_failed, frame_diagnosis_undetermined or heal_frame_refused and you want to know which rule produced it."
@@ -32,7 +32,8 @@ last commit lists only those five foreign paths.
 | `f853ec2` | feat(root-cause): typed Finding.frameRootCause, frame_boundary class, healer refuse/caveat/heal rule | 560 (+10) | 96.34 / 86.46 / 98.14 | 96.79 % |
 | `ec4b114` | docs(frame): the live run | 560 | 96.34 / 86.46 / 98.14 | n/a (docs) |
 | `028a827` | fix(surf): plan_field_unreachable comes from the frame diagnosis, not from an iframe count | 562 (+2) | 96.35 / 86.47 / 98.14 | 100.00 % |
-| (this note) | docs(diary): slice S8 notes, and the geometry boundary the peer sharpened | 563 (+1) | 96.35 / 86.47 / 98.14 | 100.00 % |
+| `8d086db` | docs(diary): slice S8 notes, and the geometry boundary the peer sharpened | 563 (+1) | 96.35 / 86.47 / 98.14 | 100.00 % |
+| (this note) | test(frame): every suite that takes a diagnosis points receipts.dir at a throwaway store | 563 | 96.35 / 86.47 / 98.14 | n/a (tests) |
 
 Gates after every commit: `npm run check` (lint, typecheck, node tests, 4 cucumber scenarios,
 structure, coverage ratchet, changed lines) green; `npm run loop-impact-plan` printed
@@ -190,9 +191,12 @@ Three of the eight committed captures are live documents (`example-com`, `mdn-if
    recorded as `frameRootCause.artifact.error` and the determination still reaches the caller:
    the step this diagnosis explains has already failed, and losing the explanation as well
    because a directory is unwritable would delete information rather than protect anything.
-   Consequence to know: a `--ready-selector` failure now creates `<receipts.dir>/<runId>/` on a
-   read-only explore run, which S5's "a read-only operation never touches receipts.dir"
-   invariant did not anticipate.
+   Consequence to know: a `--ready-selector` failure, and a `surf plan` locator that matched
+   nothing, now create `<receipts.dir>/<runId>/` on a read-only run, which S5's "a read-only
+   operation never touches `receipts.dir`" invariant did not anticipate. Every suite that
+   reaches the diagnosis therefore points `receipts.dir` at a throwaway directory the way a
+   mutating suite already does; without that, `npm test` leaves diagnosis artifacts in the
+   checkout.
 10. **`inferRootCauseClass` reads the marker on observations too.** The packet names the finding
     as the carrier. A sensor's own observation of the same failure carries the marker line and
     no typed field, and without reading it the finding and its observation classify differently,
@@ -259,9 +263,14 @@ finding about prompt length exactly.
   and keeps `surf-session.ts` a one-line delegation, exactly as `surf-plan-probe.ts` does. S9's
   a11y observer should be the same shape.
 - **A run directory holds more than receipts now.** `<receipts.dir>/<runId>/` carries mutation
-  receipts *and* `frame-diagnosis-*.json`, and S9's a11y artifact will join them. A test that
-  counts receipts must filter on `artifact_kind === "test-capabilities.mutation.receipt"`, the
-  way `FileReceiptStore.list` already does; `tests/surf_session_contract.test.mjs` shows it.
+  receipts *and* `frame-diagnosis-*.json`, and S9's a11y artifact will join them. Two
+  consequences: a test that counts receipts must filter on
+  `artifact_kind === "test-capabilities.mutation.receipt"`, the way `FileReceiptStore.list`
+  already does (`tests/surf_session_contract.test.mjs` shows it); and a *read-only* suite that
+  reaches the diagnosis or the a11y observer must point `receipts.dir` at a throwaway directory,
+  because the S5 rule that a read-only run never touches the store no longer holds when it
+  writes an artifact. `tests/cli_fail_closed_contract.test.mjs` (`diagnosisEnv`) and
+  `tests/surf_submit_gate_contract.test.mjs` (`writeConfig(dir)`) show both shapes.
 - **`ARTIFACT_KINDS` is the registry.** Add the a11y kind there before writing one.
 - **The fake's `frame.diagnose` is rebuilt from the captures.** A page model entry is
   `frames: [{ src, outOfProcess?, reachable?, crossOrigin?, shadowHost?, rect?, blank?,

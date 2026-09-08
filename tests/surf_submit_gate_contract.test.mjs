@@ -489,10 +489,14 @@ test("(c) a field whose target is a button is refused and no artifact is written
 });
 
 test("a locator that matches nothing, or several elements, refuses with its own code", async () => {
-  await withFake({}, async ({ out }) => {
-    await assert.rejects(() => planWith({ url: FORM_URL, field: ["name:missing=x"], out }), {
-      code: "plan_field_not_found",
-    });
+  // A locator that matched nothing runs the frame diagnosis (slice S8), which writes its raw
+  // inventory next to the run's receipts; the config keeps that in this run's throwaway store.
+  await withFake({}, async ({ dir, out }) => {
+    const config = writeConfig(dir);
+    await assert.rejects(
+      () => planWith({ url: FORM_URL, field: ["name:missing=x"], out, config }),
+      { code: "plan_field_not_found" },
+    );
     await assert.rejects(
       () => planWith({ url: FORM_URL, field: ["selector:button=x"], out }),
       (error) => {
@@ -517,11 +521,13 @@ test("a field that is only inside a frame refuses with plan_field_unreachable", 
       controls: [],
     },
   };
-  await withFake({ pages }, async ({ out }) => {
+  await withFake({ pages }, async ({ dir, out }) => {
     // Slice S8: the refusal is the frame diagnosis's answer, not an iframe count. The page
-    // carries one unreachable frame and nothing links the field to it, so `suspected`.
+    // carries one unreachable frame and nothing links the field to it, so `suspected`. The
+    // config points the diagnosis artifact at this run's throwaway store.
+    const config = writeConfig(dir);
     await assert.rejects(
-      () => planWith({ url: FORM_URL, field: ["name:q=x"], out }),
+      () => planWith({ url: FORM_URL, field: ["name:q=x"], out, config }),
       (error) => {
         assert.equal(error.code, "plan_field_unreachable");
         assert.equal(error.details.determination, "suspected");
@@ -543,9 +549,10 @@ test("a field that is absent from a page with no frame at all is not_found, not 
       controls: [],
     },
   };
-  await withFake({ pages }, async ({ out }) => {
+  await withFake({ pages }, async ({ dir, out }) => {
+    const config = writeConfig(dir);
     await assert.rejects(
-      () => planWith({ url: FORM_URL, field: ["name:q=x"], out }),
+      () => planWith({ url: FORM_URL, field: ["name:q=x"], out, config }),
       (error) => {
         assert.equal(error.code, "plan_field_not_found");
         assert.equal(error.details.determination, "excluded");

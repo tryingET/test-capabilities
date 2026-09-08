@@ -698,6 +698,30 @@ test("an unsupported command names its registered code in both modes", () => {
   assert.equal(payload.error.details.path, "/definitely-missing-config.yaml");
 });
 
+/**
+ * A frame diagnosis writes its raw inventory next to the run's receipts, so an explore run that
+ * takes one touches `receipts.dir` - which a read-only run otherwise never does. These cases
+ * point it at a throwaway directory and accept it as ephemeral, the way an operator would, so
+ * `npm test` leaves nothing in the checkout.
+ */
+function diagnosisEnv(fake) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-explore-receipts-"));
+  scratchReceiptDirs.push(dir);
+  return {
+    TEST_CAPABILITIES_SURF_BIN: fake.path,
+    TEST_CAPABILITIES_RECEIPTS_DIR: dir,
+    TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+  };
+}
+
+const scratchReceiptDirs = [];
+
+test.after(() => {
+  for (const dir of scratchReceiptDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 /** A page whose only frames are third-party embeds a main-document selector cannot reach. */
 const FRAMED_EXPLORE_PAGES = readyPages({
   "https://example.com/": {
@@ -723,7 +747,7 @@ test("surf explore --ready-selector that cannot be reached is diagnosed, not gue
         "#does-not-exist",
         "--json",
       ],
-      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+      diagnosisEnv(fake),
     );
 
     assert.equal(result.status, 1);
@@ -758,7 +782,7 @@ test("surf explore --frame-hint confirms exactly one reachable frame", () => {
         "urlPrefix=https://embed.example/",
         "--json",
       ],
-      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+      diagnosisEnv(fake),
     );
 
     assert.equal(result.status, 1);
@@ -784,7 +808,7 @@ test("surf explore --frame-hint without --ready-selector refuses before a browse
         "urlPrefix=https://embed.example/",
         "--json",
       ],
-      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+      diagnosisEnv(fake),
     );
 
     assert.equal(result.status, 1);
@@ -814,7 +838,7 @@ test("surf explore --frame-hint in a shape the framework cannot read refuses wit
         "https://embed.example/",
         "--json",
       ],
-      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+      diagnosisEnv(fake),
     );
 
     assert.equal(result.status, 1);
@@ -836,7 +860,7 @@ test("a --ready-selector the page does carry explores it normally", () => {
   try {
     const result = runCli(
       ["surf", "explore", "--url", "https://example.com/", "--ready-selector", "#go", "--json"],
-      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+      diagnosisEnv(fake),
     );
 
     assert.equal(result.status, 0);
@@ -857,9 +881,7 @@ test("surf explore js probes never leave a screenshot of the page behind", () =>
   const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": { links: [] } }) });
 
   try {
-    runCli(["surf", "explore", "--url", "https://example.com/", "--json"], {
-      TEST_CAPABILITIES_SURF_BIN: fake.path,
-    });
+    runCli(["surf", "explore", "--url", "https://example.com/", "--json"], diagnosisEnv(fake));
 
     const jsCalls = fake.calls().filter((call) => call[0] === "js");
     assert.equal(jsCalls.length > 0, true);
