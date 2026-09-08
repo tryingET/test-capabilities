@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-04-23",
+  "updated_at": "2026-09-08",
   "owner": "@project-owners",
   "project_name": "test-capabilities",
   "milestones": [
@@ -163,6 +163,51 @@
           ],
           "dod": "Task reaches done in society.db with evidence recorded.",
           "completed_at": "2026-04-23"
+        }
+      ]
+    },
+    {
+      "id": "M2",
+      "title": "Surf learnings follow-ups (2026-09-07 programme)",
+      "issues": [
+        {
+          "id": "AK-TASK-5567",
+          "title": "a11y channel: decide whether tabLeak carries more than evidence (P6 amendment)",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "a11y channel: decide whether tabLeak carries more than evidence (P6 amendment) (task #5567)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "note": "agent-browser 0.35.1 strands one about:blank page target per new session, pinned or not, so the packet's page-count check fires on every healthy run. The channel reports it as evidence on the captured artifact and changes no verdict; whether a stray tab should refuse is a packet amendment, not an implementation choice. Slice S9 deviation 2 and the peer consultation in docs/project/2026-09-07-slice-s9-notes.md."
+        },
+        {
+          "id": "AK-TASK-5568",
+          "title": "config: agents.<name>.readySelector so a test-orchestrator run can produce a frame determination",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "config: agents.<name>.readySelector so a test-orchestrator run can produce a frame determination (task #5568)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "note": "The surf agent calls executeSurfExploreOperation({url}) and cannot pass a ready selector, so no live `test` run can produce a frame_boundary finding; the agent's copy of the determination, the root-cause class and the healer rule are proved by the contract suite and the corpus only. The observation block S9 added proves the config-to-agent seam works, so this is a one-line sibling. Slice S8 deviation 13."
+        },
+        {
+          "id": "AK-TASK-5569",
+          "title": "frame root cause: in-frame positive probe to confirm a boundary without a --frame-hint",
+          "state": "queued",
+          "tasks": [
+            {
+              "text": "frame root cause: in-frame positive probe to confirm a boundary without a --frame-hint (task #5569)",
+              "done": false
+            }
+          ],
+          "dod": "Task reaches done in society.db with evidence recorded.",
+          "note": "P3 open question 5, deferred by the plan and still deferred after S8: frame.switch --index in the owned tab plus a read-only query for the failing selector would turn `suspected` into `confirmed` or `excluded` without the test author's hint. It changes extension state for the tab (frame.switch/frame.main are browser_session scope in the mutation-safety map), so it is designed together with mutation safety."
         }
       ]
     }

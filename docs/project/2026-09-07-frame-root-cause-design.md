@@ -107,7 +107,7 @@ failing selector and a frame; the framework never infers that link from topology
 | `out_of_process_frame` | `crossOrigin: true`, `cdpFrameIds: []`, `extensionFrameIds` non-empty (revised by refinement: the fallback "or the surf 'is out-of-process' warning names its index" is dropped; the structural rule alone covers every captured case and the warning stays quoted evidence) |
 | `shadow_hosted_frame` | `shadowHost` non-null (open shadow root); same-origin or not |
 | `nested_frame` | extension frame with `parentFrameId !== 0` (depth 2+), no DOM iframe of its own on the main page |
-| `hidden_frame` | `zeroSize` or `rect.width <= 1 && rect.height <= 1` or (`blank` and `src === ""`); excluded from candidates, reported as evidence only |
+| `hidden_frame` | `zeroSize`, or `rect.width <= 1 && rect.height <= 1`, or (`blank` and `src === ""` **and the box is degenerate**: `rect.width <= 1 || rect.height <= 1`); excluded from candidates, reported as evidence only (revised by implementation: S8, see the decision log) |
 
 Per-frame primary tag when several hold: `out_of_process_frame` > `cross_origin_frame` > `shadow_hosted_frame` >
 `nested_frame`. The primary tag is descriptive (it names the reason a main-page selector cannot reach the frame and
@@ -278,7 +278,11 @@ text or from healer strategy output.
 3. Should `undetermined` on an unreachable content script still emit the `frame.js` alternative as text? Surf's warning
    already says it; the framework will quote the warning, not recommend it.
 4. Pixel rule threshold (1x1) versus "not in viewport": keep 1x1 and `blank` only; visibility is not a frame property.
-5. Positive in-frame probe (deferred): `frame.switch --index` in the owned tab followed by a read-only query for the
+   (Closed by implementation: S8. "Not in viewport" stayed out - the hCaptcha frames parked at `y: -9999` on
+   `claude.ai/login` are candidates, and the live read says `suspected` rather than pretending they are hidden - and
+   the `blank` half gained the rect qualification recorded in the decision log.)
+5. Positive in-frame probe (still deferred after S8; filed as `S10-FU-3` in `governance/work-items.json`):
+   `frame.switch --index` in the owned tab followed by a read-only query for the
    failing selector would turn `suspected` into `confirmed` or `excluded` without a hint. It changes extension state
    for the tab and adds one round trip per candidate; it must be designed together with the mutation-safety packet
    (`frame.switch`/`frame.main` are now classified `browser_session` scope in the mutation-safety packet's map, revised by
@@ -304,6 +308,17 @@ text or from healer strategy output.
   `browser_coverage_gap`, never left to the regex (which would read the failure text as selector drift).
 - 2026-09-07: hidden rule is the framework's (`zeroSize || <=1x1 || blank-without-src`), because surf's `zeroSize` is
   false for the 1x1 pixel frame observed on claude.ai/login. Unchanged.
+- 2026-09-08 `revised by implementation: S8`: the blank clause is qualified by the rect. Measured live on
+  `https://www.w3schools.com/html/html_youtube.asp`, the try-it/embed pages render a **933x949** iframe that surf
+  reports as `blank: true, src: ""` - its content is written by the parent, so it carries no `src` attribute. Under
+  the literal clause that frame is hidden, the page becomes `excluded`, which is the strongest claim this module
+  makes and the one that licenses an automatic selector rewrite; a target inside that frame would be healed into a
+  lookalike in the main document, which is the silent false negative this packet exists to prevent. The implemented
+  clause 3 therefore applies only to a degenerate box (`width <= 1 || height <= 1`) - a *different* boundary from
+  clause 2's pixel (`width <= 1 && height <= 1`), which is why both are now written out. `zeroSize` and the 1x1
+  clause are untouched, so the claude.ai pixel this rule was written for is still hidden. The packet's earlier text
+  and this rule are **not both satisfied**: this entry is the amendment, not a claim of compliance. Peer
+  consultation and the two-direction contract cases are in `docs/project/2026-09-07-slice-s8-notes.md` (deviation 1).
 - 2026-09-07 (refinement): decisions are derived from structural fields of the `frame.diagnose` result only; surf's
   warning prose is quoted verbatim as evidence and never parsed for a decision.
 - 2026-09-07 (refinement): the only v1 source of a positive selector-to-frame link is the test author's `frameHint`;

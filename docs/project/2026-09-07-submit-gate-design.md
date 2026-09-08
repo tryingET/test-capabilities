@@ -261,8 +261,8 @@ auto-wait and step-delay semantics hide which call clicked).
 - `change` handlers that submit or navigate on their own (auto-submitting selects): cannot be detected
   statically; the owned tab and the absence of any click bound the damage, the runner's `observe()` turns a
   navigation into `fill_side_effect_observed`, and the receipt records it. This is the one hazard the capability
-  layer cannot own; only the allowlist prices it, and fill does not require the allowlist (Q1 closed), so a fill
-  against a public origin carries this residual by explicit acceptance.
+  layer cannot own; only the allowlist prices it, and `revised by implementation: S7` a fill *does* require the
+  allowlist, so this residual is carried only on an origin the operator has declared (Q1).
 - Auto-screenshots (`SurfClient` default, `surf type` host behaviour) can persist typed values under `SURF_TMP`;
   `surf.apply` disables auto-screenshot and documents the host-side capture.
 - Disabled-until-valid submit buttons cause `submit_control_disabled` after a correct fill when validation is
@@ -312,9 +312,18 @@ auto-wait and step-delay semantics hide which call clicked).
 
 ## 10. Open questions
 
-- Q1 (closed by refinement): fill mode does not require the allowlist. It is bounded by the owned tab, the absence
-  of any click, and the navigation check (`fill_side_effect_observed`); the autosave residual is accepted and named
-  in §8. Revisit only if a live run records a `fill_side_effect_observed` on a non-allowlisted origin.
+- Q1 (closed by refinement, then `revised by implementation: S7` - **the two are not both satisfied**): the
+  refinement closed this as "fill mode does not require the allowlist", bounded by the owned tab, the absence of any
+  click and the navigation check (`fill_side_effect_observed`), with the autosave residual accepted in §8. The
+  implementation refuses a fill on an undeclared origin with `mutation_origin_not_allowed`, before a tab is opened.
+  Reason: the mutation-safety packet as amended (A13, upheld by the adjudication) makes `mutation.allowOrigins` the
+  declaration every `mutating/target` step whose subject is a web origin consults, and S5 implemented exactly that
+  *in the kernel ledger*. Exempting a fill would mean either declaring it `browser_session` - a false class for
+  something that types into the target - or writing a "fill" special case into the reference monitor, which is the
+  classification-bypass pattern the ledger exists to forbid. Typing can trigger autosave, a request or an
+  application action with no click and no navigation, so an owned tab does not make those effects
+  browser-session-only. The stricter rule stands; `submit_origin_not_allowed` is kept for submit mode, so the two
+  refusals stay distinguishable. Peer consultation in `docs/project/2026-09-07-slice-s7-notes.md` (deviation 1).
 - Q2: Per-field `--verify-js` expression for framework state, or leave read-back as the only check in v1?
 - Q3 (closed by refinement): origin only (D9); a path prefix is not an isolation boundary.
 - Q4 (closed by architecture review, A1): one receipt kind under packet 1's `receipts.dir`, this packet's fields as
@@ -350,9 +359,11 @@ auto-wait and step-delay semantics hide which call clicked).
   `SurfApplyRunner` constructed from the plan whose addressable set is the plan's field controls plus, in submit
   mode only, the identified submit control; `SurfClient.type` loses `submit`; `SurfFlowBuilder` `click`/`type`
   steps are removed, not gated (closes Q5).
-- D9 (2026-09-07, by refinement): the origin allowlist is an isolation declaration, origin-only, operator config
-  only; it cannot be substituted by approval and approval cannot be substituted by it (closes Q1 for fill, Q3 for
-  granularity).
+- D9 (2026-09-07, by refinement; `revised by implementation: S7` for its Q1 half): the origin allowlist is an
+  isolation declaration, origin-only, operator config only; it cannot be substituted by approval and approval cannot
+  be substituted by it (Q3 for granularity). The Q1 half - that a fill is outside the declaration - was reversed by
+  the kernel ledger S5 shipped: every mutating step on a web origin consults `mutation.allowOrigins`, a fill
+  included. See Q1 in §10.
 - D10 (2026-09-07, by refinement): submit mode is operator-invoked only and unreachable from the orchestrator,
   `heal`, `SurfFlowBuilder` and every retry hook; there is no confirmation prompt and no two-person rule.
 - D11 (2026-09-07, by refinement): a navigation or form loss during fill is `fill_side_effect_observed`, a failed
