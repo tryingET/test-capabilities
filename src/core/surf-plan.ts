@@ -18,6 +18,7 @@
  * a run intends to type (architecture review A10).
  */
 
+import { z } from "zod";
 import { canonicalDigest } from "./canonical-json.js";
 import { FrameworkError } from "./runtime-contract.js";
 
@@ -322,4 +323,131 @@ export function setValueCommandFor(control: PlanFieldControl): "type" | "select"
 
 export function describeLocator(locator: FieldLocator): string {
   return `${locator.kind}:${locator.value}`;
+}
+
+// ============================================
+// READING A PLAN BACK
+// ============================================
+
+const FieldLocatorSchema = z
+  .object({ kind: z.enum(FIELD_LOCATOR_KINDS), value: z.string().min(1) })
+  .strict();
+
+const PlanFieldControlSchema = z
+  .object({
+    tag: z.string().min(1),
+    type: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+    form: z.string().min(1).optional(),
+  })
+  .strict();
+
+const PlanSubmitControlSchema = z
+  .object({
+    selector: z.string().min(1),
+    tag: z.string().min(1),
+    type: z.string().min(1).optional(),
+    text: z.string(),
+    disabled: z.boolean(),
+  })
+  .strict();
+
+/**
+ * A plan read back off disk, validated closed.
+ *
+ * The artifact is an input like any other: a file that does not carry this shape is refused
+ * rather than half-read, because everything downstream - the addressable set of the runner, the
+ * approval token, the fingerprint - is derived from it.
+ */
+export const SurfPlanSchema = z
+  .object({
+    schema_version: z.literal(SURF_PLAN_SCHEMA_VERSION),
+    artifact_kind: z.literal(SURF_PLAN_KIND),
+    plan_id: z.string().min(1),
+    generated_at: z.string().min(1),
+    runtime: z
+      .object({
+        flavor: z.literal("surf"),
+        provider: z.string().min(1),
+        version: z.string().min(1).optional(),
+      })
+      .strict(),
+    target: z
+      .object({
+        url: z.string().url(),
+        origin: z.string().min(1),
+        landed_href: z.string().min(1),
+        title: z.string(),
+        readiness: z.object({ state: z.string().min(1), evidence: z.array(z.string()) }).strict(),
+      })
+      .strict(),
+    fields: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            locator: FieldLocatorSchema,
+            resolved_selector: z.string().min(1),
+            control: PlanFieldControlSchema,
+            current_value: z.string(),
+            intended_value: z.string(),
+            set_via: z.literal("field_input"),
+          })
+          .strict(),
+      )
+      .min(1),
+    submit: z
+      .object({
+        status: z.enum(SUBMIT_STATUSES),
+        gate: z.literal("closed"),
+        control: PlanSubmitControlSchema.optional(),
+        candidates: z.array(
+          z.object({ selector: z.string(), text: z.string(), reason: z.string() }).strict(),
+        ),
+      })
+      .strict(),
+    forbidden_controls: z.array(
+      z.object({ selector: z.string(), text: z.string(), reason: z.string() }).strict(),
+    ),
+    fingerprint: z
+      .object({
+        url: z.string().min(1),
+        form_count: z.number().int().nonnegative(),
+        field_signature: z.string().min(1),
+        control_signature: z.string().min(1),
+      })
+      .strict(),
+    approval_token: z.string().min(1),
+    policy: z
+      .object({
+        dry_run_default: z.literal(true),
+        value_via_field_input_only: z.literal(true),
+        never_retry_submit: z.literal(true),
+        approval_binds_to: z.literal("content_hash"),
+        authority: z.array(z.string()),
+      })
+      .strict(),
+  })
+  .strict();
+
+/** Parse a plan artifact, or refuse with the path in the message. */
+export function parsePlanArtifact(raw: unknown, planPath: string): SurfPlan {
+  const parsed = SurfPlanSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new FrameworkError(
+      "config_invalid",
+      `The plan at ${planPath} is not a ${SURF_PLAN_KIND} v${SURF_PLAN_SCHEMA_VERSION} artifact: ${parsed.error.issues
+        .slice(0, 3)
+        .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+        .join("; ")}. Re-run 'surf plan' rather than editing the artifact by hand.`,
+      {
+        path: planPath,
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+    );
+  }
+  return parsed.data as SurfPlan;
 }

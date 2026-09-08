@@ -1,6 +1,7 @@
 import type { ZodType, ZodTypeDef } from "zod";
 import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
+import type { ApplyFieldResult, ApplyMode } from "../browser-session.js";
 import type { TestCapabilitiesConfig } from "../config.js";
 import type { Determination } from "../determination.js";
 import type { EffectDeclaration } from "../effects.js";
@@ -13,6 +14,7 @@ import type {
   PlanForbiddenControl,
   PlanRuntime,
   PlanSubmit,
+  SubmitStatus,
 } from "../surf-plan.js";
 
 export type OperationStatus = "implemented" | "unsupported";
@@ -36,6 +38,7 @@ export type OperationId =
   | "init"
   | "surf.explore"
   | "surf.plan"
+  | "surf.apply"
   | "quantum"
   | "heal"
   | "replacement-validation";
@@ -91,6 +94,18 @@ export interface SurfPlanOperationInput {
   submitText?: string;
   submitSelector?: string;
   out?: string;
+  config?: string;
+  json?: boolean;
+}
+
+/** `surf apply` (submit-gate packet §4.2). Fill is the default; submit needs both gate flags. */
+export interface SurfApplyOperationInput {
+  plan?: string;
+  submit?: boolean;
+  confirmPlan?: string;
+  untilUrlPrefix?: string;
+  untilText?: string;
+  receiptOut?: string;
   config?: string;
   json?: boolean;
 }
@@ -358,6 +373,32 @@ export interface SurfPlanOperationResultEnvelope extends OperationEffectEnvelope
   notes: string[];
 }
 
+export interface SurfApplyOperationResultEnvelope extends OperationEffectEnvelope {
+  operationId: "surf.apply";
+  input: Required<Pick<SurfApplyOperationInput, "plan" | "submit">> &
+    Omit<SurfApplyOperationInput, "plan" | "submit">;
+  plan: { path: string; planId: string };
+  /** the receipt an operator looks at first: the submit if there was one, else the last fill */
+  receipt?: { path: string; outcome: string };
+  /** where `--receipt-out` exported this run's receipts, when it was asked for */
+  receiptExport?: string;
+  result: {
+    mode: ApplyMode;
+    /** `true` only when the post-condition was observed; `"unknown"` never reaches a verdict */
+    submitted: boolean | "unknown";
+    fields: ApplyFieldResult[];
+    submit: {
+      status: SubmitStatus;
+      control?: string;
+      clicked: boolean;
+      postCondition?: { kind: string; expected: string };
+    };
+    /** the verbs this run issued with what they addressed, values elided: the click evidence */
+    surfCalls: string[];
+  };
+  notes: string[];
+}
+
 export interface QuantumOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "quantum";
   input: Required<Pick<QuantumOperationInput, "target" | "branches" | "collapse">>;
@@ -413,6 +454,7 @@ export type CliOperationResult =
   | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
   | SurfPlanOperationResultEnvelope
+  | SurfApplyOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope
   | ReplacementValidationOperationResultEnvelope;
@@ -424,6 +466,7 @@ export type CliOperationInputUnion =
   | InitOperationInput
   | SurfExploreOperationInput
   | SurfPlanOperationInput
+  | SurfApplyOperationInput
   | QuantumOperationInput
   | HealOperationInput
   | ReplacementValidationOperationInput;

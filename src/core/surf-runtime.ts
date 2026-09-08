@@ -421,16 +421,22 @@ function translateWait(args: string[]): string[] {
   throw unsupported("wait", args.join(" ") || "(empty)");
 }
 
+/**
+ * `--tab-id` is a *global* surf option, so the target-mutating verbs can carry it even though
+ * their own `--help` does not list it. That is what lets the session point them at the tab this
+ * run created instead of whichever tab the browser has in front (slice S7; the owned-tab rule).
+ */
 function translateClick(args: string[]): string[] {
   const parsed = parseCommandArgs("click", args, {
-    valueFlags: ["--selector", "--index"],
+    valueFlags: ["--selector", "--index", "--tab-id"],
     maxPositionals: 2,
   });
+  const tab = passthroughValues(parsed, ["--tab-id"]);
   if (parsed.values["--selector"]) {
-    return ["click", ...passthroughValues(parsed, ["--selector", "--index"])];
+    return ["click", ...passthroughValues(parsed, ["--selector", "--index"]), ...tab];
   }
   if (parsed.positionals.length === 1) {
-    return ["click", parsed.positionals[0]];
+    return ["click", parsed.positionals[0], ...tab];
   }
   if (parsed.positionals.length === 2) {
     return [
@@ -439,6 +445,7 @@ function translateClick(args: string[]): string[] {
       String(numeric("click", parsed.positionals[0], "x")),
       "--y",
       String(numeric("click", parsed.positionals[1], "y")),
+      ...tab,
     ];
   }
   throw unsupported("click", args.join(" ") || "(empty)");
@@ -446,7 +453,7 @@ function translateClick(args: string[]): string[] {
 
 function translateType(args: string[]): string[] {
   const parsed = parseCommandArgs("type", args, {
-    valueFlags: ["--ref", "--selector"],
+    valueFlags: ["--ref", "--selector", "--tab-id"],
     boolFlags: ["--submit", "--clear"],
     maxPositionals: 1,
   });
@@ -459,6 +466,7 @@ function translateType(args: string[]): string[] {
     out.push("--into", parsed.values["--selector"]);
   }
   out.push(...passthroughFlags(parsed, ["--submit", "--clear"]));
+  out.push(...passthroughValues(parsed, ["--tab-id"]));
   return out;
 }
 
@@ -491,13 +499,13 @@ function translateScreenshot(args: string[]): string[] {
 }
 
 function translateSelect(args: string[]): string[] {
-  const parsed = parseCommandArgs("select", args, { valueFlags: ["--by"] });
+  const parsed = parseCommandArgs("select", args, { valueFlags: ["--by", "--tab-id"] });
   const target = requiredPositional("select", parsed, 0, "ref or selector");
   const values = parsed.positionals.slice(1);
   if (values.length === 0) {
     throw unsupported("select", "missing value");
   }
-  return ["select", target, ...values, ...passthroughValues(parsed, ["--by"])];
+  return ["select", target, ...values, ...passthroughValues(parsed, ["--by", "--tab-id"])];
 }
 
 const NETWORK_LIST_FLAGS = ["--origin", "--method", "--type", "--status", "--since", "--last"];

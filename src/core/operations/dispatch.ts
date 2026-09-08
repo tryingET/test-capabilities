@@ -9,6 +9,7 @@ export {
   executeInitOperation,
   executeQuantumOperation,
   executeReplacementValidationOperation,
+  executeSurfApplyOperation,
   executeSurfExploreOperation,
   executeSurfPlanOperation,
   executeTestOperation,

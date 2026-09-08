@@ -14,6 +14,8 @@ const unsupportedSurfExploreOptionGuidance =
  */
 const SURF_EXPLORE_ONLY_OPTIONS = ["depth", "record", "validate", "baseline", "aiDiff", "file"];
 const SURF_PLAN_ONLY_OPTIONS = ["field", "submitText", "submitSelector", "out"];
+/** `surf apply` takes its target from the plan, so naming a URL on the command line is a lie. */
+const SURF_TARGET_URL_OPTION = ["url"];
 const SURF_APPLY_ONLY_OPTIONS = [
   "plan",
   "submit",
@@ -88,8 +90,8 @@ export function assertSupportedSurfApplyOptions(options: Record<string, unknown>
   refuseForeignOptions(
     "apply",
     options,
-    [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_PLAN_ONLY_OPTIONS],
-    "Use --plan, --submit with --confirm-plan, --until-url-prefix or --until-text, --receipt-out, --config and --json; what is filled is decided by the plan, not by the command line.",
+    [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_PLAN_ONLY_OPTIONS, ...SURF_TARGET_URL_OPTION],
+    "Use --plan, --submit with --confirm-plan, --until-url-prefix or --until-text, --receipt-out, --config and --json; what is filled, and where, is decided by the plan, not by the command line.",
   );
 }
 

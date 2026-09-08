@@ -685,18 +685,24 @@ test("an optional observer that fails is unavailable; a required one fails the r
 // Seams later slices fill
 // ---------------------------------------------------------------------------
 
-test("the seams S8 fills refuse loudly instead of guessing", async () => {
+test("the seam S8 fills refuses loudly instead of guessing", async () => {
   await withSession({ gate: true }, async ({ session, fake }) => {
-    for (const call of [
-      () => session.apply({ plan: { plan_id: "p1" }, mode: "fill" }),
-      () => session.explainUnreachable("#submit"),
-    ]) {
-      await assert.rejects(call, {
-        code: "unsupported_surf_action",
-        message: /declared but not implemented in this build/,
-      });
-    }
+    await assert.rejects(() => session.explainUnreachable("#submit"), {
+      code: "unsupported_surf_action",
+      message: /declared but not implemented in this build/,
+    });
     assert.deepEqual(commandsOf(fake), ["tab.new", "wait.ready"]);
+  });
+});
+
+test("apply refuses on a session that was never gated, before any page is acted on", async () => {
+  await withSession({ gate: false }, async ({ session, fake }) => {
+    await assert.rejects(
+      () =>
+        session.apply({ plan: { plan_id: "p1", target: { url: URL_UNDER_TEST } }, mode: "fill" }),
+      { code: "page_not_ready" },
+    );
+    assert.deepEqual(commandsOf(fake), ["tab.new"]);
   });
 });
 

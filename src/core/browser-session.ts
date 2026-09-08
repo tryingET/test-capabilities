@@ -19,7 +19,12 @@
  * browser lives in the surf implementation.
  */
 
-import type { EffectAttempt, EffectDeclaration, VerifyResult } from "./effects.js";
+import type {
+  EffectAttempt,
+  EffectDeclaration,
+  EffectSettlement,
+  VerifyResult,
+} from "./effects.js";
 import type { ExpectDeclaration, ResultOutcome } from "./result-classification.js";
 import type { PlanFieldRequest, SurfPlan } from "./surf-plan.js";
 
@@ -113,6 +118,15 @@ export interface BrowserStep<T> {
    */
   read: (reply: SessionReply, attempt: number) => T;
   /**
+   * Mutating only: what this step's own reply means, within the ledger's rules (a resolved
+   * value may settle `applied` or `unknown`, never `failed`; a thrown one `failed` or
+   * `unknown`). The submit step uses it to settle `unknown` on a click whose effect has not
+   * been observed yet, so its post-condition runs as the receipt's `verify`. Without it the
+   * session's own settlement applies: a definite surf refusal is `failed`, an unattributable
+   * reply is `unknown`.
+   */
+  settle?: (attempt: EffectAttempt<T>) => EffectSettlement;
+  /**
    * Read-only revocation: return a reason when the attempt's own evidence shows the target
    * moved. The ledger then fails the step with `read_only_violation_observed` and forfeits the
    * remaining budget - observation cannot prevent the first attempt, only the repeat.
@@ -160,6 +174,12 @@ export interface SessionPlanRequest {
 export interface SessionApplyRequest {
   plan: SurfPlan;
   mode: ApplyMode;
+  /**
+   * What the operator expects to see after the one click. Absent means the default: the URL
+   * leaves the page the plan was written against. It is the submit step's `verify`, so an
+   * unmet post-condition leaves the receipt `unknown` rather than claiming a failure.
+   */
+  postCondition?: { kind: "url_prefix" | "text" | "left_url"; expected: string };
 }
 
 export type ApplyMode = "fill" | "submit";

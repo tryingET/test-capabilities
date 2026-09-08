@@ -294,6 +294,15 @@ program
   .option("--submit-text <text>", "surf plan: narrow the submit candidates by visible button text")
   .option("--submit-selector <css>", "surf plan: narrow the submit candidates by CSS selector")
   .option("--out <file>", "surf plan: write the reviewable plan artifact here (mode 0600)")
+  .option("--plan <file>", "surf apply: the plan artifact to carry out")
+  .option(
+    "--submit",
+    "surf apply: open the submit gate; needs --confirm-plan and an allowlisted origin",
+  )
+  .option("--confirm-plan <token>", "surf apply: the approval token printed by surf plan")
+  .option("--until-url-prefix <prefix>", "surf apply: post-condition, the URL starts with this")
+  .option("--until-text <text>", "surf apply: post-condition, the page contains this text")
+  .option("--receipt-out <file>", "surf apply: export this run's mutation receipts as one JSON")
   .option(
     "-c, --config <file>",
     "surf plan/apply: config file holding mutation.allowOrigins, receipts.dir and surf.submit.*",
@@ -327,6 +336,19 @@ program
 
       if (shouldPrintJson) {
         console.log(JSON.stringify(output, null, 2));
+      } else if (action === "apply") {
+        const submitted =
+          output.result.submitted === true
+            ? "submitted"
+            : output.result.submitted === "unknown"
+              ? "submitted=unknown"
+              : "not submitted";
+        console.log(
+          `plan ${output.plan.planId} ${output.result.mode}: ${output.result.fields.length} field(s) set and read back, ${submitted}`,
+        );
+        if (output.receipt) {
+          console.error(chalk.dim(`Receipt ${output.receipt.outcome}: ${output.receipt.path}`));
+        }
       } else if (action === "plan") {
         console.error(
           chalk.dim(

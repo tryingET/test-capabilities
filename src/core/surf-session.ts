@@ -34,17 +34,13 @@ import type {
   SessionReply,
 } from "./browser-session.js";
 import { findJsMutationSignals, SESSION_LIFECYCLE_EFFECT } from "./browser-session.js";
-import type { EffectAttempt, EffectDeclaration, EffectStep } from "./effects.js";
-import {
-  defaultMutationOutcomeForError,
-  idempotencyKeyFor,
-  MutationError,
-  resolveEffectDeclaration,
-} from "./effects.js";
+import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
+import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
 import type { ExpectDeclaration } from "./result-classification.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError } from "./runtime-contract.js";
-import { probeSurfRuntime, runSurfCommand, surfEffect } from "./surf-adapter.js";
+import { probeSurfRuntime, runSurfCommand, settleSurfAttempt, surfEffect } from "./surf-adapter.js";
+import { createApplyRunner } from "./surf-apply-runner.js";
 import type { SurfPlan } from "./surf-plan.js";
 import { planFromSession } from "./surf-plan-probe.js";
 import { readinessRefusalFromFailure, settledReadinessOrRefuse } from "./surf-readiness.js";
@@ -58,6 +54,9 @@ import {
   SurfCommandError,
   translateSurfArgs,
 } from "./surf-runtime.js";
+
+/** Re-exported where it always was: the settlement rule lives with the surf transport now. */
+export { settleSurfAttempt };
 
 export const SURF_SESSION_COMMAND_TIMEOUT_MS = 90_000;
 export const SURF_SESSION_READY_TIMEOUT_MS = 20_000;
@@ -73,6 +72,11 @@ const SESSION_TAB_SCOPED_COMMANDS = new Set([
   "frame.diagnose",
   "extract",
   "js",
+  // The submit gate's three value-setting verbs. `--tab-id` is a global surf option, so their
+  // argv mapping can carry it; without that they would act on whichever tab is in front.
+  "type",
+  "select",
+  "click",
 ]);
 
 /** Read-only commands that address no tab at all; the packet exempts them from the rule. */
@@ -147,6 +151,7 @@ interface LedgerStepRequest<T> {
   idempotencyKey?: string;
   details?: Record<string, unknown>;
   timeoutMs?: number;
+  settle?: (attempt: EffectAttempt<T>) => EffectSettlement;
   /** the session's own lifecycle and gate read a failed reply instead of throwing on it */
   acceptFailure?: boolean;
   read: (reply: SessionReply, attempt: number) => T;
@@ -342,6 +347,7 @@ export class SurfSession implements Session {
       ...(step.retryOn ? { retryOn: step.retryOn } : {}),
       ...(step.idempotencyKey ? { idempotencyKey: step.idempotencyKey } : {}),
       ...(step.details ? { details: step.details } : {}),
+      ...(step.settle ? { settle: step.settle } : {}),
       read: step.read,
       ...(step.observe ? { observe: step.observe } : {}),
       ...(step.verify ? { verify: step.verify } : {}),
@@ -440,13 +446,27 @@ export class SurfSession implements Session {
     return planFromSession(this, request);
   }
 
-  /** S7 commit (2) replaces this with the capability-restricted runner over this session. */
+  /**
+   * The capability-restricted runner over this session (§4.3). What the caller gets back can
+   * address the plan's own fields and, in submit mode with an identified control, that one
+   * control - and nothing else. The runner is built in `surf-apply-runner.ts`; this session
+   * hands it the tab it owns.
+   */
   async apply(request: SessionApplyRequest): Promise<ApplyRunner> {
-    throw new FrameworkError(
-      "unsupported_surf_action",
-      "Session.apply is declared but not implemented in this build: a plan can be prepared and reviewed, but nothing carries it out yet. Nothing was sent to the browser.",
-      { action: "apply", mode: request?.mode },
-    );
+    const readiness = this.gated;
+    if (readiness === undefined) {
+      throw new FrameworkError(
+        "page_not_ready",
+        `Refusing to apply plan ${request.plan?.plan_id ?? "(none)"} on ${this.url} before the readiness gate ran: a page that has not settled is not a page this run may act on.`,
+        { url: this.url },
+      );
+    }
+    return createApplyRunner(this, readiness, {
+      context: this.context,
+      plan: request.plan,
+      mode: request.mode,
+      ...(request.postCondition ? { postCondition: request.postCondition } : {}),
+    });
   }
 
   // ---- the rules -----------------------------------------------------------
@@ -636,7 +656,7 @@ export class SurfSession implements Session {
         : {}),
       ...(request.observe ? { observe: request.observe } : {}),
       ...(request.verify ? { verify: request.verify } : {}),
-      ...(declaration.effect === "mutating" ? { settle: settleSurfAttempt } : {}),
+      ...(declaration.effect === "mutating" ? { settle: request.settle ?? settleSurfAttempt } : {}),
       run: async (attempt) => {
         const result = runSurfCommand(
           this.runtime.resolution,
@@ -661,29 +681,4 @@ export class SurfSession implements Session {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * What a mutating browser attempt means.
- *
- * The framework holds no authoritative read of a page's post-state, so a reply the classifier
- * could not attribute - a budget kill, a signal, a tab that navigated away mid-command - is
- * `unknown` and locks the key until an operator supersedes it. Only a definite refusal from
- * surf is `failed` (mutation-safety packet, "Behaviour and failure modes").
- */
-export function settleSurfAttempt<T>(attempt: EffectAttempt<T>): {
-  outcome: "applied" | "failed" | "unknown";
-  evidence?: string[];
-} {
-  if (attempt.error === undefined) {
-    return { outcome: "applied" };
-  }
-  const outcome = attempt.error instanceof SurfCommandError ? attempt.error.outcome : undefined;
-  if (outcome?.basis === "indeterminate") {
-    return {
-      outcome: "unknown",
-      evidence: [`outcome:${outcome.class}:${outcome.code}`, "basis:indeterminate"],
-    };
-  }
-  return { outcome: defaultMutationOutcomeForError(attempt.error) };
 }

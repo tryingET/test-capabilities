@@ -10,6 +10,8 @@
 
 import process from "node:process";
 import type { Adapter, AdapterEffect, AdapterInvocation, AdapterStep } from "./adapter.js";
+import type { EffectAttempt } from "./effects.js";
+import { defaultMutationOutcomeForError } from "./effects.js";
 import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-classification.js";
 import { classifyResult } from "./result-classification.js";
 import { parseSurfErrorOutput } from "./result-payload.js";
@@ -334,3 +336,28 @@ export const surfAdapter: Adapter<SurfRuntimeResolution, SurfRuntimeProbe> = {
     return classifyResult(raw, declaration);
   },
 };
+
+/**
+ * What a mutating browser attempt means.
+ *
+ * The framework holds no authoritative read of a page's post-state, so a reply the classifier
+ * could not attribute - a budget kill, a signal, a tab that navigated away mid-command - is
+ * `unknown` and locks the key until an operator supersedes it. Only a definite refusal from
+ * surf is `failed` (mutation-safety packet, "Behaviour and failure modes").
+ */
+export function settleSurfAttempt<T>(attempt: EffectAttempt<T>): {
+  outcome: "applied" | "failed" | "unknown";
+  evidence?: string[];
+} {
+  if (attempt.error === undefined) {
+    return { outcome: "applied" };
+  }
+  const outcome = attempt.error instanceof SurfCommandError ? attempt.error.outcome : undefined;
+  if (outcome?.basis === "indeterminate") {
+    return {
+      outcome: "unknown",
+      evidence: [`outcome:${outcome.class}:${outcome.code}`, "basis:indeterminate"],
+    };
+  }
+  return { outcome: defaultMutationOutcomeForError(attempt.error) };
+}

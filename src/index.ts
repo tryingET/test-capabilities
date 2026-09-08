@@ -124,6 +124,8 @@ export type {
   ReplacementValidationOperationInput,
   ReplacementValidationOperationResultEnvelope,
   SurfAction,
+  SurfApplyOperationInput,
+  SurfApplyOperationResultEnvelope,
   SurfExploreOperationInput,
   SurfExploreOperationResultEnvelope,
   SurfPlanOperationInput,
@@ -143,6 +145,7 @@ export {
   executeInitOperation,
   executeQuantumOperation,
   executeReplacementValidationOperation,
+  executeSurfApplyOperation,
   executeSurfExploreOperation,
   executeSurfPlanOperation,
   executeTestOperation,
@@ -227,6 +230,8 @@ export {
   toErrorEnvelope,
 } from "./core/runtime-contract.js";
 export { probeSurfRuntime, runSurfCommand } from "./core/surf-adapter.js";
+export type { ApplyRunnerOptions, PostCondition } from "./core/surf-apply-runner.js";
+export { createApplyRunner } from "./core/surf-apply-runner.js";
 export type {
   FieldLocator,
   PlanField,

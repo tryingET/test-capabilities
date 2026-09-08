@@ -32,6 +32,10 @@
  *     forbidden: ["click", ...],   // verbs this page refuses, so a test can prove none ran
  *     changeNavigatesTo: "<url>",  // where a click (or `type --submit`) sends the tab
  *     typeNavigatesTo: "<url>",    // a change handler that navigates when a value is set
+ *     submitPostsTo: "<url>",      // a control click POSTs the field values there, so a test
+ *                                  // can count how many submissions reached a real server
+ *     controlsAfterType: [...],    // the controls the page shows once a value has been typed:
+ *                                  // a form that re-renders its buttons on input
  *     navigatesAfterGate: "<url>", // the page moves once wait.ready settled: a probe answering
  *                                  // from somewhere the gate never saw
  *     extractAttempts: <n>         // what extract claims in `attempts` (the caller asked for 1)
@@ -54,6 +58,7 @@
  * - FAKE_SURF_ECHO        "1": echo argv (one per line) for every command except version/help/doctor
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import path from "node:path";
 import vm from "node:vm";
 
@@ -358,7 +363,10 @@ function pageFor(url, state) {
   for (const [selector, written] of Object.entries(state?.fields?.[page.url || url] || {})) {
     fields[selector] = { ...(fields[selector] || {}), ...written };
   }
-  const controls = page.controls || [];
+  // A form that re-renders its buttons once a value was typed: the state file records that a
+  // field was written, which is the only "after input" signal this fixture has.
+  const typed = Boolean(state?.fields?.[page.url || url]);
+  const controls = (typed && page.controlsAfterType ? page.controlsAfterType : page.controls) || [];
   return {
     url: page.url || url,
     title: page.title || "Fake page",
@@ -372,6 +380,7 @@ function pageFor(url, state) {
     forbidden: page.forbidden || [],
     changeNavigatesTo: page.changeNavigatesTo,
     typeNavigatesTo: page.typeNavigatesTo,
+    submitPostsTo: page.submitPostsTo,
     navigatesAfterGate: page.navigatesAfterGate,
     extractAttempts: page.extractAttempts ?? 1,
     counts: {
@@ -739,6 +748,39 @@ function assertNotForbidden(page) {
   }
 }
 
+/**
+ * A control click that reaches a server. The submit gate's proof is "exactly one POST", and a
+ * fixture that only writes to a log file cannot make that claim; this one opens a socket.
+ */
+async function postSubmission(target, fields) {
+  const body = new URLSearchParams(fields).toString();
+  const url = new URL(target);
+  // The submission is sent, not awaited: a real browser does not block a click on the server's
+  // reply, and the caller of this fake is inside a synchronous spawn, so waiting for a response
+  // from a server in that same process would deadlock. Resolving on `finish` means the bytes
+  // are on the socket.
+  await new Promise((resolve, reject) => {
+    const request = httpRequest({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": Buffer.byteLength(body),
+      },
+    });
+    request.on("error", reject);
+    request.on("finish", () => {
+      // The reply is never read, so the pending socket must not keep this process alive: the
+      // caller is a synchronous spawn and would wait for its whole budget.
+      request.socket?.unref();
+      resolve();
+    });
+    request.end(body);
+  });
+}
+
 /** Where a `type` or `click` sends the tab, when the page model says it navigates. */
 function applyNavigation(page, tab, target) {
   if (!target) {
@@ -869,6 +911,12 @@ switch (command) {
     const control = page.controls.find((entry) => entry.selector === selector);
     if (!control) fail("no_element", `No element matches ${selector}`);
     if (control.enabled === false) fail("element_disabled", `${selector} is disabled`);
+    if (page.submitPostsTo) {
+      const values = Object.fromEntries(
+        Object.entries(page.fields).map(([key, field]) => [field.name || key, field.value ?? ""]),
+      );
+      await postSubmission(page.submitPostsTo, values);
+    }
     emit(
       { success: true, selector, url: applyNavigation(page, tab, page.changeNavigatesTo) },
       targetMeta(tab),

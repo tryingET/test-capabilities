@@ -435,8 +435,8 @@
       "name": "surf apply",
       "surface_kind": "cli-subcommand",
       "presence_state": "present",
-      "support_state": "unsupported",
-      "verification_state": "contract_only",
+      "support_state": "supported",
+      "verification_state": "verified",
       "evidence": {
         "tests": [
           "tests/surf_submit_gate_contract.test.mjs",
@@ -446,7 +446,8 @@
         "docs": ["docs/project/2026-09-07-submit-gate-live-run.md"]
       },
       "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
-      "activation_requirements": []
+      "activation_requirements": [],
+      "notes": "Carries out a plan on a capability-restricted runner whose addressable set is the plan's own fields plus, in submit mode only, the one identified submit control; there is no click/press/key path that takes a free selector. Dry-run fill is the default. Submit is not wired to any agent, hook or retry path in this repo and is reachable through the library like every operation; the controls are mutation.allowOrigins in operator config and the runner's construction, not this sentence. One mutation receipt per attempt, written before the click, and a submit-mode receipt for a plan id refuses every later submit of it."
     },
     {
       "id": "surf-action:assert",
