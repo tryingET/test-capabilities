@@ -136,8 +136,27 @@ const rows = await session.step({
 
 ---
 
+## Forms: `plan` and `apply`
+
+`session.plan(request)` reads a form and returns the reviewable artifact (`surf plan` writes it 0600); `session.apply({plan, mode})` returns the runner that may carry it out. The runner is the whole surface an apply run has on a browser:
+
+| method | emits | addressable set |
+|---|---|---|
+| `fingerprint()` | one read-only `js` | none |
+| `setValue(fieldId)` | `type <v> --into <sel>`, `select <sel> <v>`, or `click --selector <sel>` on a checkbox | the plan's `fields[].resolved_selector`, named by **field id** |
+| `readBack(fieldId)` | one read-only `js` | the same |
+| `observe()` | one read-only `js` | none |
+| `clickSubmit()` | `click --selector <submit.control.selector>` | exists only on a submit-mode runner built from a plan whose control is `identified`; consumes itself |
+| `close()` | `tab.close` | the owned tab |
+
+There is no `click(selector)`, no `type(..., {submit})`, no `press`, no `key`, no `do` and no coordinate click. A `forbidden_controls[]` selector is not expressible as an argument to any method, which is why the "Set bid" class of accident cannot be written in this path, and `canSubmit(runner)` is how a caller finds out whether the one click exists at all. Every call carries `--no-screenshot`: the surf build otherwise saves a picture of the page - values included - to `/tmp` after each of these verbs.
+
+The gate itself is not in the runner. `mutation.allowOrigins` (operator config) decides which origins may be acted on, the plan's `approval_token` binds an approval to reviewed content, and the mutation ledger writes a receipt before the click and refuses a second submit of the same plan. See `docs/api/cli.md` for the two commands and `docs/api/errors.md` for the sixteen refusals.
+
+---
+
 ## What is not here
 
-- `plan`, `apply` and `explainUnreachable` are declared on the interface and refuse with `unsupported_surf_action`: form preparation, gated submission and the frame root cause arrive later in this release line. Nothing guesses in the meantime.
-- Screenshots, semantic locators, device emulation, network reads, console and cookie reads are mapped in the adapter (`translateSurfArgs`) and reachable through `step()` only where the mapping carries `--tab-id`; the rest are refused under the owned-tab rule rather than run untargeted.
+- `explainUnreachable` is declared on the interface and refuses with `unsupported_surf_action`: the frame root cause arrives later in this release line. Nothing guesses in the meantime.
+- Screenshots, semantic locators, device emulation, network reads, console and cookie reads are mapped in the adapter (`translateSurfArgs`) and reachable through `step()` only where the mapping carries `--tab-id`; the rest are refused under the owned-tab rule rather than run untargeted. `type`, `select` and `click` carry it since slice S7, which is what lets the submit gate act in the tab the run created.
 - surf's file-driven workflows and the AI query passthroughs (`chatgpt` and friends) are a library-level passthrough to surf's own commands, not a core-owned, schema-validated contract in this repo. They use the operator's browser logins, no test path drives them, and no session verb exposes them.

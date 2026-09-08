@@ -185,6 +185,69 @@ These actions fail clearly instead of emitting placeholder output.
 
 ---
 
+### `test-capabilities surf plan`
+
+Read a form in an owned tab and write the artifact an operator reviews before anything is filled or submitted. `surf plan` is read-only: it opens a tab, gates it with `wait.ready`, runs one page-side expression that reads the form, closes the tab, and writes `test-capabilities.surf.plan` v1 with mode 0600 (it carries the values the run intends to type).
+
+```bash
+test-capabilities surf plan \
+  --url https://example.com/search \
+  --field 'label:Search packages=surf-cli' \
+  --submit-text 'Search' \
+  --out plan.json \
+  --config test-capabilities.yaml
+```
+
+In text mode the approval token is the only line on stdout, so it can be copied into `surf apply --confirm-plan`; the one-line summary goes to stderr.
+
+| Option | Description |
+|--------|-------------|
+| `--url <url>` | Required page to read |
+| `--field <locator>=<value>` | Required, repeatable. `<locator>` is `label:<text>`, `selector:<css>` or `name:<input name>`; the split is at the first `=` outside brackets, so `selector:input[name=q]=surf-cli` works |
+| `--submit-text <text>` | Narrow the submit candidates by the control's normalised visible text |
+| `--submit-selector <css>` | Narrow them by CSS; the only way to identify a submit on a page with no owning form |
+| `--out <file>` | Required path for the plan artifact (0600) |
+| `--config <file>` | Config holding `mutation.allowOrigins`, `receipts.dir` and `surf.submit.*`; same lookup as `test`, default `test-capabilities.yaml` |
+| `--json` | Print the operation envelope; the envelope names the plan's path, id and token and never carries the intended values |
+
+The plan records every field with its resolved selector and `set_via: field_input`; the one control that may be clicked, or an explicit `ambiguous`/`none` with the candidate list; the form-level buttons that may never be clicked (`forbidden_controls`); a page fingerprint; and `approval_token`, a sha256 over the RFC 8785 canonical form of the origin, the fields' selectors and intended values, and the submit selector.
+
+Refused before any artifact exists: `plan_field_not_found`, `plan_field_ambiguous`, `plan_field_unreachable`, and `value_via_button_refused` when a field locator resolves to a button, a link or a submit input — a value is set only through the field's own input. An ambiguous or missing submit does not refuse the plan; it is recorded, so a fill-only dry run stays possible.
+
+---
+
+### `test-capabilities surf apply`
+
+Carry out a plan. Filling is the default and clicks nothing; submitting needs the gate.
+
+```bash
+# dry run: set the plan's values, read them back, click nothing
+test-capabilities surf apply --plan plan.json --config test-capabilities.yaml
+
+# submit: the origin must be allowlisted and the token must match the plan's content
+test-capabilities surf apply --plan plan.json --submit \
+  --confirm-plan sha256:… --until-url-prefix https://example.com/done \
+  --config test-capabilities.yaml
+```
+
+| Option | Description |
+|--------|-------------|
+| `--plan <file>` | Required plan artifact; the target, the fields and the control all come from it |
+| `--submit` | Open the submit gate; needs `--confirm-plan` and an allowlisted origin |
+| `--confirm-plan <token>` | The approval token `surf plan` printed, recomputed from the plan's content |
+| `--until-url-prefix <p>` / `--until-text <t>` | The post-condition to observe after the click; the default is "the URL leaves the plan's page" |
+| `--receipt-out <file>` | Export this run's mutation receipts as one JSON artifact (the per-receipt files under `receipts.dir` are written either way) |
+| `--config <file>` | Config holding `mutation.allowOrigins`, `receipts.dir` and `surf.submit.*` |
+| `--json` | Print the operation envelope |
+
+In submit mode the refusals are ordered, and all of them happen before a tab is opened: the world (`submit_origin_not_allowed`), the intent (`submit_gate_closed`, `submit_plan_mismatch`), at-most-once (`submit_already_attempted`, keyed on submit-mode receipts only, so a fill dry run never blocks the submit of its own plan) and identification (`plan_submit_ambiguous`, `plan_submit_missing`). After that the page must still match the plan's fingerprint (`plan_stale`), every value must read back (`field_readback_mismatch`), the page must not move on its own (`fill_side_effect_observed`), and the control must be enabled, unique and still in the fields' form (`submit_control_disabled`, `submit_control_changed`).
+
+A fill needs the origin declared too: a fill is a bounded mutation, not a safe one, and the kernel ledger gates every mutating step whose subject is a web origin (`mutation_origin_not_allowed`).
+
+The click is preceded by a receipt on disk and followed by the post-condition, which is that receipt's verification. A post-condition that never arrives leaves `submitted: "unknown"`, the receipt `unknown` and exit 1; it is never retried, and the plan can never be submitted again.
+
+---
+
 ### `test-capabilities replacement-validation plan`
 
 Plan dependency replacement validation from an explicit `testcapabilities.replacement-validation-request.v1` JSON file, usually emitted by `dep-surgeon` from a replacement plan.
@@ -306,6 +369,8 @@ These route statuses are mirrored by the exported operation registry / route man
 | `demo` | implemented |
 | `test` | implemented |
 | `surf explore` | implemented |
+| `surf plan` | implemented |
+| `surf apply` | implemented |
 | `quantum` | implemented |
 | `heal` | implemented |
 | `predict` | unsupported |

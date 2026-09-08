@@ -241,7 +241,32 @@ The operator's declaration of which web origins this suite may *act* on. It is e
 default, and a mutating step whose subject is a web origin outside it refuses with
 `mutation_origin_not_allowed` before anything is spawned — the Bombadil agent included, which
 is a behaviour change for existing Bombadil configs. Reading a page never consults this key;
-only steps that may change the target do.
+only steps that may change the target do. `surf apply` consults it twice: once for the whole
+run before a tab is opened (`submit_origin_not_allowed` in submit mode) and once per act in the
+ledger. Filling a form is one of those acts, so a dry run on an origin this key does not name
+is refused as well — a fill is a bounded mutation, not a safe one.
+
+`surf plan` and `surf apply` read this key, `receipts.dir` and `surf.submit.*` through
+`--config`, using the same lookup `test` uses. There is no environment variable and no CLI flag
+that adds an origin; the allowlist is the operator's declaration about the world.
+
+---
+
+## `surf`
+
+```yaml
+surf:
+  submit:
+    postconditionTimeoutMs: 15000   # or postcondition_timeout_ms
+    controlEnableTimeoutMs: 5000    # or control_enable_timeout_ms
+```
+
+The two bounded waits of the submit gate. `postconditionTimeoutMs` bounds the wait for the
+effect the operator declared with `--until-url-prefix` / `--until-text` (or, by default, for the
+URL to leave the plan's page); when it runs out the submit is `unknown`, never retried.
+`controlEnableTimeoutMs` bounds the wait for a submit control that is disabled until the form
+validates, after which the run refuses with `submit_control_disabled` having clicked nothing.
+There is no `surf.receipts.dir`: receipts live under the one `receipts.dir` above.
 
 ---
 
