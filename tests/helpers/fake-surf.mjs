@@ -18,6 +18,7 @@ const ENV_KEYS = [
   "FAKE_SURF_DOCTOR",
   "FAKE_SURF_FAIL_ON",
   "FAKE_SURF_EMPTY_ON",
+  "FAKE_SURF_HANG_ON",
   "FAKE_SURF_ZERO_ROWS_ON",
   "FAKE_SURF_BOOKKEEPING_ONLY_ON",
   "FAKE_SURF_LOG",
@@ -32,7 +33,8 @@ function shellQuote(value) {
  * Write a `surf` wrapper script that runs the fake fixture with its configuration baked into
  * the script, so both in-process callers and child CLI processes see the same fake browser.
  *
- * options: { pages, mode, doctor, failOn, emptyOn, zeroRowsOn, bookkeepingOnlyOn, echo, log, name }
+ * options: { pages, mode, doctor, failOn, emptyOn, hangOn, zeroRowsOn, bookkeepingOnlyOn,
+ *            echo, log, name }
  */
 export function createFakeSurf(options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-fake-surf-"));
@@ -47,6 +49,7 @@ export function createFakeSurf(options = {}) {
     FAKE_SURF_EMPTY_ON: Array.isArray(options.emptyOn)
       ? options.emptyOn.join(",")
       : options.emptyOn,
+    FAKE_SURF_HANG_ON: Array.isArray(options.hangOn) ? options.hangOn.join(",") : options.hangOn,
     FAKE_SURF_ZERO_ROWS_ON: Array.isArray(options.zeroRowsOn)
       ? options.zeroRowsOn.join(",")
       : options.zeroRowsOn,

@@ -13,16 +13,30 @@
  * - `extract [url] [--tab-id N] --code <code> [--allow-empty] --json` with the extract contract
  *   (`{data, rows, rowCount, attempts, readiness, mode, url, tabId}`, `empty_result`,
  *   `no_output`, `rows_key_missing`)
+ * - `type <text> --selector <sel>` / `click --selector <sel>` (minimal target-mutating verbs)
  * - `frame.diagnose --json`, `page.readiness --json`
  * - every failure: exit 1, stderr `Error: <message> [code]`, stdout `{"error": {...}}` under --json
  *
+ * Page model (slice S6 schema bump; the fake never learns a verb from prose, review A17):
+ *
+ *   {
+ *     title, readyState, readiness, evidence[], links[], counts{}, jsResult, jsThrows,
+ *     frames: [{ src, outOfProcess?, reachable? }],  // frame.diagnose topology (S8 reads it)
+ *     fields: { "<selector>": { value, kind?, checked? } },  // state a step may write and read
+ *     controls: [{ selector, kind?, enabled? }],             // what a click may target
+ *     forbidden: ["click", ...],   // verbs this page refuses, so a test can prove none ran
+ *     changeNavigatesTo: "<url>"   // where a type/click sends the tab (post-condition, drift)
+ *   }
+ *
  * Configuration (environment):
  * - FAKE_SURF_STATE_DIR   directory for tabs.json (required for tab/js/extract commands)
- * - FAKE_SURF_PAGES       JSON map url -> {title, readiness, evidence[], links[], counts{}}
+ * - FAKE_SURF_PAGES       JSON map url -> the page model above
  * - FAKE_SURF_MODE        "branch" (default) | "upstream" (v2.18.0 without the mechanisms)
  * - FAKE_SURF_DOCTOR      "ok" (default) | "socket-missing"
  * - FAKE_SURF_FAIL_ON     comma list of commands that exit 9 with "surf exploded" on stderr
  * - FAKE_SURF_EMPTY_ON    comma list of commands that exit 0 with no output
+ * - FAKE_SURF_HANG_ON     comma list of commands that never answer, so the caller's own budget
+ *                         kills them: exit code null plus a signal, which is the `unknown` shape
  * - FAKE_SURF_ZERO_ROWS_ON       comma list of commands whose extract payload has zero rows
  * - FAKE_SURF_BOOKKEEPING_ONLY_ON comma list of commands that answer with bookkeeping keys only
  * - FAKE_SURF_LOG         file that receives one JSON line per invocation (argv)
@@ -111,6 +125,7 @@ function emit(data, target) {
 const command = argv[0];
 const explode = (process.env.FAKE_SURF_FAIL_ON || "").split(",").filter(Boolean);
 const silent = (process.env.FAKE_SURF_EMPTY_ON || "").split(",").filter(Boolean);
+const hang = (process.env.FAKE_SURF_HANG_ON || "").split(",").filter(Boolean);
 const zeroRows = (process.env.FAKE_SURF_ZERO_ROWS_ON || "").split(",").filter(Boolean);
 const bookkeepingOnly = (process.env.FAKE_SURF_BOOKKEEPING_ONLY_ON || "")
   .split(",")
@@ -121,6 +136,13 @@ if (explode.includes(command)) {
 }
 if (silent.includes(command)) {
   process.exit(0);
+}
+// Never answer: the caller's own budget must kill this process, which is the only way a real
+// step ends without an exit code - the shape a mutating step settles as `unknown`.
+if (hang.includes(command)) {
+  // The timer holds the event loop open; without it Node would exit 13 on the unsettled await.
+  setInterval(() => undefined, 1_000);
+  await new Promise(() => undefined);
 }
 // Exit 0 with nothing but the transport's own bookkeeping keys: the HOSTERR shape.
 if (bookkeepingOnly.includes(command)) {
@@ -301,11 +323,14 @@ function saveState(state) {
 
 const pages = process.env.FAKE_SURF_PAGES ? JSON.parse(process.env.FAKE_SURF_PAGES) : {};
 
-function pageFor(url) {
+function pageFor(url, state) {
   const key = Object.keys(pages).find(
     (candidate) => candidate === url || candidate.replace(/\/$/, "") === url.replace(/\/$/, ""),
   );
   const page = key ? pages[key] : {};
+  const frames = page.frames || [];
+  const fields = { ...(page.fields || {}), ...(state?.fields?.[page.url || url] || {}) };
+  const controls = page.controls || [];
   return {
     url: page.url || url,
     title: page.title || "Fake page",
@@ -313,17 +338,30 @@ function pageFor(url) {
     readiness: page.readiness || "ready",
     evidence: page.evidence || ["document.readyState is complete"],
     links: page.links || [],
+    frames,
+    fields,
+    controls,
+    forbidden: page.forbidden || [],
+    changeNavigatesTo: page.changeNavigatesTo,
     counts: {
       anchors: (page.links || []).length,
-      buttons: 1,
+      buttons: controls.length > 0 ? controls.length : 1,
       forms: 0,
-      inputs: 0,
-      iframes: 0,
+      inputs: Object.keys(fields).length,
+      iframes: frames.length,
       ...(page.counts || {}),
     },
     jsResult: page.jsResult,
     jsThrows: page.jsThrows,
   };
+}
+
+/** Field values a `type` wrote in this state file; the page model holds the initial values. */
+function writeFieldValue(state, url, selector, value) {
+  state.fields = state.fields || {};
+  state.fields[url] = state.fields[url] || {};
+  const current = state.fields[url][selector] || {};
+  state.fields[url][selector] = { ...current, value };
 }
 
 function resolveTab(state) {
@@ -416,16 +454,46 @@ function stubDocument(page) {
     href,
   }));
   const repeat = (count) => Array.from({ length: count }, () => ({}));
+  // A field a script may read back: `value`/`checked` are the state a `type` wrote.
+  const fieldNode = (selector, field) => ({
+    tagName: (field.kind || "text") === "select" ? "SELECT" : "INPUT",
+    type: field.kind || "text",
+    value: field.value ?? "",
+    checked: field.checked ?? false,
+    getAttribute: (name) => (name === "value" ? (field.value ?? "") : null),
+    selector,
+  });
+  const fieldNodes = Object.entries(page.fields).map(([selector, field]) =>
+    fieldNode(selector, field),
+  );
+  const controlNodes = page.controls.map((control) => ({
+    tagName: "BUTTON",
+    type: control.kind || "submit",
+    disabled: control.enabled === false,
+    selector: control.selector,
+  }));
   return {
     title: page.title,
     readyState: page.readyState,
+    querySelector(selector) {
+      return (
+        fieldNodes.find((node) => node.selector === selector) ??
+        controlNodes.find((node) => node.selector === selector) ??
+        null
+      );
+    },
     querySelectorAll(selector) {
       if (selector.startsWith("a[href]")) return anchors;
-      if (selector.startsWith("button")) return repeat(page.counts.buttons);
+      if (selector.startsWith("button")) {
+        return controlNodes.length > 0 ? controlNodes : repeat(page.counts.buttons);
+      }
       if (selector.startsWith("form")) return repeat(page.counts.forms);
-      if (selector.startsWith("input")) return repeat(page.counts.inputs);
+      if (selector.startsWith("input")) {
+        return fieldNodes.length > 0 ? fieldNodes : repeat(page.counts.inputs);
+      }
       if (selector.startsWith("iframe")) return repeat(page.counts.iframes);
-      return [];
+      const single = this.querySelector(selector);
+      return single ? [single] : [];
     },
   };
 }
@@ -468,6 +536,27 @@ function jsonClone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * A page may declare verbs it refuses. A framework that is supposed never to issue one gets a
+ * loud failure instead of a silent success, so "nothing clicked" is proved by the fixture and
+ * not only by reading the call log.
+ */
+function assertNotForbidden(page) {
+  if (page.forbidden.includes(command)) {
+    fail("forbidden_command", `${command} is not permitted on ${page.url} by this fixture`);
+  }
+}
+
+/** Where a `type` or `click` sends the tab, when the page model says it navigates. */
+function applyNavigation(page, tab) {
+  if (!page.changeNavigatesTo) {
+    return page.url;
+  }
+  state.tabs[tab.id] = { url: page.changeNavigatesTo };
+  saveState(state);
+  return page.changeNavigatesTo;
+}
+
 // ---------------------------------------------------------------- commands
 
 const state = loadState();
@@ -476,7 +565,7 @@ switch (command) {
   case "tab.list": {
     const tabs = Object.entries(state.tabs).map(([id, tab], index, all) => ({
       id: Number(id),
-      title: pageFor(tab.url).title,
+      title: pageFor(tab.url, state).title,
       url: tab.url,
       active: index === all.length - 1,
       windowId: 1,
@@ -514,23 +603,51 @@ switch (command) {
   }
   case "page.readiness": {
     const tab = resolveTab(state);
-    emit(readinessGate(pageFor(tab.url), tab, { wait: false }), targetMeta(tab));
+    emit(readinessGate(pageFor(tab.url, state), tab, { wait: false }), targetMeta(tab));
     break;
   }
   case "wait.ready": {
     const tab = resolveTab(state);
     const accept = (flag("--accept") || "").split(",").filter(Boolean);
-    emit(readinessGate(pageFor(tab.url), tab, { accept }), targetMeta(tab));
+    emit(readinessGate(pageFor(tab.url, state), tab, { accept }), targetMeta(tab));
+    break;
+  }
+  case "type": {
+    const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
+    assertNotForbidden(page);
+    const text = positionals()[0];
+    const selector = flag("--selector");
+    if (text === undefined) fail("usage", "type requires text");
+    if (!selector) fail("usage", "type requires --selector in this fixture");
+    if (!page.fields[selector]) fail("no_element", `No element matches ${selector}`);
+    writeFieldValue(state, page.url, selector, text);
+    saveState(state);
+    const url = hasFlag("--submit") ? applyNavigation(page, tab) : page.url;
+    emit({ success: true, selector, value: text, url }, targetMeta(tab));
+    break;
+  }
+  case "click": {
+    const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
+    assertNotForbidden(page);
+    const selector = flag("--selector") ?? positionals()[0];
+    if (!selector) fail("usage", "click requires a ref or --selector");
+    const control = page.controls.find((entry) => entry.selector === selector);
+    if (!control) fail("no_element", `No element matches ${selector}`);
+    if (control.enabled === false) fail("element_disabled", `${selector} is disabled`);
+    emit({ success: true, selector, url: applyNavigation(page, tab) }, targetMeta(tab));
     break;
   }
   case "js": {
     const tab = resolveTab(state);
     const code = positionals()[0];
     if (!code) fail("usage", "js requires code");
+    assertNotForbidden(pageFor(tab.url, state));
     const value = jsonClone(
       evaluateScript(
         code,
-        pageFor(tab.url),
+        pageFor(tab.url, state),
         flag("--options") ? JSON.parse(flag("--options")) : undefined,
       ),
     );
@@ -563,7 +680,8 @@ switch (command) {
       saveState(state);
       tab = { id, url, explicit: false };
     }
-    const page = pageFor(tab.url);
+    const page = pageFor(tab.url, state);
+    assertNotForbidden(page);
     const readiness = readinessGate(page, tab);
     const forceZeroRows = zeroRows.includes(command);
     // Like the real CLI, extract always prefixes the SURF_OPTIONS prelude, so the script runs in
@@ -630,25 +748,46 @@ switch (command) {
   }
   case "frame.diagnose": {
     const tab = resolveTab(state);
-    const page = pageFor(tab.url);
+    const page = pageFor(tab.url, state);
+    // The topology comes from the page model's `frames`, so a fixture can describe an
+    // out-of-process or unreachable frame instead of the fake inventing one from a count.
+    const frames =
+      page.frames.length > 0
+        ? page.frames
+        : Array.from({ length: page.counts.iframes }, (_, index) => ({
+            src: `${page.url}#frame-${index}`,
+          }));
+    const inProcess = frames.filter((frame) => frame.outOfProcess !== true);
     emit(
       {
         mainPage: { url: page.url, title: page.title },
         counts: {
-          domIframes: page.counts.iframes,
-          extensionFrames: page.counts.iframes,
-          cdpFrames: 1 + page.counts.iframes,
+          domIframes: frames.length,
+          extensionFrames: frames.filter((frame) => frame.reachable !== false).length,
+          cdpFrames: 1 + inProcess.length,
         },
-        domIframes: Array.from({ length: page.counts.iframes }, (_, index) => ({
+        domIframes: frames.map((frame, index) => ({
           index,
-          src: `${page.url}#frame-${index}`,
+          src: frame.src ?? `${page.url}#frame-${index}`,
         })),
-        extensionFrames: [],
-        cdpFrames: [{ frameId: "MAIN", isMain: true, url: page.url }],
-        warnings:
-          page.counts.iframes > 0
-            ? [`frame 0 is out-of-process: missing from this tab's CDP frame tree`]
-            : [],
+        extensionFrames: frames
+          .map((frame, index) => ({ index, src: frame.src, reachable: frame.reachable !== false }))
+          .filter((frame) => frame.reachable),
+        cdpFrames: [
+          { frameId: "MAIN", isMain: true, url: page.url },
+          ...inProcess.map((frame, index) => ({
+            frameId: `FRAME_${index}`,
+            isMain: false,
+            url: frame.src ?? page.url,
+          })),
+        ],
+        warnings: frames
+          .map((frame, index) =>
+            frame.outOfProcess === true
+              ? `frame ${index} is out-of-process: missing from this tab's CDP frame tree`
+              : undefined,
+          )
+          .filter(Boolean),
       },
       targetMeta(tab),
     );

@@ -363,3 +363,151 @@ test("the classifier reads the captured payloads exactly as it reads the fake's"
   assert.equal(readyOutcome.class, "success");
   assert.equal(readyOutcome.payload.kind, "json");
 });
+
+// ---------------------------------------------------------------------------
+// Slice S6 page-model schema bump: frames, fields, controls, forbidden,
+// changeNavigatesTo and the hang knob. The shapes stay the ones the captured
+// commands answer with; what is new is the state a page may carry.
+// ---------------------------------------------------------------------------
+
+const FORM_PAGES = {
+  "https://forms.example/": {
+    title: "Form",
+    readiness: "ready",
+    links: [],
+    fields: { "#q": { value: "", kind: "text" } },
+    controls: [{ selector: "#go", kind: "submit" }],
+    changeNavigatesTo: "https://forms.example/results",
+  },
+  "https://forms.example/results": { title: "Results", readiness: "ready", links: [] },
+};
+
+test("the page model carries fields a type writes and a script reads back", () => {
+  const fake = createFakeSurf({ pages: FORM_PAGES });
+  try {
+    const tab = openTab(fake, "https://forms.example/");
+    const before = runFake(fake, [
+      "js",
+      'return document.querySelector("#q").value',
+      "--tab-id",
+      tab,
+      "--json",
+    ]);
+    assert.equal(before.status, 0);
+    assert.equal(before.stdout.result, "");
+
+    const typed = runFake(fake, [
+      "type",
+      "surf-cli",
+      "--selector",
+      "#q",
+      "--tab-id",
+      tab,
+      "--json",
+    ]);
+    assert.equal(typed.status, 0);
+    assert.equal(typed.stdout.result.value, "surf-cli");
+
+    const after = runFake(fake, [
+      "js",
+      'return document.querySelector("#q").value',
+      "--tab-id",
+      tab,
+      "--json",
+    ]);
+    assert.equal(after.stdout.result, "surf-cli");
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a control click follows changeNavigatesTo, and a missing control refuses", () => {
+  const fake = createFakeSurf({ pages: FORM_PAGES });
+  try {
+    const tab = openTab(fake, "https://forms.example/");
+    const missing = runFake(fake, ["click", "--selector", "#nope", "--tab-id", tab, "--json"]);
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /No element matches #nope \[no_element\]/);
+
+    const clicked = runFake(fake, ["click", "--selector", "#go", "--tab-id", tab, "--json"]);
+    assert.equal(clicked.status, 0);
+    assert.equal(clicked.stdout.result.url, "https://forms.example/results");
+
+    const tabs = runFake(fake, ["tab.list", "--json"]);
+    assert.equal(tabs.stdout[0].url, "https://forms.example/results");
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a page may forbid a verb, so a test proves the framework never issued it", () => {
+  const fake = createFakeSurf({
+    pages: {
+      "https://readonly.example/": {
+        title: "Read only",
+        readiness: "ready",
+        links: [],
+        forbidden: ["click", "type"],
+        controls: [{ selector: "#go" }],
+      },
+    },
+  });
+  try {
+    const tab = openTab(fake, "https://readonly.example/");
+    const clicked = runFake(fake, ["click", "--selector", "#go", "--tab-id", tab, "--json"]);
+    assert.equal(clicked.status, 1);
+    assert.match(clicked.stderr, /click is not permitted on .* \[forbidden_command\]/);
+    assert.equal(clicked.stdout.error.code, "forbidden_command");
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("frames describe the topology frame.diagnose reports", () => {
+  const fake = createFakeSurf({
+    pages: {
+      "https://frames.example/": {
+        title: "Frames",
+        readiness: "ready",
+        links: [],
+        frames: [
+          { src: "https://embed.example/a", outOfProcess: true, reachable: false },
+          { src: "https://frames.example/b" },
+        ],
+      },
+    },
+  });
+  try {
+    const tab = openTab(fake, "https://frames.example/");
+    const reply = runFake(fake, ["frame.diagnose", "--tab-id", tab, "--json"]);
+    assert.equal(reply.status, 0);
+    const diagnosis = reply.stdout.result;
+    assert.equal(diagnosis.counts.domIframes, 2);
+    assert.equal(diagnosis.counts.cdpFrames, 2);
+    assert.equal(diagnosis.counts.extensionFrames, 1);
+    assert.deepEqual(
+      diagnosis.domIframes.map((frame) => frame.src),
+      ["https://embed.example/a", "https://frames.example/b"],
+    );
+    assert.deepEqual(diagnosis.warnings, [
+      "frame 0 is out-of-process: missing from this tab's CDP frame tree",
+    ]);
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a hanging command never answers, so the caller's own budget decides", () => {
+  const fake = createFakeSurf({ pages: pagesWithLinks([]), hangOn: ["js"] });
+  try {
+    const tab = openTab(fake, "https://example.com/");
+    const result = spawnSync(fake.path, ["js", "1", "--tab-id", tab, "--json"], {
+      encoding: "utf8",
+      timeout: 400,
+    });
+    assert.equal(result.status, null, "a hanging command must not exit on its own");
+    assert.equal(result.stdout, "");
+  } finally {
+    fake.cleanup();
+  }
+});
