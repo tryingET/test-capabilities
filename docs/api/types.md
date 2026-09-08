@@ -24,12 +24,15 @@ type CliRoute =
   | { command: 'doctor' }
   | { command: 'demo' }
   | { command: 'init' }
-  | { command: 'surf'; action: 'explore' | 'flow' | 'assert' | 'compare' | 'replay' }
+  | { command: 'surf'; action: SurfAction }
   | { command: 'predict' }
   | { command: 'quantum' }
   | { command: 'heal' }
+  | { command: 'replacement-validation' }
   | { command: 'visualize' }
   | { command: 'report' };
+
+type SurfAction = 'explore' | 'plan' | 'apply' | 'flow' | 'assert' | 'compare' | 'replay';
 ```
 
 ### `CliRouteManifestEntry`
@@ -53,11 +56,14 @@ type CliOperationResult =
   | DemoOperationResultEnvelope
   | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
+  | SurfPlanOperationResultEnvelope
+  | SurfApplyOperationResultEnvelope
   | QuantumOperationResultEnvelope
-  | HealOperationResultEnvelope;
+  | HealOperationResultEnvelope
+  | ReplacementValidationOperationResultEnvelope;
 ```
 
-These shapes back the exported `CLI_OPERATION_REGISTRY`, `CLI_ROUTE_MANIFEST`, and `executeCliOperation(...)` kernel.
+These shapes back the exported `CLI_OPERATION_REGISTRY`, `CLI_ROUTE_MANIFEST`, and `executeCliOperation(...)` kernel. Both unions are compared member by member against `src/core/operations/types.ts` by `npm run contract:sync` (architecture review A20), so a route or an envelope added to the runtime cannot be missing here.
 
 Every member also carries the run fields the kernel stamps on it (additive, optional so older
 envelopes stay valid):

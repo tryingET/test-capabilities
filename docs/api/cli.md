@@ -420,7 +420,7 @@ Current behavior:
 
 ## Runtime capability summary
 
-These route statuses are mirrored by the exported operation registry / route manifest so docs, CLI dispatch, and contract tests share one source of truth.
+These route statuses are mirrored by the exported operation registry / route manifest so docs, CLI dispatch, and contract tests share one source of truth. `npm run contract:sync` compares this table against `CLI_ROUTE_MANIFEST` row by row and fails on any surface either side is missing.
 
 | Surface | Status |
 |---------|--------|
@@ -433,6 +433,11 @@ These route statuses are mirrored by the exported operation registry / route man
 | `surf apply` | implemented |
 | `quantum` | implemented |
 | `heal` | implemented |
+| `replacement-validation` | implemented |
+| `surf flow` | unsupported |
+| `surf assert` | unsupported |
+| `surf compare` | unsupported |
+| `surf replay` | unsupported |
 | `predict` | unsupported |
 | `visualize` | unsupported |
 | `report` | unsupported |

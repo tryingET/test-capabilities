@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 STAGE="${1:-}"
 
 usage() {
-  echo "Usage: bash ./scripts/quality-gate.sh <lint|fix|typecheck|structure|coverage|pre-commit|pre-push|ci>" >&2
+  echo "Usage: bash ./scripts/quality-gate.sh <lint|fix|typecheck|structure|contract-sync|coverage|pre-commit|pre-push|ci>" >&2
 }
 
 has_biome_config() {
@@ -113,6 +113,14 @@ run_structure() {
   node "$ROOT_DIR/scripts/quality/check-structure.mjs"
 }
 
+# Contract sync (scripts/quality/check-contract-sync.mjs): the commander command
+# set, the cli.md status table, the generated help and export captures, the
+# types.md unions, the published schemas and the config mirror, all against the
+# runtime. Needs a build (it imports the route manifest and spawns the CLI).
+run_contract_sync() {
+  node "$ROOT_DIR/scripts/quality/check-contract-sync.mjs"
+}
+
 # Coverage ratchet (scripts/quality/coverage-ratchet.mjs): builds with source
 # maps, runs the corpus once more under c8, enforces the floors keyed by Node
 # major, the changed-lines gate and the reductions ledger. Needs a base ref
@@ -132,6 +140,7 @@ run_pre_push() {
   run_lint
   run_typecheck
   run_tests
+  run_contract_sync
   run_coverage
 }
 
@@ -140,6 +149,7 @@ run_ci() {
   run_lint
   run_typecheck
   run_tests
+  run_contract_sync
   run_coverage
 }
 
@@ -155,6 +165,9 @@ case "$STAGE" in
     ;;
   structure)
     run_structure
+    ;;
+  contract-sync)
+    run_contract_sync
     ;;
   coverage)
     run_coverage

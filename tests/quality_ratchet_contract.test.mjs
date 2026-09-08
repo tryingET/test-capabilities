@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import * as contractSync from "../scripts/quality/check-contract-sync.mjs";
 import * as structure from "../scripts/quality/check-structure.mjs";
 import * as ratchet from "../scripts/quality/coverage-ratchet.mjs";
 
@@ -787,6 +788,160 @@ test("exclude globs match the parked directories and nothing else", () => {
     false,
   );
   assert.equal(ratchet.nodeMajorOf("26.8.1"), "26");
+});
+
+// ---------------------------------------------------------------------------
+// Contract sync (slice S10)
+// ---------------------------------------------------------------------------
+
+const CONTRACT_SYNC_MANIFEST = [
+  { command: "test", status: "implemented" },
+  { command: "surf", status: "implemented" },
+  { command: "surf", action: "explore", status: "implemented" },
+  { command: "surf", action: "flow", status: "unsupported" },
+  { command: "predict", status: "unsupported" },
+];
+
+test("contract-sync reads the commander command set and the manifest's surfaces", () => {
+  const help = [
+    "Usage: test-capabilities [options] [command]",
+    "",
+    "Options:",
+    "  -V, --version   output the version number",
+    "",
+    "Commands:",
+    "  doctor [options]            Run diagnostics",
+    "  surf [options] <action>     Browser testing",
+    "  help [command]              display help for command",
+    "",
+  ].join("\n");
+  assert.deepEqual(contractSync.parseCommanderCommands(help), ["doctor", "surf"]);
+
+  const surfaces = contractSync.manifestSurfaces(CONTRACT_SYNC_MANIFEST);
+  // The bare `surf` row is the container of an action family, never a surface.
+  assert.deepEqual(
+    [...surfaces.entries()],
+    [
+      ["test", "implemented"],
+      ["surf explore", "implemented"],
+      ["surf flow", "unsupported"],
+      ["predict", "unsupported"],
+    ],
+  );
+});
+
+test("contract-sync fails a hand-edited status, a dropped command and a missing union member", () => {
+  const doc = [
+    "# CLI",
+    "",
+    "## Runtime capability summary",
+    "",
+    "| Surface | Status |",
+    "|---------|--------|",
+    "| `test` | implemented |",
+    "| `surf explore` | unsupported |",
+    "| `surf flow` | unsupported |",
+    "",
+    "## Exit behavior",
+    "",
+    "| `1` | anything |",
+  ].join("\n");
+  const table = contractSync.parseStatusTable(doc);
+  // The table is read only from its own section: the exit-code table below is not a surface.
+  assert.deepEqual([...table.keys()], ["test", "surf explore", "surf flow"]);
+  assert.equal(table.get("surf explore"), "unsupported");
+
+  const surfaces = contractSync.manifestSurfaces(CONTRACT_SYNC_MANIFEST);
+  const missingRows = contractSync.compareSets(
+    "status table",
+    new Set(surfaces.keys()),
+    new Set(table.keys()),
+    "fix path",
+  );
+  assert.equal(missingRows.length, 1);
+  assert.match(missingRows[0], /missing predict/);
+
+  const droppedCommand = contractSync.compareSets(
+    "commands",
+    new Set(["doctor", "surf"]),
+    new Set(["doctor"]),
+    "fix path",
+  );
+  assert.equal(droppedCommand.length, 1);
+  assert.match(droppedCommand[0], /commands: missing surf/);
+
+  const source = 'export type CliRoute =\n  | { command: "test" }\n  | { command: "heal" };\n';
+  const docUnion = [
+    "### `CliRoute`",
+    "",
+    "```typescript",
+    "type CliRoute =",
+    "  | { command: 'test' };",
+    "```",
+    "",
+  ].join("\n");
+  const declared = contractSync
+    .parseUnionMembers(source, "CliRoute")
+    .map(contractSync.normaliseUnionMember);
+  const documented = contractSync
+    .parseDocUnion(docUnion, "CliRoute")
+    .map(contractSync.normaliseUnionMember);
+  const drift = contractSync.compareSets(
+    "types.md CliRoute",
+    new Set(declared),
+    new Set(documented),
+    "fix path",
+  );
+  assert.equal(drift.length, 1);
+  assert.match(drift[0], /missing \{ command: "heal" \}/);
+});
+
+test("contract-sync compares a published schema node with the zod object the runtime parses with", () => {
+  const zodLike = {
+    _def: {
+      typeName: "ZodObject",
+      unknownKeys: "strict",
+      shape: () => ({ kind: {}, path: {}, digest: {} }),
+    },
+  };
+  const wrapped = { _def: { typeName: "ZodOptional", innerType: zodLike } };
+
+  assert.deepEqual(
+    contractSync.compareSchemaNode(
+      "artifactRef",
+      {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "path"],
+        properties: { kind: {}, path: {}, digest: {} },
+      },
+      wrapped,
+    ),
+    [],
+  );
+
+  const drifted = contractSync.compareSchemaNode(
+    "artifactRef",
+    {
+      type: "object",
+      required: ["kind", "path", "sha"],
+      properties: { kind: {}, path: {} },
+    },
+    wrapped,
+  );
+  assert.equal(drifted.length, 3);
+  assert.match(drifted[0], /missing digest/);
+  assert.match(drifted[1], /additionalProperties open but the zod object is strict/);
+  assert.match(drifted[2], /required names sha, which the runtime does not parse/);
+});
+
+test("contract-sync passes on this tree and its generated captures are the committed ones", async () => {
+  const result = await contractSync.runContractSync({ root: repoRoot });
+  assert.deepEqual(result.failures, []);
+  const exportsDoc = readFileSync(path.join(repoRoot, contractSync.EXPORTS_DOC), "utf8");
+  assert.match(exportsDoc, /- `Session`/);
+  assert.match(exportsDoc, /- `A11ySnapshotArtifact`/);
+  assert.match(exportsDoc, /- `evaluateA11yAssertion`/);
 });
 
 test("the committed baselines are well-formed and carry this tree's facts", () => {

@@ -60,6 +60,7 @@
     "release:intent:check": "node ./scripts/validate-release-intent.mjs",
     "release:verify-public": "node ./scripts/public-cli-contract.mjs public",
     "structure:check": "node ./scripts/quality/check-structure.mjs",
+    "contract:sync": "npm run build --silent && node ./scripts/quality/check-contract-sync.mjs",
     "coverage:ratchet": "node ./scripts/quality/coverage-ratchet.mjs",
     "coverage:raise": "node ./scripts/quality/coverage-ratchet.mjs --raise",
     "test": "npm run build --silent && node --test tests/*.test.mjs",
