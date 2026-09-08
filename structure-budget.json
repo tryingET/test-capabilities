@@ -3,7 +3,6 @@
   "default_max_lines": 700,
   "exceptions": {
     "src/core/operations/surf-explore-operation.ts": 1033,
-    "src/core/operations/test/agents.ts": 706,
     "src/core/orchestrator.ts": 1721,
     "src/core/surf-runtime.ts": 845,
     "src/healing/self-healing.ts": 1192
