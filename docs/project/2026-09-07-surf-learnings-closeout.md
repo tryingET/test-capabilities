@@ -11,8 +11,7 @@ type: "reference"
 # Surf learnings: programme closeout (2026-09-08)
 
 Programme: `docs/project/2026-09-07-surf-learnings-implementation-plan.md`, slices S1 through S10, on `main`,
-2026-09-07 13:00 to 2026-09-08. 57 commits from `bf44007` (the last commit before the programme) through this
-note, of which S10 is eight.
+2026-09-07 13:00 to 2026-09-08. 59 commits (`git log --oneline bf44007..HEAD | wc -l` at the S10 closing commit), of which S10 is ten.
 Inputs the plan itself was built from: the six design packets, the architecture review (amendments A1-A20), the
 architecture adjudication (Part 3 claims 1-55, Part 4 consequences) and the five confirmed operator decisions D1-D5.
 
@@ -182,7 +181,7 @@ rerun. S9 called it a standing item for S10. It was two independent races in the
 Both assertions that used to fail with a bare number now carry the run's findings, so the next member of this class
 is diagnosed from its own failure rather than from three slices of sightings.
 
-Standing evidence after the fixes: 50 clean corpus runs at this commit in an isolated worktree (40 plain, 10 under c8), plus every gate run in this slice. Before the fixture fix and after the spawn fix, one failure still occurred - the trace-file race, which is why both are recorded here rather than one. A flake of this shape is never proved absent, only
+Standing evidence after the fixes: 50 clean corpus runs at `45b2e9f`, the commit carrying both, in an isolated worktree (40 plain, 10 under c8), plus every gate run in this slice. Before the fixture fix and after the spawn fix, one failure still occurred - the trace-file race, which is why both are recorded here rather than one. A flake of this shape is never proved absent, only
 unreproduced; the two mechanisms above are proved present and fixed.
 
 ## 7. What was deferred, and where it is filed
