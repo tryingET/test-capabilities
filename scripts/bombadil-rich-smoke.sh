@@ -175,6 +175,14 @@ name: 'Bombadil Rich Fixture'
 targets:
   web: '$base_url'
 
+# The fuzzer changes the target, so the operator declares the origin it may change, and this
+# smoke runs in a mktemp directory whose receipt store does not survive it (slice S5, D5).
+mutation:
+  allow_origins: ['$base_url']
+
+receipts:
+  ephemeral: true
+
 agents:
   web:
     enabled: true
