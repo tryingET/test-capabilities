@@ -98,6 +98,12 @@ the main document. The implemented rule applies the blank clause only to a degen
 `suspected`. `zeroSize` and the 1x1 clause are unchanged, so the claude.ai pixel the packet's
 decision log is about is still hidden.
 
+Note that the two geometry boundaries deliberately differ: the packet's own clause is a *pixel*
+(`width <= 1 && height <= 1`), the qualification is a *degenerate box* (`width <= 1 ||
+height <= 1`) and applies only to a blank, src-less frame. This is an amendment to P3, not
+compliance with it - the packet's clause and this rule are not both satisfied - and reconciling
+the packet's text is a follow-up for whoever owns it.
+
 **Nothing writes a screenshot any more.** `surf js` without `--no-screenshot` saves a picture of
 the page to `/tmp` (measured: one file per call); the explore probes now pass the flag and add
 none. `wait.ready --selector` and `frame.diagnose` were measured and write none, so they need no

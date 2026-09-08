@@ -219,15 +219,29 @@ function abbreviate(value: string | undefined | null): string {
 }
 
 /**
- * The framework's own hidden rule.
+ * The framework's own hidden rule, and a deliberate divergence from the packet's third clause.
  *
- * surf's `zeroSize` is false for the 1x1 pixel frame observed live on `claude.ai/login`, so the
- * framework decides hidden from the rect as well (packet decision log, 2026-09-07). The
- * packet's third clause - blank with no `src` - is qualified by the rect here: a blank,
- * src-less frame that is nevertheless laid out at a real box is a *candidate*, because
- * `excluded` is the strongest determination this module makes and a rendered frame can hold the
- * target. Measured live on 2026-09-08: the w3schools try-it page renders a 933x949 result
- * frame that surf reports as `blank: true, src: ""`.
+ * A hidden frame is one nothing is rendered in, and it leaves the candidate set - which pushes
+ * the determination towards `excluded`, the strongest claim this module makes and the only one
+ * that licenses an automatic selector rewrite. So the rule is read in the conservative
+ * direction, and its three clauses use *two different* geometry boundaries on purpose:
+ *
+ *   1. `zeroSize` - surf's own flag, kept verbatim.
+ *   2. `rect.width <= 1 **&&** rect.height <= 1` - the packet's clause. A pixel. surf's
+ *      `zeroSize` is false for the 1x1 frame observed live on `claude.ai/login`, which is why
+ *      the framework decides from the rect at all (packet decision log, 2026-09-07).
+ *   3. `blank && src === ""` **and** `rect.width <= 1 **||** rect.height <= 1` - the packet's
+ *      third clause, qualified. The packet leaves it unqualified; live on 2026-09-08 the
+ *      w3schools try-it page renders a **933x949** frame that surf reports as
+ *      `blank: true, src: ""` (its content is written by the parent, so it has no `src`
+ *      attribute), and under the unqualified clause that page becomes `excluded` and a target
+ *      inside that frame is healed into a lookalike in the main document. A blank, src-less
+ *      frame is hidden here only when its box is degenerate in either dimension - a line or a
+ *      pixel, where nothing can be seen - which is a *wider* hidden test than clause 2 for
+ *      blank frames and a narrower one than the packet's.
+ *
+ * This is an amendment to the packet, not compliance with it, and the slice note says so; P3's
+ * clause and this rule are not both satisfied.
  */
 export function isHiddenFrame(frame: {
   rect?: SurfFrameRect | null;

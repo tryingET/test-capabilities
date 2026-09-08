@@ -161,6 +161,25 @@ test("the hidden rule is the framework's own: 1x1 is hidden although surf says z
   assert.equal(isHiddenFrame({ rect: { width: 600, height: 400 } }), false);
 });
 
+test("the two geometry boundaries are different on purpose, and each is pinned", () => {
+  // clause 2 is a pixel: BOTH dimensions at most 1
+  assert.equal(isHiddenFrame({ rect: { width: 1, height: 1 } }), true);
+  assert.equal(isHiddenFrame({ rect: { width: 1, height: 300 } }), false);
+  assert.equal(isHiddenFrame({ rect: { width: 300, height: 1 } }), false);
+
+  // clause 3 is a degenerate box: EITHER dimension at most 1, and only for a blank, src-less
+  // frame. A line renders nothing, so it is hidden; a real box is a candidate whatever its
+  // blankness (the deviation from the packet's unqualified clause, measured live).
+  assert.equal(isHiddenFrame({ rect: { width: 1, height: 300 }, blank: true, src: "" }), true);
+  assert.equal(isHiddenFrame({ rect: { width: 300, height: 1 }, blank: true, src: "" }), true);
+  assert.equal(isHiddenFrame({ rect: { width: 300, height: 150 }, blank: true, src: "" }), false);
+  // a blank frame that does carry a src is outside clause 3 entirely
+  assert.equal(
+    isHiddenFrame({ rect: { width: 1, height: 300 }, blank: true, src: "about:blank" }),
+    false,
+  );
+});
+
 test("hidden frames leave the candidate set and stay as evidence", () => {
   const hidden = topologyOf("hidden-0x0");
   assert.equal(hidden.candidates.length, 0);
