@@ -372,6 +372,25 @@
       "activation_requirements": []
     },
     {
+      "id": "library:Session",
+      "name": "Session",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/surf_session_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs"
+        ],
+        "commands": ["npm test", "npm run consumer:smoke"],
+        "docs": ["docs/project/2026-09-07-slice-s6-notes.md"]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": [],
+      "notes": "The browser surface at 0.4.0: an owned scope over unowned state. SurfSession opens one tab, gates it once with wait.ready, runs declared steps through the run's mutation ledger, runs registered read-only observers after the steps and closes the tab in finally. The effect class of every step comes from the surf adapter's static command map, not from the caller; the browser lifecycle verbs belong to the session; a step that names a tab this run did not create, or runs before open(), is refused with owned_tab_required. Page-side script carries no class: evaluate(code, {effect, reason}) refuses an undeclared script and checks a read_only claim against a static denylist before any process exists. plan, apply and explainUnreachable are declared seams that refuse with unsupported_surf_action in this build. Live-verified through surf explore against Chromium (Agent) on docs.python.org and github.com/login."
+    },
+    {
       "id": "library:TestFileHealer",
       "name": "TestFileHealer",
       "surface_kind": "library-api",

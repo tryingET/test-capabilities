@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
+
+const { JS_MUTATION_SIGNALS } = await importRuntimeModule("core/browser-session.js");
 
 function load(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -229,11 +232,12 @@ test("examples docs include the repo-local capability drill", () => {
   assert.match(readmeDoc, /structured summary with `ok`, `surfMode`, `summary`/);
 });
 
-test("surf API docs avoid unsupported examples and mark file workflows as library passthrough", () => {
+test("the browser surface doc documents the Session scope, not a client object", () => {
   const surfDoc = load("docs/api/api-surf.md");
 
-  assert.doesNotMatch(surfDoc, /\{ all: true \}/);
-  assert.doesNotMatch(surfDoc, /await surf\.select\('e5', 0/);
+  // No method reference for an object that no longer exists, and no example that drives one.
+  assert.doesNotMatch(surfDoc, /await surf\./);
+  assert.doesNotMatch(surfDoc, /new SurfClient\(/);
   assert.match(surfDoc, /test-capabilities surf explore/);
   assert.match(surfDoc, /library-level passthrough/i);
   assert.match(surfDoc, /fails clearly instead of being accepted and silently ignored/i);
@@ -242,8 +246,26 @@ test("surf API docs avoid unsupported examples and mark file workflows as librar
     /`TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, or `~\/.local\/bin\/surf`/,
   );
   assert.match(surfDoc, /SurfCommandError/);
-  assert.match(surfDoc, /waitReady/);
-  assert.match(surfDoc, /warning-prefixed output/i);
+  assert.match(surfDoc, /warning-prefixed/i);
+
+  // The scope, its rules and the seams later slices fill.
+  assert.match(surfDoc, /new SurfSession\(/);
+  assert.match(surfDoc, /Owned tabs only/);
+  assert.match(surfDoc, /owned_tab_required/);
+  assert.match(surfDoc, /SESSION_LIFECYCLE_EFFECT/);
+  assert.match(surfDoc, /read_only_violation_observed/);
+  assert.match(surfDoc, /unsupported_surf_action/);
+  assert.match(surfDoc, /SessionReadinessRefusal/);
+
+  // Every denylist signal the runtime carries has a row in the doc.
+  for (const signal of JS_MUTATION_SIGNALS) {
+    assert.match(surfDoc, new RegExp(`\`${signal.id}\``), `api-surf.md omits ${signal.id}`);
+  }
+
+  // Every command class the map answers with is named.
+  for (const command of ["extract", "frame.diagnose", "tab.new", "click", "js"]) {
+    assert.match(surfDoc, new RegExp(`\`${command.replace(".", "\\.")}\``));
+  }
 });
 
 test("errors docs include newly fail-closed quantum and surf config cases", () => {

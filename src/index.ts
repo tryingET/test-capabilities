@@ -11,6 +11,25 @@ export {
   listJsonArtifacts,
   writeJsonArtifact,
 } from "./core/artifacts.js";
+export type {
+  BrowserStep,
+  JsMutationHit,
+  JsMutationSignal,
+  OwnedTab,
+  Session,
+  SessionActionRequest,
+  SessionObservation,
+  SessionObserver,
+  SessionReadiness,
+  SessionReadinessState,
+  SessionReply,
+} from "./core/browser-session.js";
+// Browser surface: the kernel Session interface (operator decision D2)
+export {
+  findJsMutationSignals,
+  JS_MUTATION_SIGNALS,
+  SESSION_LIFECYCLE_EFFECT,
+} from "./core/browser-session.js";
 export {
   assertSupportedCliCommand,
   assertSupportedSurfAction,
@@ -197,6 +216,7 @@ export {
   toErrorEnvelope,
 } from "./core/runtime-contract.js";
 export { probeSurfRuntime, runSurfCommand } from "./core/surf-adapter.js";
+export { SessionReadinessRefusal } from "./core/surf-readiness.js";
 export type {
   SurfCommandFailure,
   SurfCommandResult,
@@ -220,6 +240,23 @@ export {
   SurfCommandError,
   translateSurfArgs,
 } from "./core/surf-runtime.js";
+export type { SurfSessionOptions, SurfSessionRuntime } from "./core/surf-session.js";
+/**
+ * The browser surface. `SurfClient` and `SurfFlowBuilder` left the public API at 0.4.0
+ * (operator decision D2, adjudication claim 36) because a class that could click anything on
+ * any page is ambient authority, and a wrapped ambient capability is still held. What is
+ * exported instead is a scope: `SurfSession` opens one tab, gates it, runs declared steps
+ * through the run's mutation ledger and closes the tab in `finally`; the class of every step
+ * comes from the surf adapter's static map, and page-side script has no class until the caller
+ * declares one.
+ */
+export {
+  resolveSurfSessionRuntime,
+  SURF_SESSION_COMMAND_TIMEOUT_MS,
+  SURF_SESSION_READY_TIMEOUT_MS,
+  SurfSession,
+  settleSurfAttempt,
+} from "./core/surf-session.js";
 export type {
   ElementSnapshot,
   HealingContext,
@@ -231,11 +268,6 @@ export type {
 } from "./healing/self-healing.js";
 // Self-healing
 export { SelfHealingEngine, TestFileHealer } from "./healing/self-healing.js";
-// Browser surface: SurfClient and SurfFlowBuilder left the public API in 0.4.0
-// (operator decision D2) and the internal src/integrations/surf-client.ts was
-// deleted ahead of the quality ratchet because nothing in the runtime imported
-// it (never-imported rule). The kernel Session interface replaces it in this
-// release line.
 export type {
   Prediction,
   PredictionInput,

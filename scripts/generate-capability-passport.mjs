@@ -369,8 +369,21 @@ capabilities.push(
 );
 
 // library:SurfClient left the passport at 0.4.0 with the export (D2); the kernel
-// Session interface gets its own row when it ships (plan S6).
+// Session interface is the browser surface that replaced it (adjudication 22, 36).
 const libraryCapabilities = [
+  {
+    id: "library:Session",
+    name: "Session",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: ["tests/surf_session_contract.test.mjs", "tests/operation_kernel_contract.test.mjs"],
+      commands: ["npm test", "npm run consumer:smoke"],
+      docs: ["docs/project/2026-09-07-slice-s6-notes.md"],
+    },
+    notes:
+      "The browser surface at 0.4.0: an owned scope over unowned state. SurfSession opens one tab, gates it once with wait.ready, runs declared steps through the run's mutation ledger, runs registered read-only observers after the steps and closes the tab in finally. The effect class of every step comes from the surf adapter's static command map, not from the caller; the browser lifecycle verbs belong to the session; a step that names a tab this run did not create, or runs before open(), is refused with owned_tab_required. Page-side script carries no class: evaluate(code, {effect, reason}) refuses an undeclared script and checks a read_only claim against a static denylist before any process exists. plan, apply and explainUnreachable are declared seams that refuse with unsupported_surf_action in this build. Live-verified through surf explore against Chromium (Agent) on docs.python.org and github.com/login.",
+  },
   {
     id: "library:executeCliOperation",
     name: "executeCliOperation",

@@ -123,11 +123,13 @@ The 0.4.0 line removes surface before any quality floor is measured, then adds t
 
 | Removed | Replacement |
 |---|---|
-| `SurfClient` and `SurfFlowBuilder` (library exports) and the `SurfConfig`/`SurfSnapshot`/`SurfElement`/`SurfActionResult`/`NetworkRequest`/`SurfExtract*`/`SurfReadiness*`/`SurfWaitReadyOptions`/`SurfFrameDiagnosis` types | the kernel `Session` interface (`open`, `gate`, `step`, `observe`, `close`; owned tab, closed in `finally`) arrives in this release line; until then use `test-capabilities surf explore` or `executeCliOperation({ command: 'surf', action: 'explore' }, { url })` |
+| `SurfClient` and `SurfFlowBuilder` (library exports) and the `SurfConfig`/`SurfSnapshot`/`SurfElement`/`SurfActionResult`/`NetworkRequest`/`SurfExtract*`/`SurfReadiness*`/`SurfWaitReadyOptions`/`SurfFrameDiagnosis` types | the kernel `Session` interface with `SurfSession` (`open`, `gate`, `step`, `evaluate`, `observe`, `close`; one owned tab, closed in `finally`), exported from the package root - see `docs/api/api-surf.md`. The CLI path `test-capabilities surf explore` and `executeCliOperation({ command: 'surf', action: 'explore' }, { url })` are the same step list over that session. |
 | `createNexus`, `NexusOrchestrator`, `NexusConfig`, the default export | `createTestCapabilities`, `TestCapabilitiesOrchestrator`, `TestCapabilitiesConfig` |
 | `command-runner` internals and `scripts/test-agent-browser.sh` | none (dead code; the script launched its own Chrome against the owned-browser rule) |
 
-Also in this line: the config schema lives in `src/core/config.ts` and is exported from the package root under the same names; `heal` derives `appliedCount` from proven writes and refuses to re-apply a healed selector as a prefix; the runtime import cycle that broke deep imports of `dist/core/operations/dispatch.js` is gone; `quantum` and the prediction engine are marked parked (see below). Later slices append here.
+Also in this line: the config schema lives in `src/core/config.ts` and is exported from the package root under the same names; `heal` derives `appliedCount` from proven writes and refuses to re-apply a healed selector as a prefix; the runtime import cycle that broke deep imports of `dist/core/operations/dispatch.js` is gone; `quantum` and the prediction engine are marked parked (see below).
+
+The browser surface is a scope, not an object with authority. Every surf command carries a static effect class the caller cannot override; the run acts only in a tab it created (`owned_tab_required` otherwise); page-side `js` has no class until the caller declares one, and a `read_only` claim is checked against a denylist before any process starts (`read_only_violation`); a read-only attempt whose own evidence shows the page moved forfeits its retry budget (`read_only_violation_observed`); and a browser step whose process reported nothing is `unknown` behind a receipt, never a target fault. Later slices append here.
 
 ## Commands
 

@@ -126,3 +126,36 @@ export const finishes_loading =
 ```bash
 bombadil test https://shop.example.com spec.ts --headless --exit-on-violation
 ```
+
+---
+
+## What the framework's own browser surface will and will not do
+
+Whatever you generate, when it runs through `test-capabilities` the browser is reached through
+one kernel `Session` (`docs/api/api-surf.md`), and the session refuses rather than guesses. Write
+tests that fit these rules and they run; write tests that fight them and they are refused with a
+message naming the fix.
+
+- **One tab, and it is the run's own.** The session opens the tab, points every step at it and
+  closes it in `finally`. A step that names another tab, or that runs before the tab exists, is
+  refused with `owned_tab_required`. Do not write a test that assumes a tab is already open, or
+  that switches tabs or windows.
+- **Every step declares what it does.** The effect class comes from the surf command's static
+  map, not from the test: `extract`, `wait.ready`, `page.*`, `screenshot`, `frame.diagnose` and
+  the network/console/cookie reads are read-only; `click`, `type`, `key`, `select`, `go`, `back`,
+  `forward` and `reload` change the target and need the origin in `mutation.allowOrigins`.
+- **Page-side `js` has no class.** Say what a script does: `{ effect: 'read_only', reason }` for
+  a script that reads, `{ effect: 'mutating', scope: 'target', reason }` for one that assigns,
+  submits, clicks, fetches or touches storage. A `read_only` claim is checked against a denylist
+  before anything runs, and a hit is refused (`read_only_violation`) with the advice to declare
+  it mutating instead. Prefer probes that read: `location.href`, `document.title`,
+  `document.readyState`, element counts, anchor hrefs.
+- **A mutating step runs once.** No retries, one durable receipt, and a step whose process
+  reported nothing is `unknown` and locks that key until an operator supersedes it. Write
+  assertions that survive being run once.
+- **A read-only step may retry, until the page moves.** If a probe answers from a URL the page
+  was never gated on, the remaining budget is forfeit (`read_only_violation_observed`). Do not
+  build a test whose retry depends on a navigation.
+- **A page that never settles is not probed.** `wait.ready` accepts only `ready`; a login wall,
+  a challenge, a 404 or an unresolved load is a typed refusal carrying surf's own code, not a
+  failed assertion about your app. Never write a test that logs in.

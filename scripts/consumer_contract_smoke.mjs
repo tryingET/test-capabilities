@@ -428,6 +428,24 @@ try {
     for (const removed of ["SurfClient", "SurfFlowBuilder", "createNexus", "NexusOrchestrator", "default"]) {
       assert.equal(removed in packageRoot, false, "removed export still packed: " + removed);
     }
+
+    // What replaced them: the kernel Session interface and its surf implementation. A consumer
+    // holds a scope over one owned tab, not ambient browser authority (adjudication 22, 36; D2).
+    for (const expected of [
+      "SurfSession",
+      "SessionReadinessRefusal",
+      "SESSION_LIFECYCLE_EFFECT",
+      "findJsMutationSignals",
+      "JS_MUTATION_SIGNALS",
+      "resolveSurfSessionRuntime",
+    ]) {
+      assert.equal(typeof packageRoot[expected] !== "undefined", true, "browser surface missing: " + expected);
+    }
+    assert.equal(packageRoot.SESSION_LIFECYCLE_EFFECT.effect, "read_only");
+    assert.equal(packageRoot.SESSION_LIFECYCLE_EFFECT.scope, "browser_session");
+    // The denylist is part of the surface: a consumer can check a script before declaring it.
+    assert.equal(packageRoot.findJsMutationSignals("document.querySelector('#go').click()")[0].id, "element_click");
+    assert.deepEqual(packageRoot.findJsMutationSignals("document.title"), []);
     assert.equal(packageRoot.VERSION, "0.4.0");
 
     const sampleConfigPath = new URL("./node_modules/test-capabilities/test-capabilities.yaml", import.meta.url);
