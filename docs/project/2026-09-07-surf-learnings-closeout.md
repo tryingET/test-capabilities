@@ -1,5 +1,5 @@
 ---
-summary: "Closeout of the 2026-09-07 surf-learnings programme: what the six design packets set out to change, what each of the eleven slices actually delivered, the measured before/after for the whole programme (253 -> 612 tests, 88.70 -> 96.57 % lines under c8, 34 -> 64 modules, one import cycle -> none, 0.3.0 -> 0.4.0), every behaviour change a user of this framework will notice, the eleven design decisions implementation evidence changed and the slice that changed each, what was deferred and where it is filed, and how to verify the whole thing from a clean checkout."
+summary: "Closeout of the 2026-09-07 surf-learnings programme: what the six design packets set out to change, what each of the eleven slices actually delivered, the measured before/after for the whole programme (253 -> 612 tests, 88.70 -> 96.57 % lines under c8, 34 -> 64 modules, one import cycle -> none, 0.3.0 -> 0.4.0), every behaviour change a user of this framework will notice, the eleven design decisions implementation evidence changed and the slice that changed each, what was deferred and where it is filed, how to verify the whole thing from a clean checkout, and what is worth propagating to the org template."
 read_when:
   - "You need to know what the 2026-09-07 surf-learnings programme changed, in one document, without reading eleven slice notes."
   - "You are about to trust a number about this repo's tests, coverage or structure and want the measured before/after with its method."
@@ -207,8 +207,8 @@ npm run contract:sync       # the commander/manifest/docs/schema/export contract
 npm run release:check       # the above plus truth:gate and consumer:smoke on the packed tarball
 ```
 
-`npm run check` is the gate CI runs; it needs no browser and no external binary. Expect roughly 35 s, of which the
-coverage ratchet is about 24 s. A red from the ratchet prints the metric, the measured value, the floor, the gap and
+`npm run check` is the gate CI runs; it needs no browser and no external binary. Expect roughly 45 s on a 64-core
+workstation, of which the coverage ratchet is about 24 s and the test corpus about 16 s. A red from the ratchet prints the metric, the measured value, the floor, the gap and
 the uncovered changed `file:line` list; a red from the structure check names the file and the ledger entry that would
 authorise it; a red from contract-sync names the generated file to regenerate
 (`node scripts/quality/check-contract-sync.mjs --write`).
@@ -229,7 +229,25 @@ agent-browser 0.35.1, Chrome/152). Reproducing them needs Chromium (Agent) runni
 (`systemd-run --user --unit chromium-agent --collect ~/.local/bin/chromium-agent.sh`), `surf doctor --browser
 chromium` green, and owned tabs only.
 
-## 9. What this programme did not settle
+## 9. What is worth propagating to the org template
+
+The quality-ratchet packet named a TIP candidate and the implementation confirms which half travels.
+`.copier-answers.yml` points at `~/ai-society/softwareco/copier/tpl-project-repo`, whose `package.json.j2` ships only
+`test`, `lint` and `format`.
+
+Propagate unchanged: the stage skeleton of `scripts/quality-gate.sh` (lint / typecheck / tests / structure /
+contract-sync / coverage), `scripts/quality/check-structure.mjs` and `scripts/quality/coverage-ratchet.mjs`, both
+baseline files with empty exceptions and floors the first `--raise` sets, and the CI wiring (`fetch-depth: 0` and
+`COVERAGE_BASE`). Two findings belong with them: a repo whose tests spawn child processes needs c8 rather than
+Node's built-in coverage reporter, and a build that emits source maps must relocate them relative to the published
+`dist/` or nothing downstream can read them.
+
+Keep here: `scripts/quality/check-contract-sync.mjs`. Its checks are this repo's surfaces - a capability passport
+generator, a commander/route-manifest pairing, a status table in `docs/api/cli.md`, two published JSON schemas with a
+zod counterpart. What generalises is the *shape*: a generated file committed next to the thing it describes, and a
+gate that regenerates and compares bytes, with `--write` as the fix path a red names.
+
+## 10. What this programme did not settle
 
 - The coverage number measures the fixture corpus, not the binaries. It always will; the packet says so and the
   posture repeats it.
