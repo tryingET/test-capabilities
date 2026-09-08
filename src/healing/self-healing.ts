@@ -3,10 +3,80 @@
  * Tests that fix themselves when things change
  */
 
+import { createHash } from "node:crypto";
 import { lstatSync, realpathSync, type Stats } from "node:fs";
 import path from "node:path";
+import type { EffectDeclaration } from "../core/effects.js";
+import { idempotencyKeyFor, MutationError } from "../core/effects.js";
+import type { MutationReceipt } from "../core/receipt-store.js";
+import type { RunContext } from "../core/run-context.js";
+import { createRunContext } from "../core/run-context.js";
 
 const MAX_HEAL_SOURCE_FILE_BYTES = 5 * 1024 * 1024;
+
+/** The class every healing write declares: the workspace is state the framework owns. */
+export const HEAL_WRITE_EFFECT: EffectDeclaration = {
+  effect: "mutating",
+  scope: "workspace",
+  reason: "rewrites selectors in a test file the operator pointed --dir at",
+};
+
+/**
+ * The key of one file's rewrite: the file, the content it was planned against and the change
+ * itself. A legitimate second heal of a further-drifted file gets a new key; a replay of the
+ * same plan against the same content does not (mutation-safety packet, decision log).
+ */
+export function healStepKey(
+  file: string,
+  before: string,
+  proposals: readonly HealingProposal[],
+): string {
+  const change = proposals
+    .map((proposal) => `${proposal.line}:${proposal.oldSelector}->${proposal.newSelector}`)
+    .join(",");
+  return idempotencyKeyFor("heal", {
+    id: `heal.apply:${file}`,
+    subject: `${file}|${sha256Of(before)}`,
+    intent: change,
+  });
+}
+
+/**
+ * What a healing write attempt means. A write that never reached the rename definitely did not
+ * land and is `failed`; a rename that threw may have landed and is `unknown`, which the step's
+ * `verify` read-back may then promote. Nothing here can produce `failed` from a rename.
+ */
+export function settleHealWrite(
+  error: unknown,
+  afterHash: string,
+): { outcome: "applied" | "failed" | "unknown"; evidence?: string[] } {
+  if (error instanceof HealWriteError && error.stage === "rename") {
+    return { outcome: "unknown", evidence: [`rename failed: ${error.message}`] };
+  }
+  if (error !== undefined) {
+    return { outcome: "failed" };
+  }
+  return { outcome: "applied", evidence: [`after ${afterHash}`] };
+}
+
+export function sha256Of(content: string): string {
+  return `sha256:${createHash("sha256").update(content, "utf-8").digest("hex")}`;
+}
+
+/**
+ * Where a failed write stopped. A write that never reached the rename definitely did not land;
+ * a rename that threw may have landed, and the difference is the difference between `failed`
+ * and `unknown` (mutation-safety packet, "Behaviour and failure modes").
+ */
+export class HealWriteError extends Error {
+  readonly stage: "prepare" | "rename";
+
+  constructor(stage: "prepare" | "rename", cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "HealWriteError";
+    this.stage = stage;
+  }
+}
 
 function isPathInsideRoot(candidateRealPath: string, rootRealPath: string): boolean {
   const relative = path.relative(rootRealPath, candidateRealPath);
@@ -397,6 +467,10 @@ export class TestFileHealer {
 
   async analyzeFile(filePath: string, findings?: HealingFinding[]): Promise<HealingProposal[]> {
     const content = await this.readFile(filePath);
+    // The content this proposal was made against. It travels through the proposal artifact and
+    // becomes the write's precondition, so an apply against drifted content is impossible by
+    // construction rather than by bookkeeping (mutation-safety packet, refinement 5).
+    const fileSha256 = sha256Of(content);
     const proposals: HealingProposal[] = [];
 
     // Build a set of selectors mentioned in finding evidence when findings are provided.
@@ -428,6 +502,7 @@ export class TestFileHealer {
 
           proposals.push({
             file: filePath,
+            fileSha256,
             line: this.getLineNumber(content, candidate.index),
             column: this.getColumnNumber(content, candidate.index),
             oldSelector: candidate.selector,
@@ -481,16 +556,27 @@ export class TestFileHealer {
   }
 
   /**
-   * Apply proposals file by file. Returns the files whose rewrite was proven
-   * (temp file written and renamed into place). On a failure after the first
-   * write, every written file is restored from its original content and the
-   * thrown error reports how many files were written and whether every restore
-   * landed; a restore that fails is reported instead of hidden.
+   * Apply proposals file by file, one conditional write per file.
+   *
+   * Every write is an `EffectStep` on the ledger (mutation-safety packet, refinement 5 and 6):
+   * the key is `sha256(operation | step | file | intent)` over the file and its planned change,
+   * the `precondition` is the content hash the proposal was made against and is re-read
+   * immediately before the rename, the after-hash read-back is the step's `verify`, and a write
+   * that fails after earlier files landed compensates only those - each with its own receipt,
+   * never after an `unknown`.
+   *
+   * Returns the files whose rewrite was proven, and the receipts of the run.
    */
-  async applyProposals(proposals: HealingProposal[]): Promise<{ written: string[] }> {
+  async applyProposals(
+    proposals: HealingProposal[],
+    context?: RunContext,
+  ): Promise<{ written: string[]; receipts: MutationReceipt[] }> {
     if (proposals.length === 0) {
-      return { written: [] };
+      return { written: [], receipts: [] };
     }
+
+    const run =
+      context ?? createRunContext({ operationId: "heal", effect: HEAL_WRITE_EFFECT, input: {} });
 
     const proposalsByFile = new Map<string, HealingProposal[]>();
     for (const proposal of proposals) {
@@ -501,36 +587,65 @@ export class TestFileHealer {
 
     const originals = new Map<string, string>();
     const updates = new Map<string, string>();
+    const preconditions = new Map<string, string | undefined>();
 
     for (const [file, fileProposals] of proposalsByFile) {
       const content = await this.readFile(file);
       originals.set(file, content);
       updates.set(file, this.applyProposalsToContent(content, fileProposals));
+      // A proposal artifact written before 0.4.0 carries no hash; such a proposal is applied
+      // without a compare-and-swap and the receipt says so, rather than being refused.
+      preconditions.set(file, fileProposals.find((proposal) => proposal.fileSha256)?.fileSha256);
     }
 
     const written: string[] = [];
+    const receiptsByFile = new Map<string, MutationReceipt>();
 
     try {
       for (const [file, updated] of updates) {
-        await this.writeFile(file, updated);
+        const before = originals.get(file) as string;
+        const precondition = preconditions.get(file);
+        await run.ledger.runStep<void>({
+          id: `heal.apply:${file}`,
+          effect: HEAL_WRITE_EFFECT,
+          subject: file,
+          intent: `replace ${(proposalsByFile.get(file) as HealingProposal[]).length} selector(s)`,
+          idempotencyKey: healStepKey(file, before, proposalsByFile.get(file) as HealingProposal[]),
+          ...(precondition
+            ? { precondition, readPrecondition: async () => sha256Of(await this.readFile(file)) }
+            : {}),
+          details: {
+            file_sha256_before: sha256Of(before),
+            proposal_count: (proposalsByFile.get(file) as HealingProposal[]).length,
+            ...(precondition ? {} : { precondition: "absent (legacy proposal artifact)" }),
+          },
+          run: async () => {
+            await this.writeFile(file, updated);
+          },
+          settle: (attempt) => settleHealWrite(attempt.error, sha256Of(updated)),
+          // The one read-only post-read that may promote an `unknown` write: the file either
+          // holds the planned content or it does not.
+          verify: async () => {
+            const after = sha256Of(await this.readFile(file));
+            return after === sha256Of(updated)
+              ? { result: "applied" as const, evidence: [`after ${after}`] }
+              : { result: "indeterminate" as const, evidence: [`read back ${after}`] };
+          },
+        });
         written.push(file);
+        const receipt = run.ledger.receipts().at(-1);
+        if (receipt) {
+          receiptsByFile.set(file, receipt);
+        }
       }
     } catch (error) {
-      const cause = error instanceof Error ? error.message : String(error);
-      const restoreFailures: string[] = [];
-      for (const file of written) {
-        const original = originals.get(file);
-        if (original === undefined) {
-          continue;
-        }
-        try {
-          await this.writeFile(file, original);
-        } catch (restoreError) {
-          restoreFailures.push(
-            `${file}: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`,
-          );
-        }
+      // A refusal that changed nothing speaks for itself: wrapping `precondition_failed` in a
+      // partial-write summary would hide the code the operator has to act on (review A16).
+      if (error instanceof MutationError && written.length === 0) {
+        throw error;
       }
+      const cause = error instanceof Error ? error.message : String(error);
+      const restoreFailures = await this.compensate(run, written, receiptsByFile, originals);
 
       const summary = `Healing apply wrote ${written.length} of ${updates.size} file(s) before failing: ${cause}`;
       if (restoreFailures.length > 0) {
@@ -545,7 +660,49 @@ export class TestFileHealer {
       );
     }
 
-    return { written };
+    return { written, receipts: run.ledger.receipts() };
+  }
+
+  /**
+   * Undo the siblings that definitely landed, and only those. Compensation is confined to
+   * owned storage after a definite sibling outcome; a file whose own write ended `unknown` is
+   * never restored, because the restore could destroy the very content whose fate is unknown
+   * (mutation-safety packet, refinement 6).
+   */
+  private async compensate(
+    run: RunContext,
+    written: string[],
+    receiptsByFile: Map<string, MutationReceipt>,
+    originals: Map<string, string>,
+  ): Promise<string[]> {
+    const restoreFailures: string[] = [];
+    for (const file of written) {
+      const original = originals.get(file);
+      const receipt = receiptsByFile.get(file);
+      if (original === undefined || receipt === undefined || receipt.outcome !== "applied") {
+        continue;
+      }
+      try {
+        await run.ledger.runStep<void>({
+          id: `heal.restore:${file}`,
+          effect: HEAL_WRITE_EFFECT,
+          subject: file,
+          intent: "restore the file this run had already healed",
+          idempotencyKey: `${receipt.idempotency_key}:compensation`,
+          compensationOf: receipt.receipt_id,
+          details: { file_sha256_restored: sha256Of(original) },
+          run: async () => {
+            await this.writeFile(file, original);
+          },
+          settle: (attempt) => settleHealWrite(attempt.error, sha256Of(original)),
+        });
+      } catch (restoreError) {
+        restoreFailures.push(
+          `${file}: ${restoreError instanceof Error ? restoreError.message : String(restoreError)}`,
+        );
+      }
+    }
+    return restoreFailures;
   }
 
   private applyProposalsToContent(content: string, proposals: HealingProposal[]): string {
@@ -667,6 +824,7 @@ export class TestFileHealer {
     );
 
     let tempCreated = false;
+    let renaming = false;
     let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
     try {
       handle = await fs.open(tempPath, "wx", originalStat.mode & 0o777);
@@ -674,13 +832,14 @@ export class TestFileHealer {
       await handle.writeFile(content, "utf-8");
       await handle.close();
       handle = undefined;
+      renaming = true;
       await fs.rename(tempPath, filePath);
     } catch (error) {
       await handle?.close().catch(() => undefined);
       if (tempCreated) {
         await fs.rm(tempPath, { force: true }).catch(() => undefined);
       }
-      throw error;
+      throw new HealWriteError(renaming ? "rename" : "prepare", error);
     }
   }
 
@@ -724,6 +883,12 @@ export class TestFileHealer {
 
 export interface HealingProposal {
   file: string;
+  /**
+   * sha256 of the file as it was when this proposal was made. The apply re-reads the file and
+   * refuses with `precondition_failed` when it no longer matches, so a proposal can never be
+   * applied to content it was not planned against. Absent on artifacts written before 0.4.0.
+   */
+  fileSha256?: string;
   line: number;
   column?: number;
   oldSelector: string;

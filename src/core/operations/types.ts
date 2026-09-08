@@ -313,6 +313,13 @@ export interface HealProposalArtifactRef {
   proposalCount: number;
 }
 
+export interface HealReceiptArtifactRef {
+  path: string;
+  schemaVersion: 1;
+  receiptCount: number;
+  appliedCount: number;
+}
+
 export interface HealVerificationArtifactRef {
   path: string;
   schemaVersion: 1;
@@ -333,7 +340,9 @@ export interface HealOperationResultEnvelope extends OperationEffectEnvelope {
   input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
     Pick<HealOperationInput, "proposalOutput" | "verificationOutput" | "proposalInput">;
   proposals: HealingProposal[];
+  /** the number of proposals whose file the ledger settled as `applied` */
   appliedCount: number;
+  receiptArtifact?: HealReceiptArtifactRef;
   proposalArtifact?: HealProposalArtifactRef;
   verification?: HealingProposalVerification;
   verificationArtifact?: HealVerificationArtifactRef;

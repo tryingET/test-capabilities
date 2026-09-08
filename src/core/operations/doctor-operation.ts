@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
 import type { EffectDeclaration } from "../effects.js";
+import type { MutationReceipt } from "../receipt-store.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
@@ -367,6 +368,76 @@ function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorChec
   );
 }
 
+/**
+ * What the interlock looks like from here: where the receipts live, whether that store survives
+ * the run, and how many receipts are still in doubt. A receipt in doubt is not an error - it is
+ * a mutating attempt nobody has resolved, and it will refuse its key's next run until an
+ * operator inspects the subject and supersedes it (mutation-safety packet, risks table).
+ */
+async function checkReceiptStore(context: RunContext): Promise<DoctorCheck> {
+  const id = "runtime.receipts";
+  const label = "Mutation receipt store";
+  const settings = context.config.receipts;
+  const where = `${settings.dir} (${settings.source})`;
+
+  let inDoubt: MutationReceipt[];
+  try {
+    inDoubt = await context.receiptStore.list({ inDoubt: true });
+  } catch (error) {
+    return warn(id, label, `${where}: could not be read: ${errorMessage(error)}`);
+  }
+
+  const data = {
+    dir: settings.dir,
+    source: settings.source,
+    ephemeralAccepted: settings.ephemeral,
+    ephemeralDetected: settings.ephemeralDetected ?? null,
+    inDoubt: inDoubt.length,
+    receipts: inDoubt.map((receipt) => ({
+      receipt_id: receipt.receipt_id,
+      outcome: receipt.outcome,
+      subject: receipt.subject,
+    })),
+  };
+
+  if (settings.ephemeralDetected !== undefined && !settings.ephemeral) {
+    return {
+      ...warn(
+        id,
+        label,
+        `${where}: ${settings.ephemeralDetected}, so a mutating operation refuses with mutation_receipts_ephemeral. Point receipts.dir at a durable directory, or set receipts.ephemeral: true to accept it`,
+      ),
+      data,
+    };
+  }
+
+  if (inDoubt.length > 0) {
+    const first = inDoubt[0] as MutationReceipt;
+    return {
+      ...warn(
+        id,
+        label,
+        `${where}: ${inDoubt.length} receipt(s) still in doubt; the first is ${first.receipt_id} (${first.outcome}) on ${first.subject}. Inspect the subject, then re-run with --supersede-receipt ${first.receipt_id}`,
+      ),
+      data,
+    };
+  }
+
+  return {
+    ...pass(
+      id,
+      label,
+      `${where}: 0 receipts in doubt${settings.ephemeral ? "; declared ephemeral" : ""}`,
+      false,
+    ),
+    data,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function runDoctorOperation(
   normalized: NormalizedDoctorOperationInput,
   context: RunContext,
@@ -381,6 +452,7 @@ async function runDoctorOperation(
     ...(targetCheck ? [targetCheck] : []),
     checkOptionalSurf(),
     checkOptionalBombadil(),
+    await checkReceiptStore(context),
   ];
   const requiredFailed = checks.filter((check) => check.required && check.status === "fail");
   const optionalWarnings = checks.filter((check) => !check.required && check.status === "warn");

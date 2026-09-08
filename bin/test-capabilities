@@ -91,8 +91,14 @@ function exitWithError(error, spinner, message, options = {}) {
   }
 
   if (options.json) {
+    // the receipts travel in error.details.receipts of the same envelope
     console.log(JSON.stringify(toErrorEnvelope(error), null, 2));
   } else {
+    // An unknown outcome is never silent: one line per receipt before the [code] line, so the
+    // operator can see what was attempted before reading why it stopped (packet P1, A16).
+    for (const receipt of error?.receipts ?? []) {
+      console.error(chalk.dim(`${receipt.receipt_id} ${receipt.outcome} ${receipt.subject}`));
+    }
     console.error(chalk.red(renderErrorLine(error)));
   }
 
@@ -224,6 +230,10 @@ program
   .option("-c, --config <file>", "Configuration file", "test-capabilities.yaml")
   .option("-a, --autonomous", "Enable full autonomous mode")
   .option("--self-heal", "Enable self-healing tests")
+  .option(
+    "--supersede-receipt <receipt_id>",
+    "Proceed past an in-doubt mutation receipt you have inspected; the new receipt records which one it supersedes",
+  )
   .option("--predict", "Enable failure prediction")
   .option("--quick", "Quick sanity check mode")
   .option("--fail-threshold <level>", "Fail threshold (low|medium|high|critical)")
@@ -247,7 +257,9 @@ program
           : "Executing registered test operation...";
       }
 
-      const output = await executeCliOperation({ command: "test" }, options);
+      const output = await executeCliOperation({ command: "test" }, options, {
+        supersedeReceiptId: options.supersedeReceipt,
+      });
       if (shouldPrintJson) {
         console.log(JSON.stringify(output, null, 2));
       } else {
@@ -379,13 +391,23 @@ program
     "--findings-input <file>",
     "Read diagnostic findings JSON so proposals can cite triggeringFindingId evidence",
   )
+  .option(
+    "--receipt-output <file>",
+    "Apply mode only: export this run's mutation receipts as one JSON artifact (the per-receipt files under receipts.dir are written either way)",
+  )
+  .option(
+    "--supersede-receipt <receipt_id>",
+    "Apply mode only: proceed past an in-doubt receipt you have inspected; the new receipt records which one it supersedes",
+  )
   .action(async (options) => {
     showBanner();
     const spinner = ora("Executing registered healing operation...").start();
 
     try {
       assertSupportedCliCommand("heal");
-      const output = await executeCliOperation({ command: "heal" }, options);
+      const output = await executeCliOperation({ command: "heal" }, options, {
+        supersedeReceiptId: options.supersedeReceipt,
+      });
 
       if (output.proposals.length === 0) {
         spinner.succeed("No healing proposals found.");
@@ -419,6 +441,12 @@ program
       spinner.succeed(`Applied ${output.appliedCount} healing proposal(s).`);
       if (output.checkpointRef) {
         console.log(chalk.dim(`Checkpoint ref: ${output.checkpointRef}`));
+      }
+      if (output.receiptArtifact) {
+        console.log(chalk.dim(`Receipt artifact: ${output.receiptArtifact.path}`));
+      }
+      for (const receipt of output.mutations ?? []) {
+        console.log(chalk.dim(`Receipt ${receipt.receipt_id} ${receipt.outcome} ${receipt.subject}`));
       }
     } catch (error) {
       exitWithError(error, spinner, "Healing failed!");

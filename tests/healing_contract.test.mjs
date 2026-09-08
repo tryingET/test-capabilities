@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -11,8 +12,21 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
-import { SelfHealingEngine, TestFileHealer } from "../src/healing/self-healing.ts";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
+
+// The built module, like every other contract test: the healer now imports the kernel ledger,
+// and the coverage ratchet measures `dist/**` remapped onto `src/**`.
+const { SelfHealingEngine, TestFileHealer } = await importRuntimeModule("healing/self-healing.js");
+const { createRunContext } = await importRuntimeModule("core/run-context.js");
+
+// Healing writes are mutating steps, so they open a receipt before they act. Keep this suite's
+// receipts in their own throwaway store and accept it as ephemeral, the way an operator would.
+process.env.TEST_CAPABILITIES_RECEIPTS_DIR = mkdtempSync(
+  path.join(os.tmpdir(), "test-capabilities-healing-receipts-"),
+);
+process.env.TEST_CAPABILITIES_RECEIPTS_EPHEMERAL = "1";
 
 test("SelfHealingEngine keeps low-confidence AI candidates out of the success path", async () => {
   const healer = new SelfHealingEngine();
@@ -621,7 +635,9 @@ test("TestFileHealer.applyProposals refuses to re-apply a proposal whose old sel
   try {
     const healer = new TestFileHealer();
     const first = await healer.applyProposals([proposal]);
-    assert.deepEqual(first, { written: [file] });
+    assert.deepEqual(first.written, [file]);
+    assert.equal(first.receipts.length, 1);
+    assert.equal(first.receipts[0].outcome, "applied");
     assert.match(readFileSync(file, "utf8"), /locator\('#btn-new'\)/);
 
     await assert.rejects(
@@ -663,7 +679,7 @@ test("TestFileHealer.applyProposals skips a longer-token occurrence and rewrites
         requiresReview: false,
       },
     ]);
-    assert.deepEqual(result, { written: [file] });
+    assert.deepEqual(result.written, [file]);
     assert.equal(
       readFileSync(file, "utf8"),
       "test('one', async () => { await page.locator('#btn-new'); await page.locator('#button'); await page.locator('[data-testid=my-btn]'); });\n",
@@ -776,4 +792,212 @@ test("the healer proposes from a fault finding only, and still accepts unclassif
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Slice S5: healing writes are conditional, receipted and compensated.
+// ---------------------------------------------------------------------------
+
+const { HealWriteError, healStepKey, settleHealWrite, sha256Of } =
+  await importRuntimeModule("healing/self-healing.js");
+
+function healContext(receiptsDir) {
+  return createRunContext({
+    operationId: "heal",
+    effect: { effect: "mutating", scope: "workspace", reason: "healing contract test" },
+    env: {
+      ...process.env,
+      TEST_CAPABILITIES_RECEIPTS_DIR: receiptsDir,
+      TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+    },
+  });
+}
+
+function selectorProposal(file, overrides = {}) {
+  return {
+    file,
+    line: 1,
+    oldSelector: "#old-login",
+    newSelector: "#new-login",
+    confidence: 0.95,
+    strategy: "manual",
+    requiresReview: false,
+    ...overrides,
+  };
+}
+
+test("a proposal carries the hash of the content it was made against", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-precondition-"));
+  const file = path.join(dir, "sample.test.ts");
+  const content = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(file, content, "utf8");
+
+  const [proposal] = await new TestFileHealer({ rootDir: dir }).analyzeFile(file);
+  assert.equal(proposal.fileSha256, sha256Of(content));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("a write against content the proposal was not planned for is refused, and nothing is written", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-drift-"));
+  const receipts = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-drift-receipts-"));
+  const file = path.join(dir, "sample.test.ts");
+  const planned = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(file, planned, "utf8");
+  const proposal = selectorProposal(file, { fileSha256: sha256Of(planned) });
+
+  // Someone edited the file between the analysis and the apply. The edit leaves the proposal's
+  // own line untouched, so the token guard is satisfied and only the content hash can see it:
+  // this is the drift the compare-and-swap exists for (mutation-safety packet, refinement 5).
+  const drifted = `${planned}// touched by hand\n`;
+  writeFileSync(file, drifted, "utf8");
+
+  const healer = new TestFileHealer({ rootDir: dir });
+  await assert.rejects(healer.applyProposals([proposal], healContext(receipts)), (error) => {
+    assert.equal(error.code, "precondition_failed");
+    assert.match(error.message, /no longer holds the content this step was planned against/);
+    assert.match(error.message, /Nothing was written/);
+    return true;
+  });
+
+  assert.equal(readFileSync(file, "utf8"), drifted, "the file is untouched");
+  assert.deepEqual(
+    readdirSync(receipts),
+    [],
+    "a refusal that changed nothing leaves no locked key behind",
+  );
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(receipts, { recursive: true, force: true });
+});
+
+test("the replay of an already applied proposal is refused by its precondition, across runs", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-replay-"));
+  const receipts = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-replay-receipts-"));
+  const file = path.join(dir, "sample.test.ts");
+  const content = "test('one', async () => { await page.locator('#btn').click(); });\n";
+  writeFileSync(file, content, "utf8");
+  const proposal = {
+    file,
+    fileSha256: sha256Of(content),
+    line: 1,
+    oldSelector: "#btn",
+    newSelector: "#btn-new",
+    confidence: 0.95,
+    strategy: "manual",
+    requiresReview: false,
+  };
+
+  const healer = new TestFileHealer({ rootDir: dir });
+  const applied = await healer.applyProposals([proposal], healContext(receipts));
+  assert.deepEqual(applied.written, [file]);
+  assert.equal(applied.receipts[0].outcome, "applied");
+  assert.equal(applied.receipts[0].precondition, proposal.fileSha256);
+  assert.match(applied.receipts[0].evidence.at(-1), /^after sha256:/);
+
+  // A second, independent run with the same artifact. The token guard sees the healed selector
+  // and refuses first; when the selector is a whole token it would not have (`#btn` inside
+  // `#btn-new` was the 0.4.0 bug), the compare-and-swap refuses instead - two lines of defence
+  // for the same replay.
+  await assert.rejects(
+    healer.applyProposals([proposal], healContext(receipts)),
+    /Expected '#btn' as a whole token but found '#btn-new'/,
+  );
+  const renamedOnly = { ...proposal, oldSelector: "#btn-new", newSelector: "#btn-final" };
+  await assert.rejects(healer.applyProposals([renamedOnly], healContext(receipts)), {
+    code: "precondition_failed",
+  });
+  assert.match(readFileSync(file, "utf8"), /locator\('#btn-new'\)/);
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(receipts, { recursive: true, force: true });
+});
+
+test("a partial write failure compensates the sibling that landed, each with its own receipt", async () => {
+  if (process.getuid?.() === 0) {
+    return; // root ignores directory modes; the write cannot be made to fail this way
+  }
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-compensate-"));
+  const receipts = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-comp-receipts-"));
+  const okFile = path.join(dir, "a.test.ts");
+  const lockedDir = path.join(dir, "locked");
+  const lockedFile = path.join(lockedDir, "b.test.ts");
+  const original = "test('one', async () => { await page.locator('#old-login').click(); });\n";
+  writeFileSync(okFile, original, "utf8");
+  mkdirSync(lockedDir);
+  writeFileSync(lockedFile, original, "utf8");
+
+  try {
+    chmodSync(lockedDir, 0o500);
+    const context = healContext(receipts);
+    const healer = new TestFileHealer({ rootDir: dir });
+    await assert.rejects(
+      healer.applyProposals(
+        [
+          selectorProposal(okFile, { fileSha256: sha256Of(original) }),
+          selectorProposal(lockedFile, { fileSha256: sha256Of(original) }),
+        ],
+        context,
+      ),
+      /Healing apply wrote 1 of 2 file\(s\) before failing/,
+    );
+
+    const written = context.ledger.receipts();
+    assert.equal(written.length, 3, "one applied, one failed, one compensation");
+    assert.equal(written[0].outcome, "applied");
+    assert.equal(written[0].subject, okFile);
+    assert.equal(written[1].outcome, "failed");
+    assert.equal(written[1].subject, lockedFile);
+    assert.equal(written[2].outcome, "applied");
+    assert.equal(written[2].compensation_of, written[0].receipt_id);
+    assert.match(written[2].intent, /restore/);
+    assert.equal(readFileSync(okFile, "utf8"), original, "the sibling was restored");
+    assert.equal(readFileSync(lockedFile, "utf8"), original);
+  } finally {
+    chmodSync(lockedDir, 0o700);
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(receipts, { recursive: true, force: true });
+  }
+});
+
+test("a rename that failed is in doubt, and nothing compensates it", () => {
+  const after = sha256Of("healed");
+  assert.deepEqual(settleHealWrite(undefined, after), {
+    outcome: "applied",
+    evidence: [`after ${after}`],
+  });
+  assert.equal(
+    settleHealWrite(new HealWriteError("prepare", new Error("EACCES")), after).outcome,
+    "failed",
+  );
+
+  const renamed = settleHealWrite(new HealWriteError("rename", new Error("EIO")), after);
+  assert.equal(renamed.outcome, "unknown", "the file may hold either content; only a read knows");
+  assert.match(renamed.evidence[0], /^rename failed: EIO$/);
+});
+
+test("the healing key changes with the content and with the change, not with the clock", () => {
+  const proposals = [selectorProposal("/abs/a.ts")];
+  const key = healStepKey("/abs/a.ts", "before", proposals);
+  assert.match(key, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(key, healStepKey("/abs/a.ts", "before", proposals));
+  assert.notEqual(key, healStepKey("/abs/a.ts", "drifted", proposals));
+  assert.notEqual(
+    key,
+    healStepKey("/abs/a.ts", "before", [selectorProposal("/abs/a.ts", { newSelector: "#other" })]),
+  );
+});
+
+test("a legacy proposal artifact without a hash still applies, and its receipt says so", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-legacy-"));
+  const receipts = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-legacy-receipts-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(file, "test('one', async () => { await page.locator('#old-login').click(); });\n");
+
+  const applied = await new TestFileHealer({ rootDir: dir }).applyProposals(
+    [selectorProposal(file)],
+    healContext(receipts),
+  );
+  assert.deepEqual(applied.written, [file]);
+  assert.equal(applied.receipts[0].precondition, undefined);
+  assert.equal(applied.receipts[0].details.precondition, "absent (legacy proposal artifact)");
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(receipts, { recursive: true, force: true });
 });

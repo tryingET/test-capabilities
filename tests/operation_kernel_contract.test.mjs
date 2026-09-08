@@ -16,6 +16,14 @@ import test from "node:test";
 import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
+// A heal apply is a mutating operation: it opens a receipt before it writes. Keep this suite's
+// receipts in their own throwaway store and accept it as ephemeral (operator decision D5); the
+// refusal itself is proved below with the environment left alone.
+process.env.TEST_CAPABILITIES_RECEIPTS_DIR = mkdtempSync(
+  path.join(os.tmpdir(), "test-capabilities-kernel-receipts-"),
+);
+process.env.TEST_CAPABILITIES_RECEIPTS_EPHEMERAL = "1";
+
 const { CAPABILITY_MATRIX } = await importRuntimeModule("core/capabilities.js");
 const {
   CLI_OPERATION_REGISTRY,
@@ -1536,5 +1544,144 @@ test("the library entry points mint their own run when the kernel did not", asyn
   });
   assert.equal(plan.effect.effect, "read_only");
   assert.deepEqual(plan.mutations, []);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("doctor reports where the receipts live, whether they survive, and how many are in doubt", async () => {
+  const { executeDoctorOperation } = await importRuntimeModule("core/operations.js");
+  const receiptCheck = (envelope) =>
+    envelope.checks.find((check) => check.id === "runtime.receipts");
+
+  const durable = mkdtempSync(path.join(os.tmpdir(), "tc-doctor-receipts-"));
+  const clean = await executeDoctorOperation(
+    { json: true },
+    createRunContext({
+      operationId: "doctor",
+      effect: { effect: "read_only", reason: "doctor contract test" },
+      env: {
+        ...process.env,
+        TEST_CAPABILITIES_RECEIPTS_DIR: durable,
+        TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+      },
+    }),
+  );
+  assert.equal(receiptCheck(clean).status, "pass");
+  assert.match(receiptCheck(clean).detail, /0 receipts in doubt/);
+  assert.equal(receiptCheck(clean).data.inDoubt, 0);
+  assert.equal(receiptCheck(clean).required, false);
+
+  // a store the run cannot outlive is a warning here and a refusal for a mutating step (D5)
+  const ephemeral = await executeDoctorOperation(
+    { json: true },
+    createRunContext({
+      operationId: "doctor",
+      effect: { effect: "read_only", reason: "doctor contract test" },
+      env: {
+        ...process.env,
+        TEST_CAPABILITIES_RECEIPTS_DIR: durable,
+        TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "",
+      },
+    }),
+  );
+  assert.equal(receiptCheck(ephemeral).status, "warn");
+  assert.match(receiptCheck(ephemeral).detail, /mutation_receipts_ephemeral/);
+  assert.match(receiptCheck(ephemeral).data.ephemeralDetected, /temporary directory/);
+
+  // and one receipt left in doubt is reported with the line that resolves it
+  const withDoubt = mkdtempSync(path.join(os.tmpdir(), "tc-doctor-doubt-"));
+  mkdirSync(path.join(withDoubt, "run-1"), { recursive: true });
+  writeFileSync(
+    path.join(withDoubt, "run-1", "r1.json"),
+    JSON.stringify({
+      schema_version: 1,
+      artifact_kind: "test-capabilities.mutation.receipt",
+      receipt_id: "r1",
+      run_id: "run-1",
+      operation_id: "heal",
+      step_id: "heal.apply:/abs/a.ts",
+      effect: "mutating",
+      scope: "workspace",
+      subject: "/abs/a.ts",
+      intent: "replace 1 selector(s)",
+      idempotency_key: "sha256:aa",
+      attempt: 1,
+      started_at: "2026-09-08T00:00:00.000Z",
+      outcome: "attempting",
+      evidence: [],
+    }),
+  );
+  const doubtful = await executeDoctorOperation(
+    { json: true },
+    createRunContext({
+      operationId: "doctor",
+      effect: { effect: "read_only", reason: "doctor contract test" },
+      env: {
+        ...process.env,
+        TEST_CAPABILITIES_RECEIPTS_DIR: withDoubt,
+        TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+      },
+    }),
+  );
+  assert.equal(receiptCheck(doubtful).status, "warn");
+  assert.match(receiptCheck(doubtful).detail, /--supersede-receipt r1/);
+  assert.equal(receiptCheck(doubtful).data.inDoubt, 1);
+  assert.deepEqual(receiptCheck(doubtful).data.receipts, [
+    { receipt_id: "r1", outcome: "attempting", subject: "/abs/a.ts" },
+  ]);
+  assert.equal(doubtful.status, "pass", "an in-doubt receipt is a warning, never a failed check");
+
+  rmSync(durable, { recursive: true, force: true });
+  rmSync(withDoubt, { recursive: true, force: true });
+});
+
+test("heal exports its receipts, refuses the export in dry-run, and supersedes only on request", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "tc-heal-receipts-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(file, "test('one', async () => { await page.locator('#old-login').click(); });\n");
+  const receiptOut = path.join(dir, "receipts.json");
+
+  await assert.rejects(
+    executeHealOperation({ dir, dryRun: true, receiptOutput: receiptOut }),
+    /--receipt-output exports the receipts of a mutating run and cannot be combined with --dry-run/,
+  );
+  await assert.rejects(
+    executeHealOperation({ dir, dryRun: true, supersedeReceipt: "r1" }),
+    /--supersede-receipt resets an in-doubt interlock/,
+  );
+
+  // no TEST_CAPABILITIES_RECEIPTS_DIR here: heal's receipts default to --dir (claim 47)
+  const context = createRunContext({
+    operationId: "heal",
+    effect: { effect: "mutating", scope: "workspace", reason: "heal contract test" },
+    input: { dir },
+    env: {
+      ...process.env,
+      TEST_CAPABILITIES_RECEIPTS_DIR: "",
+      TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+    },
+  });
+  assert.equal(context.config.receipts.dir, path.join(dir, ".test-capabilities", "receipts"));
+
+  const applied = await executeHealOperation(
+    { dir, checkpointRef: "checkpoint-1", receiptOutput: receiptOut },
+    context,
+  );
+  assert.equal(applied.appliedCount, 1);
+  assert.equal(applied.receiptArtifact.receiptCount, 1);
+  assert.equal(applied.receiptArtifact.appliedCount, 1);
+  assert.equal(applied.mutations.length, 1);
+  assert.equal(applied.mutations[0].outcome, "applied");
+  assert.equal(applied.effect.effect, "mutating");
+  assert.equal(applied.effect.scope, "workspace");
+
+  const artifact = JSON.parse(readFileSync(receiptOut, "utf8"));
+  assert.equal(artifact.artifact_kind, "test-capabilities.heal.receipts");
+  assert.equal(artifact.schema_version, 1);
+  assert.equal(artifact.receipts.length, 1);
+  // the aggregate export is the run's receipts, not their only home
+  assert.equal(
+    existsSync(path.join(dir, ".test-capabilities", "receipts", artifact.receipts[0].run_id)),
+    true,
+  );
   rmSync(dir, { recursive: true, force: true });
 });

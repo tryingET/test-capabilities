@@ -5,7 +5,7 @@
     "src/core/orchestrator.ts": 1653,
     "src/core/surf-runtime.ts": 813,
     "src/core/operations/surf-explore-operation.ts": 957,
-    "src/healing/self-healing.ts": 841
+    "src/healing/self-healing.ts": 1006
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -96,6 +96,13 @@
       "to": 957,
       "reason": "slice S5 commit (3): the operation declares SURF_EXPLORE_OPERATION_EFFECT (read_only with browser_session scope, because explore owns the tab it opens), takes the RunContext through to executeSurfExploreOperation so the surf agent's nested explore shares the run, and returns through finalizeEnvelope carrying its own class (a nested explore reports the run of its parent and the class of itself). Scheduled shrink: S6 turns explore into a step list over Session.",
       "ref": "a8eaea2"
+    },
+    {
+      "file": "src/healing/self-healing.ts",
+      "from": 841,
+      "to": 1006,
+      "reason": "slice S5 commit (4): healing writes become conditional EffectSteps on the kernel ledger (mutation-safety packet, refinement 5 and 6). analyzeFile stamps the sha256 of the content a proposal was made against, applyProposals runs one step per file keyed sha256(file | before-hash | change) with that hash as the precondition re-read immediately before the rename, the after-hash read-back is the step's verify, a rename that threw settles `unknown` rather than `failed` (settleHealWrite), and the restore path becomes compensation steps that run only for a sibling whose own receipt says `applied`. Most of the growth is the compensate() method and the contract documentation of those rules. Scheduled shrink: the healer's strategy list and the write path split when heal becomes a step list over the session (post-S6).",
+      "ref": "eaad04d"
     }
   ]
 }

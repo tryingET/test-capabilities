@@ -86,6 +86,7 @@ export type {
   HealOperationInput,
   HealOperationResultEnvelope,
   HealProposalArtifactRef,
+  HealReceiptArtifactRef,
   HealVerificationArtifactRef,
   InitOperationInput,
   InitOperationResultEnvelope,

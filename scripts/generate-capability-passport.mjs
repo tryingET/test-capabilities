@@ -165,7 +165,7 @@ for (const [command, status] of Object.entries(capabilityMatrix.cli.commands)) {
 capabilities.push(
   capabilityEntry({
     id: "cli-option:heal-proposal-and-verification-output",
-    name: "heal --proposal-output / --verification-output / --checkpoint-ref",
+    name: "heal --proposal-output / --verification-output / --checkpoint-ref / --receipt-output / --supersede-receipt",
     surfaceKind: "cli-option",
     presenceState: "present",
     supportState: "supported",
@@ -181,7 +181,7 @@ capabilities.push(
     ],
     activationRequirements: [],
     notes:
-      "Writes dry-run-only JSON healing proposal and in-memory verification artifacts for review or future replay-ledger artifact follow-through, and requires an externally-owned checkpoint ref before apply-mode healing mutates files. It does not create checkpoints, emit Replay Fabric milestones, or execute rollback.",
+      "Writes dry-run-only JSON healing proposal and in-memory verification artifacts for review or future replay-ledger artifact follow-through, and requires an externally-owned checkpoint ref before apply-mode healing mutates files. Apply mode also exports the run's mutation receipts with --receipt-output and accepts --supersede-receipt to proceed past an in-doubt receipt an operator has inspected; the per-receipt files under receipts.dir are written either way and are what the interlock reads. It does not create checkpoints, emit Replay Fabric milestones, or execute rollback.",
   }),
 );
 

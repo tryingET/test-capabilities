@@ -258,6 +258,8 @@ test-capabilities heal --dir ./tests \
 | `--proposal-input <file>` | Apply proposals from a previously emitted proposal artifact; requires `--checkpoint-ref` and target files must stay inside `--dir` | unset |
 | `--findings-input <file>` | Read diagnostic findings JSON and cite matching evidence as `triggeringFindingId` on proposals | unset |
 | `--checkpoint-ref <ref>` | External checkpoint identity required before applying healing proposals | unset |
+| `--receipt-output <file>` | Apply mode only: export this run's mutation receipts as one JSON artifact | unset |
+| `--supersede-receipt <receipt_id>` | Apply mode only: proceed past an in-doubt receipt you have inspected; the new receipt records which one it supersedes | unset |
 
 Missing or non-directory `--dir` values fail closed instead of reporting an empty success.
 The healing scan skips common generated/dependency directories such as `node_modules`, `dist`, `coverage`, and `.git`.
@@ -266,6 +268,7 @@ Proposal and verification artifacts are dry-run only: requesting `--proposal-out
 When findings are provided, healing only proposes selector repairs for selectors cited by finding evidence and adds `triggeringFindingId`; equivalent selector spellings such as `getByTestId('old-login')` and `[data-testid="old-login"]` are normalized for matching without turning evidence into causal proof. Without findings, healing uses the heuristic file scan without provenance claims.
 When applying fixes, the kernel requires `--checkpoint-ref` if proposals would mutate files, then validates the full per-file proposal set before writing so same-line rewrites do not leave partial mutations behind. `--proposal-input` applies proposals from a prior proposal artifact instead of recomputing them; proposal target paths must be absolute, regular files inside `--dir`, and non-symlinked.
 The checkpoint ref must come from an external checkpoint/restore authority; this command records the identity but does not create checkpoints or perform rollback.
+Every applied file is a conditional write behind a mutation receipt: the receipt reaches `receipts.dir` before the write, the content hash the proposal was planned against is re-read immediately before the rename (`precondition_failed` on drift, nothing written), and a receipt left `attempting` or `unknown` refuses the next run for that file until `--supersede-receipt <receipt_id>` records an operator's decision to proceed. `--receipt-output` is the aggregate export; the per-receipt files exist either way. `doctor` reports the store, whether it survives the run, and how many receipts are in doubt.
 
 ---
 

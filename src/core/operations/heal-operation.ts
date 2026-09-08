@@ -10,6 +10,7 @@ import type {
 import { TestFileHealer } from "../../healing/self-healing.js";
 import { writeJsonArtifact } from "../artifacts.js";
 import type { EffectDeclaration } from "../effects.js";
+import type { MutationReceipt } from "../receipt-store.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import type {
@@ -26,6 +27,8 @@ export const HealOperationInputSchema = z.object({
   proposalInput: z.string().min(1).optional(),
   checkpointRef: z.string().min(1).optional(),
   findingsInput: z.string().min(1).optional(),
+  receiptOutput: z.string().min(1).optional(),
+  supersedeReceipt: z.string().min(1).optional(),
 });
 
 /** How every healing artifact refusal names itself; the messages are part of the contract. */
@@ -350,6 +353,38 @@ async function writeVerificationArtifact(
   };
 }
 
+/**
+ * The aggregate export of a run's receipts (`--receipt-output`). It is not their only home:
+ * the per-receipt files under `receipts.dir` exist whether or not this flag is passed, and they
+ * are what the interlock reads (mutation-safety packet, "Envelope changes").
+ */
+async function writeReceiptArtifact(
+  outputPath: string,
+  input: NormalizedHealOperationInput,
+  receipts: MutationReceipt[],
+): Promise<HealOperationResultEnvelope["receiptArtifact"]> {
+  const artifactPath = path.resolve(outputPath);
+  await writeJsonArtifact(
+    artifactPath,
+    {
+      schema_version: 1,
+      artifact_kind: "test-capabilities.heal.receipts",
+      generated_at: new Date().toISOString(),
+      operation_id: "heal",
+      input,
+      receipts,
+    },
+    { label: HEAL_ARTIFACT_LABEL },
+  );
+
+  return {
+    path: artifactPath,
+    schemaVersion: 1,
+    receiptCount: receipts.length,
+    appliedCount: receipts.filter((receipt) => receipt.outcome === "applied").length,
+  };
+}
+
 async function readJsonInputFile(
   filePath: string,
   label: string,
@@ -377,6 +412,16 @@ async function runHealOperation(
   if ((normalized.proposalOutput || normalized.verificationOutput) && !normalized.dryRun) {
     throw new Error(
       "Healing proposal and verification artifacts are only supported with --dry-run.",
+    );
+  }
+  if (normalized.receiptOutput && normalized.dryRun) {
+    throw new Error(
+      "Healing --receipt-output exports the receipts of a mutating run and cannot be combined with --dry-run.",
+    );
+  }
+  if (normalized.supersedeReceipt && normalized.dryRun) {
+    throw new Error(
+      "Healing --supersede-receipt resets an in-doubt interlock for a mutating run and cannot be combined with --dry-run.",
     );
   }
   if (normalized.proposalInput && normalized.dryRun) {
@@ -431,14 +476,24 @@ async function runHealOperation(
     );
   }
 
-  // appliedCount counts the proposals whose file rewrite was proven by
-  // applyProposals, never the proposals that were merely planned.
+  // appliedCount counts the proposals whose file rewrite the ledger settled as `applied`,
+  // never the proposals that were merely planned (mutation-safety packet, decision log).
   let appliedCount = 0;
+  let receipts: MutationReceipt[] = [];
   if (!normalized.dryRun) {
-    const { written } = await healer.applyProposals(proposals);
-    const writtenFiles = new Set(written);
-    appliedCount = proposals.filter((proposal) => writtenFiles.has(proposal.file)).length;
+    const applied = await healer.applyProposals(proposals, context);
+    receipts = applied.receipts;
+    const appliedFiles = new Set(
+      receipts
+        .filter((receipt) => receipt.outcome === "applied" && receipt.compensation_of === undefined)
+        .map((receipt) => receipt.subject),
+    );
+    appliedCount = proposals.filter((proposal) => appliedFiles.has(proposal.file)).length;
   }
+
+  const receiptArtifact = normalized.receiptOutput
+    ? await writeReceiptArtifact(normalized.receiptOutput, normalized, receipts)
+    : undefined;
 
   const proposalArtifact = normalized.proposalOutput
     ? await writeProposalArtifact(normalized.proposalOutput, normalized, files.length, proposals)
@@ -461,6 +516,7 @@ async function runHealOperation(
       input: normalized,
       proposals,
       appliedCount,
+      ...(receiptArtifact ? { receiptArtifact } : {}),
       ...(proposalArtifact ? { proposalArtifact } : {}),
       ...(verification ? { verification } : {}),
       ...(verificationArtifact ? { verificationArtifact } : {}),
@@ -504,6 +560,12 @@ export async function executeHealOperation(
   const normalized = HealOperationInputSchema.parse(input);
   return runHealOperation(
     normalized,
-    context ?? mintOperationContext("heal", healOperationEffect, normalized),
+    context ??
+      mintOperationContext(
+        "heal",
+        healOperationEffect,
+        normalized,
+        normalized.supersedeReceipt ? { supersedeReceiptId: normalized.supersedeReceipt } : {},
+      ),
   );
 }

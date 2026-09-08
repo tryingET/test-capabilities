@@ -146,6 +146,7 @@ Legacy-looking strings on custom helpers like `actor.click('old-submit-label')` 
 ```typescript
 interface HealingProposal {
   file: string;
+  fileSha256?: string; // the content this proposal was made against; the write's precondition
   line: number;
   column?: number;
   oldSelector: string;
@@ -211,17 +212,46 @@ await executeHealOperation({
 
 `proposalInput` artifacts are caller-controlled instruction packets, so the operation fails closed unless the artifact is schema v1, each proposal is non-review-required, and every target is an absolute, regular, non-symlink file inside `dir`.
 
-### `applyProposals(proposals)`
+### `applyProposals(proposals, context?)`
 
-Apply a batch of proposals transactionally and return the files whose rewrite was proven.
-The current runtime validates the full per-file batch against the original file content before it writes anything, which prevents same-line proposal sets from drifting into partial mutations. A selector only matches as a whole token: a proposal `#btn` -> `#btn-new` re-applied to an already healed line is refused as a selector mismatch instead of producing `#btn-new-new`. When a write fails after earlier files were written, the written files are restored and the error names how many files were written and whether every restore landed.
+Apply a batch of proposals as one conditional write per file, and return the files whose rewrite
+was proven together with the receipts of the run.
+
+Each file is an `EffectStep` on the kernel mutation ledger (`src/core/effects.ts`):
+
+- **Keyed** by `sha256(file | the content it was planned against | the change)`. A legitimate
+  second heal of a further-drifted file gets a new key; replaying the same plan against the same
+  content does not.
+- **Conditional**: `analyzeFile` records the file's `sha256` on every proposal it emits, the
+  ledger re-reads and compares it immediately before the rename, and a mismatch refuses with
+  `precondition_failed` having written nothing. A proposal artifact written before 0.4.0 carries
+  no hash; it still applies, and its receipt records `precondition: absent (legacy proposal
+  artifact)`.
+- **Receipted**: the receipt reaches `receipts.dir` and is fsynced *before* the write, and is
+  rewritten atomically after it. A receipt left `attempting` or `unknown` refuses the next run
+  for that key until an operator passes `--supersede-receipt <receipt_id>`.
+- **Verified**: the after-hash read-back is the step's `verify`. It can promote an `unknown`
+  write to `applied`; it can never turn one into a failure.
+- **Compensated, narrowly**: when a write fails after earlier files landed, only siblings whose
+  own receipt says `applied` are restored, each through its own receipt carrying
+  `compensation_of`. A write whose rename threw is `unknown` and is never compensated, because
+  the restore could destroy the very content whose fate is unknown.
+
+The older guards still stand in front of all this: the full per-file batch is validated against
+the original content before anything is written, and a selector only matches as a whole token, so
+`#btn` -> `#btn-new` re-applied to an already healed line is refused as a selector mismatch
+instead of producing `#btn-new-new`.
 
 ```typescript
-const { written } = await healer.applyProposals(proposals);
-// written: absolute paths of the files that were rewritten
+const { written, receipts } = await healer.applyProposals(proposals);
+// written:  absolute paths of the files that were rewritten
+// receipts: one MutationReceipt per step, in the order they were opened
 ```
 
-The `heal` envelope's `appliedCount` is the number of proposals whose file appears in `written`, never the number of planned proposals.
+The `heal` envelope's `appliedCount` is the number of proposals whose file has an `applied`
+receipt, never the number of planned proposals. `--receipt-output <file>` exports the run's
+receipts as one `test-capabilities.heal.receipts` artifact; the per-receipt files under
+`receipts.dir` are written either way, and they are what the interlock reads.
 
 ### Example
 
@@ -271,6 +301,21 @@ test-capabilities heal --dir ./tests --dry-run \
 
 # Apply proposals only after an external checkpoint exists
 test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/test-capabilities/heal-001
+
+# Apply and export the run's mutation receipts for review
+test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/heal-001 \
+  --receipt-output artifacts/heal-receipts.json
+
+# After inspecting the subject of a receipt that is still attempting or unknown
+test-capabilities heal --dir ./tests --checkpoint-ref checkpoint/heal-002 \
+  --supersede-receipt 6f1c2f4e-0f2a-4a1e-9a2b-6f0a1d3c7e55
 ```
+
+Receipts live under `receipts.dir`, which for `heal` defaults to `<--dir>/.test-capabilities/receipts`
+(`TEST_CAPABILITIES_RECEIPTS_DIR` overrides it). Nothing there is ever deleted by the framework;
+deleting it by hand is an interlock reset with the same standing as `--supersede-receipt`. A
+store that does not survive the run — `$TMPDIR`, a CI job workspace, a linked git worktree — is
+refused with `mutation_receipts_ephemeral` unless `receipts.ephemeral: true` (or
+`TEST_CAPABILITIES_RECEIPTS_EPHEMERAL=1`) accepts it, which every receipt then records.
 
 `--findings-input` accepts exactly one of a bare findings array, an object with `findings`, or full `test --json` output with `result.findings`. The findings are caller-supplied diagnostic evidence, not causal authority; malformed or ambiguous inputs fail closed, and equivalent selector spellings such as `getByTestId('old-login')`, `[data-testid="old-login"]`, and `[data-testid='old-login']` are normalized only for deterministic matching.
