@@ -1,0 +1,133 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "synthetic",
+  "derived_from": "MDN extension frame 17 (about:srcdoc, parentFrameId 15) in mdn-iframe.json, with a reachable content script",
+  "note": "a same-origin iframe whose own child is an about:srcdoc document: the child has no <iframe> in the top document, so only the extension sees it. Tags: nested_frame on the child.",
+  "command": ["frame.diagnose", "--tab-id", "1000000001", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://shop.example.com/checkout",
+        "title": "Checkout",
+        "origin": "https://shop.example.com"
+      },
+      "counts": {
+        "domIframes": 1,
+        "extensionFrames": 3,
+        "cdpFrames": 2
+      },
+      "domIframes": [
+        {
+          "allow": "",
+          "domIndex": 0,
+          "id": "preview",
+          "name": "",
+          "rect": {
+            "height": 400,
+            "width": 600,
+            "x": 10,
+            "y": 100
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://shop.example.com/preview.html",
+          "srcAttribute": "/preview.html",
+          "srcdoc": false,
+          "title": "Preview",
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [41],
+          "cdpFrameIds": ["B1"]
+        }
+      ],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://shop.example.com/checkout",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "https://shop.example.com/checkout",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 41,
+          "parentFrameId": 0,
+          "url": "https://shop.example.com/preview.html",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": false,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "https://shop.example.com/preview.html",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 42,
+          "parentFrameId": 41,
+          "url": "about:srcdoc",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": false,
+          "origin": null,
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "about:srcdoc",
+            "readyState": "complete"
+          }
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "A1",
+          "url": "https://shop.example.com/checkout",
+          "name": "",
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": [0]
+        },
+        {
+          "frameId": "B1",
+          "url": "https://shop.example.com/preview.html",
+          "name": "",
+          "isMain": false,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": [41],
+          "parentId": "A1"
+        }
+      ],
+      "warnings": [
+        "DOM lists 1 iframe(s) but the extension sees 2 child frame(s), 1 of them nested below another frame; the nested frames account for the difference."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1000000001,
+      "windowId": 1000000000,
+      "browserEpoch": "00000000-0000-4000-8000-000000000001",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1000000001 window=1000000000]\n"
+}

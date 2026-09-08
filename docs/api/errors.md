@@ -101,6 +101,10 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `submit_control_disabled` | The submit control was still `disabled` when `surf.submit.controlEnableTimeoutMs` ran out |
 | `submit_control_changed` | The submit control is no longer unique, or no longer inside the fields' owning form, after the fill |
 | `submit_postcondition_unmet` | The click was sent and the post-condition was never observed. `submitted: "unknown"`, the receipt is `unknown`, and the plan can never be submitted again |
+| `element_unreachable` | A browser step could not reach an element by selector or ref on a page whose readiness settled. It is the trigger for the frame diagnosis, never a verdict about the target |
+| `frame_diagnosis_failed` | `surf frame.diagnose` failed, answered a shape the framework cannot read, or is missing from the probed mechanisms. The determination is `unavailable` and the root cause is filed as `browser_coverage_gap`, never as selector drift |
+| `frame_diagnosis_undetermined` | The frame inventory disagrees with itself (surf's counts against its own lists, or extension child frames no `<iframe>` accounts for), the page moved between the failure and the diagnosis, or `--frame-hint` resolved to zero, several, or an unreachable frame |
+| `heal_frame_refused` | The healer refused a selector rewrite because the frame determination does not permit one: `confirmed` (the rewrite is wrong by construction), `undetermined` or `unavailable` (there is no candidate list to show a reviewer) |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

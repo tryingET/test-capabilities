@@ -1,0 +1,282 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "live",
+  "url": "https://claude.ai/login",
+  "note": "the public login page (no login performed): two 0x0 frames, one blank 1x1 pixel, and two off-screen 300x150 hCaptcha challenge frames",
+  "command": ["frame.diagnose", "--tab-id", "1075142552", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://claude.ai/login",
+        "title": "Sign in - Claude",
+        "origin": "https://claude.ai"
+      },
+      "counts": {
+        "domIframes": 5,
+        "extensionFrames": 6,
+        "cdpFrames": 2
+      },
+      "domIframes": [
+        {
+          "allow": "",
+          "domIndex": 0,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "srcAttribute": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "srcdoc": false,
+          "title": "",
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": true,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [24, 26],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "",
+          "domIndex": 1,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 0,
+            "width": 0,
+            "x": 0,
+            "y": 0
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "srcAttribute": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "srcdoc": false,
+          "title": "",
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": true,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [24, 26],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "",
+          "domIndex": 2,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 1,
+            "width": 1,
+            "x": 0,
+            "y": 0
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "",
+          "srcAttribute": "",
+          "srcdoc": false,
+          "title": "",
+          "origin": null,
+          "crossOrigin": false,
+          "blank": true,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "private-state-token-redemption",
+          "domIndex": 3,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 150,
+            "width": 300,
+            "x": 1,
+            "y": -9999
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=0wslrx1c672p&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=a8086506-2036-46f4-ae50-00d8be805efa&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "srcAttribute": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=0wslrx1c672p&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=a8086506-2036-46f4-ae50-00d8be805efa&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "srcdoc": false,
+          "title": "hCaptcha challenge",
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [23],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "private-state-token-redemption",
+          "domIndex": 4,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 150,
+            "width": 300,
+            "x": 1,
+            "y": -9999
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=13hts25wkj9f&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=f1b21a9c-9100-4022-a928-8d5c29de2e6a&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "srcAttribute": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=13hts25wkj9f&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=f1b21a9c-9100-4022-a928-8d5c29de2e6a&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "srcdoc": false,
+          "title": "hCaptcha challenge",
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [25],
+          "cdpFrameIds": []
+        }
+      ],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://claude.ai/login",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://claude.ai/login",
+            "readyState": "complete"
+          },
+          "isMain": true,
+          "origin": "https://claude.ai",
+          "crossOrigin": false
+        },
+        {
+          "frameId": 20,
+          "parentFrameId": 0,
+          "url": "about:blank",
+          "errorOccurred": false,
+          "contentScriptReachable": false,
+          "contentScriptError": "Could not establish connection. Receiving end does not exist.",
+          "isMain": false,
+          "origin": null,
+          "crossOrigin": false
+        },
+        {
+          "frameId": 23,
+          "parentFrameId": 0,
+          "url": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=0wslrx1c672p&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=a8086506-2036-46f4-ae50-00d8be805efa&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=0wslrx1c672p&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=a8086506-2036-46f4-ae50-00d8be805efa&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+            "readyState": "complete"
+          },
+          "isMain": false,
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 24,
+          "parentFrameId": 0,
+          "url": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+            "readyState": "complete"
+          },
+          "isMain": false,
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 25,
+          "parentFrameId": 0,
+          "url": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=13hts25wkj9f&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=f1b21a9c-9100-4022-a928-8d5c29de2e6a&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=challenge&id=13hts25wkj9f&host=claude.ai&sentry=true&reportapi=https%3A%2F%2Faccounts.hcaptcha.com&recaptchacompat=off&custom=false&hl=en&tplinks=on&andint=off&pstissuer=https%3A%2F%2Fpst-issuer.hcaptcha.com&sitekey=f1b21a9c-9100-4022-a928-8d5c29de2e6a&size=invisible&theme=light&origin=https%3A%2F%2Fclaude.ai&clientOptions=%7B%22sentry%22%3Atrue%2C%22reportapi%22%3A%22https%3A%2F%2Faccounts.hcaptcha.com%22%2C%22recaptchacompat%22%3A%22off%22%2C%22custom%22%3Afalse%2C%22hl%22%3A%22en-US%22%2C%22tplinks%22%3A%22on%22%2C%22andint%22%3A%22off%22%2C%22pat%22%3A%22on%22%2C%22pstissuer%22%3A%22https%3A%2F%2Fpst-issuer.hcaptcha.com%22%2C%22endpoint%22%3A%22https%3A%2F%2Fapi.hcaptcha.com%22%2C%22theme%22%3A%22light%22%2C%22size%22%3A%22normal%22%2C%22confirm-nav%22%3Afalse%7D",
+            "readyState": "complete"
+          },
+          "isMain": false,
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 26,
+          "parentFrameId": 0,
+          "url": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b51927/static/hcaptcha.html#frame=checkbox-invisible",
+            "readyState": "complete"
+          },
+          "isMain": false,
+          "origin": "https://newassets.hcaptcha.com",
+          "crossOrigin": true
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "F9B56F617C263034D81BCE23D099B6E9",
+          "url": "https://claude.ai/login",
+          "name": "",
+          "isMain": true,
+          "origin": "https://claude.ai",
+          "crossOrigin": false,
+          "extensionFrameIds": []
+        },
+        {
+          "frameId": "A74B4014628F46FAAE0AD29E562673ED",
+          "url": "about:blank",
+          "name": "",
+          "parentId": "F9B56F617C263034D81BCE23D099B6E9",
+          "isMain": false,
+          "origin": null,
+          "crossOrigin": false,
+          "extensionFrameIds": []
+        }
+      ],
+      "warnings": [
+        "1 iframe(s) have no URL (about:blank or srcdoc): DOM indexes 2. No CDP frame carries their name or id, so their content cannot be matched; give them a name or id attribute, or use frame.switch --index.",
+        "iframe 0 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is rendered at 0x0: hidden, collapsed, or not yet laid out.",
+        "iframe 0 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) matches 2 extension frames by URL (24, 26); use frame.switch --index to pick one.",
+        "iframe 0 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "iframe 1 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is rendered at 0x0: hidden, collapsed, or not yet laid out.",
+        "iframe 1 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) matches 2 extension frames by URL (24, 26); use frame.switch --index to pick one.",
+        "iframe 1 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "iframe 3 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "iframe 4 (https://newassets.hcaptcha.com/captcha/v1/80ba88939126ef29d32e1ca12bb3054eb9b...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "extension frame 20 (about:blank) has no reachable content script (Could not establish connection. Receiving end does not exist.): page.read, click by ref and frame.switch will not work inside it; frame.js with its CDP frame id may.",
+        "4 cross-origin iframe(s): selectors from the main page do not reach them; switch with frame.switch first."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1075142552,
+      "windowId": 1075142493,
+      "browserEpoch": "c0d20507-c720-48c8-af71-cc56e34e5f42",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1075142552 window=1075142493]\n"
+}

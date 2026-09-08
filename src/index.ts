@@ -69,6 +69,7 @@ export {
 export type {
   Determination,
   DeterminationContext,
+  DeterminationOf,
   DeterminationValue,
 } from "./core/determination.js";
 export {
@@ -100,6 +101,40 @@ export {
   webOriginOf,
   worstEffect,
 } from "./core/effects.js";
+// Frame root cause: topology as evidence, determination as the gate (slice S8)
+export type {
+  FrameCandidate,
+  FrameDetermination,
+  FrameDeterminationValue,
+  FrameDiagnosisSource,
+  FrameHint,
+  FrameRootCause,
+  FrameRootCauseInput,
+  FrameRootCauseMarker,
+  FrameSwitchSuggestion,
+  FrameTopology,
+  FrameTopologyTag,
+  SurfCdpFrame,
+  SurfDomIframe,
+  SurfExtensionFrame,
+  SurfFrameDiagnosis,
+  SurfFrameRect,
+} from "./core/frame-root-cause.js";
+export {
+  classifyFrameTopology,
+  determineFrameRootCause,
+  FRAME_DETERMINATION_VALUES,
+  FRAME_ROOT_CAUSE_MARKER_PREFIX,
+  FRAME_TOPOLOGY_TAGS,
+  frameDeterminationFromEvidence,
+  frameSwitchSuggestion,
+  isHiddenFrame,
+  parseFrameHint,
+  parseFrameRootCauseMarker,
+  parseSurfFrameDiagnosis,
+  renderFrameRootCauseEvidence,
+  renderFrameRootCauseMarker,
+} from "./core/frame-root-cause.js";
 export type {
   CliCommand,
   CliOperationResult,

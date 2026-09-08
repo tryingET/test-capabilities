@@ -1,0 +1,107 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "synthetic",
+  "derived_from": "MDN extension frame 17's contentScriptError, applied to the page's only candidate",
+  "note": "one out-of-process iframe whose content script does not answer: a hint that names it cannot be checked, so the determination is undetermined rather than confirmed.",
+  "command": ["frame.diagnose", "--tab-id", "1000000001", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://shop.example.com/checkout",
+        "title": "Checkout",
+        "origin": "https://shop.example.com"
+      },
+      "counts": {
+        "domIframes": 1,
+        "extensionFrames": 2,
+        "cdpFrames": 1
+      },
+      "domIframes": [
+        {
+          "allow": "",
+          "domIndex": 0,
+          "id": "pay",
+          "name": "",
+          "rect": {
+            "height": 400,
+            "width": 600,
+            "x": 10,
+            "y": 100
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://pay.example.net/widget.html",
+          "srcAttribute": "https://pay.example.net/widget.html",
+          "srcdoc": false,
+          "title": "Payment",
+          "origin": "https://pay.example.net",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [71],
+          "cdpFrameIds": []
+        }
+      ],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://shop.example.com/checkout",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "https://shop.example.com/checkout",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 71,
+          "parentFrameId": 0,
+          "url": "https://pay.example.net/widget.html",
+          "errorOccurred": false,
+          "contentScriptReachable": false,
+          "isMain": false,
+          "origin": "https://pay.example.net",
+          "crossOrigin": true,
+          "contentScriptError": "Could not establish connection. Receiving end does not exist."
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "A1",
+          "url": "https://shop.example.com/checkout",
+          "name": "",
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": [0]
+        }
+      ],
+      "warnings": [
+        "extension frame 71 (https://pay.example.net/widget.html) has no reachable content script (Could not establish connection. Receiving end does not exist.): page.read, click by ref and frame.switch will not work inside it; frame.js with its CDP frame id may.",
+        "iframe 0 (https://pay.example.net/widget.html) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1000000001,
+      "windowId": 1000000000,
+      "browserEpoch": "00000000-0000-4000-8000-000000000001",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1000000001 window=1000000000]\n"
+}

@@ -1,0 +1,67 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "live",
+  "url": "https://example.com/",
+  "note": "a page with no iframes at all: the exclusion case",
+  "command": ["frame.diagnose", "--tab-id", "1075142548", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://example.com/",
+        "title": "Example Domain",
+        "origin": "https://example.com"
+      },
+      "counts": {
+        "domIframes": 0,
+        "extensionFrames": 1,
+        "cdpFrames": 1
+      },
+      "domIframes": [],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://example.com/",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://example.com/",
+            "readyState": "complete"
+          },
+          "isMain": true,
+          "origin": "https://example.com",
+          "crossOrigin": false
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "06C7E39C1EE4123E4C25F7BF24D8677F",
+          "url": "https://example.com/",
+          "name": "",
+          "isMain": true,
+          "origin": "https://example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": []
+        }
+      ],
+      "warnings": []
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1075142548,
+      "windowId": 1075142493,
+      "browserEpoch": "c0d20507-c720-48c8-af71-cc56e34e5f42",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1075142548 window=1075142493]\n"
+}

@@ -35,15 +35,27 @@ export const DETERMINATION_VALUES = ["verified", "failed", "unverified", "indete
 
 export type DeterminationValue = (typeof DETERMINATION_VALUES)[number];
 
-export interface Determination {
-  value: DeterminationValue;
+/**
+ * The kernel determination *shape*, over whatever closed value set a question has.
+ *
+ * The run verdict answers in `DeterminationValue`; slice S8's frame question answers in
+ * `FrameDeterminationValue` (`excluded | confirmed | suspected | undetermined | unavailable`).
+ * What the kernel owns is the shape, not the vocabulary: a value, the outcome basis it rests
+ * on, the values the same evidence could still support, and one line naming what decided it.
+ * A gate that cannot fill all four has not finished thinking.
+ */
+export interface DeterminationOf<TValue extends string> {
+  value: TValue;
   /** the outcome basis the value rests on; the same axis a step outcome carries */
   basis: OutcomeBasis;
   /** the values the recorded evidence could still support, worst first; always includes `value` */
-  candidates: DeterminationValue[];
+  candidates: TValue[];
   /** one line naming the evidence that decided it, so the verdict can be read without the run */
   reason: string;
 }
+
+/** The run verdict (adjudication claim 7, operator decision D3). */
+export type Determination = DeterminationOf<DeterminationValue>;
 
 /**
  * What the composition knows beyond the step outcomes. `expectations` are the declarations in

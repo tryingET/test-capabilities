@@ -15,6 +15,8 @@
     "src/core/determination.ts",
     "src/core/effects.ts",
     "src/core/error-codes.ts",
+    "src/core/frame-root-cause.ts",
+    "src/core/frame-topology.ts",
     "src/core/receipt-store.ts",
     "src/core/result-classification.ts",
     "src/core/result-payload.ts",

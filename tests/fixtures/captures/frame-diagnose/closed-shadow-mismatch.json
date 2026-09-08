@@ -1,0 +1,97 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "synthetic",
+  "derived_from": "the branch-dogfood observation that a naive DOM walk misses shadow-hosted iframes",
+  "note": "the DOM walk reports no iframes while the extension sees two direct children of the main frame, and no listed iframe lacks a URL to match on: a closed shadow root hides exactly this, and the framework may conclude nothing from an inventory that disagrees with itself.",
+  "command": ["frame.diagnose", "--tab-id", "1000000001", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://shop.example.com/checkout",
+        "title": "Checkout",
+        "origin": "https://shop.example.com"
+      },
+      "counts": {
+        "domIframes": 0,
+        "extensionFrames": 3,
+        "cdpFrames": 1
+      },
+      "domIframes": [],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://shop.example.com/checkout",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "https://shop.example.com/checkout",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 61,
+          "parentFrameId": 0,
+          "url": "https://widget.example.net/a.html",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": false,
+          "origin": "https://widget.example.net",
+          "crossOrigin": true,
+          "contentScript": {
+            "href": "https://widget.example.net/a.html",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 62,
+          "parentFrameId": 0,
+          "url": "https://widget.example.net/b.html",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": false,
+          "origin": "https://widget.example.net",
+          "crossOrigin": true,
+          "contentScript": {
+            "href": "https://widget.example.net/b.html",
+            "readyState": "complete"
+          }
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "A1",
+          "url": "https://shop.example.com/checkout",
+          "name": "",
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": [0]
+        }
+      ],
+      "warnings": [
+        "DOM lists 0 iframe(s) but the extension sees 2 child frame(s); a closed shadow root would explain the difference."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1000000001,
+      "windowId": 1000000000,
+      "browserEpoch": "00000000-0000-4000-8000-000000000001",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1000000001 window=1000000000]\n"
+}

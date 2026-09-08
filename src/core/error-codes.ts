@@ -5,7 +5,7 @@
  * registered here as a namespaced `as const` array; `tests/error_codes_contract.test.mjs`
  * asserts uniqueness across the namespaces and that every `new FrameworkError("<code>"` literal
  * in `src/` uses a registered code (architecture review A6, Q5). Later slices append one array
- * each: `FRAME_ROOT_CAUSE_ERROR_CODES` (S8), `A11Y_CHANNEL_ERROR_CODES` (S9).
+ * each: `A11Y_CHANNEL_ERROR_CODES` (S9).
  *
  * Codes that come from a tool the framework does not own (surf's `page_login`, an HTTP status)
  * pass through verbatim and are never rewritten; `SURF_PASSTHROUGH_CODES` documents the set the
@@ -123,6 +123,23 @@ export const SUBMIT_GATE_ERROR_CODES = [
 ] as const;
 
 /**
+ * The frame root cause (frame-root-cause packet, "Error codes"; slice S8). `element_unreachable`
+ * is the trigger the diagnosis answers; the rest are what a consumer files once the
+ * determination is in. Note what is absent: there is no code for `suspected`, because a
+ * suspicion is not a refusal - it is a caveat the healer carries and the report renders.
+ */
+export const FRAME_ROOT_CAUSE_ERROR_CODES = [
+  /** a browser step could not reach an element by selector or ref on a page that was ready */
+  "element_unreachable",
+  /** `frame.diagnose` failed, answered a shape the framework cannot read, or is not built in */
+  "frame_diagnosis_failed",
+  /** the inventory disagrees with itself, or `--frame-hint` does not resolve to one frame */
+  "frame_diagnosis_undetermined",
+  /** the healer refuses a selector rewrite this determination does not permit */
+  "heal_frame_refused",
+] as const;
+
+/**
  * Classifier-owned outcome codes. Process codes (`exit_<n>`, `signal_<name>`), HTTP codes
  * (`http_<status>`) and surf codes are patterned or pass-through and are listed separately.
  */
@@ -174,6 +191,7 @@ export type CliErrorCode = (typeof CLI_ERROR_CODES)[number];
 export type ExploreErrorCode = (typeof EXPLORE_ERROR_CODES)[number];
 export type EffectErrorCode = (typeof EFFECT_ERROR_CODES)[number];
 export type SubmitGateErrorCode = (typeof SUBMIT_GATE_ERROR_CODES)[number];
+export type FrameRootCauseErrorCode = (typeof FRAME_ROOT_CAUSE_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -184,6 +202,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...EXPLORE_ERROR_CODES,
   ...EFFECT_ERROR_CODES,
   ...SUBMIT_GATE_ERROR_CODES,
+  ...FRAME_ROOT_CAUSE_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];

@@ -1,0 +1,217 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "live",
+  "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+  "note": "three out-of-process, shadow-hosted, cross-origin iframes plus two nested frames, one of them an unreachable about:srcdoc",
+  "command": ["frame.diagnose", "--tab-id", "1075142550", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+        "title": "<iframe> HTML inline frame element - HTML | MDN",
+        "origin": "https://developer.mozilla.org"
+      },
+      "counts": {
+        "domIframes": 3,
+        "extensionFrames": 6,
+        "cdpFrames": 1
+      },
+      "domIframes": [
+        {
+          "allow": "",
+          "domIndex": 0,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 247.75,
+            "width": 627,
+            "x": 289,
+            "y": 833.640625
+          },
+          "sandbox": "allow-scripts allow-same-origin allow-forms allow-modals allow-top-navigation-by-user-activation",
+          "shadowHost": "interactive-example > mdn-play-runner",
+          "src": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev/runner.html?uuid=7fde200f-7fc7-47ad-9acc-8000e9debafe&state=VZBLT8MwEIT%2FimUJDhVNnKeTPuCAQCDBjWMuTrJtTJ5ytiSo6n9nk1AkLvb6m5E1O2deYF3xDd%2Fpg1E1JA1jOt8nXDeVbuB5Yk%2BjqrsKEj6JqLEC0l9nnc0G9s8x6BwLcnhCLKAAfSyQiHslvcnoWSB2%2Fca2h2Gw2g6aHg0A1qqzWnO0YexagzbUKeTWFPIhTdtxvxaWEL5wZOzHjvA9EYvIu3EfA8fyZei4MnBD35EyJDZZhScCKZ3IlWEsZeDF4dUcBWEchU5EhwhvaYFtpb7B7ClAo8uE3yfNzl5aoZHf8azvqaiFsPO0R9qaHMyGOd3I%2BrbSOUsrlZXbvxpIEuJmy%2BwVQ1VCzzoDGeTQZMDaLzAMC1icrAekiYYJvXy8v%2F1yhWh0ekJgKztpLnOSzykI3Tkc1KnCOda4RpVSV4TphxqI5cqU%2FPID",
+          "srcAttribute": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev/runner.html?uuid=7fde200f-7fc7-47ad-9acc-8000e9debafe&state=VZBLT8MwEIT%2FimUJDhVNnKeTPuCAQCDBjWMuTrJtTJ5ytiSo6n9nk1AkLvb6m5E1O2deYF3xDd%2Fpg1E1JA1jOt8nXDeVbuB5Yk%2BjqrsKEj6JqLEC0l9nnc0G9s8x6BwLcnhCLKAAfSyQiHslvcnoWSB2%2Fca2h2Gw2g6aHg0A1qqzWnO0YexagzbUKeTWFPIhTdtxvxaWEL5wZOzHjvA9EYvIu3EfA8fyZei4MnBD35EyJDZZhScCKZ3IlWEsZeDF4dUcBWEchU5EhwhvaYFtpb7B7ClAo8uE3yfNzl5aoZHf8azvqaiFsPO0R9qaHMyGOd3I%2BrbSOUsrlZXbvxpIEuJmy%2BwVQ1VCzzoDGeTQZMDaLzAMC1icrAekiYYJvXy8v%2F1yhWh0ekJgKztpLnOSzykI3Tkc1KnCOda4RpVSV4TphxqI5cqU%2FPID",
+          "srcdoc": false,
+          "title": "runner",
+          "origin": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [13],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "",
+          "domIndex": 1,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 400,
+            "width": 595,
+            "x": 305,
+            "y": 12237.890625
+          },
+          "sandbox": "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads allow-fullscreen allow-orientation-lock",
+          "shadowHost": "mdn-live-sample-result > mdn-play-runner",
+          "src": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=29c6a7b0274d6a5954cdbfab2a5506861e127f5b&state=LY1BCoMwEEWvEmZdGotdie3OW2QTdHSiiUoy0IL07h0ZV%2FN573%2FmAOIUoYE2jNkndKsxJfcvJ5z30liLX5%2F2iPctTw5OzYEjSkEHplNvHmo%2FYWAS%2B6wqBYRhIhZSn%2BTt1tbqUiLcoC9FvkuYr8uECSUOPi%2Fw%2BwM%3D",
+          "srcAttribute": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=29c6a7b0274d6a5954cdbfab2a5506861e127f5b&state=LY1BCoMwEEWvEmZdGotdie3OW2QTdHSiiUoy0IL07h0ZV%2FN573%2FmAOIUoYE2jNkndKsxJfcvJ5z30liLX5%2F2iPctTw5OzYEjSkEHplNvHmo%2FYWAS%2B6wqBYRhIhZSn%2BTt1tbqUiLcoC9FvkuYr8uECSUOPi%2Fw%2BwM%3D",
+          "srcdoc": false,
+          "title": "runner",
+          "origin": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [14],
+          "cdpFrameIds": []
+        },
+        {
+          "allow": "",
+          "domIndex": 2,
+          "id": "",
+          "name": "",
+          "rect": {
+            "height": 300,
+            "width": 595,
+            "x": 305,
+            "y": 14330.890625
+          },
+          "sandbox": "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads allow-fullscreen allow-orientation-lock",
+          "shadowHost": "mdn-live-sample-result > mdn-play-runner",
+          "src": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=bc91d5f3199cd8404656af7b75aed0dca449a06d&state=jVNNb9swDP0rrAv01NVFgF4SVbfeih6G9BZgUGzaUmdLmsQgDYr991EfRjqs3XawRVHk4%2BOj9NZomqdm3QgVyHQTyp0FEINzhEE%2BGYswG3sgjKBGdw3CyJdOtEbCMXDIWrQ1NKeZIagZkwkQle337rVuQte77n7XCC%2B3GgOC4o%2BODo7qFIEcHCLvNYLoXI%2ByAIk2bwAnnNESF%2FNcR7gp%2FScjhQIdcLi%2F%2BnFwtFF7d6B1qXSJ8x77b8o6xgzlXG4dZDd0zhLjwRDcDDUGvBq5oJKiZeT%2FxGfSf4An35cRLQZF51rvkdvSgF6B6Sv2R3Qfkq83dvwbX71KUF4%2B%2FyYfk1y0U0TB7HmASeTosTPDKUc%2Bf30EN2QzQaXjzGJR2QeUBe1KzX4z0aYMJc2ystZEPq7bFl85YsIbF8ZykDPGunJmW1IXd%2BXGhQJ%2BrMQ7Yc8yfKbspxrwoP4pw6Lt0v4NbLWJ4F0k4FVNAVV%2FYtWhdnlR9Nk15WYfTU%2BaL%2Fbd7e3i0mhGTexb3WUfN1r6z8M%2Fv7Pmuuli5LfHxktdmdKMbPYqfG9%2B%2FgI%3D",
+          "srcAttribute": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=bc91d5f3199cd8404656af7b75aed0dca449a06d&state=jVNNb9swDP0rrAv01NVFgF4SVbfeih6G9BZgUGzaUmdLmsQgDYr991EfRjqs3XawRVHk4%2BOj9NZomqdm3QgVyHQTyp0FEINzhEE%2BGYswG3sgjKBGdw3CyJdOtEbCMXDIWrQ1NKeZIagZkwkQle337rVuQte77n7XCC%2B3GgOC4o%2BODo7qFIEcHCLvNYLoXI%2ByAIk2bwAnnNESF%2FNcR7gp%2FScjhQIdcLi%2F%2BnFwtFF7d6B1qXSJ8x77b8o6xgzlXG4dZDd0zhLjwRDcDDUGvBq5oJKiZeT%2FxGfSf4An35cRLQZF51rvkdvSgF6B6Sv2R3Qfkq83dvwbX71KUF4%2B%2FyYfk1y0U0TB7HmASeTosTPDKUc%2Bf30EN2QzQaXjzGJR2QeUBe1KzX4z0aYMJc2ystZEPq7bFl85YsIbF8ZykDPGunJmW1IXd%2BXGhQJ%2BrMQ7Yc8yfKbspxrwoP4pw6Lt0v4NbLWJ4F0k4FVNAVV%2FYtWhdnlR9Nk15WYfTU%2BaL%2Fbd7e3i0mhGTexb3WUfN1r6z8M%2Fv7Pmuuli5LfHxktdmdKMbPYqfG9%2B%2FgI%3D",
+          "srcdoc": false,
+          "title": "runner",
+          "origin": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [15],
+          "cdpFrameIds": []
+        }
+      ],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+            "readyState": "complete"
+          },
+          "isMain": true,
+          "origin": "https://developer.mozilla.org",
+          "crossOrigin": false
+        },
+        {
+          "frameId": 13,
+          "parentFrameId": 0,
+          "url": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev/runner.html?uuid=7fde200f-7fc7-47ad-9acc-8000e9debafe&state=VZBLT8MwEIT%2FimUJDhVNnKeTPuCAQCDBjWMuTrJtTJ5ytiSo6n9nk1AkLvb6m5E1O2deYF3xDd%2Fpg1E1JA1jOt8nXDeVbuB5Yk%2BjqrsKEj6JqLEC0l9nnc0G9s8x6BwLcnhCLKAAfSyQiHslvcnoWSB2%2Fca2h2Gw2g6aHg0A1qqzWnO0YexagzbUKeTWFPIhTdtxvxaWEL5wZOzHjvA9EYvIu3EfA8fyZei4MnBD35EyJDZZhScCKZ3IlWEsZeDF4dUcBWEchU5EhwhvaYFtpb7B7ClAo8uE3yfNzl5aoZHf8azvqaiFsPO0R9qaHMyGOd3I%2BrbSOUsrlZXbvxpIEuJmy%2BwVQ1VCzzoDGeTQZMDaLzAMC1icrAekiYYJvXy8v%2F1yhWh0ekJgKztpLnOSzykI3Tkc1KnCOda4RpVSV4TphxqI5cqU%2FPID",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev/runner.html?uuid=7fde200f-7fc7-47ad-9acc-8000e9debafe&state=VZBLT8MwEIT%2FimUJDhVNnKeTPuCAQCDBjWMuTrJtTJ5ytiSo6n9nk1AkLvb6m5E1O2deYF3xDd%2Fpg1E1JA1jOt8nXDeVbuB5Yk%2BjqrsKEj6JqLEC0l9nnc0G9s8x6BwLcnhCLKAAfSyQiHslvcnoWSB2%2Fca2h2Gw2g6aHg0A1qqzWnO0YexagzbUKeTWFPIhTdtxvxaWEL5wZOzHjvA9EYvIu3EfA8fyZei4MnBD35EyJDZZhScCKZ3IlWEsZeDF4dUcBWEchU5EhwhvaYFtpb7B7ClAo8uE3yfNzl5aoZHf8azvqaiFsPO0R9qaHMyGOd3I%2BrbSOUsrlZXbvxpIEuJmy%2BwVQ1VCzzoDGeTQZMDaLzAMC1icrAekiYYJvXy8v%2F1yhWh0ekJgKztpLnOSzykI3Tkc1KnCOda4RpVSV4TphxqI5cqU%2FPID",
+            "readyState": "interactive"
+          },
+          "isMain": false,
+          "origin": "https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 14,
+          "parentFrameId": 0,
+          "url": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=29c6a7b0274d6a5954cdbfab2a5506861e127f5b&state=LY1BCoMwEEWvEmZdGotdie3OW2QTdHSiiUoy0IL07h0ZV%2FN573%2FmAOIUoYE2jNkndKsxJfcvJ5z30liLX5%2F2iPctTw5OzYEjSkEHplNvHmo%2FYWAS%2B6wqBYRhIhZSn%2BTt1tbqUiLcoC9FvkuYr8uECSUOPi%2Fw%2BwM%3D",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=29c6a7b0274d6a5954cdbfab2a5506861e127f5b&state=LY1BCoMwEEWvEmZdGotdie3OW2QTdHSiiUoy0IL07h0ZV%2FN573%2FmAOIUoYE2jNkndKsxJfcvJ5z30liLX5%2F2iPctTw5OzYEjSkEHplNvHmo%2FYWAS%2B6wqBYRhIhZSn%2BTt1tbqUiLcoC9FvkuYr8uECSUOPi%2Fw%2BwM%3D",
+            "readyState": "interactive"
+          },
+          "isMain": false,
+          "origin": "https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 15,
+          "parentFrameId": 0,
+          "url": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=bc91d5f3199cd8404656af7b75aed0dca449a06d&state=jVNNb9swDP0rrAv01NVFgF4SVbfeih6G9BZgUGzaUmdLmsQgDYr991EfRjqs3XawRVHk4%2BOj9NZomqdm3QgVyHQTyp0FEINzhEE%2BGYswG3sgjKBGdw3CyJdOtEbCMXDIWrQ1NKeZIagZkwkQle337rVuQte77n7XCC%2B3GgOC4o%2BODo7qFIEcHCLvNYLoXI%2ByAIk2bwAnnNESF%2FNcR7gp%2FScjhQIdcLi%2F%2BnFwtFF7d6B1qXSJ8x77b8o6xgzlXG4dZDd0zhLjwRDcDDUGvBq5oJKiZeT%2FxGfSf4An35cRLQZF51rvkdvSgF6B6Sv2R3Qfkq83dvwbX71KUF4%2B%2FyYfk1y0U0TB7HmASeTosTPDKUc%2Bf30EN2QzQaXjzGJR2QeUBe1KzX4z0aYMJc2ystZEPq7bFl85YsIbF8ZykDPGunJmW1IXd%2BXGhQJ%2BrMQ7Yc8yfKbspxrwoP4pw6Lt0v4NbLWJ4F0k4FVNAVV%2FYtWhdnlR9Nk15WYfTU%2BaL%2Fbd7e3i0mhGTexb3WUfN1r6z8M%2Fv7Pmuuli5LfHxktdmdKMbPYqfG9%2B%2FgI%3D",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev/en-US/docs/Web/HTML/Reference/Elements/iframe/runner.html?uuid=bc91d5f3199cd8404656af7b75aed0dca449a06d&state=jVNNb9swDP0rrAv01NVFgF4SVbfeih6G9BZgUGzaUmdLmsQgDYr991EfRjqs3XawRVHk4%2BOj9NZomqdm3QgVyHQTyp0FEINzhEE%2BGYswG3sgjKBGdw3CyJdOtEbCMXDIWrQ1NKeZIagZkwkQle337rVuQte77n7XCC%2B3GgOC4o%2BODo7qFIEcHCLvNYLoXI%2ByAIk2bwAnnNESF%2FNcR7gp%2FScjhQIdcLi%2F%2BnFwtFF7d6B1qXSJ8x77b8o6xgzlXG4dZDd0zhLjwRDcDDUGvBq5oJKiZeT%2FxGfSf4An35cRLQZF51rvkdvSgF6B6Sv2R3Qfkq83dvwbX71KUF4%2B%2FyYfk1y0U0TB7HmASeTosTPDKUc%2Bf30EN2QzQaXjzGJR2QeUBe1KzX4z0aYMJc2ystZEPq7bFl85YsIbF8ZykDPGunJmW1IXd%2BXGhQJ%2BrMQ7Yc8yfKbspxrwoP4pw6Lt0v4NbLWJ4F0k4FVNAVV%2FYtWhdnlR9Nk15WYfTU%2BaL%2Fbd7e3i0mhGTexb3WUfN1r6z8M%2Fv7Pmuuli5LfHxktdmdKMbPYqfG9%2B%2FgI%3D",
+            "readyState": "complete"
+          },
+          "isMain": false,
+          "origin": "https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 16,
+          "parentFrameId": 13,
+          "url": "https://www.openstreetmap.org/export/embed.html?bbox=-0.004017949104309083%2C51.47612752641776%2C0.00030577182769775396%2C51.478569861898606&layer=mapnik",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "contentScript": {
+            "href": "https://www.openstreetmap.org/export/embed.html?bbox=-0.004017949104309083%2C51.47612752641776%2C0.00030577182769775396%2C51.478569861898606&layer=mapnik",
+            "readyState": "loading"
+          },
+          "isMain": false,
+          "origin": "https://www.openstreetmap.org",
+          "crossOrigin": true
+        },
+        {
+          "frameId": 17,
+          "parentFrameId": 15,
+          "url": "about:srcdoc",
+          "errorOccurred": false,
+          "contentScriptReachable": false,
+          "contentScriptError": "Could not establish connection. Receiving end does not exist.",
+          "isMain": false,
+          "origin": null,
+          "crossOrigin": false
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "43BB8A070FC28D88C38A8AC0F07D8691",
+          "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe",
+          "name": "",
+          "isMain": true,
+          "origin": "https://developer.mozilla.org",
+          "crossOrigin": false,
+          "extensionFrameIds": []
+        }
+      ],
+      "warnings": [
+        "iframe 0 (https://7fde200f-7fc7-47ad-9acc-8000e9debafe.mdnplay.dev/runner.html?uuid=7fd...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "iframe 1 (https://29c6a7b0274d6a5954cdbfab2a5506861e127f5b.mdnplay.dev/en-US/docs/Web/H...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "iframe 2 (https://bc91d5f3199cd8404656af7b75aed0dca449a06d.mdnplay.dev/en-US/docs/Web/H...) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.",
+        "extension frame 17 (about:srcdoc) has no reachable content script (Could not establish connection. Receiving end does not exist.): page.read, click by ref and frame.switch will not work inside it; frame.js with its CDP frame id may.",
+        "3 cross-origin iframe(s): selectors from the main page do not reach them; switch with frame.switch first.",
+        "DOM lists 3 iframe(s) (3 inside open shadow roots) but the extension sees 5 child frame(s), 2 of them nested below another frame; the nested frames account for the difference."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1075142550,
+      "windowId": 1075142493,
+      "browserEpoch": "c0d20507-c720-48c8-af71-cc56e34e5f42",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1075142550 window=1075142493]\n"
+}

@@ -1,0 +1,119 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-08",
+  "tool": {
+    "name": "surf",
+    "version": "2.18.0",
+    "browser": "Chromium (Agent) Chrome/152"
+  },
+  "source": "synthetic",
+  "derived_from": "the shape of mdn-iframe.json with a non-empty cdpFrameIds, which site isolation makes rare live",
+  "note": "a cross-origin iframe Chrome kept in this tab's process: it is in the CDP frame tree, so frame.js reaches it, but a main-page selector still does not. Tag: cross_origin_frame.",
+  "command": ["frame.diagnose", "--tab-id", "1000000001", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "stdout": {
+    "result": {
+      "mainPage": {
+        "href": "https://shop.example.com/checkout",
+        "title": "Checkout",
+        "origin": "https://shop.example.com"
+      },
+      "counts": {
+        "domIframes": 1,
+        "extensionFrames": 2,
+        "cdpFrames": 2
+      },
+      "domIframes": [
+        {
+          "allow": "",
+          "domIndex": 0,
+          "id": "pay",
+          "name": "",
+          "rect": {
+            "height": 400,
+            "width": 600,
+            "x": 10,
+            "y": 100
+          },
+          "sandbox": null,
+          "shadowHost": null,
+          "src": "https://pay.example.net/widget.html",
+          "srcAttribute": "https://pay.example.net/widget.html",
+          "srcdoc": false,
+          "title": "Payment",
+          "origin": "https://pay.example.net",
+          "crossOrigin": true,
+          "blank": false,
+          "zeroSize": false,
+          "scriptsBlocked": false,
+          "extensionFrameIds": [31],
+          "cdpFrameIds": ["B1"]
+        }
+      ],
+      "extensionFrames": [
+        {
+          "frameId": 0,
+          "parentFrameId": -1,
+          "url": "https://shop.example.com/checkout",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "contentScript": {
+            "href": "https://shop.example.com/checkout",
+            "readyState": "complete"
+          }
+        },
+        {
+          "frameId": 31,
+          "parentFrameId": 0,
+          "url": "https://pay.example.net/widget.html",
+          "errorOccurred": false,
+          "contentScriptReachable": true,
+          "isMain": false,
+          "origin": "https://pay.example.net",
+          "crossOrigin": true,
+          "contentScript": {
+            "href": "https://pay.example.net/widget.html",
+            "readyState": "complete"
+          }
+        }
+      ],
+      "cdpFrames": [
+        {
+          "frameId": "A1",
+          "url": "https://shop.example.com/checkout",
+          "name": "",
+          "isMain": true,
+          "origin": "https://shop.example.com",
+          "crossOrigin": false,
+          "extensionFrameIds": [0]
+        },
+        {
+          "frameId": "B1",
+          "url": "https://pay.example.net/widget.html",
+          "name": "",
+          "isMain": false,
+          "origin": "https://pay.example.net",
+          "crossOrigin": true,
+          "extensionFrameIds": [31],
+          "parentId": "A1"
+        }
+      ],
+      "warnings": [
+        "1 cross-origin iframe(s): selectors from the main page do not reach them; switch with frame.switch first."
+      ]
+    },
+    "target": {
+      "source": "explicit-tab",
+      "tabId": 1000000001,
+      "windowId": 1000000000,
+      "browserEpoch": "00000000-0000-4000-8000-000000000001",
+      "queuedMs": 0
+    },
+    "notice": null
+  },
+  "stderr": "[surf tab=1000000001 window=1000000000]\n"
+}
