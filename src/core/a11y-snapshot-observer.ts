@@ -272,6 +272,7 @@ async function capture(
   session: Session,
   options: A11ySnapshotObserverOptions,
   sequence: number,
+  onSessionStarted: () => void,
 ): Promise<CaptureResult> {
   const baseEnv = options.env ?? process.env;
   const env: NodeJS.ProcessEnv = {
@@ -298,6 +299,12 @@ async function capture(
   const binding = bindOwnedTab(before, href, session.tab?.id);
 
   const startedAt = Date.now();
+  // From here on an agent-browser session may exist, so teardown has to run. Marking it *here*
+  // and not at the top of `run` is what keeps an unavailable channel from creating a session
+  // purely in order to close it: a run that never got past resolution, the version floor, the
+  // endpoint probe or the tab binding has nothing to tear down, and every session this tool
+  // opens costs a stray `about:blank` (see the live-run doc).
+  onSessionStarted();
   // Binding first: `tab <targetId>` attaches the pinned session to the tab surf owns without
   // creating one, which is what makes every later command speak about this page and no other.
   await runAgentBrowserStep(context, env, {
@@ -408,7 +415,8 @@ export function createA11ySnapshotObserver(
 ): A11ySnapshotObserverHandle {
   const sequence = options.sequence ?? 1;
   let observation: A11ySnapshotObservation | undefined;
-  let bound = false;
+  /** true once an agent-browser session may exist; see the comment in `capture`. */
+  let started = false;
 
   const observer: SessionObserver = {
     effect: A11Y_SNAPSHOT_EFFECT,
@@ -418,8 +426,9 @@ export function createA11ySnapshotObserver(
     async run(session: Session): Promise<A11ySnapshotObservation> {
       let result: CaptureResult;
       try {
-        bound = true;
-        result = await capture(session, options, sequence);
+        result = await capture(session, options, sequence, () => {
+          started = true;
+        });
       } catch (error) {
         result = unavailable(
           isFrameworkError(error) ? error.code : "snapshot_failed",
@@ -445,10 +454,10 @@ export function createA11ySnapshotObserver(
     },
 
     async teardown(): Promise<void> {
-      if (!bound) {
+      if (!started) {
         return;
       }
-      bound = false;
+      started = false;
       const baseEnv = options.env ?? process.env;
       const env: NodeJS.ProcessEnv = {
         ...baseEnv,

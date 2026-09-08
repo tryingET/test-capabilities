@@ -30,7 +30,8 @@ last commit lists only those five foreign paths.
 | `d99a147` | feat(a11y): agent-browser Adapter with HTTP and spawn invokes, CDP probe, fake fixtures from captures | 591 (+28) | 96.48 / 86.26 / 98.25 | 98.52 % |
 | `875f987` | feat(session): a11y snapshot observe step, artifact on disk, assertion evaluator, doctor check | 605 (+14) | 96.56 / 86.47 / 98.44 | 97.29 % |
 | `eb83623` | docs(a11y): tester prompt input, decision matrix, CLI, config, errors, passport and the live run | 605 | 96.56 / 86.47 / 98.44 | n/a (docs) |
-| (this note) | docs(diary): slice S9 notes | 605 | 96.56 / 86.47 / 98.44 | n/a (docs) |
+| `82b2898` | docs(diary): slice S9 notes | 605 | 96.56 / 86.47 / 98.44 | n/a (docs) |
+| (this amendment) | fix(a11y): an unavailable channel starts no session, so it tears none down | 607 (+2) | 96.56 / 86.58 / 98.44 | 100.00 % |
 
 Gates after every commit: `npm run check` (lint, typecheck, node tests, 4 cucumber scenarios,
 structure, coverage ratchet, changed lines) green; `npm run loop-impact-plan` printed
@@ -237,6 +238,24 @@ predictable failure is still a failure, not because the peer said so.
 
 One attempt, ~150 words, answered in about a minute — the S3 and S8 finding about prompt length
 holds again.
+
+## The bug the live cleanup found
+
+`agent-browser session list` after the dogfood held two `test-capabilities-<runId>` sessions from
+runs whose channel was *unavailable* — runs that had never bound a tab. The observer set its
+"bound" flag at the top of `run`, before resolution, so teardown ran `close` on a channel that
+had opened nothing; and because `close` is itself a session command, it created the session, and
+its stray `about:blank`, in order to end it. An unavailable channel was leaving exactly the
+litter the channel exists not to leave.
+
+The flag now flips immediately before the first agent-browser spawn (the `tab <targetId>` bind),
+which is the first moment a session can exist. Two contract cases pin both directions: a channel
+that never bound anything runs `--version` and no session verb, and a channel that bound a tab
+and then failed on the snapshot still runs `close`. Verified live: the unavailable run leaves the
+page count and `session list` untouched, and a healthy run still reports the same digest.
+
+Worth carrying forward: the stray-tab accounting found this, and it would not have been visible
+without it. Deviation 2 above is the reason it is reported on every run rather than suppressed.
 
 ## What S10 must know
 

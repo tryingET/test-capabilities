@@ -213,7 +213,22 @@ never `--all` (which the argv allowlist refuses), and never on the shared `defau
 | `http://127.0.0.1:9333` | warn | `… No DevTools endpoint answered at http://127.0.0.1:9333/json/version (fetch failed). Start Chromium (Agent) …` |
 | `http://10.0.0.5:9222` | warn | `… names host '10.0.0.5'. The a11y channel attaches to a browser on this machine only (127.0.0.1, localhost, ::1, [::1]); a remote DevTools endpoint is refused before any request is made` |
 
-## 8. Cleanup
+## 8. One bug the cleanup found
+
+The stray-tab accounting is what exposed it. After the `--a11y-snapshot` runs against a *dead*
+endpoint, `agent-browser session list` held two `test-capabilities-<runId>` sessions that no run
+had ever bound a tab in. Cause: the observer marked itself "bound" before it attempted
+resolution, so its teardown ran `close` on a channel that never opened anything — and because
+`close` is itself a session command, it *created* the session (and its stray `about:blank`) in
+order to end it. An unavailable channel was leaving exactly the litter it exists to avoid.
+
+Fixed by marking the session started immediately before the first agent-browser spawn (the
+`tab <targetId>` bind), not at the top of `run`. Verified live afterwards: an
+`--a11y-snapshot` run against `127.0.0.1:9333` leaves the page count at 1 and
+`session list` at `default` only, while a healthy run still reports the same digest
+`sha256:82b7fb5e…` with 205 refs and ends its session. Two contract cases pin both directions.
+
+## 9. Cleanup
 
 Every session this run created was ended with `close`; `agent-browser session list` shows only
 `default` (the daemon that has been running since 2026-09-07 03:59 and belongs to someone else —

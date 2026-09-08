@@ -542,3 +542,56 @@ test("an unknown --a11y-snapshot value is refused before a tab is opened", async
   assert.match(raised.message, /off, optional, required/);
   assert.deepEqual(surf.calls(), []);
 });
+
+test("a channel that never bound a tab starts no session, and so tears none down", async (t) => {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const fake = createFakeAgentBrowser({ pages: agentBrowserPages() });
+  t.after(() => fake.cleanup());
+  // The endpoint is gone, so the probe refuses before anything is spawned - but the binary is
+  // right there, and a teardown that ran anyway would create a session (and its stray
+  // `about:blank`) purely in order to close it.
+  const endpoint = await startFakeCdpEndpoint({ targets: [] });
+  await endpoint.close();
+
+  const context = observerContext(dir);
+  const handle = createA11ySnapshotObserver({
+    context,
+    required: false,
+    env: observerEnv(fake, endpoint),
+  });
+  const observation = await handle.observer.run(fakeSession(context.runId, RELEASES_URL));
+  await handle.observer.teardown();
+
+  assert.equal(observation.status, "unavailable");
+  assert.equal(observation.reason, "cdp_endpoint_unreachable");
+  // `--version` is the capability probe and creates nothing; no session verb ran.
+  assert.deepEqual(
+    fake.calls().map((call) => call.join(" ")),
+    ["--version"],
+  );
+  assert.deepEqual(fake.verbs(), []);
+});
+
+test("a channel that bound a tab and then failed still ends its session", async (t) => {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const fake = createFakeAgentBrowser({ pages: agentBrowserPages(), failOn: ["snapshot"] });
+  t.after(() => fake.cleanup());
+  const endpoint = await startFakeCdpEndpoint({
+    targets: [pageTarget(TARGET_ID, RELEASES_URL, "Releases")],
+  });
+  t.after(() => endpoint.close());
+
+  const context = observerContext(dir);
+  const handle = createA11ySnapshotObserver({
+    context,
+    required: false,
+    env: observerEnv(fake, endpoint),
+  });
+  const observation = await handle.observer.run(fakeSession(context.runId, RELEASES_URL));
+  await handle.observer.teardown();
+
+  assert.equal(observation.reason, "snapshot_failed");
+  assert.deepEqual(fake.verbs(), ["tab", "snapshot", "close"]);
+});
