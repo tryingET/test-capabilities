@@ -157,9 +157,12 @@ Failures are typed. A framework error carries a registered code: text mode print
 
 ```bash
 # Quality gates
-npm run check          # Full CI check (lint + test)
+npm run check          # Full CI check (lint, typecheck, tests, contract-sync, coverage ratchet)
 npm run lint           # Lint check
 npm run fix            # Auto-fix lint issues
+npm run structure:check  # Size budget, import cycles, never-imported, the pure ring, passport byte identity
+npm run contract:sync    # Commander/manifest/cli.md, the generated help and export captures, types.md unions, schemas
+npm run coverage:ratchet # Coverage floors per Node major, the changed-lines gate and the reductions ledger
 npm run consumer:smoke # Packed-artifact consumer contract smoke
 npm run truth:gate       # Cross-check portable runtime/package/docs/passport truth surfaces
 npm run release:check    # Release preflight (quality + truth-gated diagnostic corpora + packed-artifact verification)
