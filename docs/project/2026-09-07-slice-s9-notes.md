@@ -40,8 +40,14 @@ npm run loop-impact-wide` (= `release:check`: check, `truth:gate ok`, `consumer:
 packed tarball) passed. Floors were not raised (S10 owns `coverage:raise`). The pre-existing
 biome warning (`tests/fixtures/fake-surf.mjs`, unused `tab` parameter in `readinessGate`) is
 still the only one; the three warnings this slice's own fixtures introduced were fixed before
-commit (1) landed. No unreproduced gate failure this time — the Bombadil flake S6 and S8 both
-recorded did not appear in any of the ten full runs.
+commit (1) landed.
+
+The flake S6 and S8 both recorded appeared once more, and in the same place: the first
+`loop-impact-wide` after the last commit failed `bombadil agent surfaces property violations as
+failing findings`. Running that file alone twice and the full wide gate again did not reproduce
+it, and nothing in this slice touches Bombadil. Recorded rather than dismissed; that is now three
+slices in a row, so S10 should treat it as a standing item rather than a coincidence — the same
+test, always once, always on a wide run, never on a rerun.
 
 Structure after the slice: 63 modules (60 before), 194 runtime edges (178), 0 cycles, 5
 exceptions (4), pure ring 14 (13). New modules: `a11y-snapshot.ts` 669 (in `pure_ring`),
