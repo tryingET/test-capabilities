@@ -48,14 +48,18 @@ A session is an owned scope over unowned state: one tab this run created, gated 
 | member | what it does |
 |---|---|
 | `open()` | `tab.new <url>`; the run owns the tab it returns. A second `open` is refused. |
-| `gate({ timeoutMs? })` | one `wait.ready`; a state other than `ready` raises `SessionReadinessRefusal` carrying surf's own `page_*` code |
+| `gate({ timeoutMs?, selector? })` | one `wait.ready`; a state other than `ready` raises `SessionReadinessRefusal` carrying surf's own `page_*` code. `selector` waits for a visible element, which is also the run's first way to *fail* to reach one |
 | `step(browserStep)` | one declared step against the owned tab, through the run's mutation ledger |
 | `evaluate(code, declaration, options?)` | page-side script; the declaration is required and a `read_only` claim is denylist-checked |
 | `observe(name, observer)` | register a read-only observation to run after the steps |
 | `runObservers()` | run them in registration order; an optional failure is `unavailable`, a required one fails the run |
 | `observations()` / `notes()` | what the observers reported, and lifecycle notes (a tab that would not close) |
 | `close()` | observer teardown in reverse order, then `tab.close`; idempotent, and never throws |
-| `plan()` / `apply()` / `explainUnreachable()` | declared seams; they refuse with `unsupported_surf_action` in this release line |
+
+A session is one tab, opened once and closed once: a second `open()`, a step or a diagnosis on a session that is already closed, and an observer registered after `close()` are refused with `unsupported_surf_action` naming what was asked for.
+
+| `explainUnreachable(selector, { frameHint?, failure? })` | why an element could not be reached: one read-only `frame.diagnose` in the owned tab, cached per page visit, answered as a determination. It never throws for a diagnosis that failed |
+| `plan()` / `apply()` | the submit gate's two seams (slice S7); see "Forms" below |
 
 ### Owned tabs only
 
@@ -132,7 +136,45 @@ const rows = await session.step({
 });
 ```
 
-`extract` stays read-only. Zero rows are a refusal (`empty_result`) unless the caller declares the emptiness - either through surf's `--allow-empty`/`--empty-text` or through the framework's `expect.output: "empty"`, which also records *who* declared it. Frame diagnosis (`frame.diagnose`) is a read-only command today; `Session.explainUnreachable` will turn it into a typed determination in a later slice and refuses until it does.
+`extract` stays read-only. Zero rows are a refusal (`empty_result`) unless the caller declares the emptiness - either through surf's `--allow-empty`/`--empty-text` or through the framework's `expect.output: "empty"`, which also records *who* declared it.
+
+### `explainUnreachable`: topology is evidence, determination is the gate
+
+```typescript
+const rootCause = await session.explainUnreachable('#play', {
+  frameHint: 'urlPrefix=https://www.youtube.com/embed/',
+});
+// rootCause.determination -> { value: 'confirmed', basis: 'evidence', candidates: [...], reason }
+```
+
+One read-only `surf frame.diagnose` runs in the tab the session already owns and is cached for
+the page visit (the topology of a page does not change between two steps on it; the
+determination is recomputed per call, because two steps carry different selectors and hints).
+The three inventories surf returns - DOM iframes, extension frames with content-script
+reachability, the CDP frame tree - become typed per-frame tags:
+
+| tag | rule |
+|---|---|
+| `out_of_process_frame` | `crossOrigin`, no CDP frame, an extension frame answers |
+| `cross_origin_frame` | `crossOrigin` and present in this tab's CDP tree |
+| `shadow_hosted_frame` | `shadowHost` is set (an open shadow root) |
+| `nested_frame` | an extension frame below another frame, with no `<iframe>` of its own on the page |
+| `hidden_frame` | `zeroSize`, a box of at most 1x1, or blank with no `src` and no real box; excluded from the candidates and kept as evidence |
+
+Every rule reads a structural field. surf's warnings are quoted verbatim as evidence and are
+never parsed for a decision. The gate over that evidence is one closed determination:
+`excluded` (no candidate frame at all), `confirmed` (the `frameHint` resolves to exactly one
+candidate whose content script answers), `suspected` (candidates exist and nothing links the
+failing selector to any of them), `undetermined` (the inventory disagrees with itself, the page
+moved between the failure and the diagnosis, or the hint resolves to zero, several, or an
+unreachable frame) and `unavailable` (no diagnosis). **The presence of a frame is never
+evidence that this selector targeted it**: most real pages carry an embed, a consent frame or an
+ad, so `confirmed` needs the author's hint and everything short of exclusion is reported as a
+coverage gap of the sensor rather than as an established cause.
+
+The raw inventory is written to `<receipts.dir>/<runId>/frame-diagnosis-*.json` at mode 0600;
+the typed field keeps at most ten candidates with `src` abbreviated to 160 characters. The
+diagnosis writes no receipt: it reads the page and changes nothing.
 
 ---
 
@@ -157,6 +199,6 @@ The gate itself is not in the runner. `mutation.allowOrigins` (operator config) 
 
 ## What is not here
 
-- `explainUnreachable` is declared on the interface and refuses with `unsupported_surf_action`: the frame root cause arrives later in this release line. Nothing guesses in the meantime.
+- The in-frame positive probe: `frame.switch` into a candidate, read the selector there, switch back. It is the only thing that could confirm a frame boundary without the author's hint, and it changes extension state for the tab, so it is deferred and designed with mutation safety (frame-root-cause packet, open question 5). Until then `confirmed` requires `--frame-hint`.
 - Screenshots, semantic locators, device emulation, network reads, console and cookie reads are mapped in the adapter (`translateSurfArgs`) and reachable through `step()` only where the mapping carries `--tab-id`; the rest are refused under the owned-tab rule rather than run untargeted. `type`, `select` and `click` carry it since slice S7, which is what lets the submit gate act in the tab the run created.
 - surf's file-driven workflows and the AI query passthroughs (`chatgpt` and friends) are a library-level passthrough to surf's own commands, not a core-owned, schema-validated contract in this repo. They use the operator's browser logins, no test path drives them, and no session verb exposes them.

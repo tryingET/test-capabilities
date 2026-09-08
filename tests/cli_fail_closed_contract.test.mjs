@@ -698,6 +698,179 @@ test("an unsupported command names its registered code in both modes", () => {
   assert.equal(payload.error.details.path, "/definitely-missing-config.yaml");
 });
 
+/** A page whose only frames are third-party embeds a main-document selector cannot reach. */
+const FRAMED_EXPLORE_PAGES = readyPages({
+  "https://example.com/": {
+    links: [],
+    frames: [
+      { src: "https://embed.example/player.html", outOfProcess: true, id: "player" },
+      { src: "https://ads.example/slot.html", outOfProcess: true },
+    ],
+  },
+});
+
+test("surf explore --ready-selector that cannot be reached is diagnosed, not guessed at", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+
+  try {
+    const result = runCli(
+      [
+        "surf",
+        "explore",
+        "--url",
+        "https://example.com/",
+        "--ready-selector",
+        "#does-not-exist",
+        "--json",
+      ],
+      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+    );
+
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.error.code, "element_unreachable");
+    assert.equal(payload.error.details.determination, "suspected");
+    assert.equal(payload.error.details.candidates, 2);
+    // the surf code that produced the failure is kept, never renamed
+    assert.equal(payload.error.details.surf_code, "page_timeout");
+    // the tab this run owned was closed even though the gate refused
+    const commands = fake.calls().map((call) => call[0]);
+    assert.equal(commands.includes("frame.diagnose"), true);
+    assert.equal(commands.includes("tab.close"), true);
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("surf explore --frame-hint confirms exactly one reachable frame", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+
+  try {
+    const result = runCli(
+      [
+        "surf",
+        "explore",
+        "--url",
+        "https://example.com/",
+        "--ready-selector",
+        "#play",
+        "--frame-hint",
+        "urlPrefix=https://embed.example/",
+        "--json",
+      ],
+      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+    );
+
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.error.code, "element_unreachable");
+    assert.equal(payload.error.details.determination, "confirmed");
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("surf explore --frame-hint without --ready-selector refuses before a browser is touched", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+
+  try {
+    const result = runCli(
+      [
+        "surf",
+        "explore",
+        "--url",
+        "https://example.com/",
+        "--frame-hint",
+        "urlPrefix=https://embed.example/",
+        "--json",
+      ],
+      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+    );
+
+    assert.equal(result.status, 1);
+    assert.equal(JSON.parse(result.stdout).error.code, "config_invalid");
+    assert.deepEqual(
+      fake.calls().filter((call) => call[0] === "tab.new"),
+      [],
+    );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("surf explore --frame-hint in a shape the framework cannot read refuses with the two it can", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+
+  try {
+    const result = runCli(
+      [
+        "surf",
+        "explore",
+        "--url",
+        "https://example.com/",
+        "--ready-selector",
+        "#play",
+        "--frame-hint",
+        "https://embed.example/",
+        "--json",
+      ],
+      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+    );
+
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.error.code, "config_invalid");
+    assert.match(payload.error.message, /urlPrefix=<prefix>' or 'selector=<css>/);
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a --ready-selector the page does carry explores it normally", () => {
+  const fake = createFakeSurf({
+    pages: readyPages({
+      "https://example.com/": { links: [], controls: [{ selector: "#go", text: "Go" }] },
+    }),
+  });
+
+  try {
+    const result = runCli(
+      ["surf", "explore", "--url", "https://example.com/", "--ready-selector", "#go", "--json"],
+      { TEST_CAPABILITIES_SURF_BIN: fake.path },
+    );
+
+    assert.equal(result.status, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.result.coverage.status, "verified");
+    assert.equal(payload.input.readySelector, "#go");
+    // no failure, so no diagnosis: one frame.diagnose per element-reach failure, never per run
+    assert.equal(
+      fake.calls().some((call) => call[0] === "frame.diagnose"),
+      false,
+    );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("surf explore js probes never leave a screenshot of the page behind", () => {
+  const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": { links: [] } }) });
+
+  try {
+    runCli(["surf", "explore", "--url", "https://example.com/", "--json"], {
+      TEST_CAPABILITIES_SURF_BIN: fake.path,
+    });
+
+    const jsCalls = fake.calls().filter((call) => call[0] === "js");
+    assert.equal(jsCalls.length > 0, true);
+    for (const call of jsCalls) {
+      assert.equal(call.includes("--no-screenshot"), true, call.join(" "));
+    }
+  } finally {
+    fake.cleanup();
+  }
+});
+
 test("surf explore --json prints the operation envelope on a successful run", () => {
   const fake = createFakeSurf({
     pages: readyPages({ "https://example.com/": { links: [] } }),

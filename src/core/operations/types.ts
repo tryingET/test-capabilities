@@ -5,6 +5,7 @@ import type { ApplyFieldResult, ApplyMode } from "../browser-session.js";
 import type { TestCapabilitiesConfig } from "../config.js";
 import type { Determination } from "../determination.js";
 import type { EffectDeclaration } from "../effects.js";
+import type { FrameRootCause } from "../frame-root-cause.js";
 import type { CoverageReport, TestResult } from "../orchestrator.js";
 import type { OutcomeBasis, OutcomeClass, ResultOutcome } from "../result-classification.js";
 import type { OperationEffectEnvelope, RunContext } from "../run-context.js";
@@ -80,6 +81,10 @@ export interface SurfExploreOperationInput {
   url?: string;
   depth?: string;
   json?: boolean;
+  /** a visible CSS selector the readiness gate waits for; the trigger for the frame diagnosis */
+  readySelector?: string;
+  /** `urlPrefix=…` or `selector=…`; the only v1 route to a `confirmed` frame determination */
+  frameHint?: string;
   record?: boolean;
   validate?: boolean;
   baseline?: string;
@@ -280,6 +285,13 @@ export interface SurfExploreProbeResult {
    * payload nothing declared acceptable, and `evidence` is the only basis a verified probe has.
    */
   outcome?: ResultOutcome;
+  /**
+   * Why an element this probe named could not be reached (slice S8). Present only when
+   * `--ready-selector` was given and the gate could not reach it: one `frame.diagnose` in the
+   * same owned tab, classified into the kernel determination shape. `determination.value` is
+   * the field every consumer reads; the `frame-root-cause:` evidence lines are its rendering.
+   */
+  frameRootCause?: FrameRootCause;
 }
 
 export interface SurfExplorePageResult {

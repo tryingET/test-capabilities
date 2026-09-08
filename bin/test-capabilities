@@ -286,6 +286,14 @@ program
   .option("-u, --url <url>", "Target URL")
   .option("--depth <n>", "Explore same-origin links to bounded depth 1-3 with graded probe coverage")
   .option(
+    "--ready-selector <css>",
+    "surf explore: a visible CSS selector the readiness gate waits for; a selector it cannot reach is diagnosed against the page's frames",
+  )
+  .option(
+    "--frame-hint <kind=value>",
+    "surf explore: 'urlPrefix=<prefix>' or 'selector=<css>' asserting which frame the --ready-selector target lives in; the only way to confirm a frame boundary",
+  )
+  .option(
     "--field <locator=value>",
     "surf plan: a field to fill, as '<label|selector|name>:<locator>=<value>'; repeatable",
     collectRepeated,

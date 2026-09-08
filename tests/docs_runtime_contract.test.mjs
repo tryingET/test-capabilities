@@ -257,6 +257,21 @@ test("the browser surface doc documents the Session scope, not a client object",
   assert.match(surfDoc, /read_only_violation_observed/);
   assert.match(surfDoc, /unsupported_surf_action/);
   assert.match(surfDoc, /SessionReadinessRefusal/);
+  assert.match(surfDoc, /explainUnreachable/);
+
+  // The frame determination vocabulary, and the rule that keeps `confirmed` honest (S8).
+  for (const value of ["excluded", "confirmed", "suspected", "undetermined", "unavailable"]) {
+    assert.match(surfDoc, new RegExp(`\`${value}\``), `api-surf.md omits ${value}`);
+  }
+  for (const tag of [
+    "out_of_process_frame",
+    "cross_origin_frame",
+    "shadow_hosted_frame",
+    "nested_frame",
+    "hidden_frame",
+  ]) {
+    assert.match(surfDoc, new RegExp(`\`${tag}\``), `api-surf.md omits ${tag}`);
+  }
 
   // Every denylist signal the runtime carries has a row in the doc.
   for (const signal of JS_MUTATION_SIGNALS) {

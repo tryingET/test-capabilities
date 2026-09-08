@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { BrowserStep, SessionReadiness, SessionReply } from "../browser-session.js";
 import type { EffectAttempt, EffectDeclaration } from "../effects.js";
+import { ElementUnreachable, isElementReachFailure } from "../frame-diagnosis.js";
+import type { FrameRootCause } from "../frame-root-cause.js";
+import { parseFrameHint } from "../frame-root-cause.js";
 import type { ExpectDeclaration, ResultOutcome } from "../result-classification.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
@@ -55,6 +58,8 @@ export const SurfExploreOperationInputSchema = z.preprocess(
         .url("Surf explore target must be a valid URL."),
       depth: z.string().optional(),
       json: z.boolean().optional().default(false),
+      readySelector: z.string().min(1).optional(),
+      frameHint: z.string().min(1).optional(),
       record: z.boolean().optional().default(false),
       validate: z.boolean().optional().default(false),
       baseline: z.string().optional(),
@@ -64,6 +69,7 @@ export const SurfExploreOperationInputSchema = z.preprocess(
     .transform((input) => {
       assertSupportedSurfExploreOptions(input);
       parseSurfExploreDepth(input.depth);
+      assertFrameHintUsable(input);
       return input;
     }),
 );
@@ -96,7 +102,8 @@ export function outcomeFromError(error: unknown): ResultOutcome | undefined {
   if (
     error instanceof SurfCommandError ||
     error instanceof SessionReadinessRefusal ||
-    error instanceof SurfExploreProbeRefusal
+    error instanceof SurfExploreProbeRefusal ||
+    error instanceof ElementUnreachable
   ) {
     return error.outcome;
   }
@@ -113,16 +120,36 @@ const SURF_EXPLORE_PROBE_FIELD = "__testCapabilitiesSurfExploreProbe";
  */
 export class SurfExploreProbeRefusal extends FrameworkError {
   readonly outcome: ResultOutcome | undefined;
+  /** the frame determination the seed probe carried, when one was taken */
+  readonly frameRootCause: FrameRootCause | undefined;
 
   constructor(url: string, probe: SurfExploreProbeResult | undefined) {
+    const frameRootCause = probe?.frameRootCause;
     super(
       probe?.code ?? "probe_unverified",
       probe?.error ??
         `Surf explore produced no verified browser evidence from the seed page state probe for ${url}.`,
-      { url, ...(probe ? { probe: probe.kind } : {}) },
+      {
+        url,
+        ...(probe ? { probe: probe.kind } : {}),
+        // The frame determination travels on the refusal so the CLI envelope carries the same
+        // typed answer the probe and the finding do (architecture review A20).
+        ...(frameRootCause
+          ? {
+              selector: frameRootCause.selector,
+              determination: frameRootCause.determination.value,
+              candidates: frameRootCause.candidates.length,
+              ...(frameRootCause.primaryTag ? { tag: frameRootCause.primaryTag } : {}),
+              ...(frameRootCause.hint ? { hint: frameRootCause.hint } : {}),
+              // surf's own code for the failure, from the classified outcome behind it
+              ...(probe?.outcome?.code ? { surf_code: probe.outcome.code } : {}),
+            }
+          : {}),
+      },
     );
     this.name = "SurfExploreProbeRefusal";
     this.outcome = probe?.outcome;
+    this.frameRootCause = probe?.frameRootCause;
   }
 }
 
@@ -195,6 +222,62 @@ function stripSurfContextLines(text: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * A hint says which frame the author believes the target lives in, so it only means anything
+ * once something has failed to reach that target. Without `--ready-selector` nothing in an
+ * explore run names an element, so a hint on its own is a caller believing something the run
+ * will not do (submit-gate packet §5, "fail closed everywhere").
+ */
+function assertFrameHintUsable(input: { readySelector?: string; frameHint?: string }): void {
+  if (input.frameHint === undefined) {
+    return;
+  }
+  if (input.readySelector === undefined) {
+    throw new FrameworkError(
+      "config_invalid",
+      "Surf explore takes --frame-hint only together with --ready-selector: the hint says which frame a failing selector lives in, and without a selector to wait for, nothing in an explore run can fail to be reached.",
+      { option: "--frame-hint" },
+    );
+  }
+  parseFrameHint(input.frameHint);
+}
+
+/**
+ * The frame diagnosis, when a `--ready-selector` gate could not reach its element.
+ *
+ * It runs in the tab that is still open, before `close()` in the caller's `finally`, and it
+ * never throws: a diagnosis that failed is `unavailable` on the typed field, which the report
+ * files as a coverage gap rather than leaving to the regex.
+ */
+async function diagnoseUnreachable(
+  session: SurfSession,
+  input: NormalizedSurfExploreOperationInput,
+  error: unknown,
+  readiness: SessionReadiness | undefined,
+): Promise<ElementUnreachable | undefined> {
+  const selector = input.readySelector;
+  if (selector === undefined || !(error instanceof SessionReadinessRefusal)) {
+    return undefined;
+  }
+  if (!isElementReachFailure(readiness?.code ?? error.code)) {
+    return undefined;
+  }
+  const frameRootCause = await session.explainUnreachable(selector, {
+    ...(input.frameHint ? { frameHint: input.frameHint } : {}),
+    ...(readiness?.href ? { failure: { href: readiness.href } } : {}),
+  });
+  return new ElementUnreachable(
+    session.url,
+    selector,
+    {
+      ...(error.code ? { code: error.code } : {}),
+      message: error.message,
+      ...(error.outcome ? { outcome: error.outcome } : {}),
+    },
+    frameRootCause,
+  );
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -498,7 +581,9 @@ function jsProbeStep(
   return {
     id: `surf.explore.probe:${kind}`,
     command: "js",
-    args: [buildProbeExpression(kind, probeId)],
+    // `--no-screenshot`: the surf build otherwise saves a picture of the page - its content
+    // included - to /tmp after every `js` call (submit-gate packet §8; measured live 2026-09-08).
+    args: [buildProbeExpression(kind, probeId), "--no-screenshot"],
     intent: `read the ${kind} of ${url} without changing it`,
     declare: SURF_EXPLORE_PROBE_EFFECT,
     observe: revokeOnMove,
@@ -616,7 +701,10 @@ function failedPage(
   tabId?: number,
 ): SurfExplorePageResult {
   const message = errorMessage(error);
-  const code = readiness?.code ?? errorCode(error);
+  const frameRootCause = error instanceof ElementUnreachable ? error.frameRootCause : undefined;
+  // A diagnosed element-reach failure names itself: the surf code stays in the message and the
+  // details, and the probe carries the framework's own trigger code plus the determination.
+  const code = frameRootCause ? "element_unreachable" : (readiness?.code ?? errorCode(error));
   const outcome = outcomeFromError(error);
   return {
     url,
@@ -632,6 +720,7 @@ function failedPage(
       error: message,
       ...(code ? { code } : {}),
       ...(outcome ? { outcome } : {}),
+      ...(frameRootCause ? { frameRootCause } : {}),
     })),
     discoveredUrls: [],
   };
@@ -648,6 +737,7 @@ function failedPage(
 async function explorePage(
   runtime: SurfSessionRuntime,
   context: RunContext,
+  input: NormalizedSurfExploreOperationInput,
   url: string,
   depth: number,
   requestedDepth: number,
@@ -670,7 +760,9 @@ async function explorePage(
 
   let page: SurfExplorePageResult;
   try {
-    const gate = await session.gate();
+    const gate = await session.gate(
+      input.readySelector === undefined ? {} : { selector: input.readySelector },
+    );
     if (gate.reply.stdout) {
       stdout.push(gate.reply.stdout);
     }
@@ -709,7 +801,8 @@ async function explorePage(
   } catch (error) {
     const readiness = error instanceof SessionReadinessRefusal ? error.readiness : undefined;
     stderr.push(errorMessage(error));
-    page = failedPage(url, depth, requestedDepth, error, readiness, tabId);
+    const unreachable = await diagnoseUnreachable(session, input, error, readiness);
+    page = failedPage(url, depth, requestedDepth, unreachable ?? error, readiness, tabId);
   } finally {
     await session.close();
     stderr.push(...session.notes());
@@ -791,6 +884,7 @@ async function runSurfExploreOperation(
       const pageResult = await explorePage(
         runtime,
         context,
+        normalized,
         next.url,
         next.depth,
         requestedDepth,

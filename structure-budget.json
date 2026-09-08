@@ -4,7 +4,7 @@
   "exceptions": {
     "src/core/orchestrator.ts": 1653,
     "src/core/surf-runtime.ts": 845,
-    "src/core/operations/surf-explore-operation.ts": 882,
+    "src/core/operations/surf-explore-operation.ts": 976,
     "src/healing/self-healing.ts": 1006
   },
   "allowed_cycles": [],
@@ -135,6 +135,13 @@
       "to": 845,
       "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet \u00a78; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
       "ref": "a9dce1d"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 882,
+      "to": 976,
+      "reason": "slice S8 commit (2): --ready-selector puts a selector into the readiness gate, which is the run's first way to fail to reach an element, and --frame-hint is the only v1 route to a confirmed frame determination. What lands here is the option pair (schema, the refusal of a hint with no selector to fail on), the call into Session.explainUnreachable while the tab is still open, and probes[].frameRootCause on the failed page; the step list, the classifier and the error carrier live in src/core/frame-diagnosis.ts and src/core/frame-root-cause.ts. Scheduled shrink: the probe/coverage split named in the S6 entry, now that the probe shape carries frameRootCause.",
+      "ref": "1fee383"
     }
   ]
 }

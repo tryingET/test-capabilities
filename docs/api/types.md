@@ -413,6 +413,8 @@ interface Finding {
   evidence: string[];
   recommendation: string;
   timestamp: Date;
+  outcome?: ResultOutcome;          // the classified outcome this finding was raised from
+  frameRootCause?: FrameRootCause;  // why an element could not be reached (slice S8)
 }
 ```
 
@@ -737,6 +739,8 @@ interface SurfExploreOperationResultEnvelope {
     url: string;
     depth?: string;
     json?: boolean;
+    readySelector?: string;   // a visible CSS selector the readiness gate waits for
+    frameHint?: string;       // 'urlPrefix=<prefix>' or 'selector=<css>'; needs readySelector
     record?: boolean;
     validate?: boolean;
     baseline?: string;
@@ -798,7 +802,8 @@ interface SurfExploreOperationResultEnvelope {
         verified: boolean;
         signal?: string;
         error?: string;
-        code?: string;      // surf error code when the probe failed
+        code?: string;      // surf error code, or `element_unreachable` when diagnosed
+        frameRootCause?: FrameRootCause;   // only when a --ready-selector could not be reached
       }>;
       discoveredUrls: string[];
       links?: { rowCount: number; attempts: number };
@@ -812,6 +817,84 @@ Runtime note:
 - the operation opens an owned surf tab, gates it with `wait.ready` typed states, verifies explicit browser-state and DOM `js` probes, uses `extract` (zero rows accepted explicitly) for same-origin depth expansion, and closes the tab
 - `coverage.userFlows` is a graded score from verified probes over required probes; unsupported or failed deeper pages reduce the score instead of becoming fake 100% coverage
 - `record`, `validate`, `baseline`, `aiDiff`, and `file` fail closed when provided to the shipped kernel path
+- `--frame-hint` without `--ready-selector`, and a hint that is neither `urlPrefix=…` nor `selector=…`, fail closed with `config_invalid` before a tab is opened
+
+### `FrameRootCause`
+
+Why a browser step could not reach an element, as typed evidence plus one determination
+(slice S8; frame-root-cause packet `## Refinement`). Topology is evidence; the determination is
+the gate; each consumer derives its permission from the determination and never from the
+topology.
+
+```typescript
+type FrameTopologyTag =
+  | 'out_of_process_frame'
+  | 'cross_origin_frame'
+  | 'shadow_hosted_frame'
+  | 'nested_frame'
+  | 'hidden_frame';
+
+type FrameDeterminationValue =
+  | 'excluded'       // no candidate frame after the hidden rule: the selector is wrong here
+  | 'confirmed'      // a --frame-hint resolved to exactly one reachable candidate
+  | 'suspected'      // candidates exist and nothing links this selector to any of them
+  | 'undetermined'   // inconsistent inventory, a page that moved, or an unresolvable hint
+  | 'unavailable';   // no diagnosis was taken
+
+interface FrameCandidate {
+  domIndex: number | null;      // null for a nested frame the DOM walk cannot see
+  frameId: number | null;
+  origin: string | null;
+  src: string;                  // abbreviated to 160 characters
+  rect: { x: number; y: number; width: number; height: number } | null;
+  sandbox: string | null;
+  shadowHost: string | null;
+  id: string | null;
+  name: string | null;
+  title: string | null;
+  crossOrigin: boolean;
+  outOfProcess: boolean;
+  hidden: boolean;
+  extensionFrameIds: number[];
+  cdpFrameIds: string[];
+  contentScriptReachable: boolean | null;
+  tags: FrameTopologyTag[];
+  primaryTag: FrameTopologyTag | null;
+}
+
+interface FrameRootCause {
+  selector: string;
+  determination: {
+    value: FrameDeterminationValue;
+    basis: OutcomeBasis;
+    candidates: FrameDeterminationValue[];
+    reason: string;
+  };
+  primaryTag: FrameTopologyTag | null;   // of the confirmed candidate; null otherwise
+  confirmedCandidate: FrameCandidate | null;
+  hint: string | null;
+  candidates: FrameCandidate[];          // at most 10
+  excludedHidden: FrameCandidate[];
+  unmatchedCdpFrames: number;
+  counts: { domIframes: number; extensionFrames: number; cdpFrames: number } | null;
+  warnings: string[];                    // verbatim from surf, at most 10
+  mainPage: { href: string; origin: string | null } | null;
+  source: { command: string; tabId?: number; browserEpoch?: string; durationMs?: number };
+  code?: 'frame_diagnosis_failed' | 'frame_diagnosis_undetermined';
+  artifact?: { path?: string; error?: string };
+}
+```
+
+Rendered form, and the only line a consumer written before this field parses:
+
+```
+frame-root-cause: determination=<value> tag=<primaryTag|none> candidates=<n> hint=<echo|none>
+```
+
+`inferRootCauseClass` reads `Finding.frameRootCause` first and the marker only for a legacy
+finding: `confirmed` is `frame_boundary`, `suspected`/`undetermined`/`unavailable` are
+`browser_coverage_gap` with the diagnosis attached, and `excluded` falls through to the existing
+rules.
 
 ---
 

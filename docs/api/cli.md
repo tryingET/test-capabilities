@@ -160,6 +160,11 @@ An explicit `--url` is required; the kernel no longer defaults to `about:blank` 
 test-capabilities surf explore --url https://example.com
 # bounded same-origin exploration with graded coverage
 test-capabilities surf explore --url https://example.com --depth 2
+# wait for an element, and diagnose the page's frames when it cannot be reached
+test-capabilities surf explore --url https://example.com --ready-selector '#results' --json
+# assert which frame the target lives in; the only way to confirm a frame boundary
+test-capabilities surf explore --url https://example.com --ready-selector '#play' \
+  --frame-hint 'urlPrefix=https://www.youtube.com/embed/' --json
 ```
 
 Options:
@@ -168,12 +173,34 @@ Options:
 |--------|-------------|
 | `--url <url>` | Required target URL |
 | `--depth <n>` | Optional bounded same-origin exploration depth, integer `1`-`3`; deeper pages contribute graded coverage only when their probes verify |
+| `--ready-selector <css>` | A visible CSS selector the readiness gate waits for (`surf wait.ready --selector`). A selector the gate cannot reach refuses with `[element_unreachable]` and carries a frame diagnosis taken in the same tab |
+| `--frame-hint <kind=value>` | `urlPrefix=<prefix>` or `selector=<css>`, asserting which frame the `--ready-selector` target lives in. Only valid with `--ready-selector`; a shape the framework cannot read, or a hint that resolves to zero, several or an unreachable frame, refuses rather than weakening the determination |
 | `--json` | Print the full machine-readable operation envelope; a failure prints `{"error": {code, message, details}}` and exits 1 |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--baseline <dir>` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--ai-diff` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--file <path>` | Fails with an unsupported-option error until wired to a real runtime path |
+
+#### Frame root cause
+
+A `--ready-selector` the gate cannot reach is not reported as selector drift. Explore runs one
+read-only `surf frame.diagnose` in the tab it already owns, classifies the inventory, and
+answers in the kernel determination shape:
+
+| `determination` | what it means | what a consumer may do |
+|---|---|---|
+| `excluded` | the page carries no frame a main-document selector could be missing into | the failure is filed by the existing rules (`selector_or_dom_drift`); the healer proposes as before |
+| `confirmed` | `--frame-hint` resolved to exactly one candidate whose content script answers | the root cause is `frame_boundary`; the healer refuses a rewrite and records a `frame.switch` suggestion |
+| `suspected` | frames exist and nothing links the failing selector to any of them | `browser_coverage_gap`; the healer may still propose, with `requiresReview: true` and a typed caveat that `heal --apply` refuses |
+| `undetermined` | the inventory disagrees with itself, the page moved, or the hint does not resolve to one reachable frame | `browser_coverage_gap`; the healer refuses |
+| `unavailable` | `frame.diagnose` failed or is not in this surf build | `browser_coverage_gap`; the healer refuses |
+
+The diagnosis is read once per page visit and the raw inventory is written to
+`<receipts.dir>/<runId>/frame-diagnosis-*.json` at mode 0600; `probes[].frameRootCause` in the
+envelope carries the capped evidence (at most ten candidates, `src` abbreviated to 160
+characters, surf's warnings verbatim). The framework never infers which frame a selector meant:
+without `--frame-hint`, `suspected` is the strongest answer it will give.
 
 Unsupported surf actions:
 - `flow`

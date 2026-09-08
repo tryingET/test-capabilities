@@ -36,6 +36,9 @@ import type {
 import { findJsMutationSignals, SESSION_LIFECYCLE_EFFECT } from "./browser-session.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
 import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
+import type { ExplainUnreachableOptions } from "./frame-diagnosis.js";
+import { explainUnreachable } from "./frame-diagnosis.js";
+import type { FrameRootCause } from "./frame-root-cause.js";
 import type { ExpectDeclaration } from "./result-classification.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError } from "./runtime-contract.js";
@@ -237,7 +240,7 @@ export class SurfSession implements Session {
   }
 
   async gate(
-    options: { timeoutMs?: number } = {},
+    options: { timeoutMs?: number; selector?: string } = {},
   ): Promise<{ readiness: SessionReadiness; reply: SessionReply }> {
     const tab = this.requireTab("wait.ready");
     const reply = await this.runLedgerStep({
@@ -248,6 +251,7 @@ export class SurfSession implements Session {
         String(tab.id),
         "--timeout",
         String(options.timeoutMs ?? this.readyTimeoutMs),
+        ...(options.selector ? ["--selector", options.selector] : []),
       ],
       intent: `wait until ${this.url} settles before anything reads it`,
       declaration: this.declarationFor({
@@ -427,13 +431,20 @@ export class SurfSession implements Session {
 
   // ---- seams later slices fill --------------------------------------------
 
-  /** S8 replaces this with an `observe("frame-diagnosis")` step over the same owned tab. */
-  async explainUnreachable(selector: string): Promise<never> {
-    throw new FrameworkError(
-      "unsupported_surf_action",
-      `Session.explainUnreachable('${selector}') is declared but not implemented in this build: the framework cannot yet say why an element is unreachable, and it will not guess. Nothing was sent to the browser.`,
-      { selector },
-    );
+  /**
+   * The frame diagnosis (S8): one read-only `frame.diagnose` in the tab this run owns, cached
+   * for the page visit, turned into the kernel determination by the pure classifier. The step
+   * list lives in `frame-diagnosis.ts`, not here: a seam is a composition over the session,
+   * never a hook inside it.
+   */
+  async explainUnreachable(
+    selector: string,
+    options: ExplainUnreachableOptions = {},
+  ): Promise<FrameRootCause> {
+    if (this.closed) {
+      throw this.lifecycleRefusal(`diagnose '${selector}' on a session that is already closed`);
+    }
+    return explainUnreachable(this, this.context, selector, options);
   }
 
   /**

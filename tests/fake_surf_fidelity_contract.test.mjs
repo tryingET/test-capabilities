@@ -463,7 +463,12 @@ test("a page may forbid a verb, so a test proves the framework never issued it",
   }
 });
 
-test("frames describe the topology frame.diagnose reports", () => {
+test("frame.diagnose answers the shape captured live, from the page model's frames", () => {
+  // The specification is the live MDN capture: three out-of-process, shadow-hosted iframes plus
+  // a nested about:srcdoc frame whose content script does not answer.
+  const capture = JSON.parse(
+    readFileSync(path.join(capturesDir, "..", "frame-diagnose", "mdn-iframe.json"), "utf8"),
+  );
   const fake = createFakeSurf({
     pages: {
       "https://frames.example/": {
@@ -471,8 +476,20 @@ test("frames describe the topology frame.diagnose reports", () => {
         readiness: "ready",
         links: [],
         frames: [
-          { src: "https://embed.example/a", outOfProcess: true, reachable: false },
-          { src: "https://frames.example/b" },
+          {
+            src: "https://a1.embed.example/runner.html",
+            outOfProcess: true,
+            shadowHost: "interactive-example > mdn-play-runner",
+            sandbox: "allow-scripts allow-same-origin",
+          },
+          {
+            src: "https://a2.embed.example/runner.html",
+            outOfProcess: true,
+            shadowHost: "interactive-example > mdn-play-runner",
+            sandbox: "allow-scripts allow-same-origin",
+          },
+          { src: "https://frames.example/b", id: "local" },
+          { src: "about:srcdoc", nestedUnder: 1, reachable: false },
         ],
       },
     },
@@ -480,18 +497,42 @@ test("frames describe the topology frame.diagnose reports", () => {
   try {
     const tab = openTab(fake, "https://frames.example/");
     const reply = runFake(fake, ["frame.diagnose", "--tab-id", tab, "--json"]);
-    assert.equal(reply.status, 0);
-    const diagnosis = reply.stdout.result;
-    assert.equal(diagnosis.counts.domIframes, 2);
-    assert.equal(diagnosis.counts.cdpFrames, 2);
-    assert.equal(diagnosis.counts.extensionFrames, 1);
+    assert.equal(reply.status, capture.exitCode);
+
+    // key sets and leaf types, never values
+    assert.deepEqual(shapeOf(reply.stdout.target), shapeOf(capture.stdout.target));
     assert.deepEqual(
-      diagnosis.domIframes.map((frame) => frame.src),
-      ["https://embed.example/a", "https://frames.example/b"],
+      Object.keys(reply.stdout.result).sort(),
+      Object.keys(capture.stdout.result).sort(),
     );
-    assert.deepEqual(diagnosis.warnings, [
-      "frame 0 is out-of-process: missing from this tab's CDP frame tree",
-    ]);
+    assert.deepEqual(
+      Object.keys(reply.stdout.result.domIframes[0]).sort(),
+      Object.keys(capture.stdout.result.domIframes[0]).sort(),
+    );
+    assert.deepEqual(shapeOf(reply.stdout.result.counts), shapeOf(capture.stdout.result.counts));
+    assert.deepEqual(
+      shapeOf(reply.stdout.result.cdpFrames[0]),
+      shapeOf(capture.stdout.result.cdpFrames[0]),
+    );
+
+    // the same structural facts the capture carries: the nested frame is not a DOM iframe, it
+    // is not in the CDP tree, and its content script does not answer
+    const diagnosis = reply.stdout.result;
+    assert.equal(diagnosis.counts.domIframes, 3);
+    assert.equal(diagnosis.counts.extensionFrames, 5);
+    assert.equal(diagnosis.counts.cdpFrames, 2, "main plus the one in-process frame");
+    const nested = diagnosis.extensionFrames.find((frame) => frame.url === "about:srcdoc");
+    assert.equal(nested.parentFrameId !== 0, true);
+    assert.equal(nested.contentScriptReachable, false);
+    assert.equal(
+      diagnosis.domIframes.filter((frame) => frame.crossOrigin && frame.cdpFrameIds.length === 0)
+        .length,
+      2,
+    );
+    assert.equal(
+      diagnosis.warnings.some((warning) => warning.includes("is out-of-process")),
+      true,
+    );
   } finally {
     fake.cleanup();
   }

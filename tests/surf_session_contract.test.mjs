@@ -68,13 +68,20 @@ function commandsOf(fake) {
     .filter((command) => !command.startsWith("--"));
 }
 
+/**
+ * The receipts under `dir`. A run directory holds every artifact the run wrote - since S8 that
+ * includes the raw frame inventory - so the kind is what selects, exactly as `FileReceiptStore`
+ * itself selects.
+ */
 function receiptFiles(dir) {
   const runs = readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  return runs.flatMap((run) =>
-    readdirSync(path.join(dir, run.name))
-      .filter((entry) => entry.endsWith(".json"))
-      .map((entry) => JSON.parse(readFileSync(path.join(dir, run.name, entry), "utf8"))),
-  );
+  return runs
+    .flatMap((run) =>
+      readdirSync(path.join(dir, run.name))
+        .filter((entry) => entry.endsWith(".json"))
+        .map((entry) => JSON.parse(readFileSync(path.join(dir, run.name, entry), "utf8"))),
+    )
+    .filter((artifact) => artifact.artifact_kind === "test-capabilities.mutation.receipt");
 }
 
 const TITLE_STEP = {
@@ -685,13 +692,105 @@ test("an optional observer that fails is unavailable; a required one fails the r
 // Seams later slices fill
 // ---------------------------------------------------------------------------
 
-test("the seam S8 fills refuses loudly instead of guessing", async () => {
-  await withSession({ gate: true }, async ({ session, fake }) => {
-    await assert.rejects(() => session.explainUnreachable("#submit"), {
-      code: "unsupported_surf_action",
-      message: /declared but not implemented in this build/,
+// ---------------------------------------------------------------------------
+// explainUnreachable: the frame diagnosis over the owned tab (S8)
+// ---------------------------------------------------------------------------
+
+const FRAMED_PAGE = readyPages({
+  [URL_UNDER_TEST]: {
+    links: [],
+    frames: [
+      { src: "https://embed.example/player.html", outOfProcess: true, id: "player" },
+      { src: "https://ads.example/slot.html", outOfProcess: true },
+    ],
+  },
+});
+
+test("explainUnreachable runs frame.diagnose in the owned tab and answers suspected", async () => {
+  await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, fake, dir }) => {
+    const rootCause = await session.explainUnreachable("#does-not-exist");
+
+    assert.equal(rootCause.determination.value, "suspected");
+    assert.equal(rootCause.candidates.length, 2);
+    assert.equal(rootCause.primaryTag, null);
+    assert.deepEqual(commandsOf(fake), ["tab.new", "wait.ready", "frame.diagnose"]);
+    // it is pointed at the tab this run owns, never at whatever is in front
+    const call = fake.calls().find((entry) => entry[0] === "frame.diagnose");
+    assert.equal(call.includes("--tab-id"), true);
+    assert.equal(call[call.indexOf("--tab-id") + 1], String(session.tab.id));
+
+    // the raw inventory is on disk, the capped evidence is in the field
+    const artifact = JSON.parse(readFileSync(rootCause.artifact.path, "utf8"));
+    assert.equal(artifact.artifact_kind, "test-capabilities.frame.diagnosis");
+    assert.equal(artifact.diagnosis.domIframes.length, 2);
+    assert.equal(rootCause.artifact.path.startsWith(dir), true);
+  });
+});
+
+test("a --frame-hint that resolves to one reachable frame confirms; the topology is read once", async () => {
+  await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, fake }) => {
+    const first = await session.explainUnreachable("#play", {
+      frameHint: "urlPrefix=https://embed.example/",
     });
-    assert.deepEqual(commandsOf(fake), ["tab.new", "wait.ready"]);
+    assert.equal(first.determination.value, "confirmed");
+    assert.equal(first.primaryTag, "out_of_process_frame");
+    assert.equal(first.confirmedCandidate.id, "player");
+
+    // a second selector on the same page pays nothing: the topology is cached per page visit,
+    // and only the determination is recomputed
+    const second = await session.explainUnreachable("#other", {
+      frameHint: "urlPrefix=https://nowhere.example/",
+    });
+    assert.equal(second.determination.value, "undetermined");
+    assert.equal(
+      commandsOf(fake).filter((command) => command === "frame.diagnose").length,
+      1,
+      "one frame.diagnose per page visit",
+    );
+  });
+});
+
+test("a page with no frame at all excludes the frame boundary", async () => {
+  await withSession({ gate: true }, async ({ session }) => {
+    const rootCause = await session.explainUnreachable("#typo");
+    assert.equal(rootCause.determination.value, "excluded");
+    assert.deepEqual(rootCause.candidates, []);
+  });
+});
+
+test("a diagnosis that fails is unavailable, never a defaulted exclusion", async () => {
+  await withSession(
+    { gate: true, pages: FRAMED_PAGE, failOn: ["frame.diagnose"] },
+    async ({ session }) => {
+      const rootCause = await session.explainUnreachable("#does-not-exist");
+      assert.equal(rootCause.determination.value, "unavailable");
+      assert.equal(rootCause.code, "frame_diagnosis_failed");
+      assert.match(rootCause.determination.reason, /frame\.diagnose did not answer/);
+      assert.equal(rootCause.artifact, undefined);
+    },
+  );
+});
+
+test("explainUnreachable is refused on a closed session and closes its tab either way", async () => {
+  await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, fake }) => {
+    await session.explainUnreachable("#x");
+    await session.close();
+    await assert.rejects(() => session.explainUnreachable("#x"), {
+      code: "unsupported_surf_action",
+      message: /already closed/,
+    });
+    assert.deepEqual(commandsOf(fake), ["tab.new", "wait.ready", "frame.diagnose", "tab.close"]);
+  });
+});
+
+test("the frame diagnosis writes no receipt: it reads the page and changes nothing", async () => {
+  await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, context, dir }) => {
+    await session.explainUnreachable("#x");
+    assert.deepEqual(receiptFiles(dir), []);
+    assert.equal(
+      context.ledger.attempts().some((entry) => entry.stepId === "surf.frame.diagnose"),
+      true,
+    );
   });
 });
 

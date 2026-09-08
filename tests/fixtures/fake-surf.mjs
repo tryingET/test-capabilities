@@ -7,7 +7,8 @@
  * - `--version` / `--help-full`  (mechanism probe)
  * - `doctor --browser <b> --json` (socket/manifest state)
  * - `tab.new <url>` -> "Created tab <id>: <url>", `tab.close <id>`, `tab.list --json`
- * - `wait.ready [--tab-id N] [--accept ...] --json` with typed states and `page_*` error codes
+ * - `wait.ready [--tab-id N] [--accept ...] [--selector <css>] --json` with typed states and
+ *   `page_*` error codes; a `--selector` the page's DOM does not carry is a `page_timeout`
  * - `js <code> [--tab-id N] --json` evaluated in expression mode first, statement mode second,
  *   against a stub DOM for the tab's page
  * - `extract [url] [--tab-id N] --code <code> [--allow-empty] --json` with the extract contract
@@ -22,7 +23,10 @@
  *
  *   {
  *     title, readyState, readiness, evidence[], links[], counts{}, jsResult, jsThrows,
- *     frames: [{ src, outOfProcess?, reachable? }],  // frame.diagnose topology (S8 reads it)
+ *     frames: [{ src, outOfProcess?, reachable?, crossOrigin?, shadowHost?, rect?, blank?,
+ *               zeroSize?, srcdoc?, sandbox?, id?, name?, title?, nestedUnder? }],
+ *                                  // frame.diagnose topology; nestedUnder makes a frame a
+ *                                  // child of another frame, which the DOM walk never sees
  *     fields: { "<selector>": { value, kind?, checked?, name?, id?, label?, form?, hidden? } },
  *                                  // state a step may write and read; name/id/label/form are
  *                                  // what a locator resolves through, form is a form selector
@@ -396,6 +400,159 @@ function pageFor(url, state) {
   };
 }
 
+/**
+ * `frame.diagnose`'s three inventories, from the page model's `frames`.
+ *
+ * The shapes are the ones captured live on 2026-09-08 and committed under
+ * `tests/fixtures/captures/frame-diagnose/`: a DOM iframe carries `rect`, `shadowHost`,
+ * `crossOrigin`, `blank`, `zeroSize`, `extensionFrameIds` and `cdpFrameIds`; an extension frame
+ * carries `parentFrameId` and `contentScriptReachable`; the CDP tree holds only what stayed in
+ * this tab's process. The warnings are prose the framework quotes and never parses, so they are
+ * rendered from the same fields rather than being the source of anything.
+ *
+ * A frame entry is `{ src, outOfProcess?, reachable?, crossOrigin?, shadowHost?, rect?, blank?,
+ * srcdoc?, id?, name?, nestedUnder? }`; `nestedUnder: <index>` makes it a frame below another
+ * frame, which the DOM walk never sees.
+ */
+function frameDiagnosis(page) {
+  const frames =
+    page.frames.length > 0
+      ? page.frames
+      : Array.from({ length: page.counts.iframes }, (_, index) => ({
+          src: `${page.url}#frame-${index}`,
+        }));
+  const origin = (url) => {
+    try {
+      const value = new URL(url).origin;
+      return value === "null" ? null : value;
+    } catch {
+      return null;
+    }
+  };
+  const extensionIdOf = (index) => 10 + index;
+  const dom = [];
+  const extension = [
+    {
+      frameId: 0,
+      parentFrameId: -1,
+      url: page.url,
+      errorOccurred: false,
+      contentScriptReachable: true,
+      contentScript: { href: page.url, readyState: "complete" },
+      isMain: true,
+      origin: origin(page.url),
+      crossOrigin: false,
+    },
+  ];
+  const cdp = [
+    {
+      frameId: "MAIN",
+      url: page.url,
+      name: "",
+      isMain: true,
+      origin: origin(page.url),
+      crossOrigin: false,
+      extensionFrameIds: [],
+    },
+  ];
+
+  frames.forEach((frame, index) => {
+    const src = frame.src ?? "";
+    const frameOrigin = origin(src);
+    const crossOrigin =
+      frame.crossOrigin ?? (frameOrigin !== null && frameOrigin !== origin(page.url));
+    // A frame below another frame is not a top-document frame: it never appears as a child
+    // of MAIN in this tab's CDP tree, which is what the MDN capture shows.
+    const inProcess = frame.nestedUnder === undefined && frame.outOfProcess !== true && src !== "";
+    const cdpId = inProcess ? `FRAME_${index}` : undefined;
+    const extensionId = extensionIdOf(index);
+    extension.push({
+      frameId: extensionId,
+      parentFrameId: frame.nestedUnder === undefined ? 0 : extensionIdOf(frame.nestedUnder),
+      url: src,
+      errorOccurred: false,
+      contentScriptReachable: frame.reachable !== false,
+      ...(frame.reachable === false
+        ? { contentScriptError: "Could not establish connection. Receiving end does not exist." }
+        : { contentScript: { href: src, readyState: "complete" } }),
+      isMain: false,
+      origin: origin(src),
+      crossOrigin,
+    });
+    if (cdpId) {
+      cdp.push({
+        frameId: cdpId,
+        url: src,
+        name: "",
+        parentId: "MAIN",
+        isMain: false,
+        origin: origin(src),
+        crossOrigin,
+        extensionFrameIds: [extensionId],
+      });
+    }
+    if (frame.nestedUnder !== undefined) {
+      return;
+    }
+    dom.push({
+      allow: "",
+      domIndex: dom.length,
+      id: frame.id ?? "",
+      name: frame.name ?? "",
+      rect: frame.rect ?? { height: 400, width: 600, x: 0, y: 0 },
+      sandbox: frame.sandbox ?? null,
+      shadowHost: frame.shadowHost ?? null,
+      src,
+      srcAttribute: src,
+      srcdoc: frame.srcdoc === true,
+      title: frame.title ?? "",
+      origin: origin(src),
+      crossOrigin,
+      blank: frame.blank ?? src === "",
+      zeroSize: frame.zeroSize ?? false,
+      scriptsBlocked: false,
+      extensionFrameIds: [extensionId],
+      cdpFrameIds: cdpId ? [cdpId] : [],
+    });
+  });
+
+  const warnings = [];
+  for (const frame of dom) {
+    if (frame.zeroSize) {
+      warnings.push(
+        `iframe ${frame.domIndex} (${frame.src || "no src"}) is rendered at 0x0: hidden, collapsed, or not yet laid out.`,
+      );
+    }
+    if (frame.crossOrigin && frame.cdpFrameIds.length === 0) {
+      warnings.push(
+        `iframe ${frame.domIndex} (${frame.src}) is out-of-process: it is missing from this tab's CDP frame tree, so frame.js cannot reach it; its content script answers, so frame.switch, page.read and click by ref work there.`,
+      );
+    }
+  }
+  for (const frame of extension) {
+    if (frame.isMain !== true && frame.contentScriptReachable !== true) {
+      warnings.push(
+        `extension frame ${frame.frameId} (${frame.url || "about:blank"}) has no reachable content script (Could not establish connection. Receiving end does not exist.): page.read, click by ref and frame.switch will not work inside it; frame.js with its CDP frame id may.`,
+      );
+    }
+  }
+  const crossOriginCount = dom.filter((frame) => frame.crossOrigin).length;
+  if (crossOriginCount > 0) {
+    warnings.push(
+      `${crossOriginCount} cross-origin iframe(s): selectors from the main page do not reach them; switch with frame.switch first.`,
+    );
+  }
+
+  return {
+    mainPage: { href: page.url, title: page.title, origin: origin(page.url) },
+    counts: { domIframes: dom.length, extensionFrames: extension.length, cdpFrames: cdp.length },
+    domIframes: dom,
+    extensionFrames: extension,
+    cdpFrames: cdp,
+    warnings,
+  };
+}
+
 /** Every distinct owning form named by a field or a control, in declaration order. */
 function formSelectorsOf(fields, controls) {
   const seen = [];
@@ -481,10 +638,22 @@ function readinessResult(page) {
   };
 }
 
-function readinessGate(page, tab, { accept = [], wait = true } = {}) {
+function readinessGate(page, tab, { accept = [], wait = true, selector } = {}) {
   const result = readinessResult(page);
   if (!wait) {
     return result;
+  }
+  // `--selector` marks a page ready by an element. A selector this page's DOM does not carry
+  // times out, which is the element-reach failure the frame diagnosis answers (slice S8).
+  if (selector !== undefined && stubDocument(page).querySelectorAll(selector).length === 0) {
+    fail("page_timeout", `Timed out after 1ms waiting for ${selector} at ${page.url}`, {
+      state: "loading",
+      evidence: page.evidence,
+      href: page.url,
+      title: page.title,
+      selector,
+    });
+    return undefined;
   }
   if (["ready", "empty"].includes(page.readiness)) {
     return result;
@@ -844,7 +1013,14 @@ switch (command) {
     const tab = resolveTab(state);
     const page = pageFor(tab.url, state);
     const accept = (flag("--accept") || "").split(",").filter(Boolean);
-    emit(readinessGate(page, tab, { accept }), targetMeta(tab));
+    const readySelector = flag("--selector");
+    emit(
+      readinessGate(page, tab, {
+        accept,
+        ...(readySelector === undefined ? {} : { selector: readySelector }),
+      }),
+      targetMeta(tab),
+    );
     // The page moves once the gate settled: whatever reads it next answers from somewhere the
     // gate never saw, which is the only signal a read-only step has that the target moved.
     if (page.navigatesAfterGate) {
@@ -1033,48 +1209,7 @@ switch (command) {
   case "frame.diagnose": {
     const tab = resolveTab(state);
     const page = pageFor(tab.url, state);
-    // The topology comes from the page model's `frames`, so a fixture can describe an
-    // out-of-process or unreachable frame instead of the fake inventing one from a count.
-    const frames =
-      page.frames.length > 0
-        ? page.frames
-        : Array.from({ length: page.counts.iframes }, (_, index) => ({
-            src: `${page.url}#frame-${index}`,
-          }));
-    const inProcess = frames.filter((frame) => frame.outOfProcess !== true);
-    emit(
-      {
-        mainPage: { url: page.url, title: page.title },
-        counts: {
-          domIframes: frames.length,
-          extensionFrames: frames.filter((frame) => frame.reachable !== false).length,
-          cdpFrames: 1 + inProcess.length,
-        },
-        domIframes: frames.map((frame, index) => ({
-          index,
-          src: frame.src ?? `${page.url}#frame-${index}`,
-        })),
-        extensionFrames: frames
-          .map((frame, index) => ({ index, src: frame.src, reachable: frame.reachable !== false }))
-          .filter((frame) => frame.reachable),
-        cdpFrames: [
-          { frameId: "MAIN", isMain: true, url: page.url },
-          ...inProcess.map((frame, index) => ({
-            frameId: `FRAME_${index}`,
-            isMain: false,
-            url: frame.src ?? page.url,
-          })),
-        ],
-        warnings: frames
-          .map((frame, index) =>
-            frame.outOfProcess === true
-              ? `frame ${index} is out-of-process: missing from this tab's CDP frame tree`
-              : undefined,
-          )
-          .filter(Boolean),
-      },
-      targetMeta(tab),
-    );
+    emit(frameDiagnosis(page), targetMeta(tab));
     break;
   }
   default:

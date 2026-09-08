@@ -12,7 +12,16 @@ const unsupportedSurfExploreOptionGuidance =
  * `--depth` handed to an apply, is a caller that believes something the run will not do
  * (submit-gate packet §5, "fail closed everywhere").
  */
-const SURF_EXPLORE_ONLY_OPTIONS = ["depth", "record", "validate", "baseline", "aiDiff", "file"];
+const SURF_EXPLORE_ONLY_OPTIONS = [
+  "depth",
+  "readySelector",
+  "frameHint",
+  "record",
+  "validate",
+  "baseline",
+  "aiDiff",
+  "file",
+];
 const SURF_PLAN_ONLY_OPTIONS = ["field", "submitText", "submitSelector", "out"];
 /** `surf apply` takes its target from the plan, so naming a URL on the command line is a lie. */
 const SURF_TARGET_URL_OPTION = ["url"];
@@ -42,6 +51,8 @@ export const SURF_EXPLORE_OPTION_SUPPORT = {
   url: "implemented",
   depth: "implemented",
   json: "implemented",
+  readySelector: "implemented",
+  frameHint: "implemented",
   record: "unsupported",
   validate: "unsupported",
   baseline: "unsupported",

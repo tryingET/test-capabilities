@@ -25,6 +25,7 @@ import type {
   EffectSettlement,
   VerifyResult,
 } from "./effects.js";
+import type { FrameRootCause } from "./frame-root-cause.js";
 import type { ExpectDeclaration, ResultOutcome } from "./result-classification.js";
 import type { PlanFieldRequest, SurfPlan } from "./surf-plan.js";
 
@@ -268,6 +269,12 @@ export interface Session {
   /** the one readiness gate; a page that never settles is refused, never probed */
   gate(options?: {
     timeoutMs?: number;
+    /**
+     * A visible CSS selector that marks the page ready. A gate that waits for an element is
+     * also the run's first way to *fail* to reach one, which is what `explainUnreachable`
+     * answers (frame-root-cause packet, trigger (a)).
+     */
+    selector?: string;
   }): Promise<{ readiness: SessionReadiness; reply: SessionReply }>;
   /** run one declared step against the owned tab */
   step<T>(step: BrowserStep<T>): Promise<T>;
@@ -292,8 +299,24 @@ export interface Session {
   /** lifecycle notes a caller may render (a tab that would not close, an observer teardown) */
   notes(): readonly string[];
 
-  /** the frame diagnosis seam (S8): an `observe` step over the same owned tab */
-  explainUnreachable(selector: string, options?: { frameHint?: string }): Promise<never>;
+  /**
+   * Why a browser step could not reach an element: one read-only `frame.diagnose` observation
+   * in the tab this session owns, cached for the page visit, answered in the kernel's
+   * determination shape. `confirmed` needs a positive selector-to-frame link, and in v1 the
+   * only one is `frameHint`; without it the answer is `suspected` at best, and a page with no
+   * candidate frame at all is `excluded`.
+   *
+   * It never throws for a diagnosis that failed: `unavailable` is one of the answers.
+   */
+  explainUnreachable(
+    selector: string,
+    options?: {
+      /** `urlPrefix=…` or `selector=…` */
+      frameHint?: string;
+      /** where the failing step was; a page that moved in between concludes nothing */
+      failure?: { href?: string; browserEpoch?: string };
+    },
+  ): Promise<FrameRootCause>;
   /**
    * Read the form the way an operator will review it: resolved selectors, intended values, the
    * one control that may be clicked or an explicit ambiguous/none, and the buttons that may

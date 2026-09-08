@@ -33,6 +33,8 @@ export const ARTIFACT_KINDS = [
   "test-capabilities.surf.plan",
   /** the aggregate export of an apply run's receipts (`surf apply --receipt-out`) */
   "test-capabilities.surf.apply.receipts",
+  /** the raw `frame.diagnose` inventory behind one frame root-cause determination (S8) */
+  "test-capabilities.frame.diagnosis",
 ] as const;
 
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
