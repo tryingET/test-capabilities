@@ -255,6 +255,12 @@ export class BombadilAgent implements TestAgent {
  * What a bounded fuzz attempt means, from typed facts only (adjudication claim 46): a run that
  * left a trace or output did something to the target and is `applied` whatever its exit; a run
  * that left neither is `unknown`, because nothing says what it did.
+ *
+ * `applied` here means "this attempt is consumed", not "the effects are proven": output may be
+ * a startup banner, and a definite outcome deliberately does not block a later run, because a
+ * fuzz campaign is meant to be run again and a rerun is the operator's decision. What must not
+ * happen silently is a rerun *after an attempt nobody can account for*, which is the `unknown`
+ * case, and that one holds the key until a human supersedes it.
  */
 function settleBombadilAttempt(
   error: unknown,
