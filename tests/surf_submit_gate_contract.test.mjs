@@ -518,10 +518,84 @@ test("a field that is only inside a frame refuses with plan_field_unreachable", 
     },
   };
   await withFake({ pages }, async ({ out }) => {
-    await assert.rejects(() => planWith({ url: FORM_URL, field: ["name:q=x"], out }), {
-      code: "plan_field_unreachable",
-    });
+    // Slice S8: the refusal is the frame diagnosis's answer, not an iframe count. The page
+    // carries one unreachable frame and nothing links the field to it, so `suspected`.
+    await assert.rejects(
+      () => planWith({ url: FORM_URL, field: ["name:q=x"], out }),
+      (error) => {
+        assert.equal(error.code, "plan_field_unreachable");
+        assert.equal(error.details.determination, "suspected");
+        assert.equal(error.details.candidates, 1);
+        return true;
+      },
+    );
   });
+});
+
+test("a field that is absent from a page with no frame at all is not_found, not unreachable", async () => {
+  const pages = {
+    "https://forms.example/search": {
+      title: "Empty",
+      readiness: "ready",
+      links: [],
+      fields: {},
+      frames: [],
+      controls: [],
+    },
+  };
+  await withFake({ pages }, async ({ out }) => {
+    await assert.rejects(
+      () => planWith({ url: FORM_URL, field: ["name:q=x"], out }),
+      (error) => {
+        assert.equal(error.code, "plan_field_not_found");
+        assert.equal(error.details.determination, "excluded");
+        return true;
+      },
+    );
+  });
+});
+
+test("buildPlan without a session says the weaker thing about a page with frames", async () => {
+  // The direct caller of the pure builder never ran a diagnosis, so it may not claim the field
+  // is simply absent on a page that carries frames: it refuses `plan_field_unreachable` with
+  // `determination: unavailable` rather than guessing in either direction.
+  const { buildPlan } = await importRuntimeModule("core/surf-plan-probe.js");
+  const answer = {
+    href: FORM_URL,
+    title: "Framed",
+    formCount: 1,
+    frameCount: 2,
+    fields: [],
+    controls: [],
+  };
+  const context = {
+    planId: "plan-direct",
+    generatedAt: "2026-09-08T00:00:00.000Z",
+    url: FORM_URL,
+    runtime: { flavor: "surf", provider: "path_surf" },
+    readiness: { state: "ready", evidence: [] },
+  };
+  const request = {
+    fields: [{ id: "f1", locator: { kind: "name", value: "q" }, intendedValue: "x" }],
+  };
+
+  assert.throws(
+    () => buildPlan(request, answer, context),
+    (error) => {
+      assert.equal(error.code, "plan_field_unreachable");
+      assert.equal(error.details.determination, "unavailable");
+      assert.equal(error.details.frames, 2);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () => buildPlan(request, { ...answer, frameCount: 0 }, context),
+    (error) => {
+      assert.equal(error.code, "plan_field_not_found");
+      return true;
+    },
+  );
 });
 
 test("a plan needs at least one field, one submit hint at most, and refuses foreign options", async () => {

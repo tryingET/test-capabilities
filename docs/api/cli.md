@@ -239,7 +239,7 @@ In text mode the approval token is the only line on stdout, so it can be copied 
 
 The plan records every field with its resolved selector and `set_via: field_input`; the one control that may be clicked, or an explicit `ambiguous`/`none` with the candidate list; the form-level buttons that may never be clicked (`forbidden_controls`); a page fingerprint; and `approval_token`, a sha256 over the RFC 8785 canonical form of the origin, the fields' selectors and intended values, and the submit selector.
 
-Refused before any artifact exists: `plan_field_not_found`, `plan_field_ambiguous`, `plan_field_unreachable`, and `value_via_button_refused` when a field locator resolves to a button, a link or a submit input — a value is set only through the field's own input. An ambiguous or missing submit does not refuse the plan; it is recorded, so a fill-only dry run stays possible.
+Refused before any artifact exists: `plan_field_not_found`, `plan_field_ambiguous`, `plan_field_unreachable` (a locator that matched nothing runs the same `frame.diagnose` observation explore does: `excluded` means the field is simply absent, anything else means a frame could hold it and the refusal carries `details.determination`), and `value_via_button_refused` when a field locator resolves to a button, a link or a submit input — a value is set only through the field's own input. An ambiguous or missing submit does not refuse the plan; it is recorded, so a fill-only dry run stays possible.
 
 ---
 

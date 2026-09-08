@@ -408,13 +408,17 @@ function planFieldFrom(
   answer: PlanProbeAnswer,
 ): PlanField {
   if (report === undefined || report.matches === 0) {
+    // `planFromSession` diagnoses the page's frames before it gets here and raises the refusal
+    // that knows *why* (slice S8). This is the fallback for a direct `buildPlan` caller that
+    // never ran a diagnosis: with frames on the page the framework may not say the field is
+    // simply absent, so it says the weaker thing.
     if (answer.frameCount > 0) {
       throw fieldRefusal(
         "plan_field_unreachable",
         request,
-        `it matched no element on the gated page, which carries ${answer.frameCount} iframe(s)`,
-        "A field inside a frame or a shadow root is not addressable from the top document; diagnose the frame boundary before planning against it.",
-        { frames: answer.frameCount },
+        `it matched no element on the gated page, which carries ${answer.frameCount} iframe(s), and no frame diagnosis was taken`,
+        "A field inside a frame or a shadow root is not addressable from the top document; run the plan through a session so Session.explainUnreachable can say which frames could hold it.",
+        { frames: answer.frameCount, determination: "unavailable" },
       );
     }
     throw fieldRefusal(
@@ -598,5 +602,49 @@ export async function planFromSession(
     },
     `read the form on ${context.url} without changing it`,
   );
+  await assertFieldsReachable(session, request, answer);
   return buildPlan(request, answer, context);
+}
+
+/**
+ * A field locator that matched nothing: is it absent, or is it somewhere this framework cannot
+ * address from the top document?
+ *
+ * Before slice S8 the answer was inferred from an iframe count, which named a frame boundary on
+ * any page with an ad. Now the same `frame.diagnose` observation the explore gate uses answers
+ * it: `excluded` means the page carries no frame the field could be missing into, so the field
+ * is simply not there (`plan_field_not_found`); anything else means it might be, and the
+ * refusal is `plan_field_unreachable` carrying the determination and the candidate count. The
+ * diagnosis is read once for the page whatever the number of unresolved fields.
+ */
+async function assertFieldsReachable(
+  session: Session,
+  request: SessionPlanRequest,
+  answer: PlanProbeAnswer,
+): Promise<void> {
+  const reports = new Map(answer.fields.map((field) => [field.id, field]));
+  const unresolved = request.fields.filter((field) => (reports.get(field.id)?.matches ?? 0) === 0);
+  if (unresolved.length === 0) {
+    return;
+  }
+
+  const first = unresolved[0] as PlanFieldRequest;
+  const rootCause = await session.explainUnreachable(describeLocator(first.locator));
+  const determination = rootCause.determination.value;
+  if (determination === "excluded") {
+    throw fieldRefusal(
+      "plan_field_not_found",
+      first,
+      "it matched no element on the gated page, which carries no frame it could be missing into",
+      "Name a field that exists on this page, or re-run once the form is rendered.",
+      { determination },
+    );
+  }
+  throw fieldRefusal(
+    "plan_field_unreachable",
+    first,
+    `it matched no element in the top document, and the frame diagnosis is '${determination}' (${rootCause.candidates.length} candidate frame(s))`,
+    "A field inside a frame or a shadow root is not addressable from the top document; resolve the frame boundary before planning against it.",
+    { determination, candidates: rootCause.candidates.length },
+  );
 }

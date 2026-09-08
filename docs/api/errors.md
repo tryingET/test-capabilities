@@ -88,7 +88,7 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `plan_field_not_found` | A `surf plan --field` locator matched no element on the gated page. No artifact is written |
 | `plan_field_ambiguous` | A `--field` locator matched more than one element, or no CSS selector resolves to exactly the element it found |
 | `value_via_button_refused` | A `--field` locator resolves to a button, a link or a submit input. A value is set only through the field's own input: this is the "Set bid" rule |
-| `plan_field_unreachable` | The field is not addressable from the top document and the page carries frames. Diagnose the frame boundary before planning against it |
+| `plan_field_unreachable` | The field is not addressable from the top document and the page's frame diagnosis is anything other than `excluded`. `details.determination` and `details.candidates` say what the run knows; resolve the frame boundary before planning against it |
 | `plan_stale` | The page no longer matches the plan's fingerprint (URL, form count, field identity or the buttons around them). Re-plan; nothing is healed |
 | `field_readback_mismatch` | The value read back out of the field is not the value the plan intended. The refusal names the field id and its selector, never the value |
 | `fill_side_effect_observed` | The page navigated, or the form vanished, while filling. A dry run that moved the page is a failed dry run, never a passed one |
