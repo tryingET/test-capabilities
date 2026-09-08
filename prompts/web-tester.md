@@ -93,6 +93,40 @@ The LLM will use these browser commands:
 
 ---
 
+## Option 4: accessibility snapshot as the tester's input (TEST-CAPABILITIES)
+
+Instead of handing a model a DOM dump or a screenshot, hand it the page's accessibility tree.
+`test-capabilities surf explore --url <url> --a11y-snapshot=required --json` writes
+`a11y-snapshot.v1` under `receipts.dir/<runId>/`; `renderTesterPromptInput(artifact)` renders
+exactly the block below from it.
+
+```
+Page: <tab.url> (readiness: ready). Accessibility snapshot (agent-browser, 205 refs):
+- searchbox "Find a release" [ref=e28]
+- navigation "Releases and Tags" [ref=e11]
+  - link "Releases" [ref=e26]
+Controls the DOM has that the tree cannot name (semanticCoverage gap): 114 anchors, 22 buttons,
+41 inputs; assert those through surf selectors, not by role.
+Write assertions as {kind: "a11y-role", role, name, expect}; do not emit eN refs,
+they are valid only for this snapshot (digest sha256:...). If a {role, name} pair is not
+unique on this page, say so instead of picking one.
+```
+
+Three rules the prompt encodes, and why:
+
+1. **Write `{role, name}`, never `eN`.** Refs are minted per snapshot. They are a reading aid
+   inside this one tree; the assertion will be evaluated in another run, against another
+   snapshot, possibly from another producer.
+2. **The gap line is not decoration.** The accessibility tree is rich in proportion to the
+   application's accessibility quality. On a page built from `div onclick` the snapshot is
+   nearly empty, and a model reading it alone would conclude "nothing to test". The DOM counts
+   next to the tree counts make that visible on every page.
+3. **Ambiguity is reported, never resolved.** 95 links on one page make repeated names normal.
+   A `{role, name}` that matches several controls is `unverified` with the candidates listed;
+   the model is asked to say so rather than pick one.
+
+---
+
 ## Example: Bombadil Spec
 
 ```typescript

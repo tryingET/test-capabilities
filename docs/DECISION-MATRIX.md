@@ -133,6 +133,31 @@ test-capabilities surf explore --url https://example.com --depth 2
 
 ---
 
+### 3c. Accessibility evidence for an LLM-written test (agent-browser as an observer)
+
+**Use**: `test-capabilities surf explore --url <url> --a11y-snapshot[=required]`, or
+`agents.<name>.observation.a11ySnapshot` on a surf agent.
+
+```bash
+test-capabilities surf explore --url https://example.com --a11y-snapshot=required --json
+# the artifact: receipts.dir/<runId>/a11y-snapshot-*.json (0600) - tree text, refs, counts
+```
+
+**Why**: a DOM dump or a screenshot is not what a language model should read to write a browser
+test. One `snapshot -i --json` is ~2 k tokens of `{role, name}` lines with landmarks, headings
+and table cells, deterministic across runs, and it doubles as an accessibility reading of the
+page. The artifact records `semanticCoverage` - the DOM's control counts against the tree's - so
+the controls the browser cannot name are visible instead of silently absent, and a tester routes
+those to surf selectors. A test written from it says `{kind: "a11y-role", role, name}`, which
+survives into another run; `eN` refs do not, and are bound to the snapshot digest that minted
+them.
+
+**Not for**: acting. agent-browser is attached read-only here: no `click`, no `fill`, no `eval`,
+no `open`, no second browser. surf is the only action channel, and the argv allowlist is what
+makes that structural rather than a promise.
+
+---
+
 ### 4. LLM Tests Your Web App (In Agent)
 
 **Use**: `pi-agent-browser` (for pi)

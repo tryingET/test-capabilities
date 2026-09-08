@@ -311,6 +311,28 @@
       "notes": "Every operation and agent declares an effect class with a reason, and the kernel refuses an unclassified one before it runs. A mutating step is attempted at most once behind a receipt that is fsynced to receipts.dir before the act; a receipt left attempting or unknown refuses the next run for that key until an operator passes --supersede-receipt. Workspace writes are conditional on a precondition hash. A mutating step whose subject is a web origin runs only when mutation.allowOrigins names it, Bombadil included, and a receipt store that does not survive the run is refused unless receipts.ephemeral is set."
     },
     {
+      "id": "library:A11ySnapshotChannel",
+      "name": "a11y snapshot observation channel",
+      "surface_kind": "library-api",
+      "presence_state": "present",
+      "support_state": "library_only",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/a11y_snapshot_runtime_contract.test.mjs",
+          "tests/a11y_snapshot_observer_contract.test.mjs"
+        ],
+        "commands": ["npm test"],
+        "docs": [
+          "docs/project/2026-09-07-a11y-snapshot-live-run.md",
+          "docs/project/2026-09-07-slice-s9-notes.md"
+        ]
+      },
+      "attach_points": ["src/index.ts"],
+      "activation_requirements": [],
+      "notes": "An optional, read-only second observation channel registered on Session.observe: agent-browser (>= 0.35.1) attached to the same loopback CDP target the surf run already owns. The schema a11y-snapshot.v1 is the contract and agent-browser is a named, replaceable producer; the artifact carries the tree text, the {role, name} refs map, the sha256 digest of the text, the role counts and semanticCoverage (the dom probe's counts against the tree's), and is written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. Ref validity is digest equality against a mandatory fresh snapshot and nothing else; cross-run identity is {role, name}, and ambiguity is a typed unverified with the candidates listed. The channel never launches a browser: the endpoint must be loopback and is checked before any request, every invocation carries --cdp, and a read-only argv allowlist (snapshot, get, is, tab, close) has no open, --auto-connect, --profile or action verb. Off by default. Live-verified against Chromium (Agent) Chrome/152 on github.com/nicobailon/surf-cli/releases: two runs, identical digest, 205 refs, 8232 bytes, session ended and tab count restored."
+    },
+    {
       "id": "library:executeCliOperation",
       "name": "executeCliOperation",
       "surface_kind": "library-api",

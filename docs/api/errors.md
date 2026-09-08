@@ -105,6 +105,22 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `frame_diagnosis_failed` | `surf frame.diagnose` failed, answered a shape the framework cannot read, or is missing from the probed mechanisms. The determination is `unavailable` and the root cause is filed as `browser_coverage_gap`, never as selector drift |
 | `frame_diagnosis_undetermined` | The frame inventory disagrees with itself (surf's counts against its own lists, or extension child frames no `<iframe>` accounts for), the page moved between the failure and the diagnosis, or `--frame-hint` resolved to zero, several, or an unreachable frame |
 | `heal_frame_refused` | The healer refused a selector rewrite because the frame determination does not permit one: `confirmed` (the rewrite is wrong by construction), `undetermined` or `unavailable` (there is no candidate list to show a reviewer) |
+| `agent_browser_missing` | No `agent-browser` at `TEST_CAPABILITIES_AGENT_BROWSER_BIN`, on `PATH`, or in `~/.npm-global/bin`. The a11y channel never launches a browser instead |
+| `agent_browser_too_old` | The binary answered `--version` below the `0.35.1` floor, which is the version whose `--pin-tab`, `tab_gone` and `tab list --json` `targetId` semantics were measured |
+| `cdp_endpoint_refused` | `TEST_CAPABILITIES_CDP_ENDPOINT` is not an `http(s)` URL on `127.0.0.1`, `localhost` or `[::1]`. Refused before any request is made |
+| `cdp_endpoint_unreachable` | Nothing answered at the endpoint. Start Chromium (Agent) with its remote debugging port |
+| `cdp_endpoint_not_chromium` | Something answered that is not a Chromium DevTools endpoint (no `Browser` string, a non-200 status, or a body that is not JSON) |
+| `a11y_command_not_allowed` | The read-only argv allowlist refused a verb or a flag. The channel speaks `snapshot`, `get`, `is`, `tab` and `close`; surf is the only action channel |
+| `a11y_channel_unavailable` | `--a11y-snapshot=required` and the channel could not observe. The page is unverified and the reason names which of the gates refused |
+| `tab_bind_ambiguous` | The tab surf owns is not in `/json/list`, or it is there more than once. The framework binds to exactly one target or to none |
+| `snapshot_failed` | `snapshot -i --json` failed, or answered a shape the channel cannot read |
+| `empty_snapshot` | The tree has no refs and no text. An empty tree is a failure, never a zero-element success |
+| `origin_mismatch` | The snapshot's own `origin` is not the bound tab's URL: the page moved between the readiness gate and the snapshot |
+| `tab_lost` | The bound tab went away during the run (`tab_gone` from the producer) |
+| `ref_context_drift` | An `a11y-ref` assertion was evaluated against a snapshot whose digest is not the one that minted the ref, or whose ref names another control. Never `failed`, never `passed` |
+| `role_name_missing` | No control with that role and accessible name in the fresh snapshot |
+| `role_name_ambiguous` | More than one. There is no landmark scoping in v1, so the candidate refs are reported and nothing is guessed |
+| `a11y_check_unavailable` | An assertion expects something this evaluation had no read-only channel for. An expectation nothing checked never passes |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

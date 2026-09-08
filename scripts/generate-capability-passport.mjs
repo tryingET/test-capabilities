@@ -403,6 +403,25 @@ const libraryCapabilities = [
       "The browser surface at 0.4.0: an owned scope over unowned state. SurfSession opens one tab, gates it once with wait.ready, runs declared steps through the run's mutation ledger, runs registered read-only observers after the steps and closes the tab in finally. The effect class of every step comes from the surf adapter's static command map, not from the caller; the browser lifecycle verbs belong to the session; a step that names a tab this run did not create, or runs before open(), is refused with owned_tab_required. Page-side script carries no class: evaluate(code, {effect, reason}) refuses an undeclared script and checks a read_only claim against a static denylist before any process exists. plan, apply and explainUnreachable are declared seams that refuse with unsupported_surf_action in this build. Live-verified through surf explore against Chromium (Agent) on docs.python.org and github.com/login.",
   },
   {
+    id: "library:A11ySnapshotChannel",
+    name: "a11y snapshot observation channel",
+    surfaceKind: "library-api",
+    verificationState: "verified",
+    evidence: {
+      tests: [
+        "tests/a11y_snapshot_runtime_contract.test.mjs",
+        "tests/a11y_snapshot_observer_contract.test.mjs",
+      ],
+      commands: ["npm test"],
+      docs: [
+        "docs/project/2026-09-07-a11y-snapshot-live-run.md",
+        "docs/project/2026-09-07-slice-s9-notes.md",
+      ],
+    },
+    notes:
+      "An optional, read-only second observation channel registered on Session.observe: agent-browser (>= 0.35.1) attached to the same loopback CDP target the surf run already owns. The schema a11y-snapshot.v1 is the contract and agent-browser is a named, replaceable producer; the artifact carries the tree text, the {role, name} refs map, the sha256 digest of the text, the role counts and semanticCoverage (the dom probe's counts against the tree's), and is written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. Ref validity is digest equality against a mandatory fresh snapshot and nothing else; cross-run identity is {role, name}, and ambiguity is a typed unverified with the candidates listed. The channel never launches a browser: the endpoint must be loopback and is checked before any request, every invocation carries --cdp, and a read-only argv allowlist (snapshot, get, is, tab, close) has no open, --auto-connect, --profile or action verb. Off by default. Live-verified against Chromium (Agent) Chrome/152 on github.com/nicobailon/surf-cli/releases: two runs, identical digest, 205 refs, 8232 bytes, session ended and tab count restored.",
+  },
+  {
     id: "library:executeCliOperation",
     name: "executeCliOperation",
     surfaceKind: "library-api",

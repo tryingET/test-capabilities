@@ -134,6 +134,7 @@ Supported fields:
 | `duration` | string |
 | `focus` | string[] |
 | `expect` | object | Optional declaration of the payload shape this agent's steps produce |
+| `observation` | object | Optional second observation channels for `type: surf` agents |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
 | `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |
 
@@ -165,6 +166,32 @@ The declaration appears in the run's determination as `config:agents.<name>.expe
 may declare on their own authority instead (for example `operation:surf.explore.links`, where a
 page legitimately has no same-origin links), and an agent with no config declares what it knows
 about the step it ran as `author:<agent>`.
+
+### `agents.<name>.observation`
+
+The second, read-only observation channels a browser agent attaches. Off by default, so a config
+written before this key produces the same envelope it always did.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `a11ySnapshot` / `a11y_snapshot` | `off \| optional \| required` | The accessibility snapshot channel (agent-browser over the loopback CDP endpoint). `optional` records an `unavailable` observation and continues; `required` fails the page with `a11y_channel_unavailable` |
+
+```yaml
+agents:
+  web:
+    enabled: true
+    type: surf
+    observation:
+      a11ySnapshot: optional
+```
+
+surf keeps the tab and every action; the channel only reads, through a read-only argv allowlist
+with no `open`, no `--auto-connect` and no `--profile`. A missing binary, a version below
+`0.35.1`, a non-loopback or unreachable endpoint, an ambiguous tab binding or an empty tree is a
+typed refusal, never a browser the framework launched. The artifact is written under
+`receipts.dir/<runId>/` at mode 0600; `docs/api/cli.md` has the field table, and
+`TEST_CAPABILITIES_AGENT_BROWSER_BIN`, `TEST_CAPABILITIES_CDP_ENDPOINT` and
+`TEST_CAPABILITIES_AGENT_BROWSER_SESSION_PREFIX` are the environment it resolves through.
 
 Bombadil-specific fields under `agents.<name>.bombadil`:
 
