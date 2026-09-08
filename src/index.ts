@@ -3,6 +3,60 @@
  * Fail-closed testing capability framework
  */
 
+/**
+ * The a11y observation channel's contract (slice S9). The schema is the durable asset and
+ * agent-browser is a replaceable producer, so what a consumer imports is the artifact shape, the
+ * digest rule and the assertion evaluator - never the tool.
+ */
+export type {
+  A11yAssertion,
+  A11yAssertionResult,
+  A11yCheckReader,
+  A11yDomProbeCounts,
+  A11yExpectation,
+  A11yRef,
+  A11yRefAssertion,
+  A11yRefMap,
+  A11yRoleAssertion,
+  A11ySemanticCoverage,
+  A11ySnapshotArtifact,
+  A11ySnapshotMode,
+  A11ySnapshotObservation,
+  A11ySnapshotReading,
+  A11ySnapshotView,
+  A11yTabBinding,
+  A11yTabLeak,
+} from "./core/a11y-snapshot.js";
+export {
+  A11Y_CHANNEL,
+  A11Y_INPUT_ROLES,
+  A11Y_SNAPSHOT_MODES,
+  evaluateA11yAssertion,
+  findRefsByRoleName,
+  isA11ySnapshotMode,
+  parseA11ySnapshotPayload,
+  renderTesterPromptInput,
+  resolveA11yAssertion,
+  roleCountsFrom,
+  semanticCoverageFrom,
+  semanticCoverageGaps,
+  snapshotDigest,
+} from "./core/a11y-snapshot.js";
+export type {
+  AgentBrowserProbe,
+  AgentBrowserResolution,
+  CdpEndpoint,
+  CdpTarget,
+} from "./core/a11y-snapshot-runtime.js";
+export {
+  AGENT_BROWSER_MIN_VERSION,
+  agentBrowserAdapter,
+  listCdpTargets,
+  probeAgentBrowser,
+  probeCdpEndpoint,
+  resolveAgentBrowserResolution,
+  resolveCdpEndpoint,
+} from "./core/a11y-snapshot-runtime.js";
 export type { ArtifactKind, ArtifactListEntry, WriteArtifactOptions } from "./core/artifacts.js";
 export {
   ARTIFACT_FILE_MODE,

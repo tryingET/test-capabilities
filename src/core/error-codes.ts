@@ -4,8 +4,7 @@
  * Pure ring: no I/O, no imports outside this file. Every code the framework raises itself is
  * registered here as a namespaced `as const` array; `tests/error_codes_contract.test.mjs`
  * asserts uniqueness across the namespaces and that every `new FrameworkError("<code>"` literal
- * in `src/` uses a registered code (architecture review A6, Q5). Later slices append one array
- * each: `A11Y_CHANNEL_ERROR_CODES` (S9).
+ * in `src/` uses a registered code (architecture review A6, Q5). Each slice appends one array.
  *
  * Codes that come from a tool the framework does not own (surf's `page_login`, an HTTP status)
  * pass through verbatim and are never rewritten; `SURF_PASSTHROUGH_CODES` documents the set the
@@ -140,6 +139,53 @@ export const FRAME_ROOT_CAUSE_ERROR_CODES = [
 ] as const;
 
 /**
+ * The a11y snapshot observation channel (a11y-snapshot packet, "Behaviour and failure modes";
+ * slice S9). The first five are the gate: the channel goes `unavailable` with one of them and
+ * never with a launched browser. The rest are what one observation or one assertion refuses
+ * with.
+ *
+ * Two are additions to the packet's table, both because a rule it states needs a code to speak
+ * with: `a11y_command_not_allowed` is the read-only argv allowlist refusing a verb or a flag,
+ * and `a11y_check_unavailable` is an expectation nothing could read, which must not pass
+ * silently. `dom_probe_missing` and `tab_leak` are deliberately *not* here: they are recorded
+ * evidence on a captured artifact, not refusals.
+ */
+export const A11Y_CHANNEL_ERROR_CODES = [
+  /** no agent-browser at the env var, on PATH, or in ~/.npm-global/bin */
+  "agent_browser_missing",
+  /** the binary answered --version below the measured floor */
+  "agent_browser_too_old",
+  /** the configured CDP endpoint is not a loopback URL; refused before any request is made */
+  "cdp_endpoint_refused",
+  /** nothing answered at the endpoint; the channel never starts a browser instead */
+  "cdp_endpoint_unreachable",
+  /** something answered that is not a Chromium DevTools endpoint */
+  "cdp_endpoint_not_chromium",
+  /** the argv allowlist refused a verb or a flag; this channel reads and never acts */
+  "a11y_command_not_allowed",
+  /** `--a11y-snapshot=required` and the channel could not observe; the page is unverified */
+  "a11y_channel_unavailable",
+  /** the surf-owned tab is not in /json/list, or it is there more than once */
+  "tab_bind_ambiguous",
+  /** `snapshot -i --json` failed, or answered a shape the framework cannot read */
+  "snapshot_failed",
+  /** the snapshot carries no refs at all: a failure, never a zero-element success */
+  "empty_snapshot",
+  /** the snapshot's own origin is not the bound tab's URL */
+  "origin_mismatch",
+  /** the bound tab went away during the run */
+  "tab_lost",
+  /** a ref was minted against another snapshot; never `failed`, never `passed` */
+  "ref_context_drift",
+  /** no control with that role and name in the fresh snapshot */
+  "role_name_missing",
+  /** more than one, and there is no scoping in v1: the candidates are reported, never guessed */
+  "role_name_ambiguous",
+  /** an expectation this evaluation had no read-only channel for */
+  "a11y_check_unavailable",
+] as const;
+
+/**
  * Classifier-owned outcome codes. Process codes (`exit_<n>`, `signal_<name>`), HTTP codes
  * (`http_<status>`) and surf codes are patterned or pass-through and are listed separately.
  */
@@ -192,6 +238,7 @@ export type ExploreErrorCode = (typeof EXPLORE_ERROR_CODES)[number];
 export type EffectErrorCode = (typeof EFFECT_ERROR_CODES)[number];
 export type SubmitGateErrorCode = (typeof SUBMIT_GATE_ERROR_CODES)[number];
 export type FrameRootCauseErrorCode = (typeof FRAME_ROOT_CAUSE_ERROR_CODES)[number];
+export type A11yChannelErrorCode = (typeof A11Y_CHANNEL_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -203,6 +250,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...EFFECT_ERROR_CODES,
   ...SUBMIT_GATE_ERROR_CODES,
   ...FRAME_ROOT_CAUSE_ERROR_CODES,
+  ...A11Y_CHANNEL_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];

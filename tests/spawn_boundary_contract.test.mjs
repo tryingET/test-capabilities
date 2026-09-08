@@ -76,7 +76,10 @@ test("the spawn transport is reachable from the adapters and from nothing else",
     .map(relative)
     .sort();
 
+  // One entry per adapter, and the list is the point: a new importer here is a new place a
+  // process can be started from, which must be an adapter and must be seen in review.
   assert.deepEqual(importers, [
+    "src/core/a11y-snapshot-runtime.ts",
     "src/core/bombadil-runtime.ts",
     "src/core/cli-adapter.ts",
     "src/core/surf-adapter.ts",

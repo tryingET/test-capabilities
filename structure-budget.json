@@ -9,6 +9,7 @@
   },
   "allowed_cycles": [],
   "pure_ring": [
+    "src/core/a11y-snapshot.ts",
     "src/core/browser-session.ts",
     "src/core/capability-matrix.ts",
     "src/core/config.ts",

@@ -35,6 +35,8 @@ export const ARTIFACT_KINDS = [
   "test-capabilities.surf.apply.receipts",
   /** the raw `frame.diagnose` inventory behind one frame root-cause determination (S8) */
   "test-capabilities.frame.diagnosis",
+  /** one `a11y-snapshot.v1`: the tree's text, its refs map and the counts beside them (S9) */
+  "test-capabilities.a11y.snapshot",
 ] as const;
 
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
