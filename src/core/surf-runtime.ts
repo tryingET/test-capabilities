@@ -422,6 +422,18 @@ function translateWait(args: string[]): string[] {
 }
 
 /**
+ * The surf CLI captures a screenshot to `/tmp` after every value-setting verb, which persists
+ * the value that was just typed as an image (submit-gate packet §8). A caller that wants no
+ * such copy asks for it, and the flag travels in the receipt's argv so the audit trail says
+ * whether one was taken.
+ */
+const NO_SCREENSHOT_FLAG = "--no-screenshot";
+
+function noScreenshot(parsed: ParsedArgs): string[] {
+  return passthroughFlags(parsed, [NO_SCREENSHOT_FLAG]);
+}
+
+/**
  * `--tab-id` is a *global* surf option, so the target-mutating verbs can carry it even though
  * their own `--help` does not list it. That is what lets the session point them at the tab this
  * run created instead of whichever tab the browser has in front (slice S7; the owned-tab rule).
@@ -429,9 +441,10 @@ function translateWait(args: string[]): string[] {
 function translateClick(args: string[]): string[] {
   const parsed = parseCommandArgs("click", args, {
     valueFlags: ["--selector", "--index", "--tab-id"],
+    boolFlags: [NO_SCREENSHOT_FLAG],
     maxPositionals: 2,
   });
-  const tab = passthroughValues(parsed, ["--tab-id"]);
+  const tab = [...passthroughValues(parsed, ["--tab-id"]), ...noScreenshot(parsed)];
   if (parsed.values["--selector"]) {
     return ["click", ...passthroughValues(parsed, ["--selector", "--index"]), ...tab];
   }
@@ -454,7 +467,7 @@ function translateClick(args: string[]): string[] {
 function translateType(args: string[]): string[] {
   const parsed = parseCommandArgs("type", args, {
     valueFlags: ["--ref", "--selector", "--tab-id"],
-    boolFlags: ["--submit", "--clear"],
+    boolFlags: ["--submit", "--clear", NO_SCREENSHOT_FLAG],
     maxPositionals: 1,
   });
   const text = requiredPositional("type", parsed, 0, "text");
@@ -466,7 +479,7 @@ function translateType(args: string[]): string[] {
     out.push("--into", parsed.values["--selector"]);
   }
   out.push(...passthroughFlags(parsed, ["--submit", "--clear"]));
-  out.push(...passthroughValues(parsed, ["--tab-id"]));
+  out.push(...passthroughValues(parsed, ["--tab-id"]), ...noScreenshot(parsed));
   return out;
 }
 
@@ -499,13 +512,22 @@ function translateScreenshot(args: string[]): string[] {
 }
 
 function translateSelect(args: string[]): string[] {
-  const parsed = parseCommandArgs("select", args, { valueFlags: ["--by", "--tab-id"] });
+  const parsed = parseCommandArgs("select", args, {
+    valueFlags: ["--by", "--tab-id"],
+    boolFlags: [NO_SCREENSHOT_FLAG],
+  });
   const target = requiredPositional("select", parsed, 0, "ref or selector");
   const values = parsed.positionals.slice(1);
   if (values.length === 0) {
     throw unsupported("select", "missing value");
   }
-  return ["select", target, ...values, ...passthroughValues(parsed, ["--by", "--tab-id"])];
+  return [
+    "select",
+    target,
+    ...values,
+    ...passthroughValues(parsed, ["--by", "--tab-id"]),
+    ...noScreenshot(parsed),
+  ];
 }
 
 const NETWORK_LIST_FLAGS = ["--origin", "--method", "--type", "--status", "--since", "--last"];
@@ -584,6 +606,7 @@ function translateExtract(args: string[]): string[] {
 function translateJs(args: string[]): string[] {
   const parsed = parseCommandArgs("js", args, {
     valueFlags: ["--tab-id", "--file", "--options"],
+    boolFlags: [NO_SCREENSHOT_FLAG],
     maxPositionals: 1,
   });
   if (parsed.positionals.length === 0 && !parsed.values["--file"]) {
@@ -593,6 +616,7 @@ function translateJs(args: string[]): string[] {
     "js",
     ...parsed.positionals,
     ...passthroughValues(parsed, ["--file", "--options", "--tab-id"]),
+    ...noScreenshot(parsed),
     "--json",
   ];
 }

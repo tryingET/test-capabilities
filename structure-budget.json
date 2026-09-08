@@ -3,7 +3,7 @@
   "default_max_lines": 700,
   "exceptions": {
     "src/core/orchestrator.ts": 1653,
-    "src/core/surf-runtime.ts": 821,
+    "src/core/surf-runtime.ts": 845,
     "src/core/operations/surf-explore-operation.ts": 882,
     "src/healing/self-healing.ts": 1006
   },
@@ -126,6 +126,13 @@
       "to": 821,
       "reason": "slice S7 commit (2): translateSurfArgs teaches `click`, `type` and `select` to carry `--tab-id`. It is a *global* surf option, so the three value-setting verbs accept it even though their own --help does not list it, and without it the session refuses them under the owned-tab rule - a submit would otherwise act on whichever tab the browser has in front. Eight lines: one value flag and one passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
       "ref": "5132dcc"
+    },
+    {
+      "file": "src/core/surf-runtime.ts",
+      "from": 821,
+      "to": 845,
+      "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet \u00a78; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
+      "ref": "a9dce1d"
     }
   ]
 }

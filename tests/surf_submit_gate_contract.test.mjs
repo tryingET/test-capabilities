@@ -12,7 +12,6 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import process from "node:process";
 import test from "node:test";
 import { startFormFixtureServer } from "./fixtures/form-fixture-server.mjs";
 import { createFakeSurf, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
@@ -731,6 +730,11 @@ test("(d) apply without --submit sets and reads back every field and clicks noth
     const typed = calls.find((call) => call[0] === "type");
     assert.deepEqual(typed.slice(0, 4), ["type", "surf-cli", "--into", 'input[name="q"]']);
     assert.equal(typed.includes("--tab-id"), true, "the value was set in a tab the run owns");
+    assert.equal(
+      typed.includes("--no-screenshot"),
+      true,
+      "the value was copied into a /tmp screenshot",
+    );
 
     // One receipt for the one act, and it is a fill receipt.
     const receipts = receiptsIn(dir);
@@ -1214,10 +1218,14 @@ function sessionDouble(script = {}) {
     },
     async step(step) {
       seen.push({ kind: "step", command: step.command, args: step.args, details: step.details });
-      const value = step.read(
-        replyFor(step.command, step.args, stepReplies.shift() ?? { success: true }),
-        1,
-      );
+      // The runner reads the page through `js` steps (they carry `--no-screenshot`, so they
+      // cannot go through `evaluate`), and acts through the value-setting verbs.
+      const payload =
+        step.command === "js" ? answers.shift() : (stepReplies.shift() ?? { success: true });
+      if (payload instanceof Error) {
+        throw payload;
+      }
+      const value = step.read(replyFor(step.command, step.args, payload), 1);
       if (step.verify) {
         seen.push({ kind: "verify", result: await step.verify() });
       }
@@ -1344,7 +1352,7 @@ test("a select field is set with select, and a checkbox only when it does not al
   await selectRunner.setValue("f1");
   const selectStep = selectSession.seen.find((entry) => entry.kind === "step");
   assert.equal(selectStep.command, "select");
-  assert.deepEqual(selectStep.args, ["#country", "de"]);
+  assert.deepEqual(selectStep.args, ["#country", "de", "--no-screenshot"]);
   assert.equal(selectStep.details.mode, "fill");
   assert.equal(selectStep.details.plan_id, plan.plan_id);
 
@@ -1409,7 +1417,7 @@ test("clickSubmit consumes itself and refuses a control the plan no longer recog
     },
   );
   assert.equal(
-    gone.seen.some((entry) => entry.kind === "step"),
+    gone.seen.some((entry) => entry.kind === "step" && entry.command === "click"),
     false,
     "a click was emitted before the control was checked",
   );

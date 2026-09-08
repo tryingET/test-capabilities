@@ -265,7 +265,9 @@ export function planProbeStep(
   return {
     id,
     command: "js",
-    args: [buildPlanProbeScript(probeId, request)],
+    // `--no-screenshot`: this probe reads a form, and the surf build would otherwise save a
+    // picture of it - values included - to /tmp (submit-gate packet §8).
+    args: [buildPlanProbeScript(probeId, request), "--no-screenshot"],
     intent,
     declare: SURF_PLAN_PROBE_EFFECT,
     read: (reply: SessionReply) => readPlanProbeAnswer(reply, probeId),

@@ -187,9 +187,22 @@ export function createApplyRunner(
       { plan_id: plan.plan_id, ...(field ? { field: field.id } : {}), detail },
     );
 
-  /** A reply that reports a URL the run never gated is the page acting on its own. */
+  /**
+   * A reply that reports a URL the run never gated is the page acting on its own.
+   *
+   * It is best-effort on purpose: the surf build answers `type` with the plain text `OK` and a
+   * screenshot line rather than JSON (verified live, 2026-09-08), so a reply that carries no
+   * parsable payload teaches nothing here and the observation step after the field is what
+   * catches the navigation. What this check adds is the case where the reply *does* name a
+   * page - then the receipt for the act itself settles `failed`.
+   */
   const assertStayed = (field: PlanField, reply: SessionReply): void => {
-    const parsed = parseSurfJsonOutput(reply.stdout, reply.command).data;
+    let parsed: unknown;
+    try {
+      parsed = parseSurfJsonOutput(reply.stdout, reply.command).data;
+    } catch {
+      return;
+    }
     const href = isRecord(parsed) && typeof parsed.url === "string" ? parsed.url : undefined;
     if (href !== undefined && !accepted.has(normalizeHref(href))) {
       throw sideEffect(field, `setting it navigated the tab to ${href}`);
@@ -199,25 +212,26 @@ export function createApplyRunner(
   const readField = async (field: PlanField): Promise<ApplyFieldResult> => {
     const probeId = randomUUID();
     calls.push(redactedCall("js", `read-back ${field.resolved_selector}`));
-    const answer = await session.evaluate<Record<string, unknown>>(
-      fieldReadScript(probeId, field.resolved_selector),
-      APPLY_READ_EFFECT,
-      {
-        id: `surf.apply.readback:${plan.plan_id}:${field.id}`,
-        intent: `read back what field ${field.id} holds`,
-        read: (reply: SessionReply) => {
-          const parsed = parseSurfJsonOutput(reply.stdout, "js").data;
-          if (!isRecord(parsed) || parsed[APPLY_PROBE_FIELD] !== probeId) {
-            throw new FrameworkError(
-              "field_readback_mismatch",
-              `Field ${field.id} (${field.resolved_selector}) could not be read back: the page answered without this run's probe marker.`,
-              { plan_id: plan.plan_id, field: field.id },
-            );
-          }
-          return parsed;
-        },
+    // `--no-screenshot`: a read-back names the value it read, and the surf build would save a
+    // picture of the page - with that value in it - to /tmp (packet §8).
+    const answer = await session.step<Record<string, unknown>>({
+      command: "js",
+      args: [fieldReadScript(probeId, field.resolved_selector), "--no-screenshot"],
+      declare: APPLY_READ_EFFECT,
+      id: `surf.apply.readback:${plan.plan_id}:${field.id}`,
+      intent: `read back what field ${field.id} holds`,
+      read: (reply: SessionReply) => {
+        const parsed = parseSurfJsonOutput(reply.stdout, "js").data;
+        if (!isRecord(parsed) || parsed[APPLY_PROBE_FIELD] !== probeId) {
+          throw new FrameworkError(
+            "field_readback_mismatch",
+            `Field ${field.id} (${field.resolved_selector}) could not be read back: the page answered without this run's probe marker.`,
+            { plan_id: plan.plan_id, field: field.id },
+          );
+        }
+        return parsed;
       },
-    );
+    });
 
     const boolean = isBooleanControl(field.control);
     const actual = boolean ? String(answer.checked === true) : ((answer.value as string) ?? "");
@@ -235,30 +249,32 @@ export function createApplyRunner(
     const probeId = randomUUID();
     calls.push(redactedCall("js", "observe"));
     try {
-      const answer = await session.evaluate<Record<string, unknown>>(
-        observeScript(
-          probeId,
-          submitControl?.selector,
-          formSelector,
-          postCondition.kind === "text" ? postCondition.expected : undefined,
-        ),
-        APPLY_READ_EFFECT,
-        {
-          id: `surf.apply.observe:${plan.plan_id}`,
-          intent: "read where the page is and whether the form is still there",
-          read: (reply: SessionReply) => {
-            const parsed = parseSurfJsonOutput(reply.stdout, "js").data;
-            if (!isRecord(parsed) || parsed[APPLY_PROBE_FIELD] !== probeId) {
-              throw new FrameworkError(
-                "fill_side_effect_observed",
-                "The page answered an observation without this run's probe marker, so where it is cannot be established.",
-                { plan_id: plan.plan_id },
-              );
-            }
-            return parsed;
-          },
+      const answer = await session.step<Record<string, unknown>>({
+        command: "js",
+        args: [
+          observeScript(
+            probeId,
+            submitControl?.selector,
+            formSelector,
+            postCondition.kind === "text" ? postCondition.expected : undefined,
+          ),
+          "--no-screenshot",
+        ],
+        declare: APPLY_READ_EFFECT,
+        id: `surf.apply.observe:${plan.plan_id}`,
+        intent: "read where the page is and whether the form is still there",
+        read: (reply: SessionReply) => {
+          const parsed = parseSurfJsonOutput(reply.stdout, "js").data;
+          if (!isRecord(parsed) || parsed[APPLY_PROBE_FIELD] !== probeId) {
+            throw new FrameworkError(
+              "fill_side_effect_observed",
+              "The page answered an observation without this run's probe marker, so where it is cannot be established.",
+              { plan_id: plan.plan_id },
+            );
+          }
+          return parsed;
         },
-      );
+      });
       return {
         available: true,
         href: typeof answer.href === "string" ? answer.href : undefined,
@@ -312,12 +328,14 @@ export function createApplyRunner(
         }
       }
 
+      // `--no-screenshot`: the surf build saves a screenshot to /tmp after every value-setting
+      // verb, which is a copy of the value outside the 0600 artifacts (packet §8).
       const args =
         command === "type"
-          ? [field.intended_value, "--selector", field.resolved_selector]
+          ? [field.intended_value, "--selector", field.resolved_selector, "--no-screenshot"]
           : command === "select"
-            ? [field.resolved_selector, field.intended_value]
-            : ["--selector", field.resolved_selector];
+            ? [field.resolved_selector, field.intended_value, "--no-screenshot"]
+            : ["--selector", field.resolved_selector, "--no-screenshot"];
       calls.push(redactedCall(command, field.resolved_selector));
 
       await session.step<SessionReply>({
@@ -446,7 +464,7 @@ export function createApplyRunner(
       await session.step<SessionReply>({
         id: `surf.apply.submit:${plan.plan_id}`,
         command: "click",
-        args: ["--selector", control.selector],
+        args: ["--selector", control.selector, "--no-screenshot"],
         intent: `click the one control plan ${plan.plan_id} identified on ${plan.target.origin}`,
         details: {
           plan_id: plan.plan_id,
