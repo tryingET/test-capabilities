@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -23,15 +23,27 @@ const ALLOW_EXAMPLE = { mutation: { allowOrigins: ["https://example.com"] } };
 // The fake writes the trace file it announces, exactly as Bombadil does: the trace is the typed
 // evidence the runtime reads for the run status (adjudication claim 46), so a fake that only
 // prints the line would not speak the tool's contract.
+//
+// One trace file *per invocation* (`$$` is the shell's pid), because the real tool names a fresh
+// trace for every run. Two concurrent agents share one binary through
+// TEST_CAPABILITIES_BOMBADIL_BIN, so a fixed name made them share one file, and `> file`
+// truncates before it writes: one agent could stat the other's truncated file, read zero trace
+// bytes and report `runtime_error` for a run that had produced a violation (slice S10, the flake
+// the S6, S8 and S9 notes recorded).
 function withFakeBombadil(script) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-"));
   const bombadilPath = path.join(dir, "bombadil");
-  const tracePath = path.join(dir, "trace.jsonl");
-  writeFileSync(bombadilPath, `#!/bin/sh\nTRACE_PATH=${tracePath}\n${script}\n`, { mode: 0o755 });
+  writeFileSync(bombadilPath, `#!/bin/sh\nTRACE_PATH=${dir}/trace-$$.jsonl\n${script}\n`, {
+    mode: 0o755,
+  });
 
   return {
     path: bombadilPath,
-    tracePath,
+    traceDir: dir,
+    /** The trace files the fake has written, one per invocation. */
+    traces() {
+      return readdirSync(dir).filter((entry) => entry.startsWith("trace-"));
+    },
     cleanup() {
       rmSync(dir, { recursive: true, force: true });
     },
@@ -432,14 +444,13 @@ test(
       // Both agents must have run: an assertion that fails here is about what the run
       // concluded, so it carries the findings rather than a bare number (the S6/S8/S9 flake
       // was diagnosed from `50 !== 100` alone and cost three slices).
-      const evidence = () =>
-        JSON.stringify(
-          result.findings.map((finding) => ({
-            id: finding.id,
-            description: finding.description,
-            evidence: finding.evidence,
-          })),
-        );
+      const evidence = JSON.stringify(
+        result.findings.map((finding) => ({
+          id: finding.id,
+          description: finding.description,
+          evidence: finding.evidence,
+        })),
+      );
       assert.equal(result.passed, false, evidence);
       assert.equal(result.coverage.edgeCases, 100, evidence);
       assert.equal(
@@ -449,12 +460,15 @@ test(
         true,
         evidence,
       );
+      const tracePattern = new RegExp(`^trace: ${fake.traceDir}/trace-\\d+\\.jsonl$`);
       assert.equal(
         result.findings.some((finding) =>
-          finding.evidence.some((entry) => entry === `trace: ${fake.tracePath}`),
+          finding.evidence.some((entry) => tracePattern.test(entry)),
         ),
         true,
+        evidence,
       );
+      assert.equal(fake.traces().length, 2, "each agent writes its own trace, as the tool does");
       const rootCause = result.observations.find(
         (observation) => observation.kind === "root_cause",
       );
@@ -1696,11 +1710,7 @@ test(
       assert.match(result.findings[0].evidence[0], /add 'https:\/\/example\.com'/);
       assert.equal(result.coverage.edgeCases, 0);
       assert.equal(result.mutations, undefined, "a step that never ran writes no receipt");
-      assert.equal(
-        existsSync(fake.tracePath),
-        false,
-        "the fake bombadil must not have been executed",
-      );
+      assert.deepEqual(fake.traces(), [], "the fake bombadil must not have been executed");
     } finally {
       if (previousBinary === undefined) {
         delete process.env.TEST_CAPABILITIES_BOMBADIL_BIN;
