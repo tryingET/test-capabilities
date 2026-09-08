@@ -116,19 +116,37 @@ export function spawnStep(input: SpawnStepInput): Promise<RawResult> {
       }
     };
 
+    // The budget expiring and the child finishing are two events racing inside one event loop,
+    // and the loop runs timers before it delivers a child's exit ('exit' in the poll phase,
+    // 'close' in the close phase after it). A parent that was busy past the budget - the test
+    // corpus itself does this under load - therefore reached this timer with the child's exit
+    // already waiting, and a run that finished in 3 ms was reported as killed by its 50 ms
+    // budget. Deferring the kill by one loop turn (a 0 ms timer runs in the *next* iteration's
+    // timers phase, after this iteration's poll and close phases) settles the race honestly: a
+    // child that had already finished closes first and `clearTimers` cancels this turn before it
+    // can run, while a tree that is genuinely still alive is killed one turn later. The budget is
+    // unchanged; what changes is that `timedOut` means "the framework killed a live process
+    // tree", which is the only thing a timeout is evidence of.
+    let budgetTurn: NodeJS.Timeout | undefined;
     const timer = setTimeout(() => {
-      timedOut = true;
-      killProcessTree("SIGTERM");
-      forceKillTimer = setTimeout(() => {
-        if (!closed) {
-          killProcessTree("SIGKILL");
-        }
-      }, FORCE_KILL_GRACE_MS);
+      budgetTurn = setTimeout(() => {
+        budgetTurn = undefined;
+        timedOut = true;
+        killProcessTree("SIGTERM");
+        forceKillTimer = setTimeout(() => {
+          if (!closed) {
+            killProcessTree("SIGKILL");
+          }
+        }, FORCE_KILL_GRACE_MS);
+      }, 0);
     }, input.timeoutMs);
 
     const clearTimers = (): void => {
       closed = true;
       clearTimeout(timer);
+      if (budgetTurn) {
+        clearTimeout(budgetTurn);
+      }
       if (forceKillTimer) {
         clearTimeout(forceKillTimer);
       }

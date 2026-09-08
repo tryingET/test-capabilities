@@ -97,6 +97,41 @@ test("the spawn transport kills the process tree at the budget and escalates to 
   }
 });
 
+test("a busy parent does not turn a finished child into a budget kill", async () => {
+  // The flake this test exists for: the budget timer and the child's exit race inside one event
+  // loop, and the loop runs timers before it delivers either 'exit' (poll phase) or 'close'
+  // (close phase). A parent blocked past the budget - which the corpus itself does under load -
+  // used to reach the timer with the child's exit already waiting and report a run that finished
+  // in 3 ms as killed by its 50 ms budget. Seen once per wide gate in slices S6, S8 and S9,
+  // always on the Bombadil violation test, never on a rerun.
+  const dir = tempDir("stall");
+  const script = writeScript(
+    path.join(dir, "quick.sh"),
+    "#!/bin/sh\necho 'payload'\necho 'violation: invariant failed' >&2\nexit 2\n",
+  );
+
+  try {
+    // Block the loop from before the child can exit until long past the budget.
+    setTimeout(() => {
+      const until = Date.now() + 400;
+      while (Date.now() < until) {
+        /* the corpus's own CPU work, in one line */
+      }
+    }, 0);
+
+    const raw = await spawnStep({ source: "cli", command: script, args: [], timeoutMs: 50 });
+    assert.equal(raw.timedOut, false);
+    assert.equal(raw.exitCode, 2);
+    assert.equal(raw.signal, null);
+    assert.equal(raw.stdout.trim(), "payload");
+    assert.equal(raw.stderr.trim(), "violation: invariant failed");
+    // The wall clock passed the budget; the child did not.
+    assert.equal(raw.durationMs >= 50, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the spawn transport caps the output it keeps", async () => {
   const dir = tempDir("cap");
   const script = writeScript(

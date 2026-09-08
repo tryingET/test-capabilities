@@ -429,13 +429,25 @@ test(
         chaos: { enabled: false },
       }).run();
 
-      assert.equal(result.passed, false);
-      assert.equal(result.coverage.edgeCases, 100);
+      // Both agents must have run: an assertion that fails here is about what the run
+      // concluded, so it carries the findings rather than a bare number (the S6/S8/S9 flake
+      // was diagnosed from `50 !== 100` alone and cost three slices).
+      const evidence = () =>
+        JSON.stringify(
+          result.findings.map((finding) => ({
+            id: finding.id,
+            description: finding.description,
+            evidence: finding.evidence,
+          })),
+        );
+      assert.equal(result.passed, false, evidence);
+      assert.equal(result.coverage.edgeCases, 100, evidence);
       assert.equal(
         result.findings.some((finding) =>
           /Bombadil found a property violation/.test(finding.description),
         ),
         true,
+        evidence,
       );
       assert.equal(
         result.findings.some((finding) =>
