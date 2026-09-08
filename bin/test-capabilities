@@ -275,12 +275,30 @@ program
     }
   });
 
+function collectRepeated(value, previous) {
+  return [...previous, value];
+}
+
 program
   .command("surf")
   .description("Advanced browser testing with surf-cli")
-  .argument("<action>", "Action: explore (implemented) | flow | assert | compare | replay")
+  .argument("<action>", "Action: explore | plan (implemented) | apply | flow | assert | compare | replay")
   .option("-u, --url <url>", "Target URL")
   .option("--depth <n>", "Explore same-origin links to bounded depth 1-3 with graded probe coverage")
+  .option(
+    "--field <locator=value>",
+    "surf plan: a field to fill, as '<label|selector|name>:<locator>=<value>'; repeatable",
+    collectRepeated,
+    [],
+  )
+  .option("--submit-text <text>", "surf plan: narrow the submit candidates by visible button text")
+  .option("--submit-selector <css>", "surf plan: narrow the submit candidates by CSS selector")
+  .option("--out <file>", "surf plan: write the reviewable plan artifact here (mode 0600)")
+  .option(
+    "-c, --config <file>",
+    "surf plan/apply: config file holding mutation.allowOrigins, receipts.dir and surf.submit.*",
+    "test-capabilities.yaml",
+  )
   .option("--record", "Reserved surf explore flag; currently fails until implemented")
   .option("--validate", "Reserved surf explore flag; currently fails until implemented")
   .option(
@@ -292,12 +310,16 @@ program
   .option("--json", "Print the full machine-readable operation envelope")
   .action(async (action, options) => {
     const shouldPrintJson = Boolean(options.json);
-    if (!shouldPrintJson) {
+    // `plan` and `apply` keep stdout machine-readable in text mode as well: the plan prints its
+    // approval token as the only line on stdout so an operator can copy it (packet §4.1).
+    const quiet = action === "plan" || action === "apply";
+    if (!shouldPrintJson && !quiet) {
       showBanner();
     }
-    const spinner = shouldPrintJson
-      ? undefined
-      : ora(`Resolving surf ${action} through the operation kernel...`).start();
+    const spinner =
+      shouldPrintJson || quiet
+        ? undefined
+        : ora(`Resolving surf ${action} through the operation kernel...`).start();
 
     try {
       assertSupportedCliCommand("surf");
@@ -305,6 +327,13 @@ program
 
       if (shouldPrintJson) {
         console.log(JSON.stringify(output, null, 2));
+      } else if (action === "plan") {
+        console.error(
+          chalk.dim(
+            `Plan ${output.plan.planId} written to ${output.plan.path} (${output.result.fields.length} field(s), submit ${output.result.submit.status}).`,
+          ),
+        );
+        console.log(output.plan.approvalToken);
       } else {
         spinner?.succeed(`Surf ${action} complete.`);
         if (output.result.stdout) {

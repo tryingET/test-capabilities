@@ -127,6 +127,16 @@ const actionEvidence = {
     ],
     commands: ["npm run capability:drill -- --surf-mode shim --skip-build"],
   },
+  plan: {
+    tests: ["tests/surf_submit_gate_contract.test.mjs", "tests/operation_kernel_contract.test.mjs"],
+    commands: ["npm test"],
+    docs: ["docs/project/2026-09-07-submit-gate-live-run.md"],
+  },
+  apply: {
+    tests: ["tests/surf_submit_gate_contract.test.mjs", "tests/operation_kernel_contract.test.mjs"],
+    commands: ["npm test"],
+    docs: ["docs/project/2026-09-07-submit-gate-live-run.md"],
+  },
   flow: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
   assert: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
   compare: { tests: ["tests/operation_kernel_contract.test.mjs"], commands: ["npm test"] },
@@ -215,7 +225,14 @@ capabilities.push(
   }),
 );
 
+const SUBMIT_GATE_NOTES = {
+  plan: "Reads a form in an owned tab and writes a reviewable plan artifact 0600: every field's resolved selector and intended value, the one control that may be clicked (or an explicit ambiguous/none), the form-level buttons that never may, a page fingerprint and an RFC 8785 approval token over the plan's content. Read-only: nothing is typed and nothing is clicked, and a field that resolves to a button is refused with value_via_button_refused before any artifact exists.",
+  apply:
+    "Carries out a plan on a capability-restricted runner whose addressable set is the plan's own fields plus, in submit mode only, the one identified submit control; there is no click/press/key path that takes a free selector. Dry-run fill is the default. Submit is not wired to any agent, hook or retry path in this repo and is reachable through the library like every operation; the controls are mutation.allowOrigins in operator config and the runner's construction, not this sentence. One mutation receipt per attempt, written before the click, and a submit-mode receipt for a plan id refuses every later submit of it.",
+};
+
 for (const [action, status] of Object.entries(capabilityMatrix.cli.surfActions)) {
+  const note = status === "implemented" ? SUBMIT_GATE_NOTES[action] : undefined;
   capabilities.push(
     capabilityEntry({
       id: `surf-action:${action}`,
@@ -226,6 +243,7 @@ for (const [action, status] of Object.entries(capabilityMatrix.cli.surfActions))
       verificationState: status === "implemented" ? "verified" : "contract_only",
       evidence: actionEvidence[action],
       attachPoints: ["src/core/operations.ts", "src/core/capabilities.ts"],
+      ...(note ? { notes: note } : {}),
     }),
   );
 }

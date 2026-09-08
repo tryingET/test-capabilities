@@ -5,8 +5,7 @@
  * registered here as a namespaced `as const` array; `tests/error_codes_contract.test.mjs`
  * asserts uniqueness across the namespaces and that every `new FrameworkError("<code>"` literal
  * in `src/` uses a registered code (architecture review A6, Q5). Later slices append one array
- * each: `SUBMIT_GATE_ERROR_CODES` (S7),
- * `FRAME_ROOT_CAUSE_ERROR_CODES` (S8), `A11Y_CHANNEL_ERROR_CODES` (S9).
+ * each: `FRAME_ROOT_CAUSE_ERROR_CODES` (S8), `A11Y_CHANNEL_ERROR_CODES` (S9).
  *
  * Codes that come from a tool the framework does not own (surf's `page_login`, an HTTP status)
  * pass through verbatim and are never rewritten; `SURF_PASSTHROUGH_CODES` documents the set the
@@ -82,6 +81,48 @@ export const EFFECT_ERROR_CODES = [
 ] as const;
 
 /**
+ * The submit gate (submit-gate packet §4; slice S7). Four of them refuse a plan before any
+ * artifact is written; the rest refuse an apply, and in submit mode every one of them is raised
+ * before the click. They are ordered here the way the operation applies them - what the page
+ * would not give, then the world, the intent, the at-most-once rule and the identification -
+ * because that order is the contract: each refusal owns exactly one hazard (packet, Mode 3).
+ */
+export const SUBMIT_GATE_ERROR_CODES = [
+  /** a field locator matched no element on the gated page */
+  "plan_field_not_found",
+  /** a field locator matched more than one element, or no unique selector could be derived */
+  "plan_field_ambiguous",
+  /** the field's own element is a button, a link or a submit input: the "Set bid" rule (D3) */
+  "value_via_button_refused",
+  /** the field is behind an iframe or a shadow root, where this framework cannot address it */
+  "plan_field_unreachable",
+  /** the page no longer matches the fingerprint the plan was written against */
+  "plan_stale",
+  /** the value that was read back from the field is not the value the plan intended */
+  "field_readback_mismatch",
+  /** the page navigated or the form vanished while filling: a failed dry run, never a passed one */
+  "fill_side_effect_observed",
+  /** the world: `mutation.allowOrigins` does not name the plan's origin */
+  "submit_origin_not_allowed",
+  /** the intent: `--submit` without `--confirm-plan`, or a confirmation without `--submit` */
+  "submit_gate_closed",
+  /** the intent: the approval token does not match the plan file's own content */
+  "submit_plan_mismatch",
+  /** at-most-once: a submit-mode receipt for this plan id already exists, whatever its outcome */
+  "submit_already_attempted",
+  /** the plan recorded more than one submit candidate, so no single control may be clicked */
+  "plan_submit_ambiguous",
+  /** the plan recorded no submit control at all */
+  "plan_submit_missing",
+  /** the control was still disabled when the bounded wait ran out */
+  "submit_control_disabled",
+  /** the control is no longer unique, or no longer inside the fields' owning form */
+  "submit_control_changed",
+  /** the click was sent and the post-condition was never observed: `unknown`, never retried */
+  "submit_postcondition_unmet",
+] as const;
+
+/**
  * Classifier-owned outcome codes. Process codes (`exit_<n>`, `signal_<name>`), HTTP codes
  * (`http_<status>`) and surf codes are patterned or pass-through and are listed separately.
  */
@@ -132,6 +173,7 @@ export type CapabilityErrorCode = (typeof CAPABILITY_ERROR_CODES)[number];
 export type CliErrorCode = (typeof CLI_ERROR_CODES)[number];
 export type ExploreErrorCode = (typeof EXPLORE_ERROR_CODES)[number];
 export type EffectErrorCode = (typeof EFFECT_ERROR_CODES)[number];
+export type SubmitGateErrorCode = (typeof SUBMIT_GATE_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -141,6 +183,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...CLI_ERROR_CODES,
   ...EXPLORE_ERROR_CODES,
   ...EFFECT_ERROR_CODES,
+  ...SUBMIT_GATE_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];

@@ -29,7 +29,7 @@ import type { Adapter } from "./adapter.js";
 import { FileReceiptStore } from "./artifacts.js";
 import { bombadilAdapter } from "./bombadil-runtime.js";
 import { cliAdapter } from "./cli-adapter.js";
-import { MutationConfigSchema, ReceiptsConfigSchema } from "./config.js";
+import { MutationConfigSchema, ReceiptsConfigSchema, SurfSubmitConfigSchema } from "./config.js";
 import type { EffectDeclaration, LedgerContext } from "./effects.js";
 import { MutationLedger, resolveEffectDeclaration } from "./effects.js";
 import type { MutationReceiptEnvelopeCopy, ReceiptStore } from "./receipt-store.js";
@@ -56,9 +56,17 @@ export interface RunMutationSettings {
   allowOrigins: string[];
 }
 
+/** The bounded waits the submit gate reads, with the schema's defaults applied (S7). */
+export interface RunSurfSettings {
+  submit: { postconditionTimeoutMs: number; controlEnableTimeoutMs: number };
+}
+
 export interface RunConfigView {
   receipts: ReceiptsSettings;
   mutation: RunMutationSettings;
+  surf: RunSurfSettings;
+  /** the config file the world was read from, named in every refusal that consults it */
+  configPath?: string;
 }
 
 export interface RunContext extends LedgerContext {
@@ -172,7 +180,11 @@ export function receiptsBaseFor(
   input: ReceiptsInput | undefined,
   cwd: string,
 ): { base: string; source: string } {
-  if (operationId === "test" && typeof input?.config === "string" && input.config.length > 0) {
+  if (
+    CONFIG_SCOPED_OPERATIONS.has(operationId) &&
+    typeof input?.config === "string" &&
+    input.config.length > 0
+  ) {
     return {
       base: path.dirname(path.resolve(cwd, input.config)),
       source: `the directory of --config ${input.config}`,
@@ -187,7 +199,15 @@ export function receiptsBaseFor(
 export interface ConfigReceiptsSection {
   receipts?: { dir?: string; ephemeral: boolean };
   mutation?: { allowOrigins: string[] };
+  surf?: { submit?: { postconditionTimeoutMs: number; controlEnableTimeoutMs: number } };
 }
+
+/**
+ * The operations whose world is declared in a config file (operator decision D4, adjudication
+ * claim 48): `test`, and the two submit-gate operations, which read `mutation.allowOrigins`,
+ * `receipts.dir` and `surf.submit.*` through the same `--config` lookup.
+ */
+const CONFIG_SCOPED_OPERATIONS = new Set(["test", "surf.plan", "surf.apply"]);
 
 /**
  * Read `receipts` and `mutation` out of a config file without loading the whole config.
@@ -208,6 +228,7 @@ export function readConfigReceiptsSection(configPath: string): ConfigReceiptsSec
     return {};
   }
   const record = raw as Record<string, unknown>;
+  const surf = isRecord(record.surf) ? record.surf : undefined;
   return {
     ...(record.receipts === undefined
       ? {}
@@ -215,7 +236,21 @@ export function readConfigReceiptsSection(configPath: string): ConfigReceiptsSec
     ...(record.mutation === undefined
       ? {}
       : { mutation: MutationConfigSchema.parse(record.mutation) as { allowOrigins: string[] } }),
+    ...(surf?.submit === undefined
+      ? {}
+      : {
+          surf: {
+            submit: SurfSubmitConfigSchema.parse(surf.submit) as {
+              postconditionTimeoutMs: number;
+              controlEnableTimeoutMs: number;
+            },
+          },
+        }),
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -279,6 +314,7 @@ export interface CreateRunContextOptions {
   config?: {
     receipts?: { dir?: string; ephemeral?: boolean };
     mutation?: { allowOrigins?: string[] };
+    surf?: { submit?: { postconditionTimeoutMs?: number; controlEnableTimeoutMs?: number } };
   };
   env?: NodeJS.ProcessEnv;
   cwd?: string;
@@ -300,7 +336,7 @@ export function resolveReceiptsSettings(options: CreateRunContextOptions): Recei
   const inputPaths = (options.input ?? {}) as ReceiptsInput;
   const fromFile =
     options.config === undefined &&
-    options.operationId === "test" &&
+    CONFIG_SCOPED_OPERATIONS.has(options.operationId) &&
     typeof inputPaths.config === "string"
       ? readConfigReceiptsSection(path.resolve(cwd, inputPaths.config))
       : {};
@@ -338,7 +374,7 @@ function resolveAllowOrigins(options: CreateRunContextOptions): string[] {
     return [];
   }
   const inputPaths = (options.input ?? {}) as ReceiptsInput;
-  if (options.operationId === "test" && typeof inputPaths.config === "string") {
+  if (CONFIG_SCOPED_OPERATIONS.has(options.operationId) && typeof inputPaths.config === "string") {
     return [
       ...(readConfigReceiptsSection(path.resolve(cwd, inputPaths.config)).mutation?.allowOrigins ??
         []),
@@ -347,15 +383,43 @@ function resolveAllowOrigins(options: CreateRunContextOptions): string[] {
   return [];
 }
 
+/** The submit gate's bounded waits: the caller's config, then the file, then the schema default. */
+function resolveSurfSettings(options: CreateRunContextOptions): RunSurfSettings {
+  const cwd = options.cwd ?? process.cwd();
+  const inputPaths = (options.input ?? {}) as ReceiptsInput;
+  const fromCaller = options.config?.surf?.submit;
+  const fromFile =
+    fromCaller === undefined &&
+    options.config === undefined &&
+    CONFIG_SCOPED_OPERATIONS.has(options.operationId) &&
+    typeof inputPaths.config === "string"
+      ? readConfigReceiptsSection(path.resolve(cwd, inputPaths.config)).surf?.submit
+      : undefined;
+  const declared = fromCaller ?? fromFile ?? {};
+  return {
+    submit: {
+      postconditionTimeoutMs: declared.postconditionTimeoutMs ?? 15_000,
+      controlEnableTimeoutMs: declared.controlEnableTimeoutMs ?? 5_000,
+    },
+  };
+}
+
 /**
  * Mint the run. Cheap and side-effect free: nothing is created on disk until a mutating step
  * writes its first receipt, so a read-only operation never touches `receipts.dir`.
  */
 export function createRunContext(options: CreateRunContextOptions): RunContext {
   const receipts = resolveReceiptsSettings(options);
+  const inputPaths = (options.input ?? {}) as ReceiptsInput;
+  const configPath =
+    CONFIG_SCOPED_OPERATIONS.has(options.operationId) && typeof inputPaths.config === "string"
+      ? path.resolve(options.cwd ?? process.cwd(), inputPaths.config)
+      : undefined;
   const config: RunConfigView = {
     receipts,
     mutation: { allowOrigins: resolveAllowOrigins(options) },
+    surf: resolveSurfSettings(options),
+    ...(configPath ? { configPath } : {}),
   };
 
   const context = {

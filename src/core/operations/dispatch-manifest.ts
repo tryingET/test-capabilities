@@ -8,6 +8,7 @@ import {
   REPLACEMENT_VALIDATION_OPERATION,
 } from "./replacement-validation-operation.js";
 import { executeSurfExploreOperation, SURF_EXPLORE_OPERATION } from "./surf-explore-operation.js";
+import { executeSurfPlanOperation, SURF_PLAN_OPERATION } from "./surf-plan-operation.js";
 import { executeTestOperation, TEST_OPERATION } from "./test-operation.js";
 import type {
   CliCommand,
@@ -26,6 +27,7 @@ export const CLI_OPERATION_REGISTRY = {
   demo: DEMO_OPERATION,
   init: INIT_OPERATION,
   "surf.explore": SURF_EXPLORE_OPERATION,
+  "surf.plan": SURF_PLAN_OPERATION,
   quantum: QUANTUM_OPERATION,
   heal: HEAL_OPERATION,
   "replacement-validation": REPLACEMENT_VALIDATION_OPERATION,
@@ -67,6 +69,13 @@ export const CLI_ROUTE_MANIFEST = [
     status: "implemented",
     operationId: "surf.explore",
     description: SURF_EXPLORE_OPERATION.description,
+  },
+  {
+    command: "surf",
+    action: "plan",
+    status: "implemented",
+    operationId: "surf.plan",
+    description: SURF_PLAN_OPERATION.description,
   },
   {
     command: "surf",
@@ -170,5 +179,6 @@ export {
   executeQuantumOperation,
   executeReplacementValidationOperation,
   executeSurfExploreOperation,
+  executeSurfPlanOperation,
   executeTestOperation,
 };

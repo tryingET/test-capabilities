@@ -36,7 +36,7 @@ export function assertKnownSurfExecutionRoute(routeRecord: RouteRecord): void {
     throw renderUnsupported(
       "surf action(s)",
       [routeRecord.action],
-      "Only 'explore' is currently backed by a real surf execution path.",
+      "Implemented surf actions are 'explore', 'plan' and 'apply'.",
       "unsupported_surf_action",
     );
   }
@@ -76,7 +76,7 @@ export function throwUnavailableManifestEntry(manifestEntry: CliRouteManifestEnt
     throw renderUnsupported(
       "surf action(s)",
       [manifestEntry.action],
-      "Only 'explore' is currently backed by a real surf execution path.",
+      "Implemented surf actions are 'explore', 'plan' and 'apply'.",
       "unsupported_surf_action",
     );
   }

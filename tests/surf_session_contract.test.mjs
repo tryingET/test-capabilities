@@ -685,11 +685,10 @@ test("an optional observer that fails is unavailable; a required one fails the r
 // Seams later slices fill
 // ---------------------------------------------------------------------------
 
-test("the seams S7 and S8 fill refuse loudly instead of guessing", async () => {
+test("the seams S8 fills refuse loudly instead of guessing", async () => {
   await withSession({ gate: true }, async ({ session, fake }) => {
     for (const call of [
-      () => session.plan({ fields: [] }),
-      () => session.apply({ planId: "p1" }),
+      () => session.apply({ plan: { plan_id: "p1" }, mode: "fill" }),
       () => session.explainUnreachable("#submit"),
     ]) {
       await assert.rejects(call, {
@@ -698,5 +697,15 @@ test("the seams S7 and S8 fill refuse loudly instead of guessing", async () => {
       });
     }
     assert.deepEqual(commandsOf(fake), ["tab.new", "wait.ready"]);
+  });
+});
+
+test("plan refuses on a session that was never gated, before any page is read", async () => {
+  await withSession({ gate: false }, async ({ session, fake }) => {
+    await assert.rejects(() => session.plan({ fields: [] }), {
+      code: "page_not_ready",
+      message: /before the readiness gate ran/,
+    });
+    assert.deepEqual(commandsOf(fake), ["tab.new"]);
   });
 });

@@ -17,6 +17,7 @@ export {
   executeQuantumOperation,
   executeReplacementValidationOperation,
   executeSurfExploreOperation,
+  executeSurfPlanOperation,
   executeTestOperation,
   getCliCommandStatus,
   getSurfActionStatus,

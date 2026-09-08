@@ -31,6 +31,8 @@ export const CAPABILITY_MATRIX = {
     surfExploreOptions: SURF_EXPLORE_OPTION_SUPPORT,
     surfActions: {
       explore: getSurfActionStatus("explore") ?? "unsupported",
+      plan: getSurfActionStatus("plan") ?? "unsupported",
+      apply: getSurfActionStatus("apply") ?? "unsupported",
       flow: getSurfActionStatus("flow") ?? "unsupported",
       assert: getSurfActionStatus("assert") ?? "unsupported",
       compare: getSurfActionStatus("compare") ?? "unsupported",
@@ -59,7 +61,7 @@ export function assertSupportedSurfAction(action: string): asserts action is Sur
     throw renderUnsupported(
       "surf action(s)",
       [action],
-      "Only 'explore' is currently backed by a real surf execution path.",
+      "Implemented surf actions are 'explore', 'plan' and 'apply'.",
       "unsupported_surf_action",
     );
   }

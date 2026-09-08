@@ -1466,6 +1466,11 @@ const EFFECT_INPUT_SAMPLES = {
   demo: { json: false },
   init: { print: true, output: "test-capabilities.yaml" },
   "surf.explore": { url: "https://example.com" },
+  "surf.plan": {
+    url: "https://example.com",
+    field: ["name:q=surf-cli"],
+    out: "plan.json",
+  },
   quantum: { target: "https://example.com" },
   heal: { dir: "./tests", dryRun: true },
   "replacement-validation": { action: "plan", request: "request.json" },
@@ -1494,7 +1499,7 @@ test("every registered operation resolves an effect class with a reason", () => 
     }
     seen.push(operationId);
   }
-  assert.equal(seen.length, 8);
+  assert.equal(seen.length, 9);
 });
 
 test("the mode-dependent operations change class with their mode", () => {

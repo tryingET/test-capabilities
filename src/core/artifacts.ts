@@ -29,6 +29,10 @@ export const ARTIFACT_KINDS = [
   "test-capabilities.heal.proposal",
   "test-capabilities.heal.verification",
   "test-capabilities.heal.receipts",
+  /** the reviewable form plan of the submit gate; 0600 because it carries intended values */
+  "test-capabilities.surf.plan",
+  /** the aggregate export of an apply run's receipts (`surf apply --receipt-out`) */
+  "test-capabilities.surf.apply.receipts",
 ] as const;
 
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];

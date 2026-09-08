@@ -12,24 +12,32 @@ export {
   writeJsonArtifact,
 } from "./core/artifacts.js";
 export type {
+  ApplyFieldResult,
+  ApplyMode,
+  ApplyObservation,
+  ApplyRunner,
   BrowserStep,
   JsMutationHit,
   JsMutationSignal,
   OwnedTab,
   Session,
-  SessionActionRequest,
+  SessionApplyRequest,
   SessionObservation,
   SessionObserver,
+  SessionPlanRequest,
   SessionReadiness,
   SessionReadinessState,
   SessionReply,
+  SubmitApplyRunner,
 } from "./core/browser-session.js";
 // Browser surface: the kernel Session interface (operator decision D2)
 export {
+  canSubmit,
   findJsMutationSignals,
   JS_MUTATION_SIGNALS,
   SESSION_LIFECYCLE_EFFECT,
 } from "./core/browser-session.js";
+export { canonicalDigest, canonicalJson } from "./core/canonical-json.js";
 export {
   assertSupportedCliCommand,
   assertSupportedSurfAction,
@@ -118,6 +126,8 @@ export type {
   SurfAction,
   SurfExploreOperationInput,
   SurfExploreOperationResultEnvelope,
+  SurfPlanOperationInput,
+  SurfPlanOperationResultEnvelope,
   TestOperationInput,
   TestOperationResultEnvelope,
   TestOperationSummary,
@@ -134,6 +144,7 @@ export {
   executeQuantumOperation,
   executeReplacementValidationOperation,
   executeSurfExploreOperation,
+  executeSurfPlanOperation,
   executeTestOperation,
   getCliCommandStatus,
   getSurfActionStatus,
@@ -216,6 +227,24 @@ export {
   toErrorEnvelope,
 } from "./core/runtime-contract.js";
 export { probeSurfRuntime, runSurfCommand } from "./core/surf-adapter.js";
+export type {
+  FieldLocator,
+  PlanField,
+  PlanFingerprint,
+  PlanForbiddenControl,
+  PlanSubmit,
+  PlanSubmitCandidate,
+  PlanSubmitControl,
+  SubmitStatus,
+  SurfPlan,
+} from "./core/surf-plan.js";
+export {
+  approvalTokenFor,
+  fingerprintDrift,
+  parseFieldSpec,
+  SURF_PLAN_KIND,
+  SURF_PLAN_SCHEMA_VERSION,
+} from "./core/surf-plan.js";
 export { SessionReadinessRefusal } from "./core/surf-readiness.js";
 export type {
   SurfCommandFailure,

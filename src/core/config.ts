@@ -211,6 +211,35 @@ export const MutationConfigSchema = z.preprocess(
     .strict(),
 );
 
+/**
+ * The two bounded waits the submit gate needs (submit-gate packet §4.2).
+ *
+ * `postconditionTimeoutMs` bounds the wait for the effect the operator expects to see after the
+ * one click; when it runs out the outcome is `unknown`, never a retry. `controlEnableTimeoutMs`
+ * bounds the wait for a submit control that is disabled until the form validates - a plan-time
+ * refusal would make asynchronous validation look like a broken plan (packet, Refinement D4).
+ */
+export const SurfSubmitConfigSchema = z.preprocess(
+  (value) =>
+    withAliases(value, {
+      postcondition_timeout_ms: "postconditionTimeoutMs",
+      control_enable_timeout_ms: "controlEnableTimeoutMs",
+    }),
+  z
+    .object({
+      postconditionTimeoutMs: z.number().int().positive().default(15_000),
+      controlEnableTimeoutMs: z.number().int().positive().default(5_000),
+    })
+    .strict(),
+);
+
+/** The `surf` section of the config; `surf.receipts.dir` does not exist (review A1). */
+export const SurfConfigSchema = z
+  .object({
+    submit: SurfSubmitConfigSchema.optional(),
+  })
+  .strict();
+
 export const TestCapabilitiesConfigSchema = z
   .object({
     version: z.literal("2.0"),
@@ -222,6 +251,7 @@ export const TestCapabilitiesConfigSchema = z
     chaos: ChaosSchema.optional(),
     receipts: ReceiptsConfigSchema.optional(),
     mutation: MutationConfigSchema.optional(),
+    surf: SurfConfigSchema.optional(),
   })
   .strict();
 
@@ -300,6 +330,17 @@ export interface MutationConfig {
   allowOrigins?: string[];
 }
 
+/** See {@link SurfSubmitConfigSchema}. */
+export interface SurfSubmitConfig {
+  postconditionTimeoutMs?: number;
+  controlEnableTimeoutMs?: number;
+}
+
+/** See {@link SurfConfigSchema}. */
+export interface SurfConfig {
+  submit?: SurfSubmitConfig;
+}
+
 export interface TestCapabilitiesConfig {
   version: "2.0";
   name: string;
@@ -307,6 +348,7 @@ export interface TestCapabilitiesConfig {
   agents?: Record<string, AgentConfig>;
   receipts?: ReceiptsConfig;
   mutation?: MutationConfig;
+  surf?: SurfConfig;
   intelligence?: IntelligenceConfig;
   quantum?: {
     enabled?: boolean;

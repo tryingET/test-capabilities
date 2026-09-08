@@ -37,26 +37,36 @@ const MAX_SURF_EXPLORE_LINKS_PER_PAGE = 5;
 const SURF_EXPLORE_LINKS_ATTEMPTS = 2;
 const SURF_EXPLORE_UPSTREAM_RETRY = "1";
 
-export const SurfExploreOperationInputSchema = z
-  .object({
-    url: z
-      .string({
-        required_error: "Surf explore requires --url with a valid URL.",
-      })
-      .url("Surf explore target must be a valid URL."),
-    depth: z.string().optional(),
-    json: z.boolean().optional().default(false),
-    record: z.boolean().optional().default(false),
-    validate: z.boolean().optional().default(false),
-    baseline: z.string().optional(),
-    aiDiff: z.boolean().optional().default(false),
-    file: z.string().optional(),
-  })
-  .transform((input) => {
-    assertSupportedSurfExploreOptions(input);
-    parseSurfExploreDepth(input.depth);
-    return input;
-  });
+export const SurfExploreOperationInputSchema = z.preprocess(
+  (raw) => {
+    // The submit gate's options reach this schema too (one commander command, three actions),
+    // and a key explore does not declare would be stripped before anything could refuse it.
+    if (typeof raw === "object" && raw !== null) {
+      assertSupportedSurfExploreOptions(raw as Record<string, unknown>);
+    }
+    return raw;
+  },
+  z
+    .object({
+      url: z
+        .string({
+          required_error: "Surf explore requires --url with a valid URL.",
+        })
+        .url("Surf explore target must be a valid URL."),
+      depth: z.string().optional(),
+      json: z.boolean().optional().default(false),
+      record: z.boolean().optional().default(false),
+      validate: z.boolean().optional().default(false),
+      baseline: z.string().optional(),
+      aiDiff: z.boolean().optional().default(false),
+      file: z.string().optional(),
+    })
+    .transform((input) => {
+      assertSupportedSurfExploreOptions(input);
+      parseSurfExploreDepth(input.depth);
+      return input;
+    }),
+);
 
 type NormalizedSurfExploreOperationInput = z.output<typeof SurfExploreOperationInputSchema>;
 

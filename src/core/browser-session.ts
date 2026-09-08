@@ -21,6 +21,7 @@
 
 import type { EffectAttempt, EffectDeclaration, VerifyResult } from "./effects.js";
 import type { ExpectDeclaration, ResultOutcome } from "./result-classification.js";
+import type { PlanFieldRequest, SurfPlan } from "./surf-plan.js";
 
 // ============================================
 // THE SCOPE
@@ -144,8 +145,93 @@ export interface SessionObservation {
   code?: string;
 }
 
-/** What a caller hands `plan`/`apply`; the submit-gate packet (S7) fixes the fields. */
-export type SessionActionRequest = Readonly<Record<string, unknown>>;
+/** What a caller hands `plan`: the fields to fill and, optionally, a hint at the submit control. */
+export interface SessionPlanRequest {
+  fields: readonly PlanFieldRequest[];
+  /** narrow the submit candidates by the control's normalised visible text */
+  submitText?: string;
+  /** narrow them by CSS; the only way to identify a submit on a page with no owning form */
+  submitSelector?: string;
+  /** the plan id the caller will file this artifact under; one is minted when absent */
+  planId?: string;
+}
+
+/** What a caller hands `apply`: a plan to carry out, and how far it may go. */
+export interface SessionApplyRequest {
+  plan: SurfPlan;
+  mode: ApplyMode;
+}
+
+export type ApplyMode = "fill" | "submit";
+
+/** What one field's fill looked like; the operation renders it and the receipt records it. */
+export interface ApplyFieldResult {
+  id: string;
+  resolved_selector: string;
+  set_via: "field_input";
+  set: boolean;
+  read_back: boolean;
+  matched: boolean;
+}
+
+/** What the runner sees when it looks at the page between acts. */
+export interface ApplyObservation {
+  /** absent when the page could not be read at all, which during a fill is a side effect */
+  href?: string;
+  available: boolean;
+  submitPresent?: boolean;
+  submitUnique?: boolean;
+  submitDisabled?: boolean;
+  formPresent?: boolean;
+  detail?: string;
+}
+
+/**
+ * The apply runner: the whole surface a `surf apply` run has on a browser (submit-gate packet
+ * §4.3, D8, D16).
+ *
+ * Its addressable set is the plan's own field controls, named by field id - not by selector, so
+ * a selector the plan never resolved is not expressible as an argument. There is no
+ * `click(selector)`, no `type(..., {submit})`, no `press`, no `key`, no `do`, no coordinate
+ * click, and no `clickSubmit` at all unless the runner was built in submit mode from a plan
+ * whose submit control is identified. That is the invariant that holds when the operator
+ * approves the wrong plan, when the allowlist is wrong and when the page drifts: the code that
+ * could click the wrong button does not exist in the apply path.
+ */
+export interface ApplyRunner {
+  readonly planId: string;
+  readonly mode: ApplyMode;
+  readonly readiness: SessionReadiness | undefined;
+  readonly tab: OwnedTab | undefined;
+  /** recompute the plan's fingerprint against the live page (read-only) */
+  fingerprint(): Promise<{ drift: string[] }>;
+  /** set one plan field through its own input: `type --into`, `select`, or a click on the box */
+  setValue(fieldId: string): Promise<void>;
+  /** read the value back out of the field it was written to (read-only) */
+  readBack(fieldId: string): Promise<ApplyFieldResult>;
+  /** where the page is and whether the form is still there (read-only, addresses nothing) */
+  observe(): Promise<ApplyObservation>;
+  /** the surf calls this run made, with values elided; the evidence that nothing else was clicked */
+  surfCalls(): readonly string[];
+  /** lifecycle notes worth rendering (a tab that would not close) */
+  notes(): readonly string[];
+  /** `tab.close`; safe to call twice and called in `finally` */
+  close(): Promise<void>;
+}
+
+/** A runner built in submit mode from a plan whose submit control is identified. */
+export interface SubmitApplyRunner extends ApplyRunner {
+  /**
+   * Click the one control the plan identified, exactly once. The method consumes itself: a
+   * second call throws before anything is emitted.
+   */
+  clickSubmit(): Promise<{ clicked: true; observed: ApplyObservation }>;
+}
+
+/** True when this runner holds the one capability a fill-mode runner does not have. */
+export function canSubmit(runner: ApplyRunner): runner is SubmitApplyRunner {
+  return typeof (runner as SubmitApplyRunner).clickSubmit === "function";
+}
 
 export interface Session {
   /** the run this session belongs to; a nested session shares its parent's run */
@@ -154,6 +240,8 @@ export interface Session {
   readonly url: string;
   /** the tab this run owns, once `open` has run */
   readonly tab: OwnedTab | undefined;
+  /** what the readiness gate settled on, once `gate` has run */
+  readonly readiness: SessionReadiness | undefined;
 
   /** `tab.new`: the run's own browser lifecycle, reversed in `close` */
   open(): Promise<{ tab: OwnedTab; reply: SessionReply }>;
@@ -186,9 +274,18 @@ export interface Session {
 
   /** the frame diagnosis seam (S8): an `observe` step over the same owned tab */
   explainUnreachable(selector: string, options?: { frameHint?: string }): Promise<never>;
-  /** the submit-gate seams (S7): a reviewable plan and its capability-restricted application */
-  plan(request: SessionActionRequest): Promise<never>;
-  apply(request: SessionActionRequest): Promise<never>;
+  /**
+   * Read the form the way an operator will review it: resolved selectors, intended values, the
+   * one control that may be clicked or an explicit ambiguous/none, and the buttons that may
+   * never be. Nothing is typed and nothing is clicked (submit-gate packet §4.1).
+   */
+  plan(request: SessionPlanRequest): Promise<SurfPlan>;
+  /**
+   * Build the capability-restricted runner for a plan. The session is the runner's only handle
+   * on the browser, and the runner's addressable set is the plan's own controls plus, in submit
+   * mode with an identified control, that one control (§4.3).
+   */
+  apply(request: SessionApplyRequest): Promise<ApplyRunner>;
 
   /** teardown, then `tab.close`; safe to call twice and called in `finally` */
   close(): Promise<void>;

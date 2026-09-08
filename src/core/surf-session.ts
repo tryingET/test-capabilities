@@ -22,12 +22,14 @@
 
 import { randomUUID } from "node:crypto";
 import type {
+  ApplyRunner,
   BrowserStep,
   OwnedTab,
   Session,
-  SessionActionRequest,
+  SessionApplyRequest,
   SessionObservation,
   SessionObserver,
+  SessionPlanRequest,
   SessionReadiness,
   SessionReply,
 } from "./browser-session.js";
@@ -43,6 +45,8 @@ import type { ExpectDeclaration } from "./result-classification.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError } from "./runtime-contract.js";
 import { probeSurfRuntime, runSurfCommand, surfEffect } from "./surf-adapter.js";
+import type { SurfPlan } from "./surf-plan.js";
+import { planFromSession } from "./surf-plan-probe.js";
 import { readinessRefusalFromFailure, settledReadinessOrRefuse } from "./surf-readiness.js";
 import type { SurfCommandResult, SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
 import {
@@ -163,6 +167,7 @@ export class SurfSession implements Session {
   private readonly observed: SessionObservation[] = [];
   private readonly lifecycleNotes: string[] = [];
   private ownedTab: OwnedTab | undefined;
+  private gated: SessionReadiness | undefined;
   private closed = false;
 
   constructor(options: SurfSessionOptions) {
@@ -177,6 +182,11 @@ export class SurfSession implements Session {
 
   get tab(): OwnedTab | undefined {
     return this.ownedTab;
+  }
+
+  /** What the gate settled on; a step list that needs the landed page reads it from here. */
+  get readiness(): SessionReadiness | undefined {
+    return this.gated;
   }
 
   notes(): readonly string[] {
@@ -259,6 +269,7 @@ export class SurfSession implements Session {
       parseSurfJsonOutput(reply.stdout, "wait.ready").data,
       reply.outcome,
     );
+    this.gated = readiness;
     return { readiness, reply };
   }
 
@@ -419,21 +430,22 @@ export class SurfSession implements Session {
     );
   }
 
-  /** S7 replaces this with the reviewable plan artifact of the submit gate. */
-  async plan(request: SessionActionRequest): Promise<never> {
-    throw this.submitGateSeam("plan", request);
+  /**
+   * The reviewable plan: one read-only probe over the gated page, the submit-gate packet's
+   * refusals, and the artifact. Nothing is typed and nothing is clicked (§4.1). The step list
+   * lives in `surf-plan-probe.ts`, not here: a seam is a composition over the session, never a
+   * hook inside it.
+   */
+  async plan(request: SessionPlanRequest): Promise<SurfPlan> {
+    return planFromSession(this, request);
   }
 
-  /** S7 replaces this with the capability-restricted runner over this session. */
-  async apply(request: SessionActionRequest): Promise<never> {
-    throw this.submitGateSeam("apply", request);
-  }
-
-  private submitGateSeam(action: "plan" | "apply", request: SessionActionRequest): FrameworkError {
-    return new FrameworkError(
+  /** S7 commit (2) replaces this with the capability-restricted runner over this session. */
+  async apply(request: SessionApplyRequest): Promise<ApplyRunner> {
+    throw new FrameworkError(
       "unsupported_surf_action",
-      `Session.${action} is declared but not implemented in this build: form preparation and gated application are not part of this release line yet. Nothing was sent to the browser.`,
-      { action, requestKeys: Object.keys(request ?? {}) },
+      "Session.apply is declared but not implemented in this build: a plan can be prepared and reviewed, but nothing carries it out yet. Nothing was sent to the browser.",
+      { action: "apply", mode: request?.mode },
     );
   }
 

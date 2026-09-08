@@ -431,6 +431,24 @@
       "notes": "Supported orchestrator agents emit observation.v1 diagnostic events for Surf coverage, Bombadil property exploration, and CLI smoke execution. When correlation is enabled, orchestrator runs can also include component-level semantic synthesis, suite-level observation correlation, deterministic calibrated root_cause observations for at least two independent same-component failed-or-errored observed current-run evidence units from at least two sensors that agree on the same failure class, and non-authoritative propagation observations when dependent components both have high-calibration root_causes and a bounded propagation link appears across default or operator-configured topology edges (e.g., api timeout paired with web runtime failure). Propagation observations carry low calibration by design, declare non-authoritative heuristic status in their evidence, and never make prediction or causality-overclaim language. The root-cause corpus dogfoods CLI, API contract/runtime/auth-boundary/network-connectivity/resource-exhaustion/configuration, Surf, selector/DOM, Bombadil/property ambiguity, same-component mixed-class suppression, linked finding/current-run evidence disagreement suppression, simultaneous component-scoped diagnoses, three-sensor agreement calibration, multi-component (Bombadil+CLI, Surf+CLI+API) fixtures, cli-to-api/cli-to-web/custom-topology propagation cases, and propagation synthesis guardrails including auth-boundary, network-connectivity, resource-exhaustion, and configuration-error no-propagation with machine-readable root-cause and propagation coverage floors. The runtime diagnostic corpus adds a narrow real cli-tester subprocess proof lane for single-sensor suppression, two-sensor command_resolution, two-sensor timeout_or_latency, same-component mixed-class suppression, correlation-disabled suppression, unique observation IDs, and no prediction/causal/repair-order wording. The public library exports the bounded root-cause vocabulary as RootCauseFailureClass plus ROOT_CAUSE_FAILURE_CLASSES, root_cause observations expose structured semantics.failureClass, propagation observations expose structured semantics.propagationLink, and the packed-consumer smoke proves calibrated root_cause and low-calibration non-authoritative propagation observations survive through the distributed library API. Observations explain sensor facts; findings and coverage remain pass/fail authority."
     },
     {
+      "id": "surf-action:apply",
+      "name": "surf apply",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "unsupported",
+      "verification_state": "contract_only",
+      "evidence": {
+        "tests": [
+          "tests/surf_submit_gate_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs"
+        ],
+        "commands": ["npm test"],
+        "docs": ["docs/project/2026-09-07-submit-gate-live-run.md"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": []
+    },
+    {
       "id": "surf-action:assert",
       "name": "surf assert",
       "surface_kind": "cli-subcommand",
@@ -489,6 +507,25 @@
       },
       "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
       "activation_requirements": []
+    },
+    {
+      "id": "surf-action:plan",
+      "name": "surf plan",
+      "surface_kind": "cli-subcommand",
+      "presence_state": "present",
+      "support_state": "supported",
+      "verification_state": "verified",
+      "evidence": {
+        "tests": [
+          "tests/surf_submit_gate_contract.test.mjs",
+          "tests/operation_kernel_contract.test.mjs"
+        ],
+        "commands": ["npm test"],
+        "docs": ["docs/project/2026-09-07-submit-gate-live-run.md"]
+      },
+      "attach_points": ["src/core/operations.ts", "src/core/capabilities.ts"],
+      "activation_requirements": [],
+      "notes": "Reads a form in an owned tab and writes a reviewable plan artifact 0600: every field's resolved selector and intended value, the one control that may be clicked (or an explicit ambiguous/none), the form-level buttons that never may, a page fingerprint and an RFC 8785 approval token over the plan's content. Read-only: nothing is typed and nothing is clicked, and a field that resolves to a button is refused with value_via_button_refused before any artifact exists."
     },
     {
       "id": "surf-action:replay",

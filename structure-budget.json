@@ -4,7 +4,7 @@
   "exceptions": {
     "src/core/orchestrator.ts": 1653,
     "src/core/surf-runtime.ts": 813,
-    "src/core/operations/surf-explore-operation.ts": 872,
+    "src/core/operations/surf-explore-operation.ts": 882,
     "src/healing/self-healing.ts": 1006
   },
   "allowed_cycles": [],
@@ -112,6 +112,13 @@
       "to": 872,
       "reason": "slice S6 commit (2): the scheduled shrink. explorePage becomes a step list over the kernel Session (architecture review A8, adjudication claim 22), so the runtime resolution, the owned-tab lifecycle, the readiness gate and surf's readiness vocabulary leave this file for src/core/surf-session.ts and src/core/surf-readiness.ts. What stays is what explore alone knows: the probe expressions, the evidence assertion, link extraction, coverage and the envelope. Still over the 700-line budget; the next shrink is the probe/coverage split once S8 adds frameRootCause to the probe shape.",
       "ref": "b6bd872"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 872,
+      "to": 882,
+      "reason": "slice S7 commit (1): the explore input schema gains a preprocess step that checks the *raw* input for the submit gate's options. The three surf actions share one commander command, so `--field`, `--out`, `--plan`, `--submit` and `--confirm-plan` arrive here too, and a key explore does not declare would be stripped by zod before anything could refuse it - which is how an operator's fill options would be silently ignored by a read-only explore. Scheduled shrink: the probe/coverage split named in the S6 entry, once S8 adds frameRootCause to the probe shape.",
+      "ref": "9360a82"
     }
   ]
 }

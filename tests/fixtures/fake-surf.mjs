@@ -13,7 +13,8 @@
  * - `extract [url] [--tab-id N] --code <code> [--allow-empty] --json` with the extract contract
  *   (`{data, rows, rowCount, attempts, readiness, mode, url, tabId}`, `empty_result`,
  *   `no_output`, `rows_key_missing`)
- * - `type <text> --selector <sel>` / `click --selector <sel>` (minimal target-mutating verbs)
+ * - `type <text> --into|--selector <sel>`, `select <sel> <value...>`, `click --selector <sel>`
+ *   (the target-mutating verbs the submit gate may emit; nothing else acts on a page)
  * - `frame.diagnose --json`, `page.readiness --json`
  * - every failure: exit 1, stderr `Error: <message> [code]`, stdout `{"error": {...}}` under --json
  *
@@ -22,10 +23,15 @@
  *   {
  *     title, readyState, readiness, evidence[], links[], counts{}, jsResult, jsThrows,
  *     frames: [{ src, outOfProcess?, reachable? }],  // frame.diagnose topology (S8 reads it)
- *     fields: { "<selector>": { value, kind?, checked? } },  // state a step may write and read
- *     controls: [{ selector, kind?, enabled? }],             // what a click may target
+ *     fields: { "<selector>": { value, kind?, checked?, name?, id?, label?, form?, hidden? } },
+ *                                  // state a step may write and read; name/id/label/form are
+ *                                  // what a locator resolves through, form is a form selector
+ *     controls: [{ selector, kind?, enabled?, text?, form?, id?, name?, visible? }],
+ *                                  // what a click may target; kind is the `type` attribute,
+ *                                  // absent kind on a <button> is an implicit submit
  *     forbidden: ["click", ...],   // verbs this page refuses, so a test can prove none ran
- *     changeNavigatesTo: "<url>",  // where a type/click sends the tab (post-condition, drift)
+ *     changeNavigatesTo: "<url>",  // where a click (or `type --submit`) sends the tab
+ *     typeNavigatesTo: "<url>",    // a change handler that navigates when a value is set
  *     navigatesAfterGate: "<url>", // the page moves once wait.ready settled: a probe answering
  *                                  // from somewhere the gate never saw
  *     extractAttempts: <n>         // what extract claims in `attempts` (the caller asked for 1)
@@ -79,6 +85,8 @@ function positionals() {
     "--timeout",
     "--interval",
     "--selector",
+    "--into",
+    "--by",
     "--text",
     "--url-prefix",
     "--empty-text",
@@ -341,7 +349,15 @@ function pageFor(url, state) {
   );
   const page = key ? pages[key] : {};
   const frames = page.frames || [];
-  const fields = { ...(page.fields || {}), ...(state?.fields?.[page.url || url] || {}) };
+  // Per-field merge: a `type` writes `value` (or `checked`) and must not drop the identity the
+  // page model declared for that field (its kind, name, label or owning form).
+  const fields = {};
+  for (const [selector, field] of Object.entries(page.fields || {})) {
+    fields[selector] = { ...field };
+  }
+  for (const [selector, written] of Object.entries(state?.fields?.[page.url || url] || {})) {
+    fields[selector] = { ...(fields[selector] || {}), ...written };
+  }
   const controls = page.controls || [];
   return {
     url: page.url || url,
@@ -355,12 +371,13 @@ function pageFor(url, state) {
     controls,
     forbidden: page.forbidden || [],
     changeNavigatesTo: page.changeNavigatesTo,
+    typeNavigatesTo: page.typeNavigatesTo,
     navigatesAfterGate: page.navigatesAfterGate,
     extractAttempts: page.extractAttempts ?? 1,
     counts: {
       anchors: (page.links || []).length,
       buttons: controls.length > 0 ? controls.length : 1,
-      forms: 0,
+      forms: formSelectorsOf(fields, controls).length,
       inputs: Object.keys(fields).length,
       iframes: frames.length,
       ...(page.counts || {}),
@@ -370,12 +387,32 @@ function pageFor(url, state) {
   };
 }
 
+/** Every distinct owning form named by a field or a control, in declaration order. */
+function formSelectorsOf(fields, controls) {
+  const seen = [];
+  for (const field of Object.values(fields)) {
+    if (field.form && !seen.includes(field.form)) seen.push(field.form);
+  }
+  for (const control of controls) {
+    if (control.form && !seen.includes(control.form)) seen.push(control.form);
+  }
+  return seen;
+}
+
 /** Field values a `type` wrote in this state file; the page model holds the initial values. */
 function writeFieldValue(state, url, selector, value) {
   state.fields = state.fields || {};
   state.fields[url] = state.fields[url] || {};
   const current = state.fields[url][selector] || {};
   state.fields[url][selector] = { ...current, value };
+}
+
+/** The checked state a `click` on a checkbox or radio input toggled. */
+function writeFieldChecked(state, url, selector, checked) {
+  state.fields = state.fields || {};
+  state.fields[url] = state.fields[url] || {};
+  const current = state.fields[url][selector] || {};
+  state.fields[url][selector] = { ...current, checked };
 }
 
 function resolveTab(state) {
@@ -462,52 +499,193 @@ function readinessGate(page, tab, { accept = [], wait = true } = {}) {
 
 // ---------------------------------------------------------------- js evaluation against a stub DOM
 
+/**
+ * A DOM stub with a small selector engine.
+ *
+ * The plan probe of the submit gate reads a form the way a browser presents one - tag names,
+ * `[name="..."]`, `#id`, `<label>` and its `control`, `el.form`, layout boxes - so the fixture
+ * has to model those, not a lookup table of selector strings. What is modelled is a documented
+ * subset: comma lists, a tag name, `#id`, `[attr="value"]` and `tag[attr="value"]`, plus the
+ * page model's own selector key as an exact match. Anything else matches nothing, which is the
+ * fail-closed direction: a probe that needs more than this fails loudly in a test rather than
+ * quietly passing against a fixture that guessed.
+ */
+function parseSelector(selector) {
+  return String(selector)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const attributes = [];
+      let rest = part;
+      let id = null;
+      rest = rest.replace(
+        /\[([A-Za-z_:][-\w:.]*)(?:([~^$*|]?=)"?([^\]"]*)"?)?\]/g,
+        (_, name, operator, value) => {
+          attributes.push({ name, value: operator ? value : undefined });
+          return "";
+        },
+      );
+      rest = rest.replace(/#([A-Za-z][-\w]*)/, (_, value) => {
+        id = value;
+        return "";
+      });
+      const tag = rest.trim().toLowerCase();
+      return { raw: part, tag: tag === "" || tag === "*" ? null : tag, id, attributes };
+    });
+}
+
+function nodeAttribute(node, name) {
+  if (name === "name") return node.name;
+  if (name === "id") return node.id;
+  if (name === "type") return node.type;
+  if (name === "href") return node.href;
+  if (name === "role") return node.role;
+  if (name === "value") return node.value;
+  if (name === "aria-label") return node.ariaLabel;
+  return undefined;
+}
+
+function matchesSimpleSelector(node, parsed) {
+  if (node.selector && node.selector === parsed.raw) return true;
+  if (parsed.tag && String(node.tagName || "").toLowerCase() !== parsed.tag) return false;
+  if (parsed.id && node.id !== parsed.id) return false;
+  for (const attribute of parsed.attributes) {
+    const actual = nodeAttribute(node, attribute.name);
+    if (actual === undefined || actual === null || actual === "") return false;
+    if (attribute.value !== undefined && String(actual) !== attribute.value) return false;
+  }
+  return parsed.tag !== null || parsed.id !== null || parsed.attributes.length > 0;
+}
+
+function domNode(base) {
+  const node = {
+    id: undefined,
+    name: undefined,
+    type: undefined,
+    role: undefined,
+    ariaLabel: undefined,
+    textContent: "",
+    hidden: false,
+    disabled: false,
+    ...base,
+  };
+  node.getAttribute = (attribute) => {
+    const value = nodeAttribute(node, attribute);
+    return value === undefined ? null : value;
+  };
+  node.getBoundingClientRect = () =>
+    node.hidden || node.visible === false ? { width: 0, height: 0 } : { width: 120, height: 24 };
+  node.offsetParent = node.hidden || node.visible === false ? null : {};
+  return node;
+}
+
+function idFromSelector(selector, declared) {
+  if (declared) return declared;
+  const match = /^#([A-Za-z][-\w]*)$/.exec(String(selector));
+  return match ? match[1] : undefined;
+}
+
 function stubDocument(page) {
-  const anchors = page.links.map((href) => ({
-    getAttribute: (name) => (name === "href" ? href : null),
-    href,
-  }));
-  const repeat = (count) => Array.from({ length: count }, () => ({}));
-  // A field a script may read back: `value`/`checked` are the state a `type` wrote.
-  const fieldNode = (selector, field) => ({
-    tagName: (field.kind || "text") === "select" ? "SELECT" : "INPUT",
-    type: field.kind || "text",
-    value: field.value ?? "",
-    checked: field.checked ?? false,
-    getAttribute: (name) => (name === "value" ? (field.value ?? "") : null),
-    selector,
-  });
-  const fieldNodes = Object.entries(page.fields).map(([selector, field]) =>
-    fieldNode(selector, field),
+  const forms = new Map();
+  const formNode = (selector) => {
+    if (!selector) return null;
+    if (!forms.has(selector)) {
+      forms.set(
+        selector,
+        domNode({ tagName: "FORM", selector, id: idFromSelector(selector, undefined) }),
+      );
+    }
+    return forms.get(selector);
+  };
+  for (const selector of formSelectorsOf(page.fields, page.controls)) {
+    formNode(selector);
+  }
+
+  const anchors = page.links.map((href) =>
+    domNode({ tagName: "A", href, selector: null, textContent: href }),
   );
-  const controlNodes = page.controls.map((control) => ({
-    tagName: "BUTTON",
-    type: control.kind || "submit",
-    disabled: control.enabled === false,
-    selector: control.selector,
-  }));
+  const repeat = (count, tagName) =>
+    Array.from({ length: count }, () => domNode({ tagName, selector: null }));
+
+  const fieldNodes = Object.entries(page.fields).map(([selector, field]) =>
+    domNode({
+      tagName: (field.kind || "text") === "select" ? "SELECT" : "INPUT",
+      type: field.kind || "text",
+      value: field.value ?? "",
+      checked: field.checked ?? false,
+      name: field.name,
+      id: idFromSelector(selector, field.id),
+      ariaLabel: field.ariaLabel,
+      hidden: field.hidden === true,
+      disabled: field.disabled === true,
+      form: formNode(field.form),
+      selector,
+    }),
+  );
+
+  const controlNodes = page.controls.map((control) =>
+    domNode({
+      tagName: control.tag ? String(control.tag).toUpperCase() : "BUTTON",
+      type: control.kind,
+      textContent: control.text ?? "",
+      disabled: control.enabled === false,
+      visible: control.visible,
+      name: control.name,
+      id: idFromSelector(control.selector, control.id),
+      role: control.role,
+      form: formNode(control.form),
+      selector: control.selector,
+    }),
+  );
+
+  const labelNodes = Object.entries(page.fields)
+    .filter(([, field]) => typeof field.label === "string" && field.label !== "")
+    .map(([selector, field]) =>
+      domNode({
+        tagName: "LABEL",
+        textContent: field.label,
+        selector: null,
+        control: fieldNodes.find((node) => node.selector === selector) ?? null,
+      }),
+    );
+
+  const iframeNodes = page.frames.map((frame) =>
+    domNode({ tagName: "IFRAME", selector: null, src: frame.src }),
+  );
+
+  const all = [
+    ...fieldNodes,
+    ...controlNodes,
+    ...labelNodes,
+    ...anchors,
+    ...iframeNodes,
+    ...forms.values(),
+  ];
+
   return {
     title: page.title,
     readyState: page.readyState,
+    getElementById(id) {
+      return all.find((node) => node.id === id) ?? null;
+    },
     querySelector(selector) {
-      return (
-        fieldNodes.find((node) => node.selector === selector) ??
-        controlNodes.find((node) => node.selector === selector) ??
-        null
-      );
+      return this.querySelectorAll(selector)[0] ?? null;
     },
     querySelectorAll(selector) {
-      if (selector.startsWith("a[href]")) return anchors;
-      if (selector.startsWith("button")) {
-        return controlNodes.length > 0 ? controlNodes : repeat(page.counts.buttons);
-      }
-      if (selector.startsWith("form")) return repeat(page.counts.forms);
-      if (selector.startsWith("input")) {
-        return fieldNodes.length > 0 ? fieldNodes : repeat(page.counts.inputs);
-      }
-      if (selector.startsWith("iframe")) return repeat(page.counts.iframes);
-      const single = this.querySelector(selector);
-      return single ? [single] : [];
+      const parsed = parseSelector(selector);
+      const matched = all.filter((node) =>
+        parsed.some((part) => matchesSimpleSelector(node, part)),
+      );
+      if (matched.length > 0) return matched;
+      // Pages that declare only counts (the S3 capture corpus) still answer count queries.
+      const text = String(selector);
+      if (text.startsWith("a[href]")) return anchors;
+      if (text.startsWith("button")) return repeat(page.counts.buttons, "BUTTON");
+      if (text.startsWith("form")) return repeat(page.counts.forms, "FORM");
+      if (text.startsWith("input")) return repeat(page.counts.inputs, "INPUT");
+      if (text.startsWith("iframe")) return repeat(page.counts.iframes, "IFRAME");
+      return [];
     },
   };
 }
@@ -562,13 +740,13 @@ function assertNotForbidden(page) {
 }
 
 /** Where a `type` or `click` sends the tab, when the page model says it navigates. */
-function applyNavigation(page, tab) {
-  if (!page.changeNavigatesTo) {
+function applyNavigation(page, tab, target) {
+  if (!target) {
     return page.url;
   }
-  state.tabs[tab.id] = { url: page.changeNavigatesTo };
+  state.tabs[tab.id] = { url: target };
   saveState(state);
-  return page.changeNavigatesTo;
+  return target;
 }
 
 // ---------------------------------------------------------------- commands
@@ -638,14 +816,36 @@ switch (command) {
     const page = pageFor(tab.url, state);
     assertNotForbidden(page);
     const text = positionals()[0];
-    const selector = flag("--selector");
+    // `--into` is the upstream flag; `--selector` is accepted because the runtime's argv
+    // mapping used it before the submit gate taught the translation to emit `--into`.
+    const selector = flag("--into") ?? flag("--selector");
     if (text === undefined) fail("usage", "type requires text");
-    if (!selector) fail("usage", "type requires --selector in this fixture");
+    if (!selector) fail("usage", "type requires --into in this fixture");
     if (!page.fields[selector]) fail("no_element", `No element matches ${selector}`);
     writeFieldValue(state, page.url, selector, text);
     saveState(state);
-    const url = hasFlag("--submit") ? applyNavigation(page, tab) : page.url;
+    // A page whose change handler acts on its own: setting a value moves the tab, which is
+    // what `fill_side_effect_observed` exists for.
+    const url = applyNavigation(
+      page,
+      tab,
+      hasFlag("--submit") ? page.changeNavigatesTo : page.typeNavigatesTo,
+    );
     emit({ success: true, selector, value: text, url }, targetMeta(tab));
+    break;
+  }
+  case "select": {
+    const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
+    assertNotForbidden(page);
+    const [selector, ...values] = positionals();
+    if (!selector) fail("usage", "select requires a ref or selector");
+    if (values.length === 0) fail("usage", "select requires at least one value");
+    if (!page.fields[selector]) fail("no_element", `No element matches ${selector}`);
+    writeFieldValue(state, page.url, selector, values[0]);
+    saveState(state);
+    const url = applyNavigation(page, tab, page.typeNavigatesTo);
+    emit({ success: true, selector, value: values[0], url }, targetMeta(tab));
     break;
   }
   case "click": {
@@ -654,10 +854,25 @@ switch (command) {
     assertNotForbidden(page);
     const selector = flag("--selector") ?? positionals()[0];
     if (!selector) fail("usage", "click requires a ref or --selector");
+    const field = page.fields[selector];
+    if (field) {
+      // A click on the input control itself: how a checkbox or radio is set (packet D3).
+      const checked = !(field.checked ?? false);
+      writeFieldChecked(state, page.url, selector, checked);
+      saveState(state);
+      emit(
+        { success: true, selector, checked, url: applyNavigation(page, tab, page.typeNavigatesTo) },
+        targetMeta(tab),
+      );
+      break;
+    }
     const control = page.controls.find((entry) => entry.selector === selector);
     if (!control) fail("no_element", `No element matches ${selector}`);
     if (control.enabled === false) fail("element_disabled", `${selector} is disabled`);
-    emit({ success: true, selector, url: applyNavigation(page, tab) }, targetMeta(tab));
+    emit(
+      { success: true, selector, url: applyNavigation(page, tab, page.changeNavigatesTo) },
+      targetMeta(tab),
+    );
     break;
   }
   case "js": {

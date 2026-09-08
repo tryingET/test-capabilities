@@ -4,6 +4,7 @@ import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { JS_MUTATION_SIGNALS } = await importRuntimeModule("core/browser-session.js");
+const { SUBMIT_GATE_ERROR_CODES } = await importRuntimeModule("core/error-codes.js");
 
 function load(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -303,6 +304,15 @@ test("errors docs carry the error envelope, the code registry and the outcome cl
     "unclassified_error",
   ]) {
     assert.match(errorsDoc, new RegExp(`\`${code}\``), `errors.md does not document ${code}`);
+  }
+
+  // every submit-gate code the registry carries is documented as its own row (S7)
+  for (const code of SUBMIT_GATE_ERROR_CODES) {
+    assert.equal(
+      errorsDoc.includes(`| \`${code}\` |`),
+      true,
+      `errors.md does not document ${code} as a registered-code row`,
+    );
   }
 
   // the closed outcome class set with its basis vocabulary

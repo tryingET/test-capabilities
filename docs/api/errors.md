@@ -61,8 +61,8 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | Code | Raised when |
 |------|-------------|
 | `unsupported_command` | A registered but unimplemented CLI command (`predict`, `visualize`, `report`) was invoked |
-| `unsupported_surf_action` | A `surf` action other than `explore` was invoked, or the action was missing |
-| `unsupported_option` | An option outside the implemented set was passed to `test` or `surf explore` |
+| `unsupported_surf_action` | A `surf` action other than `explore`, `plan` or `apply` was invoked, or the action was missing |
+| `unsupported_option` | An option outside the implemented set was passed to `test` or `surf explore`, or an option belonging to another surf action was passed (`--field` to `explore`, `--depth` to `plan`) |
 | `unsupported_agent_type` | An enabled agent has a type the orchestrator contract does not implement |
 | `unsupported_intelligence` | An `intelligence.*` capability was enabled that is not wired to a runtime |
 | `unsupported_config_section` | A config section (today: `chaos`) was enabled without a runtime |
@@ -85,6 +85,22 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `owned_tab_required` | A target-affecting browser command was asked to run without a tab this run created |
 | `mutation_origin_not_allowed` | A mutating step whose subject is a web origin that `mutation.allowOrigins` does not name |
 | `mutation_receipts_ephemeral` | `receipts.dir` resolves inside a workspace that does not survive the run (`$TMPDIR`, a CI job workspace, a linked git worktree). Set `receipts.ephemeral: true` (or `TEST_CAPABILITIES_RECEIPTS_EPHEMERAL=1`) to accept that, or point `receipts.dir` somewhere durable |
+| `plan_field_not_found` | A `surf plan --field` locator matched no element on the gated page. No artifact is written |
+| `plan_field_ambiguous` | A `--field` locator matched more than one element, or no CSS selector resolves to exactly the element it found |
+| `value_via_button_refused` | A `--field` locator resolves to a button, a link or a submit input. A value is set only through the field's own input: this is the "Set bid" rule |
+| `plan_field_unreachable` | The field is not addressable from the top document and the page carries frames. Diagnose the frame boundary before planning against it |
+| `plan_stale` | The page no longer matches the plan's fingerprint (URL, form count, field identity or the buttons around them). Re-plan; nothing is healed |
+| `field_readback_mismatch` | The value read back out of the field is not the value the plan intended. The refusal names the field id and its selector, never the value |
+| `fill_side_effect_observed` | The page navigated, or the form vanished, while filling. A dry run that moved the page is a failed dry run, never a passed one |
+| `submit_origin_not_allowed` | The world: `mutation.allowOrigins` does not name the plan's origin. No flag and no environment variable adds one |
+| `submit_gate_closed` | The intent: `--submit` without `--confirm-plan`, or `--confirm-plan` without `--submit` |
+| `submit_plan_mismatch` | The intent: `--confirm-plan` does not equal the token recomputed from the plan file, or the file no longer hashes to its own `approval_token` (an edited plan) |
+| `submit_already_attempted` | At-most-once: a submit-mode receipt for this `plan_id` already exists, whatever its outcome. Fill-mode receipts never block a submit |
+| `plan_submit_ambiguous` | The plan recorded more than one submit candidate. Re-plan with `--submit-text` or `--submit-selector` |
+| `plan_submit_missing` | The plan recorded no submit control at all (often an SPA with no owning form). Re-plan with `--submit-selector` |
+| `submit_control_disabled` | The submit control was still `disabled` when `surf.submit.controlEnableTimeoutMs` ran out |
+| `submit_control_changed` | The submit control is no longer unique, or no longer inside the fields' owning form, after the fill |
+| `submit_postcondition_unmet` | The click was sent and the post-condition was never observed. `submitted: "unknown"`, the receipt is `unknown`, and the plan can never be submitted again |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

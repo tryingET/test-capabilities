@@ -7,6 +7,13 @@ import type { EffectDeclaration } from "../effects.js";
 import type { CoverageReport, TestResult } from "../orchestrator.js";
 import type { OutcomeBasis, OutcomeClass, ResultOutcome } from "../result-classification.js";
 import type { OperationEffectEnvelope, RunContext } from "../run-context.js";
+import type {
+  PlanFieldControl,
+  PlanFingerprint,
+  PlanForbiddenControl,
+  PlanRuntime,
+  PlanSubmit,
+} from "../surf-plan.js";
 
 export type OperationStatus = "implemented" | "unsupported";
 export type CliCommand =
@@ -21,13 +28,14 @@ export type CliCommand =
   | "replacement-validation"
   | "visualize"
   | "report";
-export type SurfAction = "explore" | "flow" | "assert" | "compare" | "replay";
+export type SurfAction = "explore" | "plan" | "apply" | "flow" | "assert" | "compare" | "replay";
 export type OperationId =
   | "test"
   | "doctor"
   | "demo"
   | "init"
   | "surf.explore"
+  | "surf.plan"
   | "quantum"
   | "heal"
   | "replacement-validation";
@@ -74,6 +82,17 @@ export interface SurfExploreOperationInput {
   baseline?: string;
   aiDiff?: boolean;
   file?: string;
+}
+
+/** `surf plan` (submit-gate packet §4.1). `--field` repeats; `--out` names the artifact. */
+export interface SurfPlanOperationInput {
+  url?: string;
+  field?: string[];
+  submitText?: string;
+  submitSelector?: string;
+  out?: string;
+  config?: string;
+  json?: boolean;
 }
 
 export interface QuantumOperationInput {
@@ -301,6 +320,44 @@ export interface SurfExploreOperationResultEnvelope extends OperationEffectEnvel
   };
 }
 
+export interface SurfPlanEnvelopeField {
+  id: string;
+  /** `<kind>:<value>` as the operator wrote it; the intended value stays in the 0600 artifact */
+  locator: string;
+  resolvedSelector: string;
+  control: PlanFieldControl;
+  setVia: "field_input";
+}
+
+export interface SurfPlanOperationResultEnvelope extends OperationEffectEnvelope {
+  operationId: "surf.plan";
+  input: Required<Pick<SurfPlanOperationInput, "url" | "out">> &
+    Omit<SurfPlanOperationInput, "url" | "out">;
+  plan: {
+    path: string;
+    planId: string;
+    /** the content hash `surf apply --submit --confirm-plan` must present */
+    approvalToken: string;
+    artifactKind: string;
+    schemaVersion: number;
+  };
+  result: {
+    target: {
+      url: string;
+      origin: string;
+      landedHref: string;
+      title: string;
+      readiness: { state: string; evidence: string[] };
+    };
+    runtime: PlanRuntime;
+    fields: SurfPlanEnvelopeField[];
+    submit: PlanSubmit;
+    forbiddenControls: PlanForbiddenControl[];
+    fingerprint: PlanFingerprint;
+  };
+  notes: string[];
+}
+
 export interface QuantumOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "quantum";
   input: Required<Pick<QuantumOperationInput, "target" | "branches" | "collapse">>;
@@ -355,6 +412,7 @@ export type CliOperationResult =
   | DemoOperationResultEnvelope
   | InitOperationResultEnvelope
   | SurfExploreOperationResultEnvelope
+  | SurfPlanOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope
   | ReplacementValidationOperationResultEnvelope;
@@ -365,6 +423,7 @@ export type CliOperationInputUnion =
   | DemoOperationInput
   | InitOperationInput
   | SurfExploreOperationInput
+  | SurfPlanOperationInput
   | QuantumOperationInput
   | HealOperationInput
   | ReplacementValidationOperationInput;
