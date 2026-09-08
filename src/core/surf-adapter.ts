@@ -168,6 +168,21 @@ function surfCommandResultFromRaw(
     };
   }
 
+  // Killed by a signal before it said anything: the exit code is absent, not zero, and the
+  // reply teaches nothing about the target. It must not be read as surf's own refusal, which
+  // is what `parseSurfErrorOutput` would make of an empty stderr (mutation-safety packet: a
+  // step whose process reports nothing is `unknown`, never `failed`).
+  if (raw.exitCode === null && raw.signal) {
+    return {
+      ...base,
+      ok: false,
+      failure: {
+        code: `signal_${raw.signal}`,
+        message: `${commandDisplay.join(" ")} was killed by ${raw.signal} before it reported a result`,
+      },
+    };
+  }
+
   if (raw.exitCode !== 0) {
     return {
       ...base,
@@ -182,10 +197,25 @@ function surfCommandResultFromRaw(
 export function runSurfCommand(
   resolution: SurfRuntimeResolution,
   argv: string[],
-  options: { timeoutMs?: number; env?: NodeJS.ProcessEnv; expect?: ExpectDeclaration } = {},
+  options: {
+    timeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
+    expect?: ExpectDeclaration;
+    /**
+     * The class of the step behind this command. A transport failure on a mutating step is
+     * `indeterminate`, never a target fault (architecture review A4); the session sets it, and
+     * the ledger reads the basis back to settle the attempt `unknown`.
+     */
+    effect?: "read_only" | "mutating";
+  } = {},
 ): SurfCommandResult {
   const invocation = surfInvocation(resolution, argv, options);
-  return surfCommandResultFromRaw(spawnStepSync(invocation), invocation, options.expect);
+  const raw = spawnStepSync(invocation);
+  return surfCommandResultFromRaw(
+    options.effect === undefined ? raw : { ...raw, effect: options.effect },
+    invocation,
+    options.expect,
+  );
 }
 
 /**

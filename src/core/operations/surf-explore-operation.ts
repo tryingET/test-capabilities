@@ -1,40 +1,41 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { EffectDeclaration } from "../effects.js";
+import type { BrowserStep, SessionReadiness, SessionReply } from "../browser-session.js";
+import type { EffectAttempt, EffectDeclaration } from "../effects.js";
 import type { ExpectDeclaration, ResultOutcome } from "../result-classification.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
-import { probeSurfRuntime, runSurfCommand } from "../surf-adapter.js";
+import { SessionReadinessRefusal } from "../surf-readiness.js";
+import { parseSurfJsonOutput, SurfCommandError, translateSurfArgs } from "../surf-runtime.js";
+import type { SurfSessionRuntime } from "../surf-session.js";
 import {
-  assertSurfExploreMechanisms,
-  isSurfReadinessErrorCode,
-  parseCreatedTabId,
-  parseSurfJsonOutput,
-  resolveSurfRuntimeResolution,
-  SurfCommandError,
-  type SurfCommandResult,
-  type SurfRuntimeProbe,
-  type SurfRuntimeResolution,
-  translateSurfArgs,
-} from "../surf-runtime.js";
+  resolveSurfSessionRuntime,
+  SURF_SESSION_READY_TIMEOUT_MS,
+  SurfSession,
+} from "../surf-session.js";
 import { assertSupportedSurfExploreOptions } from "./support.js";
 import type {
   OperationDefinition,
   SurfExploreOperationInput,
   SurfExploreOperationResultEnvelope,
-  SurfExplorePageReadiness,
   SurfExplorePageResult,
   SurfExploreProbeResult,
-  SurfExploreReadinessState,
 } from "./types.js";
 
 const DEFAULT_SURF_EXPLORE_DEPTH = 1;
 const MAX_SURF_EXPLORE_DEPTH = 3;
 const MAX_SURF_EXPLORE_PAGES = 10;
 const MAX_SURF_EXPLORE_LINKS_PER_PAGE = 5;
-const SURF_EXPLORE_READY_TIMEOUT_MS = 20_000;
-const SURF_EXPLORE_COMMAND_TIMEOUT_MS = 90_000;
+
+/**
+ * The read-only budget for the links probe. It is *ours*: `--retry 1` tells surf to make one
+ * attempt, so a second attempt is the ledger's decision, it appears in the ledger's attempt log,
+ * and the page's own evidence can revoke it (mutation-safety packet, "Read-only retry is bounded
+ * and declared").
+ */
+const SURF_EXPLORE_LINKS_ATTEMPTS = 2;
+const SURF_EXPLORE_UPSTREAM_RETRY = "1";
 
 export const SurfExploreOperationInputSchema = z
   .object({
@@ -63,11 +64,6 @@ type SurfExploreProbeKind = SurfExploreProbeResult["kind"];
 
 type SurfExploreEvidence = SurfExploreOperationResultEnvelope["result"]["evidence"];
 
-type SurfExploreRuntime = {
-  resolution: SurfRuntimeResolution;
-  probe: SurfRuntimeProbe;
-};
-
 type SurfExploreEvidenceMatch = {
   signal: string;
   record: Record<string, unknown>;
@@ -89,7 +85,7 @@ type ProbeExecution = {
 export function outcomeFromError(error: unknown): ResultOutcome | undefined {
   if (
     error instanceof SurfCommandError ||
-    error instanceof SurfExploreReadinessRefusal ||
+    error instanceof SessionReadinessRefusal ||
     error instanceof SurfExploreProbeRefusal
   ) {
     return error.outcome;
@@ -98,40 +94,6 @@ export function outcomeFromError(error: unknown): ResultOutcome | undefined {
 }
 
 const SURF_EXPLORE_PROBE_FIELD = "__testCapabilitiesSurfExploreProbe";
-
-/**
- * Only `ready` settles a page for probing.
- *
- * surf reports `empty` when a page rendered its own "no results" state, which it can only know
- * from an `--empty-text` marker the caller passed. This operation passes none, so an `empty`
- * here is surf saying "nothing was found" with nothing to check it against: an undeclared
- * emptiness, refused rather than probed (result-classification packet, refinement; plan S4).
- */
-const SETTLED_READINESS_STATES: readonly SurfExploreReadinessState[] = ["ready"];
-
-/**
- * A page that never reached a settled state. It carries surf's own readiness code
- * (`page_login`, `page_challenge`, ...) so the CLI envelope and the surf agent can tell a page
- * that refused the framework from a runtime that never ran (adjudication claim 45), and the
- * classified outcome when one exists.
- */
-export class SurfExploreReadinessRefusal extends FrameworkError {
-  readonly readiness: SurfExplorePageReadiness;
-  readonly outcome: ResultOutcome | undefined;
-
-  constructor(url: string, readiness: SurfExplorePageReadiness, outcome?: ResultOutcome) {
-    const evidence =
-      readiness.evidence.length > 0 ? ` Evidence: ${readiness.evidence.join("; ")}` : "";
-    super(
-      readiness.code ?? "page_not_ready",
-      `Surf explore refused ${url}: page readiness is '${readiness.state}' [${readiness.code ?? "page_not_ready"}]: ${readiness.message ?? "the page did not reach a settled state"}.${evidence}`,
-      { url, state: readiness.state, ...(readiness.href ? { href: readiness.href } : {}) },
-    );
-    this.name = "SurfExploreReadinessRefusal";
-    this.readiness = readiness;
-    this.outcome = outcome;
-  }
-}
 
 /**
  * The seed page produced no verified state probe. The refusal carries the probe's own code and
@@ -151,6 +113,24 @@ export class SurfExploreProbeRefusal extends FrameworkError {
     );
     this.name = "SurfExploreProbeRefusal";
     this.outcome = probe?.outcome;
+  }
+}
+
+/**
+ * Our own probe answered from a page we did not gate. That is the target moving under a
+ * read-only step: the session's `observe` hook turns it into `read_only_violation_observed`, so
+ * the remaining budget is forfeit and the *repeat* never happens (mutation-safety packet,
+ * "Revocation of read-only retry").
+ */
+class ProbeTargetMoved extends Error {
+  readonly href: string;
+
+  constructor(href: string, accepted: Set<string>) {
+    super(
+      `the probe answered from ${href}, outside the URL set this page was gated on (${[...accepted].join(", ")})`,
+    );
+    this.name = "ProbeTargetMoved";
+    this.href = href;
   }
 }
 
@@ -212,15 +192,30 @@ function errorCode(error: unknown): string | undefined {
 }
 
 // ============================================
-// RUNTIME
+// DECLARATIONS
 // ============================================
 
-function resolveExploreRuntime(): SurfExploreRuntime {
-  const resolution = resolveSurfRuntimeResolution();
-  const probe = probeSurfRuntime(resolution);
-  assertSurfExploreMechanisms(resolution, probe);
-  return { resolution, probe };
-}
+/**
+ * Explore opens a tab it owns, reads the page through `wait.ready`, `js` probes and `extract`,
+ * and closes the tab in `finally`. The tab lifecycle is a `browser_session` effect: it changes
+ * the browser the run brought with it, never the target.
+ */
+export const SURF_EXPLORE_OPERATION_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  scope: "browser_session",
+  reason: "opens a tab it owns, reads the page and closes the tab; no step changes the target",
+};
+
+/**
+ * `js` carries no class, so the probes declare one (mutation-safety packet, "Declaration
+ * points"). Every probe expression is built by {@link buildProbeExpression} out of reads -
+ * `location.href`, `document.title`, `document.readyState`, element counts, anchor hrefs - and
+ * the session checks the claim against the denylist before a process exists.
+ */
+const SURF_EXPLORE_PROBE_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  reason: "a page-side expression that reads location, title, readyState and element counts",
+};
 
 /**
  * The one emptiness this operation declares on its own authority: a page may legitimately have
@@ -233,166 +228,6 @@ const SURF_EXPLORE_LINKS_EMPTINESS: ExpectDeclaration = {
   output: "empty",
   declaredBy: "operation:surf.explore.links",
 };
-
-function runMapped(
-  runtime: SurfExploreRuntime,
-  command: string,
-  args: string[],
-  expect?: ExpectDeclaration,
-): SurfCommandResult {
-  return runSurfCommand(runtime.resolution, translateSurfArgs(command, args), {
-    timeoutMs: SURF_EXPLORE_COMMAND_TIMEOUT_MS,
-    ...(expect ? { expect } : {}),
-  });
-}
-
-function runMappedOrThrow(
-  runtime: SurfExploreRuntime,
-  command: string,
-  args: string[],
-  expect?: ExpectDeclaration,
-): SurfCommandResult {
-  const result = runMapped(runtime, command, args, expect);
-  if (!result.ok) {
-    throw new SurfCommandError(result);
-  }
-  return result;
-}
-
-function openOwnedTab(
-  runtime: SurfExploreRuntime,
-  url: string,
-): { tabId: number; result: SurfCommandResult } {
-  const result = runMappedOrThrow(runtime, "tab.new", [url]);
-  const tabId = parseCreatedTabId(result.stdout);
-  if (tabId === undefined) {
-    const preview = result.stdout.trim().slice(0, 200);
-    throw new Error(
-      `Surf explore could not open an owned tab for ${url}: 'surf tab.new' did not report a tab id (output: ${preview || "(empty)"}).`,
-    );
-  }
-  return { tabId, result };
-}
-
-function closeOwnedTab(runtime: SurfExploreRuntime, tabId: number): string | undefined {
-  const result = runMapped(runtime, "tab.close", [String(tabId)]);
-  if (result.ok) {
-    return undefined;
-  }
-  return `Surf explore could not close owned tab ${tabId}: ${result.failure?.message ?? "unknown failure"} [${result.failure?.code ?? "error"}]`;
-}
-
-// ============================================
-// READINESS GATE
-// ============================================
-
-function readinessStateFromCode(code: string, details: unknown): SurfExploreReadinessState {
-  if (isRecord(details) && typeof details.state === "string") {
-    const state = details.state as SurfExploreReadinessState;
-    if (["ready", "empty", "loading", "login", "challenge", "not-found", "error"].includes(state)) {
-      return state;
-    }
-  }
-  switch (code) {
-    case "page_login":
-      return "login";
-    case "page_challenge":
-      return "challenge";
-    case "page_not_found":
-      return "not-found";
-    case "page_error":
-      return "error";
-    case "page_timeout":
-      return "loading";
-    default:
-      return "unknown";
-  }
-}
-
-function stringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function optionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function readinessFromResult(data: unknown): SurfExplorePageReadiness | undefined {
-  if (!isRecord(data) || typeof data.state !== "string") {
-    return undefined;
-  }
-  return {
-    state: data.state as SurfExploreReadinessState,
-    href: optionalString(data.href),
-    title: optionalString(data.title),
-    readyState: optionalString(data.readyState),
-    polls: optionalNumber(data.polls),
-    waited: optionalNumber(data.waited),
-    evidence: stringList(data.evidence),
-  };
-}
-
-function gateReadiness(
-  runtime: SurfExploreRuntime,
-  tabId: number,
-  url: string,
-): { readiness: SurfExplorePageReadiness; result: SurfCommandResult } {
-  const result = runMapped(runtime, "wait.ready", [
-    "--tab-id",
-    String(tabId),
-    "--timeout",
-    String(SURF_EXPLORE_READY_TIMEOUT_MS),
-  ]);
-
-  if (!result.ok) {
-    const failure = result.failure ?? { code: "error", message: "wait.ready failed" };
-    if (isSurfReadinessErrorCode(failure.code)) {
-      const details = failure.details;
-      throw new SurfExploreReadinessRefusal(
-        url,
-        {
-          state: readinessStateFromCode(failure.code, details),
-          code: failure.code,
-          message: failure.message,
-          href: isRecord(details) ? optionalString(details.href) : undefined,
-          title: isRecord(details) ? optionalString(details.title) : undefined,
-          evidence: isRecord(details) ? stringList(details.evidence) : [],
-        },
-        result.outcome,
-      );
-    }
-    throw new SurfCommandError(result);
-  }
-
-  const readiness = readinessFromResult(parseSurfJsonOutput(result.stdout, "wait.ready").data);
-  if (!readiness) {
-    throw new Error(
-      `Surf explore could not read a typed readiness state from 'surf wait.ready --json' for ${url}; refusing to probe an unclassified page.`,
-    );
-  }
-  if (!SETTLED_READINESS_STATES.includes(readiness.state)) {
-    throw new SurfExploreReadinessRefusal(
-      url,
-      {
-        ...readiness,
-        code: "page_not_ready",
-        message:
-          readiness.state === "empty"
-            ? "wait.ready returned state 'empty' and this operation declared no empty marker, so the emptiness is undeclared and the page is not probed"
-            : `wait.ready returned state '${readiness.state}' instead of a settled page`,
-      },
-      result.outcome,
-    );
-  }
-
-  return { readiness, result };
-}
 
 // ============================================
 // PROBES
@@ -420,6 +255,8 @@ function buildProbeExpression(kind: SurfExploreProbeKind, probeId: string): stri
   return `(() => ({ ${browserState}, kind: 'state' }))()`;
 }
 
+const PROBE_URL_KEYS = ["href", "url", "currentUrl", "current_url", "location"];
+
 function hasAnyUrl(value: unknown, acceptedUrls: Set<string>): boolean {
   if (typeof value !== "string") {
     return false;
@@ -437,8 +274,7 @@ function objectContainsVerifiedBrowserEvidence(
     return undefined;
   }
 
-  const urlKeys = ["href", "url", "currentUrl", "current_url", "location"];
-  const matchedUrlKey = urlKeys.find((key) => hasAnyUrl(value[key], acceptedUrls));
+  const matchedUrlKey = PROBE_URL_KEYS.find((key) => hasAnyUrl(value[key], acceptedUrls));
   if (!matchedUrlKey) {
     return undefined;
   }
@@ -492,10 +328,62 @@ function findEvidence(
   return undefined;
 }
 
+/** The probe record this run minted, wherever it answered from. */
+function findProbeRecord(value: unknown, probeId: string): Record<string, unknown> | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = findProbeRecord(item, probeId);
+      if (nested) {
+        return nested;
+      }
+    }
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (value[SURF_EXPLORE_PROBE_FIELD] === probeId) {
+    return value;
+  }
+  for (const item of Object.values(value)) {
+    const nested = findProbeRecord(item, probeId);
+    if (nested) {
+      return nested;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Did our own probe answer from a page this run did not gate? A read-only step cannot prevent
+ * the navigation it observes, but it can refuse to spend a second attempt on a page that is no
+ * longer the one under test.
+ */
+function assertProbeStayedOnTarget(
+  value: unknown,
+  acceptedUrls: Set<string>,
+  probeId: string,
+): void {
+  const record = findProbeRecord(value, probeId);
+  if (!record) {
+    return;
+  }
+  for (const key of PROBE_URL_KEYS) {
+    const candidate = record[key];
+    if (typeof candidate !== "string") {
+      continue;
+    }
+    const normalized = normalizeUrl(candidate);
+    if (normalized !== undefined && !acceptedUrls.has(normalized)) {
+      throw new ProbeTargetMoved(normalized, acceptedUrls);
+    }
+  }
+}
+
 function assertProbeEvidence(
   value: unknown,
   stdout: string,
-  commandDisplay: string[],
+  commandDisplay: readonly string[],
   acceptedUrls: Set<string>,
   probeId: string,
 ): SurfExploreEvidenceMatch {
@@ -509,6 +397,8 @@ function assertProbeEvidence(
   if (evidence) {
     return evidence;
   }
+
+  assertProbeStayedOnTarget(value, acceptedUrls, probeId);
 
   throw new Error(
     `Surf explore produced no verified browser evidence from '${commandDisplay.join(" ")}'. Non-empty surf output is not enough to mark user-flow coverage; expected probe browser state containing ${[...acceptedUrls].join(" or ")}.`,
@@ -545,7 +435,7 @@ function extractLinks(rows: unknown[], pageUrl: string): string[] {
   return [...uniqueLinks].slice(0, MAX_SURF_EXPLORE_LINKS_PER_PAGE);
 }
 
-function acceptedProbeUrls(url: string, readiness: SurfExplorePageReadiness): Set<string> {
+function acceptedProbeUrls(url: string, readiness: SessionReadiness): Set<string> {
   const accepted = new Set<string>();
   const target = normalizeUrl(url);
   if (target) {
@@ -583,105 +473,117 @@ function failedProbe(
   };
 }
 
-function runJsProbe(
-  runtime: SurfExploreRuntime,
+/** The revocation seam: a probe that left the gated page forfeits its remaining budget. */
+function revokeOnMove(attempt: EffectAttempt<ProbeExecution>): string | undefined {
+  return attempt.error instanceof ProbeTargetMoved ? attempt.error.message : undefined;
+}
+
+function jsProbeStep(
   kind: "state" | "dom",
-  tabId: number,
   url: string,
   depth: number,
   acceptedUrls: Set<string>,
-): ProbeExecution {
+): BrowserStep<ProbeExecution> {
   const probeId = randomUUID();
-  const result = runMappedOrThrow(runtime, "js", [
-    buildProbeExpression(kind, probeId),
-    "--tab-id",
-    String(tabId),
-  ]);
-  const { data } = parseSurfJsonOutput(result.stdout, "js");
-  const match = assertProbeEvidence(
-    data,
-    result.stdout,
-    result.commandDisplay,
-    acceptedUrls,
-    probeId,
-  );
   return {
-    probe: { kind, url, depth, verified: true, signal: match.signal, outcome: result.outcome },
-    stdout: result.stdout,
-    stderr: result.stderr,
-    discoveredUrls: [],
+    id: `surf.explore.probe:${kind}`,
+    command: "js",
+    args: [buildProbeExpression(kind, probeId)],
+    intent: `read the ${kind} of ${url} without changing it`,
+    declare: SURF_EXPLORE_PROBE_EFFECT,
+    observe: revokeOnMove,
+    read: (reply: SessionReply): ProbeExecution => {
+      const { data } = parseSurfJsonOutput(reply.stdout, "js");
+      const match = assertProbeEvidence(data, reply.stdout, reply.display, acceptedUrls, probeId);
+      return {
+        probe: { kind, url, depth, verified: true, signal: match.signal, outcome: reply.outcome },
+        stdout: reply.stdout,
+        stderr: reply.stderr,
+        discoveredUrls: [],
+      };
+    },
   };
 }
 
-function runLinksProbe(
-  runtime: SurfExploreRuntime,
-  tabId: number,
+function linksProbeStep(
   url: string,
   depth: number,
   acceptedUrls: Set<string>,
-): ProbeExecution {
+): BrowserStep<ProbeExecution> {
   const probeId = randomUUID();
-  const result = runMappedOrThrow(
-    runtime,
-    "extract",
-    [
-      "--tab-id",
-      String(tabId),
+  return {
+    id: "surf.explore.probe:links",
+    command: "extract",
+    args: [
       "--code",
       buildProbeExpression("links", probeId),
       "--allow-empty",
+      "--retry",
+      SURF_EXPLORE_UPSTREAM_RETRY,
       "--ready-timeout",
-      String(SURF_EXPLORE_READY_TIMEOUT_MS),
+      String(SURF_SESSION_READY_TIMEOUT_MS),
     ],
-    SURF_EXPLORE_LINKS_EMPTINESS,
-  );
-  const { data } = parseSurfJsonOutput(result.stdout, "extract");
-  if (!isRecord(data)) {
-    throw new Error(
-      `Surf explore expected 'surf extract --json' to return an object with data/rows for ${url}.`,
-    );
-  }
+    intent: `read the same-origin links of ${url} without changing it`,
+    expect: SURF_EXPLORE_LINKS_EMPTINESS,
+    maxAttempts: SURF_EXPLORE_LINKS_ATTEMPTS,
+    observe: revokeOnMove,
+    read: (reply: SessionReply, attempt: number): ProbeExecution => {
+      const { data } = parseSurfJsonOutput(reply.stdout, "extract");
+      if (!isRecord(data)) {
+        throw new Error(
+          `Surf explore expected 'surf extract --json' to return an object with data/rows for ${url}.`,
+        );
+      }
 
-  const match = assertProbeEvidence(
-    data.data,
-    result.stdout,
-    result.commandDisplay,
-    acceptedUrls,
-    probeId,
-  );
-  const rows = Array.isArray(data.rows) ? data.rows : [];
-  const rowCount = typeof data.rowCount === "number" ? data.rowCount : rows.length;
-  const attempts = typeof data.attempts === "number" ? data.attempts : 1;
-  const discoveredUrls = extractLinks(rows, url);
+      const match = assertProbeEvidence(
+        data.data,
+        reply.stdout,
+        reply.display,
+        acceptedUrls,
+        probeId,
+      );
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      const rowCount = typeof data.rowCount === "number" ? data.rowCount : rows.length;
+      // `--retry 1` asks surf for one attempt, so the budget is the ledger's. An upstream
+      // attempt this run did not decide on is not an attempt it may report as its own.
+      const upstreamAttempts = typeof data.attempts === "number" ? data.attempts : 1;
+      if (upstreamAttempts !== 1) {
+        throw new Error(
+          `Surf explore asked 'surf extract' for one attempt (--retry ${SURF_EXPLORE_UPSTREAM_RETRY}) and it reported ${upstreamAttempts}; the read-only budget belongs to the ledger, so this probe is not verified.`,
+        );
+      }
 
-  return {
-    probe: {
-      kind: "links",
-      url,
-      depth,
-      verified: true,
-      signal: `${match.signal}; extract verified ${rowCount} same-origin link row(s) (zero rows accepted explicitly)`,
-      outcome: result.outcome,
+      return {
+        probe: {
+          kind: "links",
+          url,
+          depth,
+          verified: true,
+          signal: `${match.signal}; extract verified ${rowCount} same-origin link row(s) (zero rows accepted explicitly)`,
+          outcome: reply.outcome,
+        },
+        stdout: reply.stdout,
+        stderr: reply.stderr,
+        discoveredUrls: extractLinks(rows, url),
+        links: { rowCount, attempts: attempt },
+      };
     },
-    stdout: result.stdout,
-    stderr: result.stderr,
-    discoveredUrls,
-    links: { rowCount, attempts },
   };
 }
 
-function runProbe(
-  runtime: SurfExploreRuntime,
+async function runProbe(
+  session: SurfSession,
   kind: SurfExploreProbeKind,
-  tabId: number,
   url: string,
   depth: number,
   acceptedUrls: Set<string>,
-): ProbeExecution {
+): Promise<ProbeExecution> {
   try {
-    return kind === "links"
-      ? runLinksProbe(runtime, tabId, url, depth, acceptedUrls)
-      : runJsProbe(runtime, kind, tabId, url, depth, acceptedUrls);
+    return await session.step<ProbeExecution>(
+      kind === "links"
+        ? linksProbeStep(url, depth, acceptedUrls)
+        : jsProbeStep(kind, url, depth, acceptedUrls),
+    );
   } catch (error) {
     return failedProbe(kind, url, depth, error);
   }
@@ -700,7 +602,7 @@ function failedPage(
   depth: number,
   requestedDepth: number,
   error: unknown,
-  readiness?: SurfExplorePageReadiness,
+  readiness?: SessionReadiness,
   tabId?: number,
 ): SurfExplorePageResult {
   const message = errorMessage(error);
@@ -725,25 +627,42 @@ function failedPage(
   };
 }
 
-function explorePage(
-  runtime: SurfExploreRuntime,
+/**
+ * One page, one session: open a tab this run owns, gate it once, run the probe step list, let
+ * the registered observers read what the probes left, and close the tab in `finally` whatever
+ * happened.
+ *
+ * The tab is opened outside the try on purpose: a run that never got a tab has nothing to close
+ * and nothing to say about the page, and that refusal belongs to the caller.
+ */
+async function explorePage(
+  runtime: SurfSessionRuntime,
+  context: RunContext,
   url: string,
   depth: number,
   requestedDepth: number,
-): { page: SurfExplorePageResult; stdout: string[]; stderr: string[] } {
+  pageIndex: number,
+): Promise<{ page: SurfExplorePageResult; stdout: string[]; stderr: string[] }> {
   const stdout: string[] = [];
   const stderr: string[] = [];
-  const opened = openOwnedTab(runtime, url);
-  const tabId = opened.tabId;
-  if (opened.result.stdout) {
-    stdout.push(opened.result.stdout);
+  const session = new SurfSession({
+    context,
+    url,
+    runtime,
+    idPrefix: `surf.explore.page${pageIndex}`,
+  });
+
+  const opened = await session.open();
+  const tabId = opened.tab.id;
+  if (opened.reply.stdout) {
+    stdout.push(opened.reply.stdout);
   }
 
   let page: SurfExplorePageResult;
   try {
-    const gate = gateReadiness(runtime, tabId, url);
-    if (gate.result.stdout) {
-      stdout.push(gate.result.stdout);
+    const gate = await session.gate();
+    if (gate.reply.stdout) {
+      stdout.push(gate.reply.stdout);
     }
     const acceptedUrls = acceptedProbeUrls(url, gate.readiness);
     const probes: SurfExploreProbeResult[] = [];
@@ -751,7 +670,7 @@ function explorePage(
     let links: SurfExplorePageResult["links"];
 
     for (const kind of probeKindsFor(depth, requestedDepth)) {
-      const execution = runProbe(runtime, kind, tabId, url, depth, acceptedUrls);
+      const execution = await runProbe(session, kind, url, depth, acceptedUrls);
       probes.push(execution.probe);
       if (execution.stdout) {
         stdout.push(execution.stdout);
@@ -765,6 +684,8 @@ function explorePage(
       }
     }
 
+    await session.runObservers();
+
     page = {
       url,
       depth,
@@ -776,14 +697,12 @@ function explorePage(
       ...(links ? { links } : {}),
     };
   } catch (error) {
-    const readiness = error instanceof SurfExploreReadinessRefusal ? error.readiness : undefined;
+    const readiness = error instanceof SessionReadinessRefusal ? error.readiness : undefined;
     stderr.push(errorMessage(error));
     page = failedPage(url, depth, requestedDepth, error, readiness, tabId);
   } finally {
-    const closeNote = closeOwnedTab(runtime, tabId);
-    if (closeNote) {
-      stderr.push(closeNote);
-    }
+    await session.close();
+    stderr.push(...session.notes());
   }
 
   return { page, stdout, stderr };
@@ -843,7 +762,7 @@ async function runSurfExploreOperation(
     throw new Error("Surf explore target must be a valid URL.");
   }
 
-  const runtime = resolveExploreRuntime();
+  const runtime = resolveSurfSessionRuntime();
   const queue: Array<{ url: string; depth: number }> = [{ url: normalizedTargetUrl, depth: 1 }];
   const scheduled = new Set<string>([
     normalizeVisitKey(normalizedTargetUrl) ?? normalizedTargetUrl,
@@ -859,7 +778,14 @@ async function runSurfExploreOperation(
     }
 
     try {
-      const pageResult = explorePage(runtime, next.url, next.depth, requestedDepth);
+      const pageResult = await explorePage(
+        runtime,
+        context,
+        next.url,
+        next.depth,
+        requestedDepth,
+        pages.length + 1,
+      );
       pages.push(pageResult.page);
       stdout.push(...pageResult.stdout);
       stderr.push(...pageResult.stderr);
@@ -921,17 +847,6 @@ async function runSurfExploreOperation(
     SURF_EXPLORE_OPERATION_EFFECT,
   );
 }
-
-/**
- * Explore opens a tab it owns, reads the page through `wait.ready`, `js` probes and `extract`,
- * and closes the tab in `finally`. The tab lifecycle is a `browser_session` effect: it changes
- * the browser the run brought with it, never the target.
- */
-export const SURF_EXPLORE_OPERATION_EFFECT: EffectDeclaration = {
-  effect: "read_only",
-  scope: "browser_session",
-  reason: "opens a tab it owns, reads the page and closes the tab; no step changes the target",
-};
 
 export const SURF_EXPLORE_OPERATION = {
   id: "surf.explore",

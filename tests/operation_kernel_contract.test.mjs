@@ -596,6 +596,64 @@ test("executeSurfExploreOperation accepts zero extracted link rows explicitly", 
   }
 });
 
+test("a probe that answers from a page the gate never saw forfeits its retry budget", async () => {
+  // The page moves after wait.ready settled, so every probe answers from somewhere outside the
+  // URL set the page was gated on. Observation cannot prevent the first attempt; it prevents
+  // the repeat, and the links probe's second attempt is exactly that repeat.
+  const fake = createFakeSurf({
+    pages: surfPages({
+      "https://example.com/": {
+        title: "Home",
+        links: ["https://example.com/page-2"],
+        navigatesAfterGate: "https://elsewhere.example/landed",
+      },
+      "https://elsewhere.example/landed": { title: "Elsewhere", links: [] },
+    }),
+  });
+
+  try {
+    await withFakeSurfEnv(fake.path, async () => {
+      await assert.rejects(
+        async () => executeSurfExploreOperation({ url: "https://example.com/", depth: "2" }),
+        {
+          code: "read_only_violation_observed",
+          message: /moved the target: the probe answered from https:\/\/elsewhere\.example\/landed/,
+        },
+      );
+      // One extract call despite a budget of two: the observation revoked the remainder.
+      assert.equal(surfCommands(fake).filter((command) => command === "extract").length, 1);
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("an upstream retry the run did not ask for leaves the links probe unverified", async () => {
+  const fake = createFakeSurf({
+    pages: surfPages({
+      "https://example.com/": { title: "Home", links: [], extractAttempts: 3 },
+    }),
+  });
+
+  try {
+    await withFakeSurfEnv(fake.path, async () => {
+      const result = await executeSurfExploreOperation({
+        url: "https://example.com/",
+        depth: "2",
+      });
+
+      const linksProbe = result.result.pages[0].probes.find((probe) => probe.kind === "links");
+      assert.equal(linksProbe.verified, false);
+      assert.match(linksProbe.error, /asked 'surf extract' for one attempt \(--retry 1\)/);
+      assert.equal(result.result.coverage.status, "partial");
+      const extractCall = fake.calls().find((call) => call[0] === "extract");
+      assert.equal(extractCall[extractCall.indexOf("--retry") + 1], "1");
+    });
+  } finally {
+    fake.cleanup();
+  }
+});
+
 test("executeSurfExploreOperation reports partial graded coverage for refused deeper pages", async () => {
   const fake = createFakeSurf({
     pages: surfPages({

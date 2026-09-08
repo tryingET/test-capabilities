@@ -25,7 +25,10 @@
  *     fields: { "<selector>": { value, kind?, checked? } },  // state a step may write and read
  *     controls: [{ selector, kind?, enabled? }],             // what a click may target
  *     forbidden: ["click", ...],   // verbs this page refuses, so a test can prove none ran
- *     changeNavigatesTo: "<url>"   // where a type/click sends the tab (post-condition, drift)
+ *     changeNavigatesTo: "<url>",  // where a type/click sends the tab (post-condition, drift)
+ *     navigatesAfterGate: "<url>", // the page moves once wait.ready settled: a probe answering
+ *                                  // from somewhere the gate never saw
+ *     extractAttempts: <n>         // what extract claims in `attempts` (the caller asked for 1)
  *   }
  *
  * Configuration (environment):
@@ -37,6 +40,8 @@
  * - FAKE_SURF_EMPTY_ON    comma list of commands that exit 0 with no output
  * - FAKE_SURF_HANG_ON     comma list of commands that never answer, so the caller's own budget
  *                         kills them: exit code null plus a signal, which is the `unknown` shape
+ * - FAKE_SURF_SIGNAL_ON   comma list of commands that die on SIGTERM before answering: no exit
+ *                         code, a signal, and nothing said about the target
  * - FAKE_SURF_ZERO_ROWS_ON       comma list of commands whose extract payload has zero rows
  * - FAKE_SURF_BOOKKEEPING_ONLY_ON comma list of commands that answer with bookkeeping keys only
  * - FAKE_SURF_LOG         file that receives one JSON line per invocation (argv)
@@ -126,6 +131,7 @@ const command = argv[0];
 const explode = (process.env.FAKE_SURF_FAIL_ON || "").split(",").filter(Boolean);
 const silent = (process.env.FAKE_SURF_EMPTY_ON || "").split(",").filter(Boolean);
 const hang = (process.env.FAKE_SURF_HANG_ON || "").split(",").filter(Boolean);
+const signalled = (process.env.FAKE_SURF_SIGNAL_ON || "").split(",").filter(Boolean);
 const zeroRows = (process.env.FAKE_SURF_ZERO_ROWS_ON || "").split(",").filter(Boolean);
 const bookkeepingOnly = (process.env.FAKE_SURF_BOOKKEEPING_ONLY_ON || "")
   .split(",")
@@ -142,6 +148,12 @@ if (silent.includes(command)) {
 if (hang.includes(command)) {
   // The timer holds the event loop open; without it Node would exit 13 on the unsettled await.
   setInterval(() => undefined, 1_000);
+  await new Promise(() => undefined);
+}
+// Die on a signal before answering: exit code null plus a signal, and the caller's budget was
+// never the reason. A mutating step that ends here knows nothing about the target.
+if (signalled.includes(command)) {
+  process.kill(process.pid, "SIGTERM");
   await new Promise(() => undefined);
 }
 // Exit 0 with nothing but the transport's own bookkeeping keys: the HOSTERR shape.
@@ -343,6 +355,8 @@ function pageFor(url, state) {
     controls,
     forbidden: page.forbidden || [],
     changeNavigatesTo: page.changeNavigatesTo,
+    navigatesAfterGate: page.navigatesAfterGate,
+    extractAttempts: page.extractAttempts ?? 1,
     counts: {
       anchors: (page.links || []).length,
       buttons: controls.length > 0 ? controls.length : 1,
@@ -608,8 +622,15 @@ switch (command) {
   }
   case "wait.ready": {
     const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
     const accept = (flag("--accept") || "").split(",").filter(Boolean);
-    emit(readinessGate(pageFor(tab.url, state), tab, { accept }), targetMeta(tab));
+    emit(readinessGate(page, tab, { accept }), targetMeta(tab));
+    // The page moves once the gate settled: whatever reads it next answers from somewhere the
+    // gate never saw, which is the only signal a read-only step has that the target moved.
+    if (page.navigatesAfterGate) {
+      state.tabs[tab.id] = { url: page.navigatesAfterGate };
+      saveState(state);
+    }
     break;
   }
   case "type": {
@@ -732,7 +753,7 @@ switch (command) {
       rows,
       readiness,
       rowCount: Array.isArray(rows) ? rows.length : null,
-      attempts: 1,
+      attempts: page.extractAttempts,
       mode,
       url: url ?? null,
       ...(mode === "owned-tab" ? { tabId: hasFlag("--keep-tab") ? tab.id : null } : {}),

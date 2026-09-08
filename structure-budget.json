@@ -4,11 +4,12 @@
   "exceptions": {
     "src/core/orchestrator.ts": 1653,
     "src/core/surf-runtime.ts": 813,
-    "src/core/operations/surf-explore-operation.ts": 957,
+    "src/core/operations/surf-explore-operation.ts": 872,
     "src/healing/self-healing.ts": 1006
   },
   "allowed_cycles": [],
   "pure_ring": [
+    "src/core/browser-session.ts",
     "src/core/capability-matrix.ts",
     "src/core/config.ts",
     "src/core/determination.ts",
@@ -17,7 +18,8 @@
     "src/core/receipt-store.ts",
     "src/core/result-classification.ts",
     "src/core/result-payload.ts",
-    "src/core/runtime-contract.ts"
+    "src/core/runtime-contract.ts",
+    "src/core/surf-readiness.ts"
   ],
   "ledger": [
     {
@@ -103,6 +105,13 @@
       "to": 1006,
       "reason": "slice S5 commit (4): healing writes become conditional EffectSteps on the kernel ledger (mutation-safety packet, refinement 5 and 6). analyzeFile stamps the sha256 of the content a proposal was made against, applyProposals runs one step per file keyed sha256(file | before-hash | change) with that hash as the precondition re-read immediately before the rename, the after-hash read-back is the step's verify, a rename that threw settles `unknown` rather than `failed` (settleHealWrite), and the restore path becomes compensation steps that run only for a sibling whose own receipt says `applied`. Most of the growth is the compensate() method and the contract documentation of those rules. Scheduled shrink: the healer's strategy list and the write path split when heal becomes a step list over the session (post-S6).",
       "ref": "eaad04d"
+    },
+    {
+      "file": "src/core/operations/surf-explore-operation.ts",
+      "from": 957,
+      "to": 872,
+      "reason": "slice S6 commit (2): the scheduled shrink. explorePage becomes a step list over the kernel Session (architecture review A8, adjudication claim 22), so the runtime resolution, the owned-tab lifecycle, the readiness gate and surf's readiness vocabulary leave this file for src/core/surf-session.ts and src/core/surf-readiness.ts. What stays is what explore alone knows: the probe expressions, the evidence assertion, link extraction, coverage and the envelope. Still over the 700-line budget; the next shrink is the probe/coverage split once S8 adds frameRootCause to the probe shape.",
+      "ref": "b6bd872"
     }
   ]
 }
