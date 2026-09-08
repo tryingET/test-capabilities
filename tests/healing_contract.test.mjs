@@ -1001,3 +1001,236 @@ test("a legacy proposal artifact without a hash still applies, and its receipt s
   rmSync(dir, { recursive: true, force: true });
   rmSync(receipts, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// Slice S8: the frame determination decides what the healer may do.
+// ---------------------------------------------------------------------------
+
+const { framePermissionFor, frameDeterminationOfFinding } =
+  await importRuntimeModule("healing/self-healing.js");
+const { executeHealOperation } = await importRuntimeModule("core/operations/heal-operation.js");
+
+const FRAME_CANDIDATES = [
+  { domIndex: 0, origin: "https://embed.example", primaryTag: "out_of_process_frame" },
+  { domIndex: 1, origin: "https://ads.example", primaryTag: "out_of_process_frame" },
+];
+
+/** A finding the surf agent would raise, with the frame determination it carried. */
+function frameFinding(value, overrides = {}) {
+  return {
+    id: `finding-${value}`,
+    component: "web",
+    description: "login step could not reach its element",
+    evidence: [
+      `frame-root-cause: determination=${value} tag=none candidates=${FRAME_CANDIDATES.length} hint=none`,
+      "selector: old-login",
+    ],
+    outcome: { basis: "fault" },
+    frameRootCause: {
+      determination: { value, reason: `the ${value} case` },
+      primaryTag: null,
+      hint: null,
+      candidates: FRAME_CANDIDATES,
+      confirmedCandidate: null,
+      ...overrides,
+    },
+  };
+}
+
+function healingFile(dir) {
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('login', async () => { await page.getByTestId('old-login').click(); });\n",
+    "utf8",
+  );
+  return file;
+}
+
+test("the permission table maps every determination, and an absent one still heals", () => {
+  assert.equal(framePermissionFor(undefined), "heal");
+  assert.equal(framePermissionFor("excluded"), "heal");
+  assert.equal(framePermissionFor("suspected"), "caveat");
+  assert.equal(framePermissionFor("confirmed"), "refuse");
+  assert.equal(framePermissionFor("undetermined"), "refuse");
+  assert.equal(framePermissionFor("unavailable"), "refuse");
+});
+
+test("a confirmed frame boundary refuses the rewrite and records the frame.switch it needs", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-"));
+  try {
+    const file = healingFile(dir);
+    const healer = new TestFileHealer();
+    const finding = frameFinding("confirmed", {
+      primaryTag: "out_of_process_frame",
+      hint: "urlPrefix=https://embed.example/",
+      confirmedCandidate: {
+        domIndex: 0,
+        frameId: null,
+        origin: "https://embed.example",
+        tags: ["out_of_process_frame"],
+      },
+    });
+
+    const proposals = await healer.analyzeFile(file, [finding]);
+    assert.deepEqual(proposals, [], "a rewrite that is wrong by construction is not proposed");
+
+    const refusals = healer.frameRefusals();
+    assert.equal(refusals.length, 1);
+    assert.equal(refusals[0].code, "heal_frame_refused");
+    assert.equal(refusals[0].triggeringFindingId, "finding-confirmed");
+    assert.match(refusals[0].reason, /no CSS rewrite can succeed/);
+    assert.deepEqual(refusals[0].suggestion, {
+      kind: "frame.switch",
+      index: 0,
+      urlPrefix: "https://embed.example",
+      hops: 1,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a suspected frame boundary still proposes, with a caveat and forced review", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-suspect-"));
+  try {
+    const file = healingFile(dir);
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, [frameFinding("suspected")]);
+
+    assert.equal(proposals.length, 1, "a healer that goes silent on every embed gets turned off");
+    assert.equal(proposals[0].requiresReview, true);
+    assert.equal(proposals[0].frameCaveat.determination, "suspected");
+    assert.equal(proposals[0].frameCaveat.findingId, "finding-suspected");
+    assert.deepEqual(proposals[0].frameCaveat.candidates, FRAME_CANDIDATES);
+    assert.deepEqual(healer.frameRefusals(), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("undetermined and unavailable refuse with a reason and no suggestion to check", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-open-"));
+  try {
+    const file = healingFile(dir);
+    for (const value of ["undetermined", "unavailable"]) {
+      const healer = new TestFileHealer();
+      const proposals = await healer.analyzeFile(file, [frameFinding(value)]);
+      assert.deepEqual(proposals, [], value);
+      const refusals = healer.frameRefusals();
+      assert.equal(refusals.length, 1, value);
+      assert.equal(refusals[0].suggestion, undefined, "no candidate list, no suggestion");
+      assert.equal(refusals[0].code, "heal_frame_refused", value);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an excluded determination heals exactly as before", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-excluded-"));
+  try {
+    const file = healingFile(dir);
+    const healer = new TestFileHealer();
+    const proposals = await healer.analyzeFile(file, [frameFinding("excluded")]);
+
+    assert.equal(proposals.length, 1);
+    assert.equal(proposals[0].requiresReview, false);
+    assert.equal(proposals[0].frameCaveat, undefined);
+    assert.deepEqual(healer.frameRefusals(), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a finding written before the typed field still classifies from its marker line", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-legacy-"));
+  try {
+    const file = healingFile(dir);
+    const legacy = frameFinding("confirmed");
+    legacy.frameRootCause = undefined;
+
+    assert.equal(frameDeterminationOfFinding(legacy), "confirmed");
+    const healer = new TestFileHealer();
+    assert.deepEqual(await healer.analyzeFile(file, [legacy]), []);
+    assert.equal(healer.frameRefusals().length, 1);
+    // no typed field means no candidate list, so there is nothing to suggest
+    assert.equal(healer.frameRefusals()[0].suggestion, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("heal --apply refuses a caveated proposal; the same run's dry run reports it", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-apply-"));
+  const findingsPath = path.join(dir, "findings.json");
+  try {
+    const file = healingFile(dir);
+    writeFileSync(findingsPath, JSON.stringify([frameFinding("suspected")]), "utf8");
+
+    const dryRun = await executeHealOperation({
+      dir,
+      dryRun: true,
+      findingsInput: findingsPath,
+    });
+    assert.equal(dryRun.proposals.length, 1);
+    assert.equal(dryRun.proposals[0].requiresReview, true);
+    assert.deepEqual(dryRun.refusals, []);
+
+    await assert.rejects(
+      () =>
+        executeHealOperation({
+          dir,
+          dryRun: false,
+          findingsInput: findingsPath,
+          checkpointRef: "checkpoint/test-capabilities/frame-001",
+        }),
+      { code: "heal_frame_refused" },
+    );
+    // the file on disk was never touched
+    assert.match(readFileSync(file, "utf8"), /old-login/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a confirmed refusal reaches the envelope and the proposal artifact", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-heal-frame-artifact-"));
+  const findingsPath = path.join(dir, "findings.json");
+  const artifactPath = path.join(dir, "proposals.json");
+  try {
+    healingFile(dir);
+    writeFileSync(
+      findingsPath,
+      JSON.stringify([
+        frameFinding("confirmed", {
+          confirmedCandidate: {
+            domIndex: 2,
+            frameId: 17,
+            origin: "https://embed.example",
+            tags: ["nested_frame"],
+          },
+        }),
+      ]),
+      "utf8",
+    );
+
+    const envelope = await executeHealOperation({
+      dir,
+      dryRun: true,
+      findingsInput: findingsPath,
+      proposalOutput: artifactPath,
+    });
+
+    assert.deepEqual(envelope.proposals, []);
+    assert.equal(envelope.refusals.length, 1);
+    assert.equal(envelope.refusals[0].suggestion.hops, 2, "a nested frame is two switches");
+    assert.equal(envelope.refusals[0].suggestion.frameId, 17);
+
+    const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
+    assert.equal(artifact.summary.refusal_count, 1);
+    assert.equal(artifact.refusals[0].code, "heal_frame_refused");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -25,6 +25,7 @@ function finding({
   description,
   evidence,
   recommendation,
+  frameRootCause,
 }) {
   return {
     id,
@@ -35,6 +36,7 @@ function finding({
     evidence,
     recommendation,
     timestamp: observedAt,
+    ...(frameRootCause ? { frameRootCause } : {}),
   };
 }
 
@@ -276,6 +278,72 @@ function selectorDriftAgent(agent) {
           "css selector [data-testid='submit-order'] matched zero elements",
           "stale element reference at checkout submit",
         ],
+        findingIds: [id],
+      }),
+    ],
+    coverage: { userFlows: 0 },
+  });
+}
+
+/**
+ * A selector miss on a page whose frames were diagnosed (slice S8).
+ *
+ * Every case here writes the *same* failure text a selector drift writes: that is the point.
+ * A typo in a main-document selector and a target inside a frame are indistinguishable in
+ * prose, so the determination - and only the determination - decides the class.
+ */
+function frameDiagnosedAgent(agent, determination, { typed = true } = {}) {
+  const id = `${agent}-frame-${determination}`;
+  const marker = `frame-root-cause: determination=${determination} tag=${determination === "confirmed" ? "out_of_process_frame" : "none"} candidates=${determination === "excluded" ? 0 : 2} hint=${determination === "confirmed" ? "urlPrefix=https://embed.example/" : "none"}`;
+  const evidence = [
+    marker,
+    "css selector [data-testid='submit-order'] matched zero elements",
+    "surf explore could not reach the element on the checkout page",
+  ];
+  const frameRootCause = {
+    selector: "[data-testid='submit-order']",
+    determination: {
+      value: determination,
+      basis: "no_evidence",
+      candidates: [determination],
+      reason: `the ${determination} case`,
+    },
+    primaryTag: determination === "confirmed" ? "out_of_process_frame" : null,
+    confirmedCandidate: null,
+    hint: null,
+    candidates: [],
+    excludedHidden: [],
+    unmatchedCdpFrames: 0,
+    counts: null,
+    warnings: [],
+    mainPage: null,
+    source: { command: "frame.diagnose" },
+  };
+  return agentResult({
+    findings: [
+      finding({
+        id,
+        component: "web",
+        description:
+          "Surf explore could not reach [data-testid='submit-order'] on the checkout page",
+        evidence,
+        recommendation: "Resolve the frame boundary before rewriting the selector.",
+        severity: "high",
+        // A legacy finding carries the marker line only; the typed field is what a run written
+        // after slice S8 carries, and it is what the classifier reads first (review A20).
+        ...(typed ? { frameRootCause } : {}),
+      }),
+    ],
+    observations: [
+      observation({
+        id: `${agent}-frame-failed`,
+        agent,
+        kind: "runtime",
+        status: "failed",
+        subject: "web",
+        component: "web",
+        summary: "Surf explore could not reach the checkout submit selector.",
+        evidence,
         findingIds: [id],
       }),
     ],
@@ -1699,6 +1767,71 @@ const cases = [
     agents: {
       surfDomA: surfDomCoverageAgent("surfDomA"),
       surfDomB: surfDomCoverageAgent("surfDomB"),
+    },
+  },
+  {
+    name: "A confirmed frame determination classifies frame_boundary before any regex runs",
+    subject: "web",
+    failureClass: "frame_boundary",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      frameA: frameDiagnosedAgent("frameA", "confirmed"),
+      frameB: frameDiagnosedAgent("frameB", "confirmed"),
+    },
+  },
+  {
+    name: "A suspected frame determination is a coverage gap of the sensor, not a frame_boundary",
+    subject: "web",
+    failureClass: "browser_coverage_gap",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      frameA: frameDiagnosedAgent("frameA", "suspected"),
+      frameB: frameDiagnosedAgent("frameB", "suspected"),
+    },
+  },
+  {
+    name: "An unavailable diagnosis is a coverage gap, never left to the regex as selector drift",
+    subject: "web",
+    failureClass: "browser_coverage_gap",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      frameA: frameDiagnosedAgent("frameA", "unavailable"),
+      frameB: frameDiagnosedAgent("frameB", "unavailable"),
+    },
+  },
+  {
+    name: "An excluded determination falls through to the existing selector rules",
+    subject: "web",
+    failureClass: "selector_or_dom_drift",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      frameA: frameDiagnosedAgent("frameA", "excluded"),
+      frameB: frameDiagnosedAgent("frameB", "excluded"),
+    },
+  },
+  {
+    name: "A legacy finding carrying only the marker line classifies from it",
+    subject: "web",
+    failureClass: "frame_boundary",
+    level: "high",
+    signalCount: 2,
+    sensorCount: 2,
+    findingCount: 2,
+    agents: {
+      frameA: frameDiagnosedAgent("frameA", "confirmed", { typed: false }),
+      frameB: frameDiagnosedAgent("frameB", "confirmed", { typed: false }),
     },
   },
   {

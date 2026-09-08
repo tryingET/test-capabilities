@@ -1,5 +1,9 @@
 import type { ZodType, ZodTypeDef } from "zod";
-import type { HealingProposal, HealingProposalVerification } from "../../healing/self-healing.js";
+import type {
+  HealingProposal,
+  HealingProposalVerification,
+  HealingRefusal,
+} from "../../healing/self-healing.js";
 import type { QuantumResult } from "../../quantum/simulator.js";
 import type { ApplyFieldResult, ApplyMode } from "../browser-session.js";
 import type { TestCapabilitiesConfig } from "../config.js";
@@ -450,6 +454,12 @@ export interface HealOperationResultEnvelope extends OperationEffectEnvelope {
   input: Required<Pick<HealOperationInput, "dir" | "dryRun">> &
     Pick<HealOperationInput, "proposalOutput" | "verificationOutput" | "proposalInput">;
   proposals: HealingProposal[];
+  /**
+   * Selectors the healer declined to rewrite, with the reason and - for a confirmed frame
+   * boundary - the `frame.switch` the repair actually needs (slice S8). Review artifacts:
+   * `heal --apply` never consumes one.
+   */
+  refusals: HealingRefusal[];
   /** the number of proposals whose file the ledger settled as `applied` */
   appliedCount: number;
   receiptArtifact?: HealReceiptArtifactRef;

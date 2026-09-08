@@ -103,6 +103,95 @@ export interface HealingFinding {
    * (result-classification packet, refinement; plan S4).
    */
   outcome?: { basis: string };
+  /**
+   * Why an element this finding is about could not be reached (slice S8). The typed field is
+   * authoritative; the `frame-root-cause:` marker line in `evidence` is read only for a finding
+   * written before it existed (architecture review A20).
+   */
+  frameRootCause?: {
+    determination: { value: string; reason?: string };
+    primaryTag?: string | null;
+    hint?: string | null;
+    candidates?: Array<{
+      domIndex: number | null;
+      origin: string | null;
+      primaryTag: string | null;
+    }>;
+    confirmedCandidate?: {
+      domIndex: number | null;
+      frameId?: number | null;
+      origin: string | null;
+      tags?: string[];
+    } | null;
+  };
+}
+
+/**
+ * A selector the healer will not rewrite, and why.
+ *
+ * Refusals are review artifacts: they carry what a reviewer would have to do instead (for a
+ * `confirmed` frame boundary, the `frame.switch` the repair actually needs), and `heal --apply`
+ * never consumes one. A refusal is not a failure of the run - it is the healer saying that the
+ * information it has does not license the act.
+ */
+export interface HealingRefusal {
+  triggeringFindingId?: string;
+  selector: string;
+  reason: string;
+  code: string;
+  suggestion?: {
+    kind: "frame.switch";
+    index?: number;
+    frameId?: number;
+    urlPrefix: string;
+    hops: number;
+  };
+}
+
+/**
+ * The caveat a `suspected` frame determination puts on a proposal.
+ *
+ * The proposal still exists - a healer that goes silent on every page with a consent banner or
+ * an ad frame is a healer that gets turned off - but it carries `requiresReview: true` and this
+ * record of what the reviewer must check, and the apply path refuses it structurally rather
+ * than by prose (frame-root-cause packet, Clash 2).
+ */
+export interface HealingFrameCaveat {
+  determination: string;
+  findingId?: string;
+  reason: string;
+  candidates: Array<{ domIndex: number | null; origin: string | null; primaryTag: string | null }>;
+}
+
+/** What a determination permits the healer to do with a selector (packet, permission table). */
+export type FramePermission = "heal" | "caveat" | "refuse";
+
+export function framePermissionFor(determination: string | undefined): FramePermission {
+  switch (determination) {
+    case undefined:
+    case "excluded":
+      return "heal";
+    case "suspected":
+      return "caveat";
+    default:
+      // `confirmed` (the rewrite is wrong by construction), `undetermined` and `unavailable`
+      // (there is no candidate list to show a reviewer).
+      return "refuse";
+  }
+}
+
+/** The determination in force for a finding: typed field first, marker line for legacy input. */
+export function frameDeterminationOfFinding(finding: HealingFinding): string | undefined {
+  if (finding.frameRootCause) {
+    return finding.frameRootCause.determination.value;
+  }
+  for (const line of finding.evidence) {
+    const match = /^frame-root-cause:\s+determination=(\w+)\b/.exec(line.trim());
+    if (match) {
+      return match[1];
+    }
+  }
+  return undefined;
 }
 
 export interface HealingStrategy {
@@ -437,6 +526,7 @@ function findSelectorTokenColumn(line: string, selector: string): number {
 export class TestFileHealer {
   private engine: SelfHealingEngine;
   private readonly rootRealPath?: string;
+  private readonly refusals: HealingRefusal[] = [];
 
   constructor(options: { rootDir?: string } = {}) {
     this.engine = new SelfHealingEngine();
@@ -465,6 +555,16 @@ export class TestFileHealer {
     }
   }
 
+  /**
+   * The selectors this healer declined to rewrite, in the order it met them.
+   *
+   * They accumulate across `analyzeFile` calls, because one heal run scans many files and the
+   * artifact reports one list. `heal --apply` never consumes a refusal.
+   */
+  frameRefusals(): readonly HealingRefusal[] {
+    return [...this.refusals];
+  }
+
   async analyzeFile(filePath: string, findings?: HealingFinding[]): Promise<HealingProposal[]> {
     const content = await this.readFile(filePath);
     // The content this proposal was made against. It travels through the proposal artifact and
@@ -475,6 +575,7 @@ export class TestFileHealer {
 
     // Build a set of selectors mentioned in finding evidence when findings are provided.
     const evidenceSelectors = findings ? extractSelectorsFromEvidence(findings) : undefined;
+    const findingsById = new Map((findings ?? []).map((finding) => [finding.id, finding]));
 
     for (const candidate of extractSelectorCandidates(content)) {
       const isValid = await this.validateSelector(candidate.selector);
@@ -487,6 +588,24 @@ export class TestFileHealer {
         : true;
 
       if (!isValid && (!evidenceSelectors || isTargetedByEvidence)) {
+        // Cite the triggering finding when evidence-backed mode is active.
+        const triggeringFindingId =
+          evidenceSelectors && findings
+            ? findTriggeringFindingId(candidate.selector, evidenceSelectors)
+            : undefined;
+        const triggering = triggeringFindingId ? findingsById.get(triggeringFindingId) : undefined;
+        const determination = triggering ? frameDeterminationOfFinding(triggering) : undefined;
+        const permission = framePermissionFor(determination);
+
+        // Refuse before the strategies run: a rewrite the determination does not license is
+        // not a proposal a reviewer should have to reject.
+        if (permission === "refuse") {
+          this.refusals.push(
+            frameRefusalFor(candidate.selector, triggering, determination as string),
+          );
+          continue;
+        }
+
         const healingResult = await this.engine.heal({
           originalSelector: candidate.selector,
           action: this.inferAction(content, candidate.index),
@@ -494,12 +613,8 @@ export class TestFileHealer {
         });
 
         if (healingResult.success && healingResult.newSelector) {
-          // Cite the triggering finding when evidence-backed mode is active.
-          const triggeringFindingId =
-            evidenceSelectors && findings
-              ? findTriggeringFindingId(candidate.selector, evidenceSelectors)
-              : undefined;
-
+          const frameCaveat =
+            permission === "caveat" ? frameCaveatFor(triggering as HealingFinding) : undefined;
           proposals.push({
             file: filePath,
             fileSha256,
@@ -509,8 +624,12 @@ export class TestFileHealer {
             newSelector: healingResult.newSelector,
             confidence: healingResult.confidence,
             strategy: healingResult.strategy,
-            requiresReview: Boolean(healingResult.metadata?.requiresReview),
+            // A frame-suspected page never heals without a human. That is the price the
+            // refinement accepted so that a healer does not go silent on every page with an
+            // embed, and the review gate - not prose - is what enforces it.
+            requiresReview: Boolean(healingResult.metadata?.requiresReview) || Boolean(frameCaveat),
             ...(triggeringFindingId ? { triggeringFindingId } : {}),
+            ...(frameCaveat ? { frameCaveat } : {}),
           });
         }
       }
@@ -901,6 +1020,12 @@ export interface HealingProposal {
    * the proposal. Absent when heal runs from pure file scanning.
    */
   triggeringFindingId?: string;
+  /**
+   * A frame boundary may explain the failure this proposal answers, and nothing links the
+   * failing selector to a frame. The proposal is kept so the reviewer sees it, `requiresReview`
+   * is forced, and `heal --apply` refuses it (slice S8).
+   */
+  frameCaveat?: HealingFrameCaveat;
 }
 
 export interface HealingProposalVerificationFailure {
@@ -945,6 +1070,67 @@ function selectorAliases(selector: string): string[] {
  * information the run does not have. An unclassified finding is legacy input and is accepted, so
  * receipts written before S4 still heal.
  */
+
+function frameCandidatesOf(finding: HealingFinding | undefined) {
+  return (finding?.frameRootCause?.candidates ?? []).map((candidate) => ({
+    domIndex: candidate.domIndex,
+    origin: candidate.origin,
+    primaryTag: candidate.primaryTag,
+  }));
+}
+
+/**
+ * What a reviewer would have to do instead of a rewrite.
+ *
+ * The `frame.switch` suggestion is offered only for `confirmed`, because that is the only
+ * determination that names a frame. Extension frame ids are per load, so the suggestion always
+ * carries the origin as well and a consumer must re-diagnose before switching.
+ */
+function frameRefusalFor(
+  selector: string,
+  finding: HealingFinding | undefined,
+  determination: string,
+): HealingRefusal {
+  const confirmed = finding?.frameRootCause?.confirmedCandidate ?? undefined;
+  const reason =
+    determination === "confirmed"
+      ? `the target of '${selector}' is inside a frame a main-document selector cannot reach, so no CSS rewrite can succeed: the repair is a structural change to the step, not a substitution`
+      : determination === "unavailable"
+        ? `the frame diagnosis for '${selector}' was not taken, so nothing is known about whether a frame explains the failure`
+        : `the frame diagnosis for '${selector}' could not be resolved (${finding?.frameRootCause?.determination.reason ?? "the inventory or the hint did not resolve"}), so there is no candidate list a reviewer could check`;
+  return {
+    ...(finding?.id ? { triggeringFindingId: finding.id } : {}),
+    selector,
+    reason,
+    code: "heal_frame_refused",
+    ...(confirmed
+      ? {
+          suggestion: {
+            kind: "frame.switch" as const,
+            ...(confirmed.domIndex === null ? {} : { index: confirmed.domIndex }),
+            ...(confirmed.frameId === null || confirmed.frameId === undefined
+              ? {}
+              : { frameId: confirmed.frameId }),
+            urlPrefix: confirmed.origin ?? "",
+            hops: (confirmed.tags ?? []).includes("nested_frame") ? 2 : 1,
+          },
+        }
+      : {}),
+  };
+}
+
+/** The caveat a `suspected` determination attaches; the reviewer's checklist. */
+function frameCaveatFor(finding: HealingFinding): HealingFrameCaveat {
+  return {
+    determination: "suspected",
+    ...(finding.id ? { findingId: finding.id } : {}),
+    reason:
+      finding.frameRootCause?.determination.reason ??
+      "a frame boundary may explain this failure and nothing links the failing selector to a frame",
+    candidates: frameCandidatesOf(finding),
+  };
+}
+
 function isHealableFinding(finding: HealingFinding): boolean {
   return finding.outcome === undefined || finding.outcome.basis === "fault";
 }

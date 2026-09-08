@@ -155,8 +155,55 @@ interface HealingProposal {
   strategy: string;
   requiresReview: boolean;
   triggeringFindingId?: string;
+  frameCaveat?: {          // a frame boundary may explain the failure (slice S8)
+    determination: 'suspected';
+    findingId?: string;
+    reason: string;
+    candidates: Array<{ domIndex: number | null; origin: string | null; primaryTag: string | null }>;
+  };
 }
 ```
+
+### Frame determinations: refuse, caveat, heal
+
+A finding from a browser step carries `frameRootCause` when the run diagnosed why an element
+could not be reached (`docs/api/api-surf.md`). The healer reads that typed determination - the
+`frame-root-cause:` marker line in `evidence` is read only for a finding written before the
+field existed - and derives what it may do:
+
+| determination | what the healer does |
+|---|---|
+| `excluded`, or no determination at all | proposes as before |
+| `suspected` | proposes, with `requiresReview: true` forced and a typed `frameCaveat` naming the candidate frames a reviewer must check. `heal --apply` refuses it |
+| `confirmed` | no proposal. A `HealingRefusal` records the selector, the reason and the `frame.switch` the repair actually needs (`index`/`frameId`, `urlPrefix`, `hops`) |
+| `undetermined`, `unavailable` | no proposal. A `HealingRefusal` records the reason and no suggestion: there is no candidate list a reviewer could check |
+
+The asymmetry is deliberate. A rewrite aimed at a target inside a frame is wrong by
+construction - the healer has no live check that would catch a lookalike element in the main
+document going green - so a `confirmed` boundary refuses outright. But most real pages carry at
+least one third-party frame, and a healer that goes silent on every page with a consent banner
+or an ad frame gets turned off; so a `suspected` boundary keeps the proposal and removes it from
+the apply path instead. What that costs is real and is not hidden: **a frame-suspected page
+never heals without a human review**, and no v1 mechanism lifts that without an in-frame probe.
+
+```typescript
+const proposals = await healer.analyzeFile(file, findings);
+const refusals = healer.frameRefusals();   // review artifacts; apply never consumes one
+```
+
+```typescript
+interface HealingRefusal {
+  triggeringFindingId?: string;
+  selector: string;
+  reason: string;
+  code: 'heal_frame_refused';
+  suggestion?: { kind: 'frame.switch'; index?: number; frameId?: number; urlPrefix: string; hops: number };
+}
+```
+
+Extension frame ids are per page load, so a suggestion always carries the origin as well and a
+consumer must re-diagnose before switching. `heal --json` reports `refusals[]` next to
+`proposals[]`, and a dry-run proposal artifact carries both plus `summary.refusal_count`.
 
 ### `applyProposal(proposal)`
 

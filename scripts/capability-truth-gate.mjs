@@ -189,6 +189,17 @@ function assertVisionCurrentRuntimeAlignment() {
   );
 }
 
+/**
+ * The prose a fail-closed framework may not write about a cause.
+ *
+ * Exported so the guard fixture in `tests/capability_truth_gate_contract.test.mjs` runs the
+ * *same* pattern the gate runs (architecture review A15): the S8 frame work adds a class named
+ * `frame_boundary` and a determination named `confirmed`, and a sentence like "the frame
+ * boundary is the likely cause" would be exactly the overclaim this pattern exists to catch.
+ */
+export const CAUSALITY_OVERCLAIM_PATTERN =
+  /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:e|es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i;
+
 function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, passport }) {
   const surfaces = {
     "README.md": readme,
@@ -197,12 +208,16 @@ function assertCurrentSurfaceAvoidsCausalityOverclaim({ readme, productPosture, 
     "docs/api/config.md": readText("docs/api/config.md"),
     "docs/api/types.md": readText("docs/api/types.md"),
     "src/core/orchestrator.ts": readText("src/core/orchestrator.ts"),
+    "src/core/frame-root-cause.ts": readText("src/core/frame-root-cause.ts"),
+    "src/core/frame-topology.ts": readText("src/core/frame-topology.ts"),
+    "docs/api/api-surf.md": readText("docs/api/api-surf.md"),
+    "docs/api/api-healing.md": readText("docs/api/api-healing.md"),
     "governance/capability-passport.json": JSON.stringify(passport),
   };
   for (const [surface, text] of Object.entries(surfaces)) {
     assert.doesNotMatch(
       text,
-      /likely caused|plausible causal link|plausible causal mechanism|\bcascad(?:e|es|ed|ing)\s+(?:to|into)\b|\brepair\b.{0,40}\bfirst\b/i,
+      CAUSALITY_OVERCLAIM_PATTERN,
       `${surface} should describe propagation as non-authoritative linkage, not causal proof`,
     );
   }
@@ -242,7 +257,7 @@ function assertRootCauseCorpusExecutes() {
   assert.equal(payload.failed, 0, "root-cause corpus should have zero failed cases");
   // Exact corpus counts are intentional truth locks, not inferred floors: fixture changes must
   // update this gate and the corpus contract test together.
-  assert.equal(payload.total, 92, "root-cause corpus should include the current fixture set");
+  assert.equal(payload.total, 97, "root-cause corpus should include the current fixture set");
   assert.equal(
     payload.coverage?.expectedClasses?.auth_or_permission,
     2,

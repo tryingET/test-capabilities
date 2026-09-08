@@ -2,10 +2,10 @@
   "schema_version": 1,
   "default_max_lines": 700,
   "exceptions": {
-    "src/core/orchestrator.ts": 1653,
+    "src/core/orchestrator.ts": 1721,
     "src/core/surf-runtime.ts": 845,
     "src/core/operations/surf-explore-operation.ts": 976,
-    "src/healing/self-healing.ts": 1006
+    "src/healing/self-healing.ts": 1192
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -142,6 +142,20 @@
       "to": 976,
       "reason": "slice S8 commit (2): --ready-selector puts a selector into the readiness gate, which is the run's first way to fail to reach an element, and --frame-hint is the only v1 route to a confirmed frame determination. What lands here is the option pair (schema, the refusal of a hint with no selector to fail on), the call into Session.explainUnreachable while the tab is still open, and probes[].frameRootCause on the failed page; the step list, the classifier and the error carrier live in src/core/frame-diagnosis.ts and src/core/frame-root-cause.ts. Scheduled shrink: the probe/coverage split named in the S6 entry, now that the probe shape carries frameRootCause.",
       "ref": "1fee383"
+    },
+    {
+      "file": "src/core/orchestrator.ts",
+      "from": 1653,
+      "to": 1721,
+      "reason": "slice S8 commit (3): Finding.frameRootCause as the authoritative typed field (architecture review A20), the frame_boundary root-cause class with the fault-tree reason it is its own class rather than a flavour of selector_or_dom_drift, and the structural read in inferRootCauseClass that runs before any regex - a confirmed determination is frame_boundary, anything short of exclusion is browser_coverage_gap, and excluded falls through to the existing rules. The classifier and the marker reader live in src/core/frame-root-cause.ts. Scheduled shrink: correlation, root cause and propagation move to a diagnosis consumer (architecture adjudication Part 4).",
+      "ref": "c7520c9"
+    },
+    {
+      "file": "src/healing/self-healing.ts",
+      "from": 1006,
+      "to": 1192,
+      "reason": "slice S8 commit (3): the healer's three-way frame rule (frame-root-cause packet, permission table and Clash 2). HealingFinding carries the typed determination, framePermissionFor maps it to heal / caveat / refuse, a refused selector produces a HealingRefusal with the frame.switch a confirmed boundary actually needs instead of a proposal, and a suspected one produces a proposal with a typed frameCaveat and forced requiresReview that the apply path refuses structurally. Most of the growth is the refusal and caveat vocabulary and the contract documentation of the rule. Scheduled shrink: the healer's strategy list and the write path split when heal becomes a step list over the session (post-S6).",
+      "ref": "c7520c9"
     }
   ]
 }

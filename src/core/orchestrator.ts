@@ -17,6 +17,8 @@ import { TestCapabilitiesConfigSchema } from "./config.js";
 import type { Determination } from "./determination.js";
 import { determineRun, outcomeEvidenceLines, worstOutcome } from "./determination.js";
 import { worstEffect } from "./effects.js";
+import type { FrameDeterminationValue, FrameRootCause } from "./frame-root-cause.js";
+import { frameDeterminationFromEvidence } from "./frame-root-cause.js";
 import { AGENT_EFFECTS } from "./operations/test/agent-findings.js";
 import type { AgentResult, TestAgent } from "./operations/test/agents.js";
 import {
@@ -53,6 +55,13 @@ export interface Finding {
    * only `fault` says the target is broken.
    */
   outcome?: ResultOutcome;
+  /**
+   * Why an element this finding is about could not be reached (slice S8; architecture review
+   * A20). This typed field is authoritative: `inferRootCauseClass` and the healer read
+   * `frameRootCause.determination.value` and fall back to the `frame-root-cause:` marker line
+   * in `evidence` only for a finding written before the field existed.
+   */
+  frameRootCause?: FrameRootCause;
 }
 
 export type ObservationProtocol = "observation.v1";
@@ -74,6 +83,15 @@ export const ROOT_CAUSE_FAILURE_CLASSES = [
   "component_failure_surface",
   "configuration_error",
   "contract_mismatch",
+  /**
+   * The step aimed a main-document selector at a target inside a frame. It is a test-defect
+   * locus - the repair is a structural change to the step (`frame.switch` before the query),
+   * not a selector substitution and not a change in the system under test - which is why it is
+   * its own class rather than a flavour of `selector_or_dom_drift`. It is asserted only for a
+   * `confirmed` frame determination; anything short of exclusion is a coverage gap of the
+   * sensor, and a sensor limit is never filed as a fault of the target.
+   */
+  "frame_boundary",
   "network_connectivity",
   "property_violation",
   "resource_exhaustion",
@@ -936,10 +954,60 @@ function rootCauseCorpus(observations: Observation[], findings: Finding[]): stri
     .toLowerCase();
 }
 
+/**
+ * The frame determination in force for this evidence, worst claim first.
+ *
+ * The typed field is authoritative; the marker line is read only for a finding written before
+ * it existed (architecture review A20). A `confirmed` finding outranks the rest because it is
+ * the only one that names a cause; between the others, any determination short of exclusion is
+ * enough to keep the failure out of the regex.
+ */
+function frameDeterminationOf(
+  observations: Observation[],
+  findings: Finding[],
+): FrameDeterminationValue | undefined {
+  const values = [
+    ...findings.map(
+      (finding) =>
+        finding.frameRootCause?.determination.value ??
+        frameDeterminationFromEvidence(finding.evidence),
+    ),
+    // A sensor's own observation of the same failure carries the marker line and nothing else,
+    // so it is read the same way. Without this the finding and its observation would classify
+    // differently and the synthesis would suppress itself as ambiguous.
+    ...observations.map((observation) => frameDeterminationFromEvidence(observation.evidence)),
+  ];
+  for (const value of [
+    "confirmed",
+    "undetermined",
+    "unavailable",
+    "suspected",
+    "excluded",
+  ] as const) {
+    if (values.includes(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function inferRootCauseClass(
   observations: Observation[],
   findings: Finding[],
 ): RootCauseFailureClass {
+  // Structurally, before any regex: a frame determination is a fact the run recorded, and the
+  // regex corpus would read the same failure text as selector drift (frame-root-cause packet,
+  // "Consumer permissions per determination").
+  const frame = frameDeterminationOf(observations, findings);
+  if (frame === "confirmed") {
+    return "frame_boundary";
+  }
+  if (frame === "suspected" || frame === "undetermined" || frame === "unavailable") {
+    // A limit of the sensor is not a fault of the system under test (School 4). The diagnosis
+    // travels on the finding either way, so a reader can disagree with the label.
+    return "browser_coverage_gap";
+  }
+
   const corpus = rootCauseCorpus(observations, findings);
   const hasCliContext =
     observations.some(

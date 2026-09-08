@@ -251,7 +251,7 @@ test("root-cause corpus dogfoods calibrated diagnosis invariants", { timeout: 20
     result.stdout,
     /\[pass\] Three-way simultaneous Surf, CLI, and API failures emit three component-scoped root_causes/,
   );
-  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(92 cases\)/);
+  assert.match(result.stdout, /\[pass\] root-cause corpus complete \(97 cases\)/);
   // Propagation synthesis assertions
   assert.match(result.stdout, /\[pass\] Single root_cause does not emit propagation/);
   assert.match(
@@ -330,12 +330,12 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.ok, true);
   // Exact corpus counts are intentional truth locks: fixture changes must update both
   // machine-readable coverage expectations and named guardrail assertions.
-  assert.equal(payload.total, 92);
+  assert.equal(payload.total, 97);
   assert.equal(payload.failed, 0);
-  assert.equal(payload.coverage.total, 92);
+  assert.equal(payload.coverage.total, 97);
   assert.equal(payload.coverage.noRootCauseCases, 19);
-  assert.equal(payload.coverage.positiveRootCauseCases, 73);
-  assert.equal(payload.coverage.highCalibrationRootCauseCases, 73);
+  assert.equal(payload.coverage.positiveRootCauseCases, 78);
+  assert.equal(payload.coverage.highCalibrationRootCauseCases, 78);
   assert.equal(payload.coverage.expectedClasses.none, 19);
   assert.equal(payload.coverage.expectedClasses.auth_or_permission, 2);
   assert.equal(payload.coverage.expectedClasses.command_resolution, 15);
@@ -345,12 +345,15 @@ test("root-cause corpus emits machine-readable dogfood results", { timeout: 2000
   assert.equal(payload.coverage.expectedClasses.resource_exhaustion, 6);
   assert.equal(payload.coverage.expectedClasses.configuration_error, 7);
   assert.equal(payload.coverage.expectedClasses.component_failure_surface, 19);
-  assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 5);
-  assert.equal(payload.coverage.expectedClasses.selector_or_dom_drift, 3);
+  assert.equal(payload.coverage.expectedClasses.browser_coverage_gap, 7);
+  // Slice S8: `frame_boundary` is asserted only for a confirmed determination, and every
+  // determination short of exclusion is a coverage gap of the sensor.
+  assert.equal(payload.coverage.expectedClasses.frame_boundary, 2);
+  assert.equal(payload.coverage.expectedClasses.selector_or_dom_drift, 4);
   assert.equal(payload.coverage.expectedClasses.property_violation, 6);
   assert.equal(payload.coverage.subjects.api, 55);
   assert.equal(payload.coverage.subjects.cli, 25);
-  assert.equal(payload.coverage.subjects.web, 32);
+  assert.equal(payload.coverage.subjects.web, 37);
   assert.equal(payload.coverage.positivePropagationCases, 7);
   assert.equal(payload.coverage.noPropagationGuardrailCases, 10);
   assert.deepEqual(payload.coverage.propagationSubjects, {

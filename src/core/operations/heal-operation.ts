@@ -6,6 +6,7 @@ import type {
   HealingFinding,
   HealingProposal,
   HealingProposalVerification,
+  HealingRefusal,
 } from "../../healing/self-healing.js";
 import { TestFileHealer } from "../../healing/self-healing.js";
 import { writeJsonArtifact } from "../artifacts.js";
@@ -13,6 +14,7 @@ import type { EffectDeclaration } from "../effects.js";
 import type { MutationReceipt } from "../receipt-store.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
+import { FrameworkError } from "../runtime-contract.js";
 import type {
   HealOperationInput,
   HealOperationResultEnvelope,
@@ -81,6 +83,12 @@ const HealingFindingSchema = z
       .object({ basis: z.string().min(1) })
       .passthrough()
       .optional(),
+    // Carried through from `test --json` so the healer reads the typed determination rather
+    // than the rendered `frame-root-cause:` evidence line (slice S8; architecture review A20).
+    frameRootCause: z
+      .object({ determination: z.object({ value: z.string().min(1) }).passthrough() })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -94,6 +102,27 @@ const HealingProposalSchema = z.object({
   strategy: z.string().min(1),
   requiresReview: z.boolean(),
   triggeringFindingId: z.string().min(1).optional(),
+  // Slice S8: a proposal a frame determination caveated. It round-trips through the artifact so
+  // `--proposal-input` can see it, and the apply path refuses it on sight.
+  frameCaveat: z
+    .object({
+      determination: z.string().min(1),
+      findingId: z.string().min(1).optional(),
+      reason: z.string().min(1),
+      candidates: z
+        .array(
+          z
+            .object({
+              domIndex: z.number().nullable(),
+              origin: z.string().nullable(),
+              primaryTag: z.string().nullable(),
+            })
+            .passthrough(),
+        )
+        .default([]),
+    })
+    .passthrough()
+    .optional(),
 });
 
 const HealProposalArtifactInputSchema = z
@@ -194,6 +223,19 @@ function normalizeHealProposalArtifactInput(parsed: unknown): HealingProposal[] 
     );
   }
 
+  const caveated = result.data.proposals.filter((proposal) => proposal.frameCaveat);
+  if (caveated.length > 0) {
+    throw new FrameworkError(
+      "heal_frame_refused",
+      `proposal-input contains ${caveated.length} proposal(s) a frame determination caveated (${caveated
+        .map((proposal) => proposal.oldSelector)
+        .join(
+          ", ",
+        )}). A frame boundary may explain the failure and nothing links the selector to a frame, so the rewrite may be reviewed but never applied: re-run with --frame-hint to resolve the frame, or apply the change by hand.`,
+      { selectors: caveated.map((proposal) => proposal.oldSelector) },
+    );
+  }
+
   const reviewRequired = result.data.proposals.filter((proposal) => proposal.requiresReview);
   if (reviewRequired.length > 0) {
     throw new Error(
@@ -252,8 +294,10 @@ interface HealProposalArtifact {
     scanned_file_count: number;
     proposal_count: number;
     file_count_with_proposals: number;
+    refusal_count: number;
   };
   proposals: HealingProposal[];
+  refusals: HealingRefusal[];
 }
 
 interface HealVerificationArtifact {
@@ -287,6 +331,7 @@ async function writeProposalArtifact(
   input: NormalizedHealOperationInput,
   scannedFileCount: number,
   proposals: HealingProposal[],
+  refusals: readonly HealingRefusal[],
 ): Promise<HealOperationResultEnvelope["proposalArtifact"]> {
   const artifactPath = path.resolve(outputPath);
 
@@ -301,8 +346,10 @@ async function writeProposalArtifact(
       scanned_file_count: scannedFileCount,
       proposal_count: proposals.length,
       file_count_with_proposals: new Set(proposals.map((proposal) => proposal.file)).size,
+      refusal_count: refusals.length,
     },
     proposals,
+    refusals: [...refusals],
   };
 
   await writeJsonArtifact(artifactPath, artifact, { label: HEAL_ARTIFACT_LABEL });
@@ -470,9 +517,27 @@ async function runHealOperation(
     }
   }
 
+  const refusals = healer.frameRefusals();
+
   if (!normalized.dryRun && proposals.length > 0 && !normalized.checkpointRef) {
     throw new Error(
       "Healing apply requires --checkpoint-ref from an external checkpoint/restore authority.",
+    );
+  }
+
+  // The apply path never consumes a caveated proposal, whether it came from an artifact or was
+  // generated in this same run. `requiresReview` is the flag; being unappliable is the property
+  // (frame-root-cause packet, Clash 2: the safety must live in the artifact, not the intention).
+  const caveated = normalized.dryRun ? [] : proposals.filter((proposal) => proposal.frameCaveat);
+  if (caveated.length > 0) {
+    throw new FrameworkError(
+      "heal_frame_refused",
+      `Refusing to apply ${caveated.length} proposal(s) a frame determination caveated (${caveated
+        .map((proposal) => proposal.oldSelector)
+        .join(
+          ", ",
+        )}). A frame boundary may explain the failure and nothing links the selector to a frame, so the rewrite is for a reviewer: re-run the browser step with --frame-hint to resolve the frame, or apply the change by hand.`,
+      { selectors: caveated.map((proposal) => proposal.oldSelector) },
     );
   }
 
@@ -496,7 +561,13 @@ async function runHealOperation(
     : undefined;
 
   const proposalArtifact = normalized.proposalOutput
-    ? await writeProposalArtifact(normalized.proposalOutput, normalized, files.length, proposals)
+    ? await writeProposalArtifact(
+        normalized.proposalOutput,
+        normalized,
+        files.length,
+        proposals,
+        refusals,
+      )
     : undefined;
   const verification = normalized.verificationOutput
     ? await healer.verifyProposals(proposals)
@@ -515,6 +586,7 @@ async function runHealOperation(
       operationId: "heal",
       input: normalized,
       proposals,
+      refusals: [...refusals],
       appliedCount,
       ...(receiptArtifact ? { receiptArtifact } : {}),
       ...(proposalArtifact ? { proposalArtifact } : {}),

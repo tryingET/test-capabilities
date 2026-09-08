@@ -21,12 +21,19 @@ import type {
 } from "../../config.js";
 import type { EffectDeclaration } from "../../effects.js";
 import { defaultMutationOutcomeForError } from "../../effects.js";
+import { ElementUnreachable } from "../../frame-diagnosis.js";
+import type { FrameRootCause } from "../../frame-root-cause.js";
+import { renderFrameRootCauseEvidence } from "../../frame-root-cause.js";
 import type { CoverageReport, Finding, Observation } from "../../orchestrator.js";
 import type { ExpectDeclaration, ResultOutcome } from "../../result-classification.js";
 import { classifyResult } from "../../result-classification.js";
 import type { RunContext } from "../../run-context.js";
 import { FrameworkError } from "../../runtime-contract.js";
-import { executeSurfExploreOperation, outcomeFromError } from "../surf-explore-operation.js";
+import {
+  executeSurfExploreOperation,
+  outcomeFromError,
+  SurfExploreProbeRefusal,
+} from "../surf-explore-operation.js";
 import {
   AGENT_EFFECTS,
   BOMBADIL_RUNTIME_RECOMMENDATION,
@@ -497,6 +504,10 @@ export class SurfAgent implements TestAgent {
     const message = error instanceof Error ? error.message : String(error);
     const outcome = outcomeFromError(error);
     const shape = describeSurfRefusal(url, outcome);
+    // The frame determination is copied onto the finding as the typed field, and rendered into
+    // the evidence lines for a reader (architecture review A20): the report and the healer read
+    // `finding.frameRootCause`, the marker line is only its rendering.
+    const frameRootCause = frameRootCauseOf(error);
     return {
       findings: [
         {
@@ -505,16 +516,32 @@ export class SurfAgent implements TestAgent {
           severity: shape.severity,
           component: "web",
           description: shape.description,
-          evidence: outcome ? [...outcome.evidence, message] : [message],
+          evidence: [
+            ...(frameRootCause ? renderFrameRootCauseEvidence(frameRootCause) : []),
+            ...(outcome ? outcome.evidence : []),
+            message,
+          ],
           recommendation: shape.recommendation,
           timestamp: new Date(),
           ...(outcome ? { outcome } : {}),
+          ...(frameRootCause ? { frameRootCause } : {}),
         },
       ],
       coverage: { userFlows: 0 },
       ...(outcome ? { outcomes: [outcome] } : {}),
     };
   }
+}
+
+/** The frame determination an explore refusal carried, when the run took one (slice S8). */
+function frameRootCauseOf(error: unknown): FrameRootCause | undefined {
+  if (error instanceof ElementUnreachable) {
+    return error.frameRootCause;
+  }
+  if (error instanceof SurfExploreProbeRefusal) {
+    return error.frameRootCause;
+  }
+  return undefined;
 }
 
 /** The classified outcome of every probe the explore run made, in page and probe order. */

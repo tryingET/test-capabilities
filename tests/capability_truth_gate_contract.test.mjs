@@ -65,3 +65,36 @@ test("local truth gate rejects mismatched AK direction output", () => {
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /AK direction should keep SF1 active/);
 });
+
+// ---------------------------------------------------------------------------
+// Slice S8: the overclaim grep, re-read against the frame vocabulary (review A15)
+// ---------------------------------------------------------------------------
+
+const { CAUSALITY_OVERCLAIM_PATTERN } = await import("../scripts/capability-truth-gate.mjs");
+
+test("the overclaim grep still catches a causal claim written about a frame boundary", () => {
+  // The guard fixture: S8 adds a failure class named `frame_boundary` and a determination named
+  // `confirmed`, and the risk is that "confirmed" invites prose that claims a cause the run
+  // never established. Each of these would be that mistake, and the gate's own pattern catches
+  // each one.
+  for (const sentence of [
+    "A confirmed frame_boundary is the likely caused failure on this page.",
+    "frame_boundary establishes a plausible causal link between the frame and the miss.",
+    "A suspected determination gives a plausible causal mechanism for the selector miss.",
+    "The frame boundary cascades into the selector failure downstream.",
+    "Repair the frame boundary first, then rerun the suite.",
+  ]) {
+    assert.match(sentence, CAUSALITY_OVERCLAIM_PATTERN, sentence);
+  }
+});
+
+test("the vocabulary the frame slice actually ships is not an overclaim", () => {
+  for (const sentence of [
+    "determination=confirmed means the hint resolved to exactly one reachable candidate.",
+    "frame_boundary is a test-defect locus: the repair is a structural change to the step.",
+    "A suspected determination is reported as browser_coverage_gap with the diagnosis attached.",
+    "The presence of a frame on the page is not evidence that this selector targeted it.",
+  ]) {
+    assert.doesNotMatch(sentence, CAUSALITY_OVERCLAIM_PATTERN, sentence);
+  }
+});
