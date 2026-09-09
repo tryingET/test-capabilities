@@ -19,8 +19,9 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 - Treat `governance/work-items.json` as compatibility projection only; keep current and deferred work in AK, using first-class task deferrals instead of repo-local deferred backlog files.
 
 ## Shared tooling
-- Docs discovery/scoping: `./scripts/docs-list.sh --task "<task>" --top 8`
-- Prompt read-scope allowlist: `./scripts/docs-list.sh --from-prompt <prompt-file> --paths-only --wikilink`
+- Docs discovery/scoping: `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --task "<task>" --top 8`
+- Prompt read-scope allowlist: `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --from-prompt <prompt-file> --paths-only --wikilink`
+- Do not add a repo-local docs-list wrapper; `core/agent-scripts` owns the sole implementation.
 - Code-file triage (optional/experimental): `./scripts/code-list.sh`
 - Engineering-core lanes list: `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core list`
 - Engineering-core lane details: `uv tool -n run --from ~/ai-society/core/engineering-core engineering-core show <py|ts|pi-ts|go>`

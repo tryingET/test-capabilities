@@ -14,7 +14,6 @@ chmod +x \
   "$repo_root/.githooks/pre-commit" \
   "$repo_root/.githooks/pre-push" \
   "$repo_root/scripts/install-hooks.sh" \
-  "$repo_root/scripts/docs-list.sh" \
   "$repo_root/scripts/code-list.sh" \
   "$repo_root/scripts/tech-stack.sh" \
   "$repo_root/scripts/ci/smoke.sh" \

@@ -14,7 +14,7 @@ system4d:
 ## 1) Plan
 
 - Define scope and acceptance criteria.
-- Run `./scripts/docs-list.sh --task "<task>" --top 12` and read the relevant docs.
+- Run `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --task "<task>" --top 12` and read the relevant docs.
 - Capture implementation intent in `docs/dev/plans/` when the change is non-trivial.
 - Confirm risks, dependencies, and runtime contract impact.
 
