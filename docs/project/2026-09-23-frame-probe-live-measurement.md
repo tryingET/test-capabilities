@@ -103,3 +103,33 @@ carries the DOM index for a top-level frame, is therefore correct as shipped.
   restores it, and a navigation resets it on its own.
 - `AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS` can add 0.38.0, which was measured with the same
   signature. 0.35.2 to 0.37.1 were not measured.
+
+## 3. Today's features through the real `test` command (same day, second session)
+
+The environment was the same: Chromium (Agent) Chrome/153, surf 2.18.0 and agent-browser
+0.35.1. Each run was `node bin/test-capabilities test --config <file> --json` with a surf agent
+and a throwaway receipts directory. The browser ended as it started: one `chrome://newtab/`,
+no agent-browser session, and the browser stopped.
+
+| config | result |
+|---|---|
+| MDN `<iframe>`, `ready_selector: '#does-not-exist'` | exit 1. One finding with `frameRootCause` `suspected` and 6 candidates, marker line first (AK #5568) |
+| same, `frame_hint: 'urlPrefix=https://29c6a7b0'` | exit 1. `confirmed`, tag `out_of_process_frame`, hint recorded (AK #5885). DOM iframe 1's host was stable across loads on 2026-09-08 and today |
+| example.com, `readySelector: 'h1'` | exit 0, `verified`, no diagnosis |
+| `frameHint: 'https://29c6a7b0'` (no kind) | `config_invalid`, refused before any browser work |
+| `readySelector` on a `cli-tester` agent | `config_invalid`, refused before any browser work |
+| example.com, `observation.a11ySnapshot: required` | exit 0 and `verified`, but **the report carried no a11y evidence at all** |
+
+The last row is a real gap, and only a live run shows it. The channel captured, and the artifact
+on disk held the digest and a `tabLeak` attributed `known_producer_stray`, but `SurfAgent`
+discarded the nested explore's page observations, so the `test` report never showed them. The
+gap has been there since S9 wired the agent. It is fixed under AK #5906: the surf coverage
+observation now carries `a11y-snapshot: captured <digest> refs=<n> artifact=<path>`, plus
+`a11y-snapshot: tabLeak <before> -> <after> <urls> (<attribution>)` or
+`a11y-snapshot: unavailable <reason>`. Re-run live, the report showed the capture, with the same
+digest as the earlier run, and the attributed stray.
+
+Running the real pre-push hook, as git invokes it, also found a load-dependent flake in the
+runtime diagnostic corpus: the mixed-evidence case raced node's startup against a 200 ms budget.
+It failed 1 run in 3 and is fixed in `f474660`, after which the hook passed 3 runs of 3. The
+same hook passed 3 of 3 again after the #5906 fix.

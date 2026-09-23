@@ -3,7 +3,7 @@
   "default_max_lines": 700,
   "exceptions": {
     "src/core/operations/surf-explore-operation.ts": 1033,
-    "src/core/orchestrator.ts": 1721,
+    "src/core/orchestrator.ts": 1722,
     "src/core/surf-runtime.ts": 845,
     "src/healing/self-healing.ts": 1192
   },
@@ -171,6 +171,13 @@
       "to": 706,
       "reason": "slice S9 commit (2): SurfAgent forwards agents.<name>.observation.a11ySnapshot to the nested explore. Six lines - one import, one field, one constructor line and the three-line call - and they take the file six lines over the 700 budget it was already at (695 after S8). The alternative was to hand-mirror the mode union in this file to avoid the config import, which is the hand mirror operator decision D4 exists to remove. Scheduled shrink: the four agent classes become one file each once a fifth agent or the config-driven readySelector follow-up lands (S8 deviation 13).",
       "ref": "d99a147"
+    },
+    {
+      "file": "src/core/orchestrator.ts",
+      "from": 1721,
+      "to": 1722,
+      "reason": "live `test` run 2026-09-23: a required a11y channel captured an artifact but the report dropped it, because the surf coverage observation had no way to carry a second channel's evidence. One line - the sensor's extra evidence appended beside its outcome lines - on a file already at its exception. The scheduled shrink is unchanged: correlation, root cause and propagation move to a diagnosis consumer (posture item 14).",
+      "ref": "AK #5906"
     }
   ]
 }

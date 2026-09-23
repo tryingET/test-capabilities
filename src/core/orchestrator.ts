@@ -1580,7 +1580,8 @@ function normalizeKnownAgentResult(
   const outcomeLines = outcomeEvidenceLines(outcome);
   const typed = outcome ? { outcome } : {};
   const evidence = failed ? findingEvidence(result.findings) : [];
-  const withOutcome = (lines: string[]): string[] => [...outcomeLines, ...lines];
+  const extra = result.sensorEvidence ?? [];
+  const withOutcome = (lines: string[]): string[] => [...outcomeLines, ...lines, ...extra];
 
   if (agent instanceof SurfAgent) {
     const coverage = result.coverage.userFlows ?? 0;

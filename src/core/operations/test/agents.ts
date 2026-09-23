@@ -11,6 +11,7 @@
 
 export { CliTesterAgent, DEFAULT_CLI_TESTER_TIMEOUT_MS } from "./cli-tester-agent.js";
 
+import type { A11ySnapshotObservation } from "../../a11y-snapshot.js";
 import type { BombadilRunResult, BombadilTerminalRunResult } from "../../bombadil-runtime.js";
 import { runBombadil, runBombadilTerminalTest } from "../../bombadil-runtime.js";
 import type {
@@ -53,6 +54,8 @@ export interface AgentResult {
   outcomes?: ResultOutcome[];
   /** the declarations that were in force for those steps; named in the determination's reason */
   expectations?: ExpectDeclaration[];
+  /** second-channel evidence the orchestrator appends to this sensor's observation (a11y) */
+  sensorEvidence?: string[];
 }
 
 export interface TestAgent {
@@ -499,10 +502,14 @@ export class SurfAgent implements TestAgent {
         },
         context,
       );
+      const sensorEvidence = envelope.result.pages.flatMap((page) =>
+        (page.observations ?? []).flatMap(renderA11yEvidence),
+      );
       return {
         findings: [],
         coverage: { userFlows: envelope.result.coverage.userFlows },
         outcomes: exploreOutcomes(envelope),
+        ...(sensorEvidence.length > 0 ? { sensorEvidence } : {}),
       };
     } catch (error) {
       return this.refusal(targets.web, error);
@@ -569,4 +576,26 @@ function exploreOutcomes(
     .flatMap((page) => page.probes)
     .map((probe) => probe.outcome)
     .filter((outcome): outcome is ResultOutcome => outcome !== undefined);
+}
+
+/**
+ * The evidence lines one observation contributes to a report that has no typed slot for it (the
+ * `test` orchestrator's surf coverage observation). A rendering of the typed observation, never
+ * a source of truth: the artifact at `artifact=` is.
+ */
+function renderA11yEvidence(observation: A11ySnapshotObservation): string[] {
+  if (observation.status !== "captured") {
+    return [
+      `a11y-snapshot: unavailable ${observation.reason ?? "unknown"}${observation.artifact ? ` artifact=${observation.artifact}` : ""}`,
+    ];
+  }
+  const leak = observation.tabLeak;
+  return [
+    `a11y-snapshot: captured ${observation.digest} refs=${observation.refCount} artifact=${observation.artifact ?? "(not written)"}`,
+    ...(leak
+      ? [
+          `a11y-snapshot: tabLeak ${leak.before} -> ${leak.after} ${leak.urls.join(", ")} (${leak.attribution})`,
+        ]
+      : []),
+  ];
 }

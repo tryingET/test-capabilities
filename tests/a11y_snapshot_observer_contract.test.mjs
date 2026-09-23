@@ -670,3 +670,80 @@ test("a channel that bound a tab and then failed still ends its session", async 
   assert.equal(observation.reason, "snapshot_failed");
   assert.deepEqual(fake.verbs(), ["tab", "snapshot", "close"]);
 });
+
+const { TestCapabilitiesOrchestrator } = await importRuntimeModule("index.js");
+
+test("a test run carries the surf agent's a11y observation into its report (live gap, 2026-09-23)", async (t) => {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const surf = createFakeSurf({ pages: readyPages({ [PAGE_URL]: {} }) });
+  t.after(() => surf.cleanup());
+  const agentBrowser = createFakeAgentBrowser({
+    pages: { [TARGET_ID]: { ...CAPTURE.stdout.data, origin: PAGE_URL, title: "Example Domain" } },
+  });
+  t.after(() => agentBrowser.cleanup());
+  const bound = pageTarget(TARGET_ID, PAGE_URL, "Example Domain");
+  const endpoint = await startFakeCdpEndpoint({
+    listSequence: [[bound], [bound, pageTarget("STRAY", "about:blank")]],
+  });
+  t.after(() => endpoint.close());
+
+  const run = await withA11yEnv(
+    {
+      TEST_CAPABILITIES_AGENT_BROWSER_BIN: agentBrowser.path,
+      TEST_CAPABILITIES_CDP_ENDPOINT: endpoint.url,
+      TEST_CAPABILITIES_RECEIPTS_DIR: dir,
+      TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+    },
+    () =>
+      withFakeSurfEnv(surf.path, () =>
+        new TestCapabilitiesOrchestrator({
+          version: "2.0",
+          name: "a11y in a test run",
+          targets: { web: PAGE_URL },
+          agents: { web: { type: "surf", observation: { a11ySnapshot: "required" } } },
+        }).run(),
+      ),
+  );
+
+  assert.equal(run.determination.value, "verified");
+  const coverage = run.observations.find((o) => o.kind === "coverage" && o.agent === "web");
+  assert.ok(coverage, JSON.stringify(run.observations));
+  const lines = coverage.evidence.filter((line) => line.startsWith("a11y-snapshot:"));
+  assert.equal(lines.length, 2, coverage.evidence.join("\n"));
+  assert.match(lines[0], new RegExp(`^a11y-snapshot: captured ${CAPTURE.digest} refs=`));
+  assert.match(lines[0], /artifact=\S+a11y-snapshot-/);
+  assert.equal(lines[1], "a11y-snapshot: tabLeak 1 -> 2 about:blank (known_producer_stray)");
+});
+
+test("a test run reports an optional a11y channel that could not observe, with its reason", async (t) => {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const surf = createFakeSurf({ pages: readyPages({ [PAGE_URL]: {} }) });
+  t.after(() => surf.cleanup());
+
+  const run = await withA11yEnv(
+    {
+      TEST_CAPABILITIES_AGENT_BROWSER_BIN: path.join(dir, "no-agent-browser-here"),
+      TEST_CAPABILITIES_CDP_ENDPOINT: "http://127.0.0.1:9",
+      TEST_CAPABILITIES_RECEIPTS_DIR: dir,
+      TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+    },
+    () =>
+      withFakeSurfEnv(surf.path, () =>
+        new TestCapabilitiesOrchestrator({
+          version: "2.0",
+          name: "optional a11y that cannot observe",
+          targets: { web: PAGE_URL },
+          agents: { web: { type: "surf", observation: { a11ySnapshot: "optional" } } },
+        }).run(),
+      ),
+  );
+
+  // optional: the page still verifies, and the gap is in the report rather than silent
+  assert.equal(run.determination.value, "verified");
+  const coverage = run.observations.find((o) => o.kind === "coverage" && o.agent === "web");
+  const lines = coverage.evidence.filter((line) => line.startsWith("a11y-snapshot:"));
+  assert.equal(lines.length, 1, coverage.evidence.join("\n"));
+  assert.match(lines[0], /^a11y-snapshot: unavailable agent_browser_missing artifact=\S+/);
+});
