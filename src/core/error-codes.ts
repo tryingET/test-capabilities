@@ -147,8 +147,9 @@ export const FRAME_ROOT_CAUSE_ERROR_CODES = [
  * Two are additions to the packet's table, both because a rule it states needs a code to speak
  * with: `a11y_command_not_allowed` is the read-only argv allowlist refusing a verb or a flag,
  * and `a11y_check_unavailable` is an expectation nothing could read, which must not pass
- * silently. `dom_probe_missing` and `tab_leak` are deliberately *not* here: they are recorded
- * evidence on a captured artifact, not refusals.
+ * silently. `dom_probe_missing` is deliberately *not* here: it is recorded evidence on a
+ * captured artifact, not a refusal. `tab_leak` is, since AK #5567: the producer's measured stray
+ * stays evidence, and any other page the channel leaves refuses a `required` channel.
  */
 export const A11Y_CHANNEL_ERROR_CODES = [
   /** no agent-browser at the env var, on PATH, or in ~/.npm-global/bin */
@@ -175,6 +176,8 @@ export const A11Y_CHANNEL_ERROR_CODES = [
   "origin_mismatch",
   /** the bound tab went away during the run */
   "tab_lost",
+  /** a page appeared while the channel held its session that is not the producer's measured stray */
+  "tab_leak",
   /** a ref was minted against another snapshot; never `failed`, never `passed` */
   "ref_context_drift",
   /** no control with that role and name in the fresh snapshot */

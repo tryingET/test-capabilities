@@ -34,6 +34,7 @@ import {
   type A11ySnapshotObservation,
   type A11yTabBinding,
   type A11yTabLeak,
+  attributeTabLeak,
   parseA11ySnapshotPayload,
   roleCountsFrom,
   semanticCoverageFrom,
@@ -59,13 +60,15 @@ export const A11Y_SNAPSHOT_ARTIFACT_KIND = "test-capabilities.a11y.snapshot";
 export const A11Y_SNAPSHOT_OBSERVER_NAME = "a11y-snapshot";
 
 /**
- * Read-only on the target and on the browser: this observer reads a tab another tool owns and
- * changes nothing about either. The session it pins is its own and it ends it itself.
+ * Read-only on the target: this observer reads a tab another tool owns and acts on nothing in
+ * it. The session it pins is its own and it ends it itself. It is not silent on the browser:
+ * agent-browser 0.35.1 strands one `about:blank` page per new session and `close` does not
+ * remove it, so the reason says so (AK #5567); the page is recorded on every run as `tabLeak`.
  */
 export const A11Y_SNAPSHOT_EFFECT: EffectDeclaration = {
   effect: "read_only",
   reason:
-    "reads the accessibility tree of the tab surf owns over CDP; it opens, navigates and clicks nothing",
+    "reads the accessibility tree of the tab surf owns over CDP; it opens, navigates and clicks nothing, but agent-browser 0.35.1 leaves one about:blank page target per session in the browser",
 };
 
 export interface A11ySnapshotObserverOptions {
@@ -193,10 +196,11 @@ export function bindOwnedTab(
   };
 }
 
-/** Pages that appeared while the observer held its session; recorded, never refused. */
+/** Pages that appeared while the observer held its session, attributed by the tool version. */
 export function tabLeakOf(
   before: readonly CdpTarget[],
   after: readonly CdpTarget[],
+  toolVersion: string | undefined,
 ): A11yTabLeak | undefined {
   const beforePages = pageTargets(before);
   const afterPages = pageTargets(after);
@@ -204,10 +208,12 @@ export function tabLeakOf(
     return undefined;
   }
   const known = new Set(beforePages.map((target) => target.id));
+  const urls = afterPages.filter((target) => !known.has(target.id)).map((target) => target.url);
   return {
     before: beforePages.length,
     after: afterPages.length,
-    urls: afterPages.filter((target) => !known.has(target.id)).map((target) => target.url),
+    urls,
+    attribution: attributeTabLeak(urls, toolVersion),
   };
 }
 
@@ -353,7 +359,7 @@ async function capture(
   }
 
   const after = await listCdpTargets(resolution);
-  const leak = tabLeakOf(before, after);
+  const leak = tabLeakOf(before, after, probe.version);
   const roleCounts = roleCountsFrom(reading.refs);
   const coverage = semanticCoverageFrom(roleCounts, options.domCounts?.());
 
@@ -450,6 +456,14 @@ export function createA11ySnapshotObserver(
       }
 
       observation = result.observation;
+      const leak = observation.tabLeak;
+      if (options.required && leak?.attribution === "unexplained") {
+        throw new FrameworkError(
+          "tab_leak",
+          `The a11y snapshot channel was required and left ${leak.urls.length} page(s) it cannot account for in the browser while observing ${session.url}: ${leak.urls.join(", ")}. Only agent-browser's measured about:blank stray is expected; anything else is a leak.`,
+          { url: session.url, before: leak.before, after: leak.after, urls: leak.urls },
+        );
+      }
       return observation;
     },
 

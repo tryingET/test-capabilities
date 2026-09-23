@@ -31,6 +31,8 @@ export {
   A11Y_CHANNEL,
   A11Y_INPUT_ROLES,
   A11Y_SNAPSHOT_MODES,
+  AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS,
+  attributeTabLeak,
   evaluateA11yAssertion,
   findRefsByRoleName,
   isA11ySnapshotMode,

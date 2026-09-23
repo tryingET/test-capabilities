@@ -117,6 +117,7 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `empty_snapshot` | The tree has no refs and no text. An empty tree is a failure, never a zero-element success |
 | `origin_mismatch` | The snapshot's own `origin` is not the bound tab's URL: the page moved between the readiness gate and the snapshot |
 | `tab_lost` | The bound tab went away during the run (`tab_gone` from the producer) |
+| `tab_leak` | A `required` channel left a page in the browser that is not agent-browser's measured `about:blank` stray (a second page, another URL, or a version nobody measured). The artifact is written first and carries `tabLeak` with `attribution: "unexplained"` |
 | `ref_context_drift` | An `a11y-ref` assertion was evaluated against a snapshot whose digest is not the one that minted the ref, or whose ref names another control. Never `failed`, never `passed` |
 | `role_name_missing` | No control with that role and accessible name in the fresh snapshot |
 | `role_name_ambiguous` | More than one. There is no landmark scoping in v1, so the candidate refs are reported and nothing is guessed |

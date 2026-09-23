@@ -138,6 +138,7 @@ export async function startFakeCdpEndpoint(options = {}) {
     versionStatus: options.versionStatus ?? 200,
   };
   const requests = [];
+  let listRequests = 0;
 
   const server = createServer((request, response) => {
     requests.push(request.url);
@@ -155,7 +156,14 @@ export async function startFakeCdpEndpoint(options = {}) {
     }
     if (request.url === "/json/list") {
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(state.targets));
+      // `listSequence` answers the n-th request with its n-th entry (the last one repeats), which
+      // is how a page appearing between the channel's `before` and `after` reads is staged.
+      const sequence = options.listSequence;
+      const listed = sequence
+        ? sequence[Math.min(listRequests, sequence.length - 1)]
+        : state.targets;
+      listRequests += 1;
+      response.end(JSON.stringify(listed));
       return;
     }
     response.writeHead(404, { "content-type": "application/json" });

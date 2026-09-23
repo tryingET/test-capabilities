@@ -87,13 +87,35 @@ export interface A11yTabBinding {
 
 /**
  * Stray pages the run left behind, compared over `/json/list` before and after (packet,
- * "Coexistence with surf on the same tab"). It is recorded evidence on a captured artifact, not
- * a refusal: the snapshot itself is unaffected by a tab nobody asked for.
+ * "Coexistence with surf on the same tab"). Only the channel acts between the two reads, so
+ * every new page is the channel's; `attribution` says whether it is the one the producer is
+ * measured to strand (evidence) or anything else (a `required` channel refuses with
+ * `tab_leak`). Adjudicated in `docs/project/2026-09-23-tableak-greats-adjudication.md`.
  */
 export interface A11yTabLeak {
   before: number;
   after: number;
   urls: string[];
+  attribution: "known_producer_stray" | "unexplained";
+}
+
+/**
+ * The agent-browser versions measured to create exactly one `about:blank` page target on the
+ * first command of a new session, pinned or not, and to leave it behind on `close` (S9 live run
+ * §5.2, §6). A version not listed here that strays is `unexplained` until it is re-measured.
+ */
+export const AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS: readonly string[] = ["0.35.1"];
+
+/** Known only on the measured signature: one page, `about:blank`, a measured version. */
+export function attributeTabLeak(
+  urls: readonly string[],
+  toolVersion: string | undefined,
+): A11yTabLeak["attribution"] {
+  const measured =
+    toolVersion !== undefined && AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS.includes(toolVersion);
+  return measured && urls.length === 1 && urls[0] === "about:blank"
+    ? "known_producer_stray"
+    : "unexplained";
 }
 
 export interface A11ySnapshotCaptured {

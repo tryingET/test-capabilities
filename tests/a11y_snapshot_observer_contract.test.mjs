@@ -302,15 +302,89 @@ test("required raises a11y_channel_unavailable; optional records the same reason
 test("the observer is registered read-only, so a session refuses it if it ever claimed otherwise", () => {
   assert.equal(A11Y_SNAPSHOT_EFFECT.effect, "read_only");
   assert.match(A11Y_SNAPSHOT_EFFECT.reason, /opens, navigates and clicks nothing/);
+  // ...and it does not claim to leave the browser untouched: 0.35.1 strands a page (AK #5567)
+  assert.match(A11Y_SNAPSHOT_EFFECT.reason, /leaves one about:blank page target/);
 });
 
-test("a tab that appeared while the channel held its session is recorded, never refused", () => {
+test("a leak is attributed, never subtracted: only the measured stray is known (AK #5567)", () => {
   const before = [pageTarget("A", RELEASES_URL)];
-  const after = [pageTarget("A", RELEASES_URL), pageTarget("B", "about:blank")];
-  assert.equal(tabLeakOf(before, before), undefined);
-  assert.deepEqual(tabLeakOf(before, after), { before: 1, after: 2, urls: ["about:blank"] });
+  const stray = [pageTarget("A", RELEASES_URL), pageTarget("B", "about:blank")];
+  assert.equal(tabLeakOf(before, before, "0.35.1"), undefined);
+  assert.deepEqual(tabLeakOf(before, stray, "0.35.1"), {
+    before: 1,
+    after: 2,
+    urls: ["about:blank"],
+    attribution: "known_producer_stray",
+  });
   // A page that went away is not a leak.
-  assert.equal(tabLeakOf(after, before), undefined);
+  assert.equal(tabLeakOf(stray, before, "0.35.1"), undefined);
+
+  // Everything outside the measured signature is unexplained.
+  const unexplained = (after, version) => tabLeakOf(before, after, version)?.attribution;
+  assert.equal(unexplained(stray, "0.36.0"), "unexplained", "a version nobody measured");
+  assert.equal(unexplained(stray, undefined), "unexplained", "no version at all");
+  assert.equal(
+    unexplained([...stray, pageTarget("C", "about:blank")], "0.35.1"),
+    "unexplained",
+    "a second page",
+  );
+  assert.equal(
+    unexplained([pageTarget("A", RELEASES_URL), pageTarget("B", PAGE_URL)], "0.35.1"),
+    "unexplained",
+    "a page that is not about:blank",
+  );
+});
+
+/** A channel whose `after` read finds `leaked` beside the bound tab. */
+async function leakingChannel(t, leaked, required) {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const fake = createFakeAgentBrowser({ pages: agentBrowserPages() });
+  t.after(() => fake.cleanup());
+  const bound = pageTarget(TARGET_ID, RELEASES_URL, "Releases");
+  const endpoint = await startFakeCdpEndpoint({ listSequence: [[bound], [bound, ...leaked]] });
+  t.after(() => endpoint.close());
+  const context = observerContext(dir);
+  const handle = createA11ySnapshotObserver({
+    context,
+    required,
+    env: observerEnv(fake, endpoint),
+  });
+  let raised;
+  let returned;
+  try {
+    returned = await handle.observer.run(fakeSession(context.runId, RELEASES_URL));
+  } catch (error) {
+    raised = error;
+  }
+  return { handle, raised, returned, artifacts: artifactsIn(dir, context.runId) };
+}
+
+test("the measured stray is evidence even on a required channel", async (t) => {
+  const run = await leakingChannel(t, [pageTarget("STRAY", "about:blank")], true);
+  assert.equal(run.raised, undefined);
+  assert.equal(run.returned.status, "captured");
+  assert.equal(run.returned.tabLeak.attribution, "known_producer_stray");
+  assert.equal(run.artifacts[0].body.tabLeak.attribution, "known_producer_stray");
+});
+
+test("an unexplained leak refuses a required channel with tab_leak, keeping what it saw", async (t) => {
+  const run = await leakingChannel(t, [pageTarget("POPUP", "https://ads.example/")], true);
+  assert.equal(run.raised?.code, "tab_leak");
+  assert.match(run.raised.message, /https:\/\/ads\.example\//);
+  assert.deepEqual(run.raised.details.urls, ["https://ads.example/"]);
+  // the refusal and the evidence are different facts: both survive
+  assert.equal(run.handle.observation().status, "captured");
+  assert.equal(run.handle.observation().tabLeak.attribution, "unexplained");
+  assert.equal(run.artifacts.length, 1);
+  assert.equal(run.artifacts[0].body.tabLeak.attribution, "unexplained");
+});
+
+test("an unexplained leak on an optional channel is recorded and does not refuse", async (t) => {
+  const run = await leakingChannel(t, [pageTarget("POPUP", "https://ads.example/")], false);
+  assert.equal(run.raised, undefined);
+  assert.equal(run.returned.status, "captured");
+  assert.equal(run.returned.tabLeak.attribution, "unexplained");
 });
 
 test("the channel summary names the producer and the tool that answered", () => {
