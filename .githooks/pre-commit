@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+# Hook chains (for example .git/ubs-chain-hooks) symlink or exec this file from
+# elsewhere, so resolve the work tree from git instead of from $0.
+repo_root="$(git rev-parse --show-toplevel)"
 exec "$repo_root/scripts/quality-gate.sh" pre-commit
