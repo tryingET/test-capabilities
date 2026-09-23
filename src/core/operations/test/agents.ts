@@ -451,10 +451,16 @@ export class SurfAgent implements TestAgent {
   private readonly agentName: string;
   /** `agents.<name>.observation.a11ySnapshot`, forwarded to the nested explore (slice S9). */
   private readonly observation: ObservationConfig | undefined;
+  /** `agents.<name>.readySelector`, the element the nested explore must reach (AK #5568). */
+  private readonly readySelector: string | undefined;
 
-  constructor(agentName: string, observation?: ObservationConfig) {
+  constructor(
+    agentName: string,
+    options: { observation?: ObservationConfig; readySelector?: string } = {},
+  ) {
     this.agentName = agentName;
-    this.observation = observation;
+    this.observation = options.observation;
+    this.readySelector = options.readySelector;
   }
 
   async execute(targets: Target, context: RunContext): Promise<AgentResult> {
@@ -484,6 +490,7 @@ export class SurfAgent implements TestAgent {
       const envelope = await executeSurfExploreOperation(
         {
           url: targets.web,
+          ...(this.readySelector ? { readySelector: this.readySelector } : {}),
           ...(a11ySnapshot && a11ySnapshot !== "off" ? { a11ySnapshot } : {}),
         },
         context,

@@ -877,6 +877,46 @@ test("a --ready-selector the page does carry explores it normally", () => {
   }
 });
 
+test("a test run with agents.<name>.readySelector carries the frame determination onto its finding", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-ready-selector-"));
+  const configPath = path.join(tempDir, "surf-config.yaml");
+  writeFileSync(
+    configPath,
+    [
+      "version: '2.0'",
+      "name: 'Surf Ready Selector'",
+      "targets:",
+      "  web: 'https://example.com/'",
+      "agents:",
+      "  web:",
+      "    type: surf",
+      "    ready_selector: '#does-not-exist'",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(["test", "--config", configPath, "--json"], diagnosisEnv(fake));
+
+    const payload = JSON.parse(result.stdout);
+    const findings = payload.result.findings;
+    assert.equal(findings.length, 1, result.stdout);
+    assert.equal(findings[0].frameRootCause.determination.value, "suspected");
+    assert.equal(findings[0].frameRootCause.candidates.length, 2);
+    // the surf code that produced the failure is kept, never renamed
+    assert.equal(findings[0].outcome.code, "page_timeout");
+    assert.match(findings[0].evidence[0], /^frame-root-cause: determination=suspected /);
+    const commands = fake.calls().map((call) => call[0]);
+    assert.equal(commands.includes("frame.diagnose"), true);
+    assert.equal(commands.includes("tab.close"), true);
+  } finally {
+    fake.cleanup();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("surf explore js probes never leave a screenshot of the page behind", () => {
   const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": { links: [] } }) });
 

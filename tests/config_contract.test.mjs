@@ -94,3 +94,43 @@ test("canonical YAML config parses through the fail-closed schema", async () => 
   assert.equal(result.coverage.overall > 0, true);
   assert.equal(result.coverage.status, "partial");
 });
+
+function surfConfig(agent) {
+  return {
+    version: "2.0",
+    name: "Ready Selector",
+    targets: { web: "https://example.com/" },
+    agents: { web: agent },
+  };
+}
+
+test("agents.<name>.readySelector parses on a surf agent, under either spelling (AK #5568)", () => {
+  const camel = TestCapabilitiesConfigSchema.parse(
+    surfConfig({ type: "surf", readySelector: "#play" }),
+  );
+  assert.equal(camel.agents.web.readySelector, "#play");
+
+  const snake = TestCapabilitiesConfigSchema.parse(
+    surfConfig({ type: "surf", ready_selector: "#play" }),
+  );
+  assert.equal(snake.agents.web.readySelector, "#play");
+  assert.equal("ready_selector" in snake.agents.web, false);
+
+  // absent stays absent: a config written before the key parses to the shape it always had
+  const plain = TestCapabilitiesConfigSchema.parse(surfConfig({ type: "surf" }));
+  assert.equal("readySelector" in plain.agents.web, false);
+});
+
+test("agents.<name>.readySelector refuses an empty selector and any non-surf agent", () => {
+  assert.throws(
+    () => TestCapabilitiesConfigSchema.parse(surfConfig({ type: "surf", readySelector: "" })),
+    /readySelector/,
+  );
+  for (const type of ["bombadil", "cli-tester", "terminal-fuzzer"]) {
+    assert.throws(
+      () => TestCapabilitiesConfigSchema.parse(surfConfig({ type, readySelector: "#play" })),
+      /readySelector is read only by 'surf' agents/,
+      type,
+    );
+  }
+});

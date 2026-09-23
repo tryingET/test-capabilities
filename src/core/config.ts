@@ -122,19 +122,38 @@ export const ObservationConfigSchema = z.preprocess(
     .strict(),
 );
 
-export const AgentConfigSchema = z
-  .object({
-    type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
-    enabled: z.boolean().default(true),
-    intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
-    duration: z.string().optional(),
-    focus: z.array(z.string()).optional(),
-    expect: AgentExpectSchema.optional(),
-    observation: ObservationConfigSchema.optional(),
-    bombadil: BombadilOptionsSchema.optional(),
-    terminal: BombadilTerminalOptionsSchema.optional(),
-  })
-  .strict();
+export const AgentConfigSchema = z.preprocess(
+  (value) => withAliases(value, { ready_selector: "readySelector" }),
+  z
+    .object({
+      type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
+      enabled: z.boolean().default(true),
+      intensity: z.enum(["gentle", "normal", "aggressive"]).default("normal"),
+      duration: z.string().optional(),
+      focus: z.array(z.string()).optional(),
+      expect: AgentExpectSchema.optional(),
+      observation: ObservationConfigSchema.optional(),
+      /**
+       * A visible CSS selector the surf agent's readiness gate waits for (AK #5568). A page
+       * that is ready but never shows it is an element-reach failure, which is what takes a
+       * frame determination; without it a `test` run names no element and cannot fail to
+       * reach one. Surf only: on any other agent nothing would wait for it.
+       */
+      readySelector: z.string().min(1).optional(),
+      bombadil: BombadilOptionsSchema.optional(),
+      terminal: BombadilTerminalOptionsSchema.optional(),
+    })
+    .strict()
+    .superRefine((agent, context) => {
+      if (agent.readySelector !== undefined && agent.type !== "surf") {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["readySelector"],
+          message: `readySelector is read only by 'surf' agents; a '${agent.type}' agent would ignore it.`,
+        });
+      }
+    }),
+);
 
 const PropagationEdgeSchema = z
   .object({
@@ -326,6 +345,8 @@ export interface AgentConfig {
   focus?: string[];
   expect?: AgentExpect;
   observation?: ObservationConfig;
+  /** surf agents only; see {@link AgentConfigSchema} */
+  readySelector?: string;
   bombadil?: BombadilOptions;
   terminal?: BombadilTerminalOptions;
 }

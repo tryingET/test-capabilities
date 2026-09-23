@@ -135,6 +135,7 @@ Supported fields:
 | `focus` | string[] |
 | `expect` | object | Optional declaration of the payload shape this agent's steps produce |
 | `observation` | object | Optional second observation channels for `type: surf` agents |
+| `readySelector` / `ready_selector` | string | Optional CSS selector a `type: surf` agent's readiness gate waits for; refused on any other agent type |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
 | `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |
 
@@ -192,6 +193,28 @@ typed refusal, never a browser the framework launched. The artifact is written u
 `receipts.dir/<runId>/` at mode 0600; `docs/api/cli.md` has the field table, and
 `TEST_CAPABILITIES_AGENT_BROWSER_BIN`, `TEST_CAPABILITIES_CDP_ENDPOINT` and
 `TEST_CAPABILITIES_AGENT_BROWSER_SESSION_PREFIX` are the environment it resolves through.
+
+### `agents.<name>.readySelector`
+
+The element a surf agent's explore must reach before it probes the page - the config twin of
+`surf explore --ready-selector`. A page that is ready but never shows the selector is an
+element-reach failure: the agent takes one read-only `frame.diagnose` in the same tab and files
+one finding carrying the typed `frameRootCause` determination, with its marker line first in the
+evidence. Without the key the agent names no element, so a `test` run cannot produce a frame
+determination at all.
+
+```yaml
+agents:
+  web:
+    enabled: true
+    type: surf
+    readySelector: '#play'
+```
+
+There is no config twin of `--frame-hint` yet, so a `test` run's strongest answer is
+`suspected` - reported as `browser_coverage_gap` - and `frame_boundary` (which needs
+`confirmed`) is still reached only through `surf explore --frame-hint`. The key is refused on a
+non-surf agent, where nothing would wait for it.
 
 Bombadil-specific fields under `agents.<name>.bombadil`:
 
