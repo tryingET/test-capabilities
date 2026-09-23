@@ -453,14 +453,17 @@ export class SurfAgent implements TestAgent {
   private readonly observation: ObservationConfig | undefined;
   /** `agents.<name>.readySelector`, the element the nested explore must reach (AK #5568). */
   private readonly readySelector: string | undefined;
+  /** `agents.<name>.frameHint`, which frame that element lives in (AK #5885). */
+  private readonly frameHint: string | undefined;
 
   constructor(
     agentName: string,
-    options: { observation?: ObservationConfig; readySelector?: string } = {},
+    options: { observation?: ObservationConfig; readySelector?: string; frameHint?: string } = {},
   ) {
     this.agentName = agentName;
     this.observation = options.observation;
     this.readySelector = options.readySelector;
+    this.frameHint = options.frameHint;
   }
 
   async execute(targets: Target, context: RunContext): Promise<AgentResult> {
@@ -491,6 +494,7 @@ export class SurfAgent implements TestAgent {
         {
           url: targets.web,
           ...(this.readySelector ? { readySelector: this.readySelector } : {}),
+          ...(this.frameHint ? { frameHint: this.frameHint } : {}),
           ...(a11ySnapshot && a11ySnapshot !== "off" ? { a11ySnapshot } : {}),
         },
         context,

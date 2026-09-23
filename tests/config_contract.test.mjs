@@ -134,3 +134,43 @@ test("agents.<name>.readySelector refuses an empty selector and any non-surf age
     );
   }
 });
+
+test("agents.<name>.frameHint parses beside a readySelector, under either spelling (AK #5885)", () => {
+  const camel = TestCapabilitiesConfigSchema.parse(
+    surfConfig({ type: "surf", readySelector: "#play", frameHint: "urlPrefix=https://embed/" }),
+  );
+  assert.equal(camel.agents.web.frameHint, "urlPrefix=https://embed/");
+
+  const snake = TestCapabilitiesConfigSchema.parse(
+    surfConfig({ type: "surf", ready_selector: "#play", frame_hint: "selector=iframe#player" }),
+  );
+  assert.equal(snake.agents.web.frameHint, "selector=iframe#player");
+  assert.equal("frame_hint" in snake.agents.web, false);
+});
+
+test("agents.<name>.frameHint refuses without a readySelector, off surf, and in a shape it cannot read", () => {
+  assert.throws(
+    () =>
+      TestCapabilitiesConfigSchema.parse(
+        surfConfig({ type: "surf", frameHint: "urlPrefix=https://embed/" }),
+      ),
+    /frameHint needs readySelector/,
+  );
+  assert.throws(
+    () =>
+      TestCapabilitiesConfigSchema.parse(
+        surfConfig({ type: "bombadil", readySelector: "#p", frameHint: "urlPrefix=https://e/" }),
+      ),
+    /frameHint is read only by 'surf' agents/,
+  );
+  for (const shape of ["https://embed/", "url=https://embed/", "selector=", ""]) {
+    assert.throws(
+      () =>
+        TestCapabilitiesConfigSchema.parse(
+          surfConfig({ type: "surf", readySelector: "#play", frameHint: shape }),
+        ),
+      /frameHint must be 'urlPrefix=<prefix>' or 'selector=<css>'/,
+      shape,
+    );
+  }
+});

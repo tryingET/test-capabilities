@@ -917,6 +917,41 @@ test("a test run with agents.<name>.readySelector carries the frame determinatio
   }
 });
 
+test("a test run with agents.<name>.frameHint confirms the frame the selector lives in", () => {
+  const fake = createFakeSurf({ pages: FRAMED_EXPLORE_PAGES });
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-frame-hint-"));
+  const configPath = path.join(tempDir, "surf-config.yaml");
+  writeFileSync(
+    configPath,
+    [
+      "version: '2.0'",
+      "name: 'Surf Frame Hint'",
+      "targets:",
+      "  web: 'https://example.com/'",
+      "agents:",
+      "  web:",
+      "    type: surf",
+      "    ready_selector: '#play'",
+      "    frame_hint: 'urlPrefix=https://embed.example/'",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    const result = runCli(["test", "--config", configPath, "--json"], diagnosisEnv(fake));
+
+    const findings = JSON.parse(result.stdout).result.findings;
+    assert.equal(findings.length, 1, result.stdout);
+    assert.equal(findings[0].frameRootCause.determination.value, "confirmed");
+    assert.equal(findings[0].frameRootCause.hint, "urlPrefix=https://embed.example/");
+    assert.match(findings[0].evidence[0], /^frame-root-cause: determination=confirmed /);
+  } finally {
+    fake.cleanup();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("surf explore js probes never leave a screenshot of the page behind", () => {
   const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": { links: [] } }) });
 

@@ -136,6 +136,7 @@ Supported fields:
 | `expect` | object | Optional declaration of the payload shape this agent's steps produce |
 | `observation` | object | Optional second observation channels for `type: surf` agents |
 | `readySelector` / `ready_selector` | string | Optional CSS selector a `type: surf` agent's readiness gate waits for; refused on any other agent type |
+| `frameHint` / `frame_hint` | string | Optional `urlPrefix=<prefix>` or `selector=<css>` naming the frame the `readySelector` target lives in; needs `readySelector`, `type: surf` only |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
 | `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |
 
@@ -211,10 +212,22 @@ agents:
     readySelector: '#play'
 ```
 
-There is no config twin of `--frame-hint` yet, so a `test` run's strongest answer is
-`suspected` - reported as `browser_coverage_gap` - and `frame_boundary` (which needs
-`confirmed`) is still reached only through `surf explore --frame-hint`. The key is refused on a
-non-surf agent, where nothing would wait for it.
+Without a hint the strongest answer is `suspected`, reported as `browser_coverage_gap`.
+`frameHint` is the config twin of `--frame-hint`: the test author's assertion of which frame the
+selector lives in, read by the same strict parser. A hint that resolves to exactly one reachable
+candidate makes the determination `confirmed`, which files `frame_boundary`; a hint that
+resolves to none, several or an unreachable frame is `undetermined`, never a weaker suspicion.
+
+```yaml
+agents:
+  web:
+    type: surf
+    readySelector: '#play'
+    frameHint: 'urlPrefix=https://www.youtube.com/embed/'
+```
+
+Both keys are refused on a non-surf agent, where nothing would wait for them, and `frameHint`
+is refused without `readySelector` or in a shape the parser cannot read.
 
 Bombadil-specific fields under `agents.<name>.bombadil`:
 

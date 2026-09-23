@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { parseFrameHint } from "./frame-root-cause.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -123,7 +124,7 @@ export const ObservationConfigSchema = z.preprocess(
 );
 
 export const AgentConfigSchema = z.preprocess(
-  (value) => withAliases(value, { ready_selector: "readySelector" }),
+  (value) => withAliases(value, { ready_selector: "readySelector", frame_hint: "frameHint" }),
   z
     .object({
       type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
@@ -140,16 +141,44 @@ export const AgentConfigSchema = z.preprocess(
        * reach one. Surf only: on any other agent nothing would wait for it.
        */
       readySelector: z.string().min(1).optional(),
+      /**
+       * `urlPrefix=<prefix>` or `selector=<css>`: the test author's assertion of the frame the
+       * readySelector target lives in, and the only way a `test` run reaches a `confirmed`
+       * determination (AK #5885). Read by the same strict parser as `--frame-hint`.
+       */
+      frameHint: z.string().optional(),
       bombadil: BombadilOptionsSchema.optional(),
       terminal: BombadilTerminalOptionsSchema.optional(),
     })
     .strict()
     .superRefine((agent, context) => {
-      if (agent.readySelector !== undefined && agent.type !== "surf") {
+      for (const key of ["readySelector", "frameHint"] as const) {
+        if (agent[key] !== undefined && agent.type !== "surf") {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is read only by 'surf' agents; a '${agent.type}' agent would ignore it.`,
+          });
+        }
+      }
+      if (agent.frameHint === undefined) {
+        return;
+      }
+      if (agent.readySelector === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["readySelector"],
-          message: `readySelector is read only by 'surf' agents; a '${agent.type}' agent would ignore it.`,
+          path: ["frameHint"],
+          message:
+            "frameHint needs readySelector: the hint says which frame a failing selector lives in, and without one nothing in the run can fail to be reached.",
+        });
+      }
+      try {
+        parseFrameHint(agent.frameHint);
+      } catch {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["frameHint"],
+          message: `frameHint must be 'urlPrefix=<prefix>' or 'selector=<css>'; got '${agent.frameHint}'.`,
         });
       }
     }),
@@ -347,6 +376,8 @@ export interface AgentConfig {
   observation?: ObservationConfig;
   /** surf agents only; see {@link AgentConfigSchema} */
   readySelector?: string;
+  /** surf agents only, and only with `readySelector`; see {@link AgentConfigSchema} */
+  frameHint?: string;
   bombadil?: BombadilOptions;
   terminal?: BombadilTerminalOptions;
 }
