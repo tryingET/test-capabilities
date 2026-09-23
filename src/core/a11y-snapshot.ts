@@ -102,9 +102,10 @@ export interface A11yTabLeak {
 /**
  * The agent-browser versions measured to create exactly one `about:blank` page target on the
  * first command of a new session, pinned or not, and to leave it behind on `close` (S9 live run
- * §5.2, §6). A version not listed here that strays is `unexplained` until it is re-measured.
+ * §5.2, §6; 0.38.0 in `2026-09-23-frame-probe-live-measurement.md` §1). A version not listed
+ * here that strays is `unexplained` until it is re-measured.
  */
-export const AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS: readonly string[] = ["0.35.1"];
+export const AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS: readonly string[] = ["0.35.1", "0.38.0"];
 
 /** Known only on the measured signature: one page, `about:blank`, a measured version. */
 export function attributeTabLeak(

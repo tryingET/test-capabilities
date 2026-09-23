@@ -321,6 +321,7 @@ test("a leak is attributed, never subtracted: only the measured stray is known (
 
   // Everything outside the measured signature is unexplained.
   const unexplained = (after, version) => tabLeakOf(before, after, version)?.attribution;
+  assert.equal(unexplained(stray, "0.38.0"), "known_producer_stray", "measured 2026-09-23");
   assert.equal(unexplained(stray, "0.36.0"), "unexplained", "a version nobody measured");
   assert.equal(unexplained(stray, undefined), "unexplained", "no version at all");
   assert.equal(

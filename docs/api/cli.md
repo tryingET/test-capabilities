@@ -228,7 +228,7 @@ the digest, the refs map, the counts and the file's path - never the ~8 KB text.
 | `refs` | `{ "e28": { role, name } }`, straight from the producer. `eN` is a within-snapshot reading aid; what crosses runs is `{role, name}` |
 | `roleCounts` | how many nodes of each role the tree named |
 | `semanticCoverage` | the `dom` probe's `anchors`/`buttons`/`inputs` counts against the tree's. A gap is the number of controls the page has and the browser cannot name; assert those through surf selectors. Absent with `coverageReason: "dom_probe_missing"` when the `dom` probe did not verify - never zeros |
-| `tabLeak` | pages that appeared while the channel held its session, with `before`, `after`, `urls` and `attribution`. Only the channel acts in that window, so every such page is its own. `known_producer_stray` - exactly one `about:blank` from an agent-browser version measured to strand one per session (0.35.1) - is evidence in both modes. `unexplained` is everything else: evidence under `optional`, a `tab_leak` refusal under `required` |
+| `tabLeak` | pages that appeared while the channel held its session, with `before`, `after`, `urls` and `attribution`. Only the channel acts in that window, so every such page is its own. `known_producer_stray` - exactly one `about:blank` from an agent-browser version measured to strand one per session (0.35.1, 0.38.0) - is evidence in both modes. `unexplained` is everything else: evidence under `optional`, a `tab_leak` refusal under `required` |
 
 Environment: `TEST_CAPABILITIES_AGENT_BROWSER_BIN` (else `agent-browser` on `PATH`, else
 `~/.npm-global/bin/agent-browser`), `TEST_CAPABILITIES_CDP_ENDPOINT` (default

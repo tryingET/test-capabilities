@@ -199,3 +199,30 @@ The answers decide the design. If `frame.js` turns out to reach out-of-process f
 result 1 stands as written. Otherwise the mutation-safety packet gains a
 "scoped `browser_session` switch with restore" step class, and the probe is built on it.
 
+## LIVE MEASUREMENT (same day, operator present): the four questions answered
+
+The measurement is in `2026-09-23-frame-probe-live-measurement.md`. Its answers settle the
+design that the refutation above left open:
+
+1. `frame.js --id` takes CDP frame ids only and cannot address an out-of-process frame. The
+   refutation holds.
+2. After `frame.switch`, **`js`, `page.text` and `page.state` still read the main document**,
+   while `page.read` and `wait.element` read the switched frame. The in-frame query is therefore
+   `wait.element --selector <sel> --timeout <short>`, which is already in the adapter's read-only
+   set. A `js` query after a switch would be a false reading and is forbidden in the probe.
+3. `frame.main` restores the context, and a navigation of the tab resets it without being asked.
+4. The frame context is per tab, so a switch in the run's owned tab cannot leak into any other
+   tab.
+
+`frame.switch --index` numbers the top-level iframes in DOM order, which matches the DOM index
+the topology already carries.
+
+**Consequence.** The probe is unblocked and has a concrete design:
+- once per top-level candidate: `frame.switch --index <domIndex>`, then `wait.element`, then
+  `frame.main`;
+- the probe runs inside a scoped `browser_session` switch-with-restore step class, where a
+  `frame.main` that fails poisons the tab: it is closed and never reused;
+- a nested candidate (no DOM index) counts as not probed, so it blocks confirmation.
+
+The gate rule is unchanged. #5569 goes back to pending as implementation work.
+
