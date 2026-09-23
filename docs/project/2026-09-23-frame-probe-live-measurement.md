@@ -39,6 +39,15 @@ A repro artifact is recorded here so it is not mistaken for behaviour: binding a
 to the `chrome://newtab/` target adds **two** pages on both versions. The channel never binds a
 `chrome://` page, and the end-to-end check below shows one stray per run.
 
+**Correction (same day, after the upstream deep review).** The unpinned rows above started from
+a browser that held only `chrome://newtab/`. A re-measurement with target ids for each starting
+state narrowed the trigger. An unpinned session creates `about:blank` only when no trackable page
+exists: discovery skips `chrome://` pages and then calls `Target.createTarget`. With an https page
+or an existing `about:blank` present, it adds nothing. A fresh `--pin-tab` session adds one tab
+whatever else is open, because `apply_tab_binding_on_attach` calls `tab_new` before its
+`tab <targetId>` binds. External `close` keeps both kinds of stray. The channel is the pinned case.
+Filed as vercel-labs/agent-browser#1986.
+
 **#5567 live-verified.** Three consecutive
 `surf explore --url https://example.com/ --a11y-snapshot=required --json` runs each exited 0 with
 `status: captured` and
