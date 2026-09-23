@@ -137,6 +137,6 @@ A fresh operator should be able to:
 - Generated capability inventory: `governance/capability-passport.json`
 - Capability-passport generator: `scripts/generate-capability-passport.mjs`
 - Live execution truth: maintainer planning tasks, direction, decisions, evidence, and receipts where available
-- Compatibility projection only: `governance/work-items.json`
+- Compatibility projection only: `governance/work-items.json` (untracked and gitignored since 2026-09-23; regenerate with `ak work-items export`)
 - Focused implementation plans: `docs/dev/plans/`
 - Crystallized learning: `docs/learnings/` when present

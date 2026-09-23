@@ -16,7 +16,7 @@ Testing infrastructure for the AI-native era — TEST-CAPABILITIES framework, LL
 - Main-first workflow for normal repo-local work; use PR/MR review gates only when the operator asks or when a release policy explicitly requires them.
 - Treat `docs/_core/**` as immutable.
 - Run `./scripts/install-hooks.sh` after cloning/scaffolding to enforce local pre-commit/pre-push CI gates.
-- Treat `governance/work-items.json` as compatibility projection only; keep current and deferred work in AK, using first-class task deferrals instead of repo-local deferred backlog files.
+- `governance/work-items.json` is an untracked, generated compatibility projection (gitignored, as in agent-kernel); keep current and deferred work in AK, using first-class task deferrals instead of repo-local deferred backlog files.
 
 ## Shared tooling
 - Docs discovery/scoping: `node ~/ai-society/core/agent-scripts/scripts/docs-list.mjs --task "<task>" --top 8`
