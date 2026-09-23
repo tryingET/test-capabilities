@@ -296,13 +296,18 @@ test("runBombadil surfaces missing-build guidance when TEST_CAPABILITIES_BOMBADI
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-run-"));
   const repoRoot = path.join(tempDir, "bombadil");
   mkdirSync(repoRoot, { recursive: true });
+  // A silent stand-in for the vendored binary: the real one would reach the network, and
+  // under suite load its output could race the budget into budget_exhausted (AK #3413).
+  const packageRoot = path.join(tempDir, "package");
+  writeExecutable(path.join(packageRoot, "external", "bombadil"), "#!/bin/sh\nexit 1\n");
 
   try {
     const result = await runBombadil({
       origin: "https://example.com",
-      durationMs: 50,
+      durationMs: 10_000,
       env: {
         TEST_CAPABILITIES_BOMBADIL_REPO: repoRoot,
+        TEST_CAPABILITIES_PACKAGE_ROOT: packageRoot,
       },
     });
 
