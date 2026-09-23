@@ -638,7 +638,7 @@ function readinessResult(page) {
   };
 }
 
-function readinessGate(page, tab, { accept = [], wait = true, selector } = {}) {
+function readinessGate(page, _tab, { accept = [], wait = true, selector } = {}) {
   const result = readinessResult(page);
   if (!wait) {
     return result;
