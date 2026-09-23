@@ -150,8 +150,8 @@ only (evidence), or do something with more structure than either?
   fail-closed default applied to a producer change, the same stance the version floor already
   takes.
 - What remains unresolved: the stray still accumulates, one page per session. The fix belongs
-  upstream in agent-browser. Filing an upstream issue is an outward-facing action, so it waits for
-  the operator. Clash 3 records the one masking case attribution cannot rule out.
+  upstream in agent-browser, filed as vercel-labs/agent-browser#1986 (2026-09-23). The cause is a
+  fresh `--pin-tab` session opening a tab on attach before its `tab <targetId>` binds. Clash 3 records the one masking case attribution cannot rule out.
 
 ## PRACTICAL CONSEQUENCE
 
