@@ -147,21 +147,22 @@ try {
     { mode: 0o700 },
   );
 
-  const mixedFixture = path.join(tempRoot, "mixed-fixture.mjs");
+  // The first agent to take the lock fails fast with an ENOENT, the other hangs into the
+  // budget: two failure classes on one component, which must suppress root_cause. The fixture
+  // is /bin/sh, not node, and the budget is 2 s: with a node fixture and 200 ms, interpreter
+  // startup under a loaded pre-push run could exceed the budget, both agents timed out, and the
+  // corpus saw two same-class failures (a real root_cause) instead of mixed evidence.
+  const mixedFixture = path.join(tempRoot, "mixed-fixture.sh");
   const mixedLock = path.join(tempRoot, "mixed-first.lock");
   await writeFile(
     mixedFixture,
     [
-      "#!/usr/bin/env node",
-      "import { mkdirSync } from 'node:fs';",
-      `const lock = ${JSON.stringify(mixedLock)};`,
-      "try {",
-      "  mkdirSync(lock);",
-      "  console.error('spawn /definitely-missing-test-capabilities-runtime-fixture ENOENT');",
-      "  process.exit(127);",
-      "} catch {",
-      "  setInterval(() => {}, 1000);",
-      "}",
+      "#!/bin/sh",
+      `if mkdir ${JSON.stringify(mixedLock)} 2>/dev/null; then`,
+      "  echo 'spawn /definitely-missing-test-capabilities-runtime-fixture ENOENT' >&2",
+      "  exit 127",
+      "fi",
+      "exec sleep 600",
       "",
     ].join("\n"),
     { mode: 0o700 },
@@ -209,7 +210,11 @@ try {
     {
       name: "Real same-component mixed CLI evidence suppresses root_cause",
       expected: { rootCauseCount: 0 },
-      config: baseConfig("runtime-mixed-cli", cliTargetFor(mixedFixture), cliAgents(2, "200ms")),
+      config: baseConfig(
+        "runtime-mixed-cli",
+        executableTargetFor(mixedFixture),
+        cliAgents(2, "2s"),
+      ),
       assert: ({ roots }) => assert.equal(roots.length, 0),
     },
     {
