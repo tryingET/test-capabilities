@@ -140,12 +140,26 @@ export interface FrameDiagnosisSource {
   durationMs?: number;
 }
 
+/**
+ * One candidate's answer to the in-frame probe (AK #5569): `wait.element --selector` run after
+ * `frame.switch --index <domIndex>`, the one read-only query measured to follow the frame
+ * context. `unprobed` is a candidate the probe cannot address (nested, or no content script);
+ * `unanswered` is one it addressed that gave no usable answer. Both block a confirmation.
+ */
+export interface FrameProbeReading {
+  domIndex: number | null;
+  reading: "hit" | "miss" | "unprobed" | "unanswered";
+  detail?: string;
+}
+
 export interface FrameRootCauseInput {
   /** the selector the failing step could not reach */
   selector: string;
   /** absent when `frame.diagnose` produced nothing; the determination is then `unavailable` */
   topology?: FrameTopology;
   hint?: FrameHint;
+  /** the in-frame probe's readings, one per candidate in candidate order; a hint outranks them */
+  probe?: FrameProbeReading[];
   /** where the failing step was, so a navigation between failure and diagnosis is caught */
   failure?: { href?: string; browserEpoch?: string };
   source: FrameDiagnosisSource;
@@ -167,6 +181,8 @@ export interface FrameRootCause {
   confirmedCandidate: FrameCandidate | null;
   /** the hint as the author wrote it */
   hint: string | null;
+  /** the in-frame probe's readings, when the probe ran */
+  probe?: FrameProbeReading[];
   candidates: FrameCandidate[];
   excludedHidden: FrameCandidate[];
   unmatchedCdpFrames: number;
@@ -246,6 +262,7 @@ function rootCause(
     warnings: topology?.warnings ?? [],
     mainPage: topology ? { href: topology.mainPage.href, origin: topology.mainPage.origin } : null,
     source: input.source,
+    ...(input.probe ? { probe: input.probe } : {}),
     ...(code ? { code } : {}),
   };
 }
@@ -351,10 +368,62 @@ export function determineFrameRootCause(input: FrameRootCauseInput): FrameRootCa
     );
   }
 
+  if (input.probe && topology.unmatchedCdpFrames === 0) {
+    const decided = decideFromProbe(input, topology);
+    if (decided) {
+      return decided;
+    }
+  }
+
   return rootCause(
     input,
     "suspected",
     `${topology.candidates.length} frame(s) on this page cannot be reached from the main document and nothing links '${input.selector}' to any of them; pass --frame-hint to confirm, or confirm the selector in the main document`,
+  );
+}
+
+/**
+ * The probe may only promote (docs/project/2026-09-23-frame-probe-greats-adjudication.md): a
+ * hit in exactly one candidate, with every candidate probed and answering, is `confirmed`; hits
+ * in several are `undetermined`. Absence never demotes to `excluded` - a false `excluded` licenses
+ * a selector rewrite toward a main-document lookalike - so everything else stays `suspected`,
+ * with the readings in the reason.
+ */
+function decideFromProbe(
+  input: FrameRootCauseInput,
+  topology: FrameTopology,
+): FrameRootCause | undefined {
+  const readings = input.probe ?? [];
+  const total = topology.candidates.length;
+  const hits = readings.filter((entry) => entry.reading === "hit");
+  const blocked =
+    readings.filter((entry) => entry.reading === "unprobed" || entry.reading === "unanswered")
+      .length + Math.max(0, total - readings.length);
+  if (hits.length > 1) {
+    return rootCause(
+      input,
+      "undetermined",
+      `the in-frame probe found '${input.selector}' in ${hits.length} candidate frames; a selector that resolves in several frames names none of them`,
+    );
+  }
+  const hit = hits[0];
+  if (hit && blocked === 0) {
+    const candidate = topology.candidates.find((entry) => entry.domIndex === hit.domIndex);
+    if (candidate) {
+      return rootCause(
+        input,
+        "confirmed",
+        `the in-frame probe found '${input.selector}' inside exactly one of ${total} candidate frame(s) (${candidate.primaryTag ?? "same-process same-origin frame"}, DOM index ${candidate.domIndex}) and in none of the others, and a main-page selector does not reach into a frame`,
+        candidate,
+      );
+    }
+  }
+  return rootCause(
+    input,
+    "suspected",
+    blocked > 0
+      ? `${blocked} of ${total} candidate frame(s) could not be probed${hit ? `, so the hit in DOM index ${hit.domIndex} does not prove the frame is the only one` : ""}; pass --frame-hint to confirm`
+      : `the in-frame probe found '${input.selector}' in none of ${total} probed candidate frame(s); absence is not exclusion, so confirm the selector in the main document or pass --frame-hint`,
   );
 }
 

@@ -952,6 +952,170 @@ test("a test run with agents.<name>.frameHint confirms the frame the selector li
   }
 });
 
+/** Two top-level third-party frames; `selectors` is what `wait.element` finds inside each. */
+function probedPages(first, second) {
+  return readyPages({
+    "https://example.com/": {
+      links: [],
+      frames: [
+        { src: "https://embed.example/player.html", outOfProcess: true, selectors: first },
+        { src: "https://ads.example/slot.html", outOfProcess: true, selectors: second },
+      ],
+    },
+  });
+}
+
+function exploreProbe(fake, extraEnv = {}) {
+  const result = runCli(
+    [
+      "surf",
+      "explore",
+      "--url",
+      "https://example.com/",
+      "--ready-selector",
+      "#play",
+      "--frame-probe",
+      "--json",
+    ],
+    { ...diagnosisEnv(fake), ...extraEnv },
+  );
+  return { result, payload: JSON.parse(result.stdout), commands: fake.calls().map((c) => c[0]) };
+}
+
+test("--frame-probe confirms the one frame that holds the selector, and restores every switch (AK #5569)", () => {
+  const fake = createFakeSurf({ pages: probedPages([], ["#play"]) });
+  try {
+    const { result, payload, commands } = exploreProbe(fake);
+    assert.equal(result.status, 1);
+    assert.equal(payload.error.code, "element_unreachable");
+    assert.equal(payload.error.details.determination, "confirmed");
+    assert.match(payload.error.message, /in-frame probe found '#play' inside exactly one of 2/);
+    const count = (name) => commands.filter((c) => c === name).length;
+    assert.equal(count("frame.switch"), 2);
+    assert.equal(count("wait.element"), 2);
+    assert.equal(count("frame.main"), 2, "every switch is restored");
+    assert.equal(commands.includes("tab.close"), true);
+    // the probe is read-only: it never runs js inside a switched frame
+    const firstSwitch = commands.indexOf("frame.switch");
+    const lastMain = commands.lastIndexOf("frame.main");
+    assert.equal(commands.slice(firstSwitch, lastMain).includes("js"), false);
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("--frame-probe: two frames holding the selector are undetermined, none is suspected, never excluded", () => {
+  const both = createFakeSurf({ pages: probedPages(["#play"], ["#play"]) });
+  try {
+    assert.equal(exploreProbe(both).payload.error.details.determination, "undetermined");
+  } finally {
+    both.cleanup();
+  }
+  const none = createFakeSurf({ pages: probedPages([], []) });
+  try {
+    const { payload } = exploreProbe(none);
+    assert.equal(payload.error.details.determination, "suspected");
+    assert.match(payload.error.message, /absence is not exclusion/);
+  } finally {
+    none.cleanup();
+  }
+});
+
+test("--frame-probe: a frame.main that fails closes the tab and stops probing", () => {
+  const fake = createFakeSurf({ pages: probedPages([], ["#play"]) });
+  try {
+    const { payload, commands } = exploreProbe(fake, { FAKE_SURF_FAIL_ON: "frame.main" });
+    assert.equal(payload.error.details.determination, "suspected");
+    assert.match(payload.error.message, /could not be probed/);
+    assert.equal(commands.filter((c) => c === "frame.switch").length, 1, "no second switch");
+    assert.equal(commands.includes("tab.close"), true);
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("--frame-probe: nested and unanswering frames are recorded and block a confirmation", () => {
+  const nested = createFakeSurf({
+    pages: readyPages({
+      "https://example.com/": {
+        links: [],
+        frames: [
+          { src: "https://embed.example/player.html", outOfProcess: true, selectors: ["#play"] },
+          { src: "https://inner.example/", outOfProcess: true, nestedUnder: 0 },
+        ],
+      },
+    }),
+  });
+  try {
+    const { payload } = exploreProbe(nested);
+    // a hit in the top-level frame, but the nested one could hold the selector too
+    assert.equal(payload.error.details.determination, "suspected");
+    assert.match(payload.error.message, /1 of 2 candidate frame\(s\) could not be probed/);
+  } finally {
+    nested.cleanup();
+  }
+  const erroring = createFakeSurf({ pages: probedPages([], ["#play"]) });
+  try {
+    // a probe that errors for any reason other than surf's own timeout is unanswered, not a miss
+    const { payload } = exploreProbe(erroring, { FAKE_SURF_FAIL_ON: "wait.element" });
+    assert.equal(payload.error.details.determination, "suspected");
+    assert.match(payload.error.message, /2 of 2 candidate frame\(s\) could not be probed/);
+  } finally {
+    erroring.cleanup();
+  }
+});
+
+test("--frame-probe without --ready-selector refuses before a browser is touched", () => {
+  const fake = createFakeSurf({ pages: probedPages([], ["#play"]) });
+  try {
+    const result = runCli(
+      ["surf", "explore", "--url", "https://example.com/", "--frame-probe", "--json"],
+      diagnosisEnv(fake),
+    );
+    assert.equal(result.status, 1);
+    assert.equal(JSON.parse(result.stdout).error.code, "config_invalid");
+    assert.equal(
+      fake.calls().some((c) => c[0] === "tab.new"),
+      false,
+    );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a test run with agents.<name>.frameProbe confirms through the probe", () => {
+  const fake = createFakeSurf({ pages: probedPages([], ["#play"]) });
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-cli-frame-probe-"));
+  const configPath = path.join(tempDir, "surf-config.yaml");
+  writeFileSync(
+    configPath,
+    [
+      "version: '2.0'",
+      "name: 'Surf Frame Probe'",
+      "targets:",
+      "  web: 'https://example.com/'",
+      "agents:",
+      "  web:",
+      "    type: surf",
+      "    ready_selector: '#play'",
+      "    frame_probe: true",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  try {
+    const result = runCli(["test", "--config", configPath, "--json"], diagnosisEnv(fake));
+    const findings = JSON.parse(result.stdout).result.findings;
+    assert.equal(findings.length, 1, result.stdout);
+    assert.equal(findings[0].frameRootCause.determination.value, "confirmed");
+    assert.equal(findings[0].frameRootCause.probe.length, 2);
+    assert.equal(findings[0].frameRootCause.hint, null);
+  } finally {
+    fake.cleanup();
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("surf explore js probes never leave a screenshot of the page behind", () => {
   const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": { links: [] } }) });
 

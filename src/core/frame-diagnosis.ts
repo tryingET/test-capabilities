@@ -25,7 +25,7 @@ import path from "node:path";
 import { writeJsonArtifactSync } from "./artifacts.js";
 import type { BrowserStep, OwnedTab, SessionReply } from "./browser-session.js";
 import type { EffectDeclaration } from "./effects.js";
-import type { FrameRootCause } from "./frame-root-cause.js";
+import type { FrameProbeReading, FrameRootCause } from "./frame-root-cause.js";
 import { determineFrameRootCause, parseFrameHint } from "./frame-root-cause.js";
 import type { FrameTopology, SurfFrameDiagnosis } from "./frame-topology.js";
 import { classifyFrameTopology, parseSurfFrameDiagnosis } from "./frame-topology.js";
@@ -88,6 +88,8 @@ export interface FrameDiagnosisSession {
   readonly url: string;
   readonly tab: OwnedTab | undefined;
   step<T>(step: BrowserStep<T>): Promise<T>;
+  /** the in-frame probe needs it; a session without it records every candidate `unprobed` */
+  inFrame?<T>(domIndex: number, body: () => Promise<T>): Promise<T>;
 }
 
 export interface ExplainUnreachableOptions {
@@ -95,6 +97,74 @@ export interface ExplainUnreachableOptions {
   frameHint?: string;
   /** where the failing step was, so a page that moved in between concludes nothing */
   failure?: { href?: string; browserEpoch?: string };
+  /** probe each top-level candidate in-frame when no hint is given (AK #5569) */
+  probe?: boolean;
+}
+
+/** How long one candidate may take to show the selector; the gate already waited on the page. */
+export const FRAME_PROBE_TIMEOUT_MS = 1500;
+
+/** surf's own `wait.element` timeout text, measured 2026-09-23; anything else is `unanswered`. */
+const WAIT_ELEMENT_TIMEOUT = /Timeout waiting for "/;
+
+/**
+ * The in-frame probe (AK #5569): per top-level candidate, `frame.switch --index <domIndex>`,
+ * one `wait --element <selector>` (the read measured to follow the frame context), and
+ * `frame.main`, through `Session.inFrame`. Nested candidates are `unprobed`: `--index` numbers
+ * top-level frames in DOM order, and the nested order was not measured well enough to address.
+ */
+async function probeCandidates(
+  session: FrameDiagnosisSession,
+  topology: FrameTopology,
+  selector: string,
+): Promise<FrameProbeReading[]> {
+  const readings: FrameProbeReading[] = [];
+  let stopped: string | undefined;
+  for (const candidate of topology.candidates) {
+    const domIndex = candidate.domIndex;
+    if (
+      stopped ||
+      domIndex === null ||
+      candidate.contentScriptReachable !== true ||
+      !session.inFrame
+    ) {
+      readings.push({
+        domIndex,
+        reading: "unprobed",
+        detail:
+          stopped ??
+          (domIndex === null
+            ? "nested frame: frame.switch --index addresses top-level frames"
+            : "no answering content script"),
+      });
+      continue;
+    }
+    try {
+      await session.inFrame(domIndex, () => session.step(frameProbeStep(selector)));
+      readings.push({ domIndex, reading: "hit" });
+    } catch (error) {
+      const message = errorMessage(error);
+      if (isFrameworkError(error) && error.code === "frame_context_unrestored") {
+        stopped = message;
+        readings.push({ domIndex, reading: "unanswered", detail: message });
+      } else if (WAIT_ELEMENT_TIMEOUT.test(message)) {
+        readings.push({ domIndex, reading: "miss" });
+      } else {
+        readings.push({ domIndex, reading: "unanswered", detail: message });
+      }
+    }
+  }
+  return readings;
+}
+
+function frameProbeStep(selector: string): BrowserStep<true> {
+  return {
+    id: "surf.frame.probe",
+    command: "wait",
+    args: ["--element", selector, "--timeout", String(FRAME_PROBE_TIMEOUT_MS)],
+    intent: `look for '${selector}' inside the switched frame without acting on it`,
+    read: () => true,
+  };
 }
 
 interface CachedDiagnosis {
@@ -219,10 +289,19 @@ export async function explainUnreachable(
 ): Promise<FrameRootCause> {
   const hint = options.frameHint === undefined ? undefined : parseFrameHint(options.frameHint);
   const entry = await topologyFor(session, context);
+  // A hint decides on its own; the probe only runs where the answer would otherwise be `suspected`.
+  const probe =
+    options.probe === true &&
+    !hint &&
+    !entry.unavailableReason &&
+    entry.topology.candidates.length > 0
+      ? await probeCandidates(session, entry.topology, selector)
+      : undefined;
   const rootCause = determineFrameRootCause({
     selector,
     ...(entry.unavailableReason ? {} : { topology: entry.topology }),
     ...(hint ? { hint } : {}),
+    ...(probe ? { probe } : {}),
     ...(options.failure ? { failure: options.failure } : {}),
     source: {
       command: "frame.diagnose",

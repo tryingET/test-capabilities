@@ -458,15 +458,23 @@ export class SurfAgent implements TestAgent {
   private readonly readySelector: string | undefined;
   /** `agents.<name>.frameHint`, which frame that element lives in (AK #5885). */
   private readonly frameHint: string | undefined;
+  /** `agents.<name>.frameProbe`: probe the candidate frames when no hint is given (AK #5569) */
+  private readonly frameProbe: boolean;
 
   constructor(
     agentName: string,
-    options: { observation?: ObservationConfig; readySelector?: string; frameHint?: string } = {},
+    options: {
+      observation?: ObservationConfig;
+      readySelector?: string;
+      frameHint?: string;
+      frameProbe?: boolean;
+    } = {},
   ) {
     this.agentName = agentName;
     this.observation = options.observation;
     this.readySelector = options.readySelector;
     this.frameHint = options.frameHint;
+    this.frameProbe = options.frameProbe === true;
   }
 
   async execute(targets: Target, context: RunContext): Promise<AgentResult> {
@@ -498,6 +506,7 @@ export class SurfAgent implements TestAgent {
           url: targets.web,
           ...(this.readySelector ? { readySelector: this.readySelector } : {}),
           ...(this.frameHint ? { frameHint: this.frameHint } : {}),
+          ...(this.frameProbe ? { frameProbe: true } : {}),
           ...(a11ySnapshot && a11ySnapshot !== "off" ? { a11ySnapshot } : {}),
         },
         context,

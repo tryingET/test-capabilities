@@ -308,11 +308,21 @@ export interface Session {
    *
    * It never throws for a diagnosis that failed: `unavailable` is one of the answers.
    */
+  /**
+   * Run `body` with this tab's frame context on the top-level iframe at `domIndex`, and always
+   * switch back. Only read-only steps belong in `body`: after a switch `wait.element` and
+   * `page.read` answer from the frame while `js`, `page.text` and `page.state` still answer from
+   * the main document (measured 2026-09-23). A restore that fails closes the tab and throws
+   * `frame_context_unrestored`, so nothing later runs in a frame it did not ask for (AK #5569).
+   */
+  inFrame<T>(domIndex: number, body: () => Promise<T>): Promise<T>;
   explainUnreachable(
     selector: string,
     options?: {
       /** `urlPrefix=…` or `selector=…` */
       frameHint?: string;
+      /** probe each top-level candidate in-frame when no hint is given (AK #5569) */
+      probe?: boolean;
       /** where the failing step was; a page that moved in between concludes nothing */
       failure?: { href?: string; browserEpoch?: string };
     },
@@ -343,6 +353,19 @@ export interface Session {
  * why a read-only explore writes no receipt for opening its own tab. Anything that changes
  * target state is `mutating`/`target` and receipted.
  */
+/**
+ * The run's own tab frame context (AK #5569). `frame.switch`/`frame.main` change which frame
+ * later content-script reads answer from, in the tab this run owns and nothing else (the context
+ * is per tab, measured 2026-09-23), and `Session.inFrame` always restores it - so, like the tab
+ * lifecycle, it is `browser_session` state and compatible with a read-only class.
+ */
+export const FRAME_CONTEXT_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  scope: "browser_session",
+  reason:
+    "the run's own tab frame context: switched for a read and restored in the same step list, leaving no target state",
+};
+
 export const SESSION_LIFECYCLE_EFFECT: EffectDeclaration = {
   effect: "read_only",
   scope: "browser_session",

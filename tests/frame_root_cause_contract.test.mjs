@@ -433,3 +433,84 @@ test("--frame-hint is read strictly; a shape the framework cannot read is refuse
     );
   }
 });
+
+// ---- the in-frame probe (AK #5569; docs/project/2026-09-23-frame-probe-*) ----------------
+
+/** The MDN topology reduced to its three top-level candidates: a page with no nested frames. */
+function topLevelOnly() {
+  const topology = topologyOf("mdn-iframe");
+  return { ...topology, candidates: topology.candidates.filter((c) => c.domIndex !== null) };
+}
+
+function probed(topology, readings) {
+  return determineFrameRootCause({
+    selector: "#play",
+    topology,
+    probe: readings,
+    source: { command: "frame.diagnose", tabId: 1 },
+  });
+}
+
+const reading = (domIndex, value) => ({ domIndex, reading: value });
+
+test("probe: one hit with every candidate answering confirms without a hint", () => {
+  const topology = topLevelOnly();
+  assert.equal(topology.candidates.length, 3);
+  const rootCause = probed(topology, [reading(0, "miss"), reading(1, "hit"), reading(2, "miss")]);
+  assert.equal(rootCause.determination.value, "confirmed");
+  assert.equal(rootCause.determination.basis, "evidence");
+  assert.equal(rootCause.confirmedCandidate.domIndex, 1);
+  assert.match(rootCause.determination.reason, /in-frame probe/);
+  assert.equal(rootCause.probe.length, 3);
+  assert.equal(rootCause.hint, null);
+});
+
+test("probe: hits in two frames are undetermined, never a pick", () => {
+  const rootCause = probed(topLevelOnly(), [
+    reading(0, "hit"),
+    reading(1, "hit"),
+    reading(2, "miss"),
+  ]);
+  assert.equal(rootCause.determination.value, "undetermined");
+  assert.match(rootCause.determination.reason, /2 candidate frames/);
+});
+
+test("probe: absence everywhere never excludes, and an unanswered frame blocks a confirmation", () => {
+  const none = probed(topLevelOnly(), [reading(0, "miss"), reading(1, "miss"), reading(2, "miss")]);
+  assert.equal(none.determination.value, "suspected", "absence is weak evidence: never excluded");
+  assert.match(none.determination.reason, /in none of 3 probed candidate frame/);
+
+  const partial = probed(topLevelOnly(), [
+    reading(0, "hit"),
+    reading(1, "unanswered"),
+    reading(2, "miss"),
+  ]);
+  assert.equal(partial.determination.value, "suspected");
+  assert.match(partial.determination.reason, /1 of 3 candidate frame\(s\) could not be probed/);
+});
+
+test("probe: a nested candidate cannot be probed, so the MDN page stays suspected", () => {
+  const topology = topologyOf("mdn-iframe");
+  const readings = topology.candidates.map((c) =>
+    c.domIndex === null
+      ? reading(null, "unprobed")
+      : reading(c.domIndex, c.domIndex === 1 ? "hit" : "miss"),
+  );
+  const rootCause = probed(topology, readings);
+  assert.equal(rootCause.determination.value, "suspected");
+  assert.match(rootCause.determination.reason, /could not be probed/);
+});
+
+test("probe: a hint decides and the probe readings do not override it", () => {
+  const topology = topLevelOnly();
+  const host = new URL(topology.candidates[0].src).origin;
+  const rootCause = determineFrameRootCause({
+    selector: "#play",
+    topology,
+    hint: parseFrameHint(`urlPrefix=${host}`),
+    probe: [reading(0, "miss"), reading(1, "hit"), reading(2, "miss")],
+    source: { command: "frame.diagnose", tabId: 1 },
+  });
+  assert.equal(rootCause.determination.value, "confirmed");
+  assert.equal(rootCause.confirmedCandidate.domIndex, 0);
+});

@@ -24,9 +24,12 @@
  *   {
  *     title, readyState, readiness, evidence[], links[], counts{}, jsResult, jsThrows,
  *     frames: [{ src, outOfProcess?, reachable?, crossOrigin?, shadowHost?, rect?, blank?,
- *               zeroSize?, srcdoc?, sandbox?, id?, name?, title?, nestedUnder? }],
+ *               zeroSize?, srcdoc?, sandbox?, id?, name?, title?, nestedUnder?, selectors? }],
  *                                  // frame.diagnose topology; nestedUnder makes a frame a
- *                                  // child of another frame, which the DOM walk never sees
+ *                                  // child of another frame, which the DOM walk never sees;
+ *                                  // selectors is what `wait.element` finds inside the frame
+ *                                  // after `frame.switch` (measured 2026-09-23: wait.element
+ *                                  // and page.read follow the frame context, js does not)
  *     fields: { "<selector>": { value, kind?, checked?, name?, id?, label?, form?, hidden? } },
  *                                  // state a step may write and read; name/id/label/form are
  *                                  // what a locator resolves through, form is a form selector
@@ -1204,6 +1207,58 @@ switch (command) {
         `# Extraction from ${tab.url}\n\n${Array.isArray(rows) ? `${rows.length} rows` : JSON.stringify(data)}`,
       );
     }
+    break;
+  }
+  case "frame.switch": {
+    // Measured 2026-09-23: --index numbers the top-level iframes in DOM order, then the nested
+    // ones; an index past the end refuses rather than switching somewhere else.
+    const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
+    const order = [
+      ...page.frames.filter((frame) => frame.nestedUnder === undefined),
+      ...page.frames.filter((frame) => frame.nestedUnder !== undefined),
+    ];
+    const index = Number(flag("--index"));
+    if (!Number.isInteger(index) || index < 0 || index >= order.length) {
+      fail(
+        "browser_error",
+        `Frame index ${flag("--index")} out of range. Found ${order.length} frame(s).`,
+      );
+    }
+    state.tabs[tab.id] = { ...state.tabs[tab.id], frameIndex: page.frames.indexOf(order[index]) };
+    saveState(state);
+    emit("OK", targetMeta(tab));
+    break;
+  }
+  case "frame.main": {
+    const tab = resolveTab(state);
+    const { frameIndex: _dropped, ...rest } = state.tabs[tab.id];
+    state.tabs[tab.id] = rest;
+    saveState(state);
+    emit("OK", targetMeta(tab));
+    break;
+  }
+  case "wait.element": {
+    const tab = resolveTab(state);
+    const page = pageFor(tab.url, state);
+    const selector = positionals()[0];
+    const frameIndex = state.tabs[tab.id].frameIndex;
+    if (frameIndex === undefined) {
+      if (stubDocument(page).querySelectorAll(selector).length > 0) {
+        emit(`[Waited 0ms]`, targetMeta(tab));
+        break;
+      }
+    } else {
+      const frame = page.frames[frameIndex];
+      if (frame.reachable === false) {
+        fail("browser_error", "Could not establish connection. Receiving end does not exist.");
+      }
+      if ((frame.selectors ?? []).includes(selector)) {
+        emit(`[Waited 0ms]`, targetMeta(tab));
+        break;
+      }
+    }
+    fail("browser_error", `Timeout waiting for "${selector}" to be visible`);
     break;
   }
   case "frame.diagnose": {

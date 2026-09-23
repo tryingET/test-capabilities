@@ -395,11 +395,11 @@ function passthroughFlags(parsed: ParsedArgs, flags: string[]): string[] {
 
 function translateWait(args: string[]): string[] {
   const parsed = parseCommandArgs("wait", args, {
-    valueFlags: ["--element", "--url", "--timeout"],
+    valueFlags: ["--element", "--url", "--timeout", "--tab-id"],
     boolFlags: ["--network"],
     maxPositionals: 1,
   });
-  const timeout = passthroughValues(parsed, ["--timeout"]);
+  const timeout = passthroughValues(parsed, ["--timeout", "--tab-id"]);
 
   if (parsed.values["--element"]) {
     return ["wait.element", parsed.values["--element"], ...timeout];
@@ -685,13 +685,16 @@ function translateDo(args: string[]): string[] {
 
 function translateFrameSwitch(args: string[]): string[] {
   const parsed = parseCommandArgs("frame.switch", args, {
-    valueFlags: ["--index", "--name", "--selector"],
+    valueFlags: ["--index", "--name", "--selector", "--tab-id"],
     maxPositionals: 0,
   });
   if (parsed.values["--index"] !== undefined) {
     numeric("frame.switch", parsed.values["--index"], "--index");
   }
-  return ["frame.switch", ...passthroughValues(parsed, ["--index", "--name", "--selector"])];
+  return [
+    "frame.switch",
+    ...passthroughValues(parsed, ["--index", "--name", "--selector", "--tab-id"]),
+  ];
 }
 
 function translateEmulateViewport(args: string[]): string[] {
@@ -802,8 +805,14 @@ export function translateSurfArgs(command: string, args: string[] = []): string[
     case "cookie.list":
     case "frame.list":
       return translateNoArgs(command, args, ["--json"]);
-    case "frame.main":
-      return translateNoArgs(command, args);
+    case "frame.main": {
+      // `--tab-id` is a global surf option; the frame context it restores is per tab.
+      const parsed = parseCommandArgs(command, args, {
+        valueFlags: ["--tab-id"],
+        maxPositionals: 0,
+      });
+      return [command, ...passthroughValues(parsed, ["--tab-id"])];
+    }
     case "tab.new":
     case "window.new":
       return translateSinglePositional(command, args, "url");

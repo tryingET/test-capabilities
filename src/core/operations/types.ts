@@ -90,6 +90,8 @@ export interface SurfExploreOperationInput {
   readySelector?: string;
   /** `urlPrefix=…` or `selector=…`; the only v1 route to a `confirmed` frame determination */
   frameHint?: string;
+  /** probe the candidate frames in-frame when no hint is given (AK #5569) */
+  frameProbe?: boolean;
   /** `off` (default) | `optional` | `required`: the a11y observation channel (slice S9) */
   a11ySnapshot?: string | boolean;
   record?: boolean;

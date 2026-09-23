@@ -136,6 +136,8 @@ export const FRAME_ROOT_CAUSE_ERROR_CODES = [
   "frame_diagnosis_undetermined",
   /** the healer refuses a selector rewrite this determination does not permit */
   "heal_frame_refused",
+  /** `frame.main` did not restore the tab after an in-frame probe; the tab was closed (AK #5569) */
+  "frame_context_unrestored",
 ] as const;
 
 /**

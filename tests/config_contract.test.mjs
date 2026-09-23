@@ -174,3 +174,21 @@ test("agents.<name>.frameHint refuses without a readySelector, off surf, and in 
     );
   }
 });
+
+test("agents.<name>.frameProbe: surf only, with a readySelector, under either spelling (AK #5569)", () => {
+  const parsed = TestCapabilitiesConfigSchema.parse(
+    surfConfig({ type: "surf", ready_selector: "#play", frame_probe: true }),
+  );
+  assert.equal(parsed.agents.web.frameProbe, true);
+  assert.throws(
+    () => TestCapabilitiesConfigSchema.parse(surfConfig({ type: "surf", frameProbe: true })),
+    /frameProbe needs readySelector/,
+  );
+  assert.throws(
+    () =>
+      TestCapabilitiesConfigSchema.parse(
+        surfConfig({ type: "bombadil", readySelector: "#p", frameProbe: true }),
+      ),
+    /frameProbe is read only by 'surf' agents/,
+  );
+});

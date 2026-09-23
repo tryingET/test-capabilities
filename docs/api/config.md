@@ -136,6 +136,7 @@ Supported fields:
 | `expect` | object | Optional declaration of the payload shape this agent's steps produce |
 | `observation` | object | Optional second observation channels for `type: surf` agents |
 | `readySelector` / `ready_selector` | string | Optional CSS selector a `type: surf` agent's readiness gate waits for; refused on any other agent type |
+| `frameProbe` / `frame_probe` | boolean | Optional in-frame probe of the candidate frames when no `frameHint` is given (the config twin of `--frame-probe`); needs `readySelector`, `type: surf` only |
 | `frameHint` / `frame_hint` | string | Optional `urlPrefix=<prefix>` or `selector=<css>` naming the frame the `readySelector` target lives in; needs `readySelector`, `type: surf` only |
 | `bombadil` | object | Optional Bombadil-specific runtime options for `type: bombadil` agents |
 | `terminal` | object | Optional terminal target options for `type: terminal-fuzzer` agents |

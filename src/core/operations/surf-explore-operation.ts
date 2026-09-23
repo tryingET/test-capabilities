@@ -68,6 +68,7 @@ export const SurfExploreOperationInputSchema = z.preprocess(
       json: z.boolean().optional().default(false),
       readySelector: z.string().min(1).optional(),
       frameHint: z.string().min(1).optional(),
+      frameProbe: z.boolean().optional(),
       a11ySnapshot: z.union([z.string().min(1), z.boolean()]).optional(),
       record: z.boolean().optional().default(false),
       validate: z.boolean().optional().default(false),
@@ -242,7 +243,18 @@ function errorMessage(error: unknown): string {
  * explore run names an element, so a hint on its own is a caller believing something the run
  * will not do (submit-gate packet §5, "fail closed everywhere").
  */
-function assertFrameHintUsable(input: { readySelector?: string; frameHint?: string }): void {
+function assertFrameHintUsable(input: {
+  readySelector?: string;
+  frameHint?: string;
+  frameProbe?: boolean;
+}): void {
+  if (input.frameProbe === true && input.readySelector === undefined) {
+    throw new FrameworkError(
+      "config_invalid",
+      "Surf explore takes --frame-probe only together with --ready-selector: the probe looks for a selector that failed to be reached, and without one nothing in an explore run names an element.",
+      { option: "--frame-probe" },
+    );
+  }
   if (input.frameHint === undefined) {
     return;
   }
@@ -278,6 +290,7 @@ async function diagnoseUnreachable(
   }
   const frameRootCause = await session.explainUnreachable(selector, {
     ...(input.frameHint ? { frameHint: input.frameHint } : {}),
+    ...(input.frameProbe === true ? { probe: true } : {}),
     ...(readiness?.href ? { failure: { href: readiness.href } } : {}),
   });
   return new ElementUnreachable(

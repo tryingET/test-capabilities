@@ -132,6 +132,11 @@ Options:
                                'selector=<css>' asserting which frame the
                                --ready-selector target lives in; the only way
                                to confirm a frame boundary
+  --frame-probe                surf explore: with --ready-selector and no
+                               --frame-hint, look for the selector inside each
+                               top-level candidate frame (frame.switch,
+                               wait.element, frame.main); one hit with every
+                               candidate answering confirms the frame
   --a11y-snapshot [mode]       surf explore: attach the read-only accessibility
                                observation channel (agent-browser over the
                                loopback CDP endpoint); 'optional' (default)

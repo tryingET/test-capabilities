@@ -124,7 +124,12 @@ export const ObservationConfigSchema = z.preprocess(
 );
 
 export const AgentConfigSchema = z.preprocess(
-  (value) => withAliases(value, { ready_selector: "readySelector", frame_hint: "frameHint" }),
+  (value) =>
+    withAliases(value, {
+      ready_selector: "readySelector",
+      frame_hint: "frameHint",
+      frame_probe: "frameProbe",
+    }),
   z
     .object({
       type: z.enum(["bombadil", "surf", "api-fuzzer", "cli-tester", "terminal-fuzzer"]),
@@ -147,12 +152,14 @@ export const AgentConfigSchema = z.preprocess(
        * determination (AK #5885). Read by the same strict parser as `--frame-hint`.
        */
       frameHint: z.string().optional(),
+      /** probe the candidate frames in-frame when no frameHint is given (AK #5569) */
+      frameProbe: z.boolean().optional(),
       bombadil: BombadilOptionsSchema.optional(),
       terminal: BombadilTerminalOptionsSchema.optional(),
     })
     .strict()
     .superRefine((agent, context) => {
-      for (const key of ["readySelector", "frameHint"] as const) {
+      for (const key of ["readySelector", "frameHint", "frameProbe"] as const) {
         if (agent[key] !== undefined && agent.type !== "surf") {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -160,6 +167,14 @@ export const AgentConfigSchema = z.preprocess(
             message: `${key} is read only by 'surf' agents; a '${agent.type}' agent would ignore it.`,
           });
         }
+      }
+      if (agent.frameProbe === true && agent.readySelector === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["frameProbe"],
+          message:
+            "frameProbe needs readySelector: the probe looks for a selector that failed to be reached.",
+        });
       }
       if (agent.frameHint === undefined) {
         return;
@@ -378,6 +393,8 @@ export interface AgentConfig {
   readySelector?: string;
   /** surf agents only, and only with `readySelector`; see {@link AgentConfigSchema} */
   frameHint?: string;
+  /** surf agents only, and only with `readySelector`; see {@link AgentConfigSchema} */
+  frameProbe?: boolean;
   bombadil?: BombadilOptions;
   terminal?: BombadilTerminalOptions;
 }

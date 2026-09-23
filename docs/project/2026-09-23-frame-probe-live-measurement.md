@@ -142,3 +142,23 @@ Running the real pre-push hook, as git invokes it, also found a load-dependent f
 runtime diagnostic corpus: the mixed-evidence case raced node's startup against a 200 ms budget.
 It failed 1 run in 3 and is fixed in `f474660`, after which the hook passed 3 runs of 3. The
 same hook passed 3 of 3 again after the #5906 fix.
+
+## 4. The in-frame probe, live (AK #5569, same day)
+
+The environment was Chromium (Agent) Chrome/153 with surf 2.18.0. A local page on
+`http://127.0.0.1:18766/` held two iframes: `http://localhost:18766/player.html`, which is a
+different site and so out of process, and contains `<button id="play">`; and
+`http://127.0.0.1:18766/other.html`, same-origin, without it. The page was served for this run
+only and bound to loopback.
+
+| run | determination |
+|---|---|
+| `surf explore --ready-selector '#play'` | `suspected`: 2 candidates and nothing links the selector |
+| same, `--frame-probe` | **`confirmed`**: "the in-frame probe found '#play' inside exactly one of 2 candidate frame(s) (out_of_process_frame, DOM index 0)" |
+| `--ready-selector '#nope' --frame-probe` | `suspected`: "in none of 2 probed candidate frame(s); absence is not exclusion" |
+| MDN `<iframe>`, `#does-not-exist`, `--frame-probe` | `suspected`: "3 of 6 candidate frame(s) could not be probed" (the nested frames) |
+| `test` with `ready_selector: '#play'`, `frame_probe: true` | finding `confirmed`, tag `out_of_process_frame`, readings `[0: hit, 1: miss]` |
+
+After every run, `surf tab.list` showed the single `chrome://newtab/` it started with: each
+switch was restored and each owned tab closed. `frame.switch --index <domIndex>`,
+`wait.element` and `frame.main` behaved on the real browser exactly as §2 measured.

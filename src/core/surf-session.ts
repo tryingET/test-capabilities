@@ -33,7 +33,11 @@ import type {
   SessionReadiness,
   SessionReply,
 } from "./browser-session.js";
-import { findJsMutationSignals, SESSION_LIFECYCLE_EFFECT } from "./browser-session.js";
+import {
+  FRAME_CONTEXT_EFFECT,
+  findJsMutationSignals,
+  SESSION_LIFECYCLE_EFFECT,
+} from "./browser-session.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
 import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
 import type { ExplainUnreachableOptions } from "./frame-diagnosis.js";
@@ -75,6 +79,8 @@ const SESSION_TAB_SCOPED_COMMANDS = new Set([
   "frame.diagnose",
   "extract",
   "js",
+  // the in-frame probe's query (`wait --element`), which follows the frame context
+  "wait",
   // The submit gate's three value-setting verbs. `--tab-id` is a global surf option, so their
   // argv mapping can carry it; without that they would act on whichever tab is in front.
   "type",
@@ -437,6 +443,43 @@ export class SurfSession implements Session {
    * list lives in `frame-diagnosis.ts`, not here: a seam is a composition over the session,
    * never a hook inside it.
    */
+  async inFrame<T>(domIndex: number, body: () => Promise<T>): Promise<T> {
+    const tab = this.requireTab("frame.switch");
+    await this.frameContextStep("frame.switch", [
+      "--index",
+      String(domIndex),
+      "--tab-id",
+      String(tab.id),
+    ]);
+    try {
+      return await body();
+    } finally {
+      try {
+        await this.frameContextStep("frame.main", ["--tab-id", String(tab.id)]);
+      } catch (error) {
+        await this.close();
+        // biome-ignore lint/correctness/noUnsafeFinally: a tab left in a frame must not be reused
+        throw new FrameworkError(
+          "frame_context_unrestored",
+          `frame.main did not restore tab ${tab.id} after an in-frame probe of DOM index ${domIndex} (${errorMessage(error)}); the tab was closed so nothing later runs in that frame.`,
+          { tab_id: tab.id, dom_index: domIndex },
+        );
+      }
+    }
+  }
+
+  private frameContextStep(command: "frame.switch" | "frame.main", args: string[]) {
+    return this.runLedgerStep({
+      id: `${this.idPrefix}.${command}`,
+      command,
+      args,
+      intent: `${command === "frame.switch" ? "switch" : "restore"} this run's tab frame context`,
+      declaration: FRAME_CONTEXT_EFFECT,
+      subject: this.subjectFor(this.url),
+      read: (value: SessionReply) => value,
+    });
+  }
+
   async explainUnreachable(
     selector: string,
     options: ExplainUnreachableOptions = {},
