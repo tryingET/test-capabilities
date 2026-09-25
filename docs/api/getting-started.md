@@ -16,7 +16,7 @@ type: "guide"
 
 - Node.js 22+
 - A CLI command or executable you can safely run with `--help`
-- Optional: the surf CLI (nicobailon/surf-cli built from the `feat/site-independent-mechanisms` branch, with its browser extension and native host; `surf doctor --browser chromium` must be OK) if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, then `~/.local/bin/surf`.
+- Optional: the surf CLI (nicobailon/surf-cli v2.20.0 or later, with its browser extension and native host; `surf doctor --browser chromium` must be OK) if you want to use `test-capabilities surf explore` or the `surf` orchestrator agent. Resolution order is `TEST_CAPABILITIES_SURF_BIN`, `surf` on `PATH`, then `~/.local/bin/surf`.
 - Optional for Bombadil-backed web exploration: a Bombadil-compatible binary exposed through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH`; Bombadil 0.5 no longer requires `esbuild`, though source builds may still need `trunk` or a project-provided Nix shell
 
 ---

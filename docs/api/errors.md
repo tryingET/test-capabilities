@@ -286,10 +286,10 @@ surf 2.18.0 via path_surf (/usr/local/bin/surf) lacks wait.ready and extract. Su
 ```
 
 **Cause**:
-- The resolved `surf` is an upstream build without the `feat/site-independent-mechanisms` branch
+- The resolved `surf` is an upstream build older than v2.20.0 (v2.18.0 needed the `feat/site-independent-mechanisms` branch)
 
 **Fix**:
-- Install the branch build and point `TEST_CAPABILITIES_SURF_BIN` at it, or put it first on `PATH`
+- Install surf-cli v2.20.0 or later (or the branch build for 2.18) and point `TEST_CAPABILITIES_SURF_BIN` at it, or put it first on `PATH`
 
 ---
 
