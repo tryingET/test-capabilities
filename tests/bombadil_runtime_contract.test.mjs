@@ -5,13 +5,23 @@ import path from "node:path";
 import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
-const { resolveBombadilBinaryResolution, runBombadil, runBombadilTerminalTest } =
-  await importRuntimeModule("core/bombadil-runtime.js");
+const {
+  resolveBombadilBinary,
+  resolveBombadilBinaryResolution,
+  runBombadil,
+  runBombadilTerminalTest,
+} = await importRuntimeModule("core/bombadil-runtime.js");
 
 function writeExecutable(filePath, script = "#!/bin/sh\nexit 0\n") {
   mkdirSync(path.dirname(filePath), { recursive: true });
   writeFileSync(filePath, script, { mode: 0o755 });
 }
+
+test("resolveBombadilBinary is the path of the resolution, nothing more", () => {
+  const env = { TEST_CAPABILITIES_BOMBADIL_BIN: "/opt/bombadil/bin/bombadil" };
+  assert.equal(resolveBombadilBinary(env), resolveBombadilBinaryResolution(env).binaryPath);
+  assert.equal(resolveBombadilBinary(env), "/opt/bombadil/bin/bombadil");
+});
 
 test("explicit Bombadil binary env wins over all other providers", () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-bombadil-resolution-"));

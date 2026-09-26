@@ -178,7 +178,7 @@ Options:
 | `--ready-selector <css>` | A visible CSS selector the readiness gate waits for (`surf wait.ready --selector`). A selector the gate cannot reach refuses with `[element_unreachable]` and carries a frame diagnosis taken in the same tab |
 | `--frame-probe` | With `--ready-selector` and no `--frame-hint`: for each top-level candidate frame, `frame.switch --index <domIndex>`, one `wait.element` for the selector, `frame.main`. A hit in exactly one candidate, with every candidate probed and answering, confirms the frame; hits in several are `undetermined`; anything else stays `suspected` - absence never excludes. Nested frames and frames without an answering content script count as unprobed and block a confirmation. A `frame.main` that fails closes the tab (`frame_context_unrestored`). Off by default |
 | `--frame-hint <kind=value>` | `urlPrefix=<prefix>` or `selector=<css>`, asserting which frame the `--ready-selector` target lives in. Only valid with `--ready-selector`; a shape the framework cannot read, or a hint that resolves to zero, several or an unreachable frame, refuses rather than weakening the determination |
-| `--a11y-snapshot[=mode]` | Attach the a11y observation channel (agent-browser over the loopback CDP endpoint). `optional` (the bare flag) records an `unavailable` observation and continues; `required` fails the page with `[a11y_channel_unavailable]`. Default `off`, so an envelope without the flag is unchanged |
+| `--a11y-snapshot[=mode]` | Attach the a11y observation channel (one surf `page.read --structure --full-page --nodes` in the owned tab). `optional` (the bare flag) records an `unavailable` observation and continues; `required` fails the page with `[a11y_channel_unavailable]`. Default `off`, so an envelope without the flag is unchanged |
 | `--json` | Print the full machine-readable operation envelope; a failure prints `{"error": {code, message, details}}` and exits 1 |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
@@ -208,33 +208,32 @@ without `--frame-hint`, `suspected` is the strongest answer it will give.
 
 #### A11y snapshot observation channel
 
-An optional, read-only *second* observation channel: surf keeps the tab and every action, and
-agent-browser attaches to the same CDP target and only reads. It is off by default, and nothing
-about it is a fallback - a missing binary, a version below `0.35.1`, a non-loopback or
-unreachable endpoint, an ambiguous tab binding or an empty tree is a typed refusal, never a
-browser this framework launched.
+An optional, read-only *second* observation channel, read by surf itself in the tab the run
+already owns: one `page.read --structure --full-page --no-text --nodes`, through the session like
+every other read (tab-scoped, ledgered, `read_only`). The tree is controls, headings and landmarks
+across the whole page, independent of the window size, and `--nodes` makes it a full snapshot
+with no diff footer. It is off by default. A surf without `--nodes`, an empty tree, or a tree whose
+URL is not the gated page is a typed refusal. There is no second tool, no CDP endpoint and no tab
+binding (agent-browser was the producer until AK #5915; `docs/project/2026-09-26-a11y-producer-switch.md`).
 
-Per page the channel reads `/json/list` over HTTP, binds the one page target whose URL is the
-readiness href, pins one session (`--session test-capabilities-<runId> --pin-tab`) to that
-target id, takes one `snapshot -i --json`, and ends its session before surf closes the tab.
-
-The artifact (`a11y-snapshot.v1`, kind `test-capabilities.a11y.snapshot`) is written to
-`<receipts.dir>/<runId>/a11y-snapshot-*.json` at mode 0600 and holds the tree's text, its refs
-map, the role counts and `semanticCoverage`. `pages[].observations[]` in the envelope carries
-the digest, the refs map, the counts and the file's path - never the ~8 KB text.
+The artifact (`a11y-snapshot.v1`, channel `surf-page-read`, kind
+`test-capabilities.a11y.snapshot`) is written to `<receipts.dir>/<runId>/a11y-snapshot-*.json`
+at mode 0600 and holds the tree's text, its refs map, the role counts and `semanticCoverage`.
+`pages[].observations[]` in the envelope carries the digest, the refs map, the counts and the
+file's path - never the tree text.
 
 | field | what it is |
 |---|---|
-| `digest` | `sha256:<hex>` of the snapshot text. A ref is valid **iff** a fresh snapshot's digest equals the digest that minted it; a reload that leaves the tree byte-identical keeps it valid, a navigation does not |
-| `refs` | `{ "e28": { role, name } }`, straight from the producer. `eN` is a within-snapshot reading aid; what crosses runs is `{role, name}` |
+| `digest` | `sha256:<hex>` of the snapshot text, without surf's `[Viewport: WxH]` line. A ref is valid **iff** a fresh snapshot's digest equals the digest that minted it; a reload that leaves the tree byte-identical keeps it valid, a navigation does not |
+| `refs` | `{ "e28": { role, name } }`, from surf's structured nodes. `eN` is a within-snapshot reading aid; what crosses runs is `{role, name}` |
 | `roleCounts` | how many nodes of each role the tree named |
-| `semanticCoverage` | the `dom` probe's `anchors`/`buttons`/`inputs` counts against the tree's. A gap is the number of controls the page has and the browser cannot name; assert those through surf selectors. Absent with `coverageReason: "dom_probe_missing"` when the `dom` probe did not verify - never zeros |
-| `tabLeak` | pages that appeared while the channel held its session, with `before`, `after`, `urls` and `attribution`. Only the channel acts in that window, so every such page is its own. `known_producer_stray` - exactly one `about:blank` from an agent-browser version measured to strand one per session (0.35.1, 0.38.0) - is evidence in both modes. `unexplained` is everything else: evidence under `optional`, a `tab_leak` refusal under `required` |
+| `semanticCoverage` | the `dom` probe's `anchors`/`buttons`/`inputs` counts against the tree's. A gap is the number of controls the page has and the tree does not name; assert those through surf selectors. Absent with `coverageReason: "dom_probe_missing"` when the `dom` probe did not verify - never zeros |
+| `tool` | the command and the surf version that answered |
+| `tab` | surf's own tab id, the URL and the title the tree was read from |
 
-Environment: `TEST_CAPABILITIES_AGENT_BROWSER_BIN` (else `agent-browser` on `PATH`, else
-`~/.npm-global/bin/agent-browser`), `TEST_CAPABILITIES_CDP_ENDPOINT` (default
-`http://127.0.0.1:9222`, loopback only), `TEST_CAPABILITIES_AGENT_BROWSER_SESSION_PREFIX`
-(default `test-capabilities`). `doctor` reports all three as `external.agent_browser`.
+The channel needs surf-cli with `page.read --structure --full-page --nodes` (branch
+`feat/page-read-nodes`, which the workstation's `adopted` build runs). `doctor` reports whether
+the resolved surf has it as `external.a11y_channel`.
 
 Unsupported surf actions:
 - `flow`

@@ -81,6 +81,8 @@ const SESSION_TAB_SCOPED_COMMANDS = new Set([
   "js",
   // the in-frame probe's query (`wait --element`), which follows the frame context
   "wait",
+  // the a11y channel's structured read (AK #5915)
+  "page.read",
   // The submit gate's three value-setting verbs. `--tab-id` is a global surf option, so their
   // argv mapping can carry it; without that they would act on whichever tab is in front.
   "type",

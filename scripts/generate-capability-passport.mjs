@@ -321,9 +321,9 @@ for (const [agent, status] of Object.entries(capabilityMatrix.orchestrator.agent
             : [],
       notes:
         status === "implemented" && bombadilAgent
-          ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH, and exposes Bombadil 0.5 browser-test options for headers, trace output, trace reproduction, viewport/instrumentation/permission knobs, and test-external debugger settings."
+          ? "Supported Bombadil runtime resolves TEST_CAPABILITIES_BOMBADIL_BIN first, then a built source checkout referenced by TEST_CAPABILITIES_BOMBADIL_REPO, then repo-local external/bombadil, then bombadil on PATH, and exposes Bombadil 0.5 browser-test options for headers, trace output, trace reproduction, viewport/instrumentation/permission knobs, and test-external debugger settings." // ubs:ignore -- prose naming Bombadil's --remote-debugger option, not a debugger statement
           : status === "implemented" && surfAgent
-            ? "Supported Surf runtime uses the shared surf explore operation on the upstream nicobailon/surf-cli CLI (branch feat/site-independent-mechanisms), resolves TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, refuses builds without wait.ready/extract and the retired surf-go env vars, runs in an owned tab gated by wait.ready typed states, verifies explicit browser-state/DOM probes and extract-backed link rows, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, non-JSON output, refused readiness states, and target URLs without a matching browser-state probe fail closed as unverified coverage."
+            ? "Supported Surf runtime uses the shared surf explore operation on the nicobailon/surf-cli CLI (v2.20.0 or later; the workstation runs the adopted build with page.read --nodes), resolves TEST_CAPABILITIES_SURF_BIN, surf on PATH, or ~/.local/bin/surf, refuses builds without wait.ready/extract and the retired surf-go env vars, runs in an owned tab gated by wait.ready typed states, verifies explicit browser-state/DOM probes and extract-backed link rows, supports bounded same-origin --depth exploration, and reports graded user-flow coverage from verified probes. Empty output, non-JSON output, refused readiness states, and target URLs without a matching browser-state probe fail closed as unverified coverage."
             : bombadilAgent && bombadilPresent
               ? "Bombadil is vendored in the repo, but the orchestrator currently rejects bombadil agents until a real runtime path is restored."
               : undefined,
@@ -409,17 +409,18 @@ const libraryCapabilities = [
     verificationState: "verified",
     evidence: {
       tests: [
-        "tests/a11y_snapshot_runtime_contract.test.mjs",
+        "tests/a11y_snapshot_contract.test.mjs",
         "tests/a11y_snapshot_observer_contract.test.mjs",
       ],
       commands: ["npm test"],
       docs: [
         "docs/project/2026-09-07-a11y-snapshot-live-run.md",
         "docs/project/2026-09-07-slice-s9-notes.md",
+        "docs/project/2026-09-26-a11y-producer-switch.md",
       ],
     },
     notes:
-      "An optional, read-only second observation channel registered on Session.observe: agent-browser (>= 0.35.1) attached to the same loopback CDP target the surf run already owns. The schema a11y-snapshot.v1 is the contract and agent-browser is a named, replaceable producer; the artifact carries the tree text, the {role, name} refs map, the sha256 digest of the text, the role counts and semanticCoverage (the dom probe's counts against the tree's), and is written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. Ref validity is digest equality against a mandatory fresh snapshot and nothing else; cross-run identity is {role, name}, and ambiguity is a typed unverified with the candidates listed. The channel never launches a browser: the endpoint must be loopback and is checked before any request, every invocation carries --cdp, and a read-only argv allowlist (snapshot, get, is, tab, close) has no open, --auto-connect, --profile or action verb. Off by default. Live-verified against Chromium (Agent) Chrome/152 on github.com/nicobailon/surf-cli/releases: two runs, identical digest, 205 refs, 8232 bytes, session ended and tab count restored.",
+      "An optional, read-only second observation channel registered on Session.observe: one surf page.read --structure --full-page --no-text --nodes in the tab the surf run already owns, through the run's own session (tab-scoped, ledgered, read_only). The schema a11y-snapshot.v1 is the contract and the producer is named in every artifact (channel surf-page-read; agent-browser over CDP until AK #5915 met the S9 sunset condition). The artifact carries the tree text (controls, headings and landmarks across the whole page, independent of window size; the viewport line is not digested), the {role, name} refs map from surf's structured nodes, the sha256 digest of the text, the role counts and semanticCoverage (the dom probe's counts against the tree's), and is written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. Ref validity is digest equality against a mandatory fresh snapshot and nothing else; cross-run identity is {role, name}, and ambiguity is a typed unverified with the candidates listed. No second tool, no CDP endpoint, no tab binding and no stray tab. A surf without page.read --nodes is surf_page_read_unsupported. Off by default. Captured live on github.com/nicobailon/surf-cli/releases: two consecutive reads byte-identical, 236 nodes, 15154 bytes.",
   },
   {
     id: "library:executeCliOperation",

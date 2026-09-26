@@ -715,9 +715,12 @@ function translateEmulateViewport(args: string[]): string[] {
 }
 
 function translatePageRead(args: string[]): string[] {
+  // --structure, --full-page and --nodes are surf-cli feat/page-read-nodes (AK #5915): the a11y
+  // channel's structured, footer-free, viewport-independent read. --nodes answers JSON.
+  const boolFlags = ["--compact", "--no-text", "--all", "--structure", "--full-page", "--nodes"];
   const parsed = parseCommandArgs("page.read", args, {
-    valueFlags: ["--depth", "--max-bytes"],
-    boolFlags: ["--compact", "--no-text", "--all"],
+    valueFlags: ["--depth", "--max-bytes", "--tab-id"],
+    boolFlags,
     maxPositionals: 0,
   });
   if (parsed.values["--depth"] !== undefined) {
@@ -725,8 +728,9 @@ function translatePageRead(args: string[]): string[] {
   }
   return [
     "page.read",
-    ...passthroughValues(parsed, ["--depth", "--max-bytes"]),
-    ...passthroughFlags(parsed, ["--compact", "--no-text", "--all"]),
+    ...passthroughValues(parsed, ["--depth", "--max-bytes", "--tab-id"]),
+    ...passthroughFlags(parsed, boolFlags),
+    ...(parsed.flags.has("--nodes") ? ["--json"] : []),
   ];
 }
 
@@ -746,6 +750,7 @@ export function translateSurfArgs(command: string, args: string[] = []): string[
       return ["tab.reload", ...passthroughFlags(parsed, ["--hard"])];
     }
     case "read":
+    case "page.read":
       return translatePageRead(args);
     case "page.text":
       return translateNoArgs("page.text", args);

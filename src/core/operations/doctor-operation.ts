@@ -3,12 +3,6 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import {
-  AGENT_BROWSER_MIN_VERSION,
-  probeAgentBrowser,
-  probeCdpEndpoint,
-  resolveAgentBrowserResolution,
-} from "../a11y-snapshot-runtime.js";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { MutationReceipt } from "../receipt-store.js";
@@ -376,55 +370,44 @@ function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorChec
 
 /**
  * The a11y observation channel as an optional external, next to `external.surf` (a11y-snapshot
- * packet, "Placement"; slice S9).
+ * packet, "Placement"; producer switched to surf under AK #5915).
  *
- * Three gates, reported in the order a run would hit them: the binary, its version, and the
- * loopback DevTools endpoint. Every one of them is a warning rather than a failure - the channel
- * is off by default and its absence never blocks a run - but the detail names the exact refusal
- * an `--a11y-snapshot=required` run would get, so `doctor` answers the question before the run
- * asks it.
+ * The channel is one `page.read --nodes` through the run's own surf, so the only question is
+ * whether that surf knows the flag: its `page.read --help` lists `--nodes`. A warning, never a
+ * failure - the channel is off by default - but the detail names the refusal an
+ * `--a11y-snapshot=required` run would get, so `doctor` answers before the run asks.
  */
-async function checkOptionalAgentBrowser(
-  env: NodeJS.ProcessEnv = process.env,
-): Promise<DoctorCheck> {
-  const id = "external.agent_browser";
-  const label = "Optional a11y snapshot channel (agent-browser over CDP)";
-
-  let resolution: ReturnType<typeof resolveAgentBrowserResolution>;
+function checkOptionalA11yChannel(env: NodeJS.ProcessEnv = process.env): DoctorCheck {
+  const id = "external.a11y_channel";
+  const label = "Optional a11y snapshot channel (surf page.read --nodes)";
+  let resolution: ReturnType<typeof resolveSurfRuntimeResolution>;
   try {
-    resolution = resolveAgentBrowserResolution(env);
+    resolution = resolveSurfRuntimeResolution(env);
   } catch (error) {
     return warn(id, label, errorMessage(error));
   }
-
-  let version: string;
-  try {
-    version = (await probeAgentBrowser(resolution, { env })).version;
-  } catch (error) {
-    return {
-      ...warn(id, label, errorMessage(error)),
-      data: { command: resolution.command, provider: resolution.provider, version: null },
-    };
-  }
-
-  const base = {
-    command: resolution.command,
-    provider: resolution.provider,
-    version,
-    minVersion: AGENT_BROWSER_MIN_VERSION,
-    endpoint: resolution.endpoint.url,
-  };
-  const describe = `agent-browser ${version} via ${resolution.provider} (${resolution.command}); CDP ${resolution.endpoint.url}`;
-
-  try {
-    const browser = await probeCdpEndpoint(resolution);
-    return {
-      ...pass(id, label, `${describe}: ${browser.browser}`, false),
-      data: { ...base, browser: browser.browser },
-    };
-  } catch (error) {
-    return { ...warn(id, label, `${describe}: ${errorMessage(error)}`), data: base };
-  }
+  const help = runSurfCommand(resolution, ["page.read", "--help"], { timeoutMs: 15_000, env });
+  const text = `${help.stdout}\n${help.stderr}`;
+  const supported = help.ok && /--nodes\b/.test(text) && /--structure\b/.test(text);
+  const data = { command: resolution.command, nodes: supported };
+  return supported
+    ? {
+        ...pass(
+          id,
+          label,
+          `surf page.read --structure --full-page --nodes via ${resolution.command}`,
+          false,
+        ),
+        data,
+      }
+    : {
+        ...warn(
+          id,
+          label,
+          `surf at ${resolution.command} does not list page.read --nodes/--structure; --a11y-snapshot=required would refuse with surf_page_read_unsupported. The channel needs surf-cli feat/page-read-nodes (the workstation's adopted build).`,
+        ),
+        data,
+      };
 }
 
 /**
@@ -511,7 +494,7 @@ async function runDoctorOperation(
     ...(targetCheck ? [targetCheck] : []),
     checkOptionalSurf(),
     checkOptionalBombadil(),
-    await checkOptionalAgentBrowser(),
+    checkOptionalA11yChannel(),
     await checkReceiptStore(context),
   ];
   const requiredFailed = checks.filter((check) => check.required && check.status === "fail");

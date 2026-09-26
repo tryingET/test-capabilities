@@ -138,10 +138,11 @@ Options:
                                wait.element, frame.main); one hit with every
                                candidate answering confirms the frame
   --a11y-snapshot [mode]       surf explore: attach the read-only accessibility
-                               observation channel (agent-browser over the
-                               loopback CDP endpoint); 'optional' (default)
-                               records an unavailable channel and continues,
-                               'required' fails the page
+                               observation channel (one surf page.read
+                               --structure --full-page --nodes in the owned
+                               tab); 'optional' (default) records an
+                               unavailable channel and continues, 'required'
+                               fails the page
   --field <locator=value>      surf plan: a field to fill, as
                                '<label|selector|name>:<locator>=<value>';
                                repeatable (default: [])

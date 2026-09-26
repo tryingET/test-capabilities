@@ -1,74 +1,53 @@
 /**
- * The a11y snapshot channel as a `Session.observe` step (architecture review A8; adjudication
- * claim 22).
+ * The a11y snapshot observer: a read-only `Session.observe` step over the tab a surf run
+ * already owns (a11y-snapshot packet, "Session and tab binding" and "Snapshot artifact";
+ * slice S9; producer switched to surf under AK #5915).
  *
- * A step list in its own module, the way `frame-diagnosis.ts` and `surf-plan-probe.ts` are: the
- * session stays free of the second tool, and the composition - bind the surf-owned tab through
- * `/json/list`, pin one agent-browser session to it, take one `snapshot -i --json`, count what
- * the tree could name against what the `dom` probe counted, write the artifact at 0600, tear the
- * session down before the tab closes - lives here where it is testable against a fake.
+ * One step: `page.read --structure --full-page --no-text --nodes` in the owned tab, through the
+ * session like every other surf read, so it is tab-scoped, ledgered and classified by the same
+ * rules. The tree is structure (controls, headings, landmarks) across the whole page and does not
+ * depend on the window size; `--nodes` makes it a full snapshot with no diff footer, so the text
+ * is the page's and nothing else's, and its digest is content identity.
  *
- * The rules this module exists to keep, all from the packet:
- *
- *   - **surf owns the tab; agent-browser only reads it.** The observer never opens, navigates or
- *     closes a page. It binds to the target id the browser already has for the tab surf created,
- *     and every invocation carries `--cdp` so nothing is ever launched.
- *   - **Exactly one candidate, or nothing.** A tab that is not in `/json/list`, or is there
- *     twice, is `tab_bind_ambiguous`; the framework does not pick.
- *   - **An empty tree is a failure.** `empty_snapshot` is not a zero-element success, and an
- *     `origin` that is not the bound tab's URL is `origin_mismatch` - the same rule the explore
- *     probes apply to their own evidence.
- *   - **Teardown before the tab goes.** The session that was pinned to the tab is ended first;
- *     `close` on an attached browser was measured on 2026-09-08 to end the session and leave the
- *     browser and its pages alone.
+ * What the agent-browser producer needed and this one does not: a second binary, a CDP endpoint
+ * and its loopback rule, binding the tab by target id, a pinned session with a teardown order,
+ * and the accounting of the page that session stranded (AK #5567). Reading through the tool that
+ * owns the tab removes all of it.
  */
 
 import path from "node:path";
-import process from "node:process";
 import {
   A11Y_CHANNEL,
+  A11Y_PAGE_READ_ARGS,
   A11Y_SNAPSHOT_KIND,
   A11Y_SNAPSHOT_SCHEMA_VERSION,
   type A11yDomProbeCounts,
   type A11ySnapshotArtifact,
   type A11ySnapshotObservation,
-  type A11yTabBinding,
-  type A11yTabLeak,
-  attributeTabLeak,
   parseA11ySnapshotPayload,
   roleCountsFrom,
   semanticCoverageFrom,
   snapshotDigest,
 } from "./a11y-snapshot.js";
-import type { AgentBrowserResolution } from "./a11y-snapshot-runtime.js";
-import {
-  agentBrowserAdapter,
-  type CdpTarget,
-  listCdpTargets,
-  probeAgentBrowser,
-  probeCdpEndpoint,
-  sessionNameForRun,
-} from "./a11y-snapshot-runtime.js";
-import { invokeAdapter } from "./adapter.js";
 import { writeJsonArtifactSync } from "./artifacts.js";
-import type { Session, SessionObserver } from "./browser-session.js";
+import type { Session, SessionObserver, SessionReply } from "./browser-session.js";
 import type { EffectDeclaration } from "./effects.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
+import { parseSurfJsonOutput } from "./surf-runtime.js";
 
+/** The artifact kind the snapshot file is written under (listable next to receipts). */
 export const A11Y_SNAPSHOT_ARTIFACT_KIND = "test-capabilities.a11y.snapshot";
 export const A11Y_SNAPSHOT_OBSERVER_NAME = "a11y-snapshot";
 
 /**
- * Read-only on the target: this observer reads a tab another tool owns and acts on nothing in
- * it. The session it pins is its own and it ends it itself. It is not silent on the browser:
- * agent-browser 0.35.1 strands one `about:blank` page per new session and `close` does not
- * remove it, so the reason says so (AK #5567); the page is recorded on every run as `tabLeak`.
+ * Read-only on the target and on the browser: one `page.read` in the tab this run already owns.
+ * It opens, navigates and clicks nothing, and it starts no second tool.
  */
 export const A11Y_SNAPSHOT_EFFECT: EffectDeclaration = {
   effect: "read_only",
   reason:
-    "reads the accessibility tree of the tab surf owns over CDP; it opens, navigates and clicks nothing, but agent-browser 0.35.1 leaves one about:blank page target per session in the browser",
+    "reads the accessibility tree of the tab this run owns through surf page.read; it opens, navigates and clicks nothing",
 };
 
 export interface A11ySnapshotObserverOptions {
@@ -83,7 +62,8 @@ export interface A11ySnapshotObserverOptions {
    * `dom_probe_missing` - never three zeros.
    */
   domCounts?: () => A11yDomProbeCounts | undefined;
-  env?: NodeJS.ProcessEnv;
+  /** the surf version the run resolved, recorded as the producer version */
+  toolVersion?: string;
 }
 
 export interface A11ySnapshotObserverHandle {
@@ -92,129 +72,20 @@ export interface A11ySnapshotObserverHandle {
   observation(): A11ySnapshotObservation | undefined;
 }
 
+const PAGE_READ_COMMAND = `surf page.read ${A11Y_PAGE_READ_ARGS.join(" ")}`;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function pageTargets(targets: readonly CdpTarget[]): CdpTarget[] {
-  return targets.filter((target) => target.type === "page");
-}
-
-/**
- * One agent-browser invocation, through the kernel boundary and the run's ledger.
- *
- * Read-only, so it lands in the ledger's attempt log rather than in a receipt; the boundary is
- * still `Adapter.invoke`, so translation, the argv allowlist and the classifier all run.
- */
-async function runAgentBrowserStep(
-  context: RunContext,
-  env: NodeJS.ProcessEnv,
-  step: { id: string; command: string; args?: readonly string[]; intent: string; subject: string },
-): Promise<{ stdout: string; stderr: string; exitCode: number | null; display: string[] }> {
-  return context.ledger.runStep({
-    id: step.id,
-    effect: A11Y_SNAPSHOT_EFFECT,
-    subject: step.subject,
-    intent: step.intent,
-    run: async () => {
-      const invoked = await invokeAdapter(
-        agentBrowserAdapter,
-        {
-          id: step.id,
-          command: step.command,
-          ...(step.args ? { args: step.args } : {}),
-          subject: step.subject,
-        },
-        { env, runId: context.runId },
-      );
-      return {
-        stdout: invoked.raw.stdout,
-        stderr: invoked.raw.stderr,
-        exitCode: invoked.raw.exitCode,
-        display: invoked.invocation.display,
-      };
-    },
-  });
-}
-
-/** agent-browser wraps every `--json` reply as `{success, data, error}`; unwrap or refuse. */
-function unwrapAgentBrowserJson(
-  stdout: string,
-  display: readonly string[],
-): { data: unknown } | { code: "snapshot_failed" | "tab_lost"; detail: string } {
-  const raw = stdout.trim();
-  if (raw.length === 0) {
-    return { code: "snapshot_failed", detail: `${display.join(" ")} printed nothing` };
-  }
-  let parsed: unknown;
+function normalizeHref(href: string): string {
   try {
-    parsed = JSON.parse(raw);
+    const url = new URL(href);
+    url.hash = "";
+    return url.href;
   } catch {
-    return {
-      code: "snapshot_failed",
-      detail: `${display.join(" ")} printed ${raw.slice(0, 160)}, which is not JSON`,
-    };
+    return href;
   }
-  if (typeof parsed !== "object" || parsed === null) {
-    return { code: "snapshot_failed", detail: `${display.join(" ")} printed a ${typeof parsed}` };
-  }
-  const envelope = parsed as { success?: unknown; data?: unknown; error?: unknown };
-  if (envelope.success === false) {
-    const message = typeof envelope.error === "string" ? envelope.error : "unknown failure";
-    return {
-      code: /tab[_ ]gone|no such tab|target closed/i.test(message) ? "tab_lost" : "snapshot_failed",
-      detail: message,
-    };
-  }
-  return { data: "data" in envelope ? envelope.data : parsed };
-}
-
-/** The page target the surf session owns, or the typed refusal that says why there is none. */
-export function bindOwnedTab(
-  targets: readonly CdpTarget[],
-  href: string,
-  surfTabId: number | undefined,
-): A11yTabBinding {
-  const candidates = pageTargets(targets).filter((target) => target.url === href);
-  if (candidates.length !== 1) {
-    throw new FrameworkError(
-      "tab_bind_ambiguous",
-      `The browser's target list holds ${candidates.length} page(s) at ${href}; the a11y channel binds to exactly one tab or to none. ${
-        candidates.length === 0
-          ? "The tab surf opened is not in /json/list, so the endpoint is a different browser from the one surf drives."
-          : `Candidates: ${candidates.map((target) => target.id).join(", ")}.`
-      }`,
-      { url: href, candidates: candidates.map((target) => target.id) },
-    );
-  }
-  const target = candidates[0] as CdpTarget;
-  return {
-    targetId: target.id,
-    ...(surfTabId === undefined ? {} : { surfTabId }),
-    url: target.url,
-    title: target.title,
-  };
-}
-
-/** Pages that appeared while the observer held its session, attributed by the tool version. */
-export function tabLeakOf(
-  before: readonly CdpTarget[],
-  after: readonly CdpTarget[],
-  toolVersion: string | undefined,
-): A11yTabLeak | undefined {
-  const beforePages = pageTargets(before);
-  const afterPages = pageTargets(after);
-  if (afterPages.length <= beforePages.length) {
-    return undefined;
-  }
-  const known = new Set(beforePages.map((target) => target.id));
-  const urls = afterPages.filter((target) => !known.has(target.id)).map((target) => target.url);
-  return {
-    before: beforePages.length,
-    after: afterPages.length,
-    urls,
-    attribution: attributeTabLeak(urls, toolVersion),
-  };
 }
 
 interface CaptureResult {
@@ -278,99 +149,57 @@ async function capture(
   session: Session,
   options: A11ySnapshotObserverOptions,
   sequence: number,
-  onSessionStarted: () => void,
 ): Promise<CaptureResult> {
-  const baseEnv = options.env ?? process.env;
-  const env: NodeJS.ProcessEnv = {
-    ...baseEnv,
-    TEST_CAPABILITIES_AGENT_BROWSER_SESSION: sessionNameForRun(session.runId, baseEnv),
-  };
-  const context = options.context;
-
-  let resolution: AgentBrowserResolution;
-  try {
-    resolution = agentBrowserAdapter.resolve(env);
-  } catch (error) {
-    return unavailable(
-      isFrameworkError(error) ? error.code : "agent_browser_missing",
-      errorMessage(error),
-    );
-  }
-
-  const probe = await probeAgentBrowser(resolution, { env });
-  const version = await probeCdpEndpoint(resolution);
-
-  const before = await listCdpTargets(resolution);
   const href = session.readiness?.href ?? session.url;
-  const binding = bindOwnedTab(before, href, session.tab?.id);
-
   const startedAt = Date.now();
-  // From here on an agent-browser session may exist, so teardown has to run. Marking it *here*
-  // and not at the top of `run` is what keeps an unavailable channel from creating a session
-  // purely in order to close it: a run that never got past resolution, the version floor, the
-  // endpoint probe or the tab binding has nothing to tear down, and every session this tool
-  // opens costs a stray `about:blank` (see the live-run doc).
-  onSessionStarted();
-  // Binding first: `tab <targetId>` attaches the pinned session to the tab surf owns without
-  // creating one, which is what makes every later command speak about this page and no other.
-  await runAgentBrowserStep(context, env, {
-    id: "a11y.tab.bind",
-    command: "tab",
-    args: [binding.targetId],
-    intent: `pin this run's agent-browser session to the tab surf owns (${binding.targetId})`,
-    subject: `${href} target=${binding.targetId}`,
-  });
-
-  const snapshotReply = await runAgentBrowserStep(context, env, {
+  const reply = await session.step<SessionReply>({
     id: "a11y.snapshot",
-    command: "snapshot",
-    args: ["-i", "--json"],
+    command: "page.read",
+    args: [...A11Y_PAGE_READ_ARGS],
     intent: `read the accessibility tree of ${href} without acting on it`,
-    subject: `${href} target=${binding.targetId}`,
+    read: (value) => value,
   });
 
-  const unwrapped = unwrapAgentBrowserJson(snapshotReply.stdout, snapshotReply.display);
-  if ("code" in unwrapped) {
-    throw new FrameworkError(
-      unwrapped.code,
-      `The a11y snapshot of ${href} did not answer: ${unwrapped.detail}.`,
-      { url: href, target_id: binding.targetId },
-    );
+  let payload: unknown;
+  try {
+    payload = parseSurfJsonOutput(reply.stdout, "page.read").data;
+  } catch (error) {
+    return unavailable("snapshot_failed", errorMessage(error));
   }
-
-  const parsed = parseA11ySnapshotPayload(unwrapped.data);
+  const parsed = parseA11ySnapshotPayload(payload);
   if ("error" in parsed) {
-    throw new FrameworkError(
+    return unavailable(
       parsed.error,
       parsed.error === "empty_snapshot"
-        ? `The accessibility tree of ${href} is empty (${parsed.detail}). An empty tree is a failure, never a zero-element success: either the page carries no named controls at all, or the snapshot did not reach it.`
-        : `The a11y snapshot of ${href} answered a shape this channel cannot read: ${parsed.detail}.`,
-      { url: href, target_id: binding.targetId },
+        ? `The accessibility tree of ${href} is empty (${parsed.detail}). An empty tree is a failure, never a zero-element success: either the page carries no named controls at all, or the read did not reach it.`
+        : parsed.error === "surf_page_read_unsupported"
+          ? `The resolved surf cannot give the structured tree (${parsed.detail}). The a11y channel needs page.read --nodes (surf-cli branch feat/page-read-nodes, adopted by the workstation build).`
+          : `The a11y snapshot of ${href} answered a shape this channel cannot read: ${parsed.detail}.`,
     );
   }
 
   const reading = parsed.reading;
-  if (reading.origin !== binding.url) {
-    throw new FrameworkError(
+  if (normalizeHref(reading.origin) !== normalizeHref(href)) {
+    return unavailable(
       "origin_mismatch",
-      `The a11y snapshot reports origin ${reading.origin || "(none)"} while the bound tab is ${binding.url}. The page moved between the readiness gate and the snapshot, so the tree describes something this run never gated.`,
-      { url: binding.url, origin: reading.origin, target_id: binding.targetId },
+      `The a11y snapshot reports ${reading.origin || "(no URL)"} while the gated page is ${href}. The page moved between the readiness gate and the snapshot, so the tree describes something this run never gated.`,
     );
   }
 
-  const after = await listCdpTargets(resolution);
-  const leak = tabLeakOf(before, after, probe.version);
   const roleCounts = roleCountsFrom(reading.refs);
   const coverage = semanticCoverageFrom(roleCounts, options.domCounts?.());
-
+  const tab = {
+    ...(session.tab ? { surfTabId: session.tab.id } : {}),
+    url: reading.origin,
+    title: reading.title,
+  };
+  const tool = { command: PAGE_READ_COMMAND, version: options.toolVersion ?? "" };
   const artifact: A11ySnapshotArtifact = {
     schemaVersion: A11Y_SNAPSHOT_SCHEMA_VERSION,
     kind: A11Y_SNAPSHOT_KIND,
     channel: A11Y_CHANNEL,
-    tool: { command: resolution.command, version: probe.version },
-    endpoint: { url: resolution.endpoint.url, browser: version.browser },
-    session: resolution.session,
-    tab: binding,
+    tool,
+    tab,
     sequence,
     capturedAt: new Date().toISOString(),
     elapsedMs: Date.now() - startedAt,
@@ -381,11 +210,10 @@ async function capture(
     snapshot: reading.snapshot,
     roleCounts,
     ...coverage,
-    ...(leak ? { tabLeak: leak } : {}),
     status: "captured",
   };
 
-  const written = writeSnapshotArtifact(context, artifact, sequence);
+  const written = writeSnapshotArtifact(options.context, artifact, sequence);
   return {
     artifact,
     observation: {
@@ -399,11 +227,8 @@ async function capture(
       refs: artifact.refs,
       roleCounts,
       ...coverage,
-      tab: binding,
-      session: resolution.session,
-      endpoint: resolution.endpoint.url,
-      tool: artifact.tool,
-      ...(leak ? { tabLeak: leak } : {}),
+      tab,
+      tool,
     },
   };
 }
@@ -421,8 +246,6 @@ export function createA11ySnapshotObserver(
 ): A11ySnapshotObserverHandle {
   const sequence = options.sequence ?? 1;
   let observation: A11ySnapshotObservation | undefined;
-  /** true once an agent-browser session may exist; see the comment in `capture`. */
-  let started = false;
 
   const observer: SessionObserver = {
     effect: A11Y_SNAPSHOT_EFFECT,
@@ -432,9 +255,7 @@ export function createA11ySnapshotObserver(
     async run(session: Session): Promise<A11ySnapshotObservation> {
       let result: CaptureResult;
       try {
-        result = await capture(session, options, sequence, () => {
-          started = true;
-        });
+        result = await capture(session, options, sequence);
       } catch (error) {
         result = unavailable(
           isFrameworkError(error) ? error.code : "snapshot_failed",
@@ -456,36 +277,7 @@ export function createA11ySnapshotObserver(
       }
 
       observation = result.observation;
-      const leak = observation.tabLeak;
-      if (options.required && leak?.attribution === "unexplained") {
-        throw new FrameworkError(
-          "tab_leak",
-          `The a11y snapshot channel was required and left ${leak.urls.length} page(s) it cannot account for in the browser while observing ${session.url}: ${leak.urls.join(", ")}. Only agent-browser's measured about:blank stray is expected; anything else is a leak.`,
-          { url: session.url, before: leak.before, after: leak.after, urls: leak.urls },
-        );
-      }
       return observation;
-    },
-
-    async teardown(): Promise<void> {
-      if (!started) {
-        return;
-      }
-      started = false;
-      const baseEnv = options.env ?? process.env;
-      const env: NodeJS.ProcessEnv = {
-        ...baseEnv,
-        TEST_CAPABILITIES_AGENT_BROWSER_SESSION: sessionNameForRun(options.context.runId, baseEnv),
-      };
-      // The session goes before the tab does: an unpinned session outliving its tab was measured
-      // creating a stray `about:blank` and then refusing to close "the last tab", while `close`
-      // on an attached browser ends only the session (measured 2026-09-08).
-      await runAgentBrowserStep(options.context, env, {
-        id: "a11y.session.close",
-        command: "close",
-        intent: "end the agent-browser session this run created, leaving the browser untouched",
-        subject: sessionNameForRun(options.context.runId, baseEnv),
-      });
     },
   };
 
@@ -513,7 +305,6 @@ export interface A11yChannelSummary {
   channel: string;
   tool?: string;
   version?: string;
-  endpoint?: string;
   status: "captured" | "unavailable";
   reason?: string;
 }
@@ -536,7 +327,6 @@ export function a11yChannelSummary(
       mode,
       channel: first?.channel ?? A11Y_CHANNEL,
       ...(first?.tool ? { tool: first.tool.command, version: first.tool.version } : {}),
-      ...(first?.endpoint ? { endpoint: first.endpoint } : {}),
       status: first?.status ?? "unavailable",
       ...(first?.reason ? { reason: first.reason } : {}),
     },

@@ -1037,7 +1037,7 @@ Every sensor is one of these, and `invokeAdapter` is the only composition of its
 
 ```typescript
 interface Adapter<TResolution, TProbe> {
-  readonly id: 'cli' | 'surf' | 'http' | 'bombadil' | 'agent-browser';
+  readonly id: 'cli' | 'surf' | 'http' | 'bombadil';
   resolve(env?: NodeJS.ProcessEnv): TResolution;
   probe(resolution: TResolution): TProbe;
   translate(step: AdapterStep, resolution: TResolution): AdapterInvocation;

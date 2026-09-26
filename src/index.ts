@@ -4,9 +4,10 @@
  */
 
 /**
- * The a11y observation channel's contract (slice S9). The schema is the durable asset and
- * agent-browser is a replaceable producer, so what a consumer imports is the artifact shape, the
- * digest rule and the assertion evaluator - never the tool.
+ * The a11y observation channel's contract (slice S9). The schema is the durable asset and the
+ * producer is replaceable - agent-browser until AK #5915, surf `page.read --nodes` since - so
+ * what a consumer imports is the artifact shape, the digest rule and the assertion evaluator,
+ * never the tool.
  */
 export type {
   A11yAssertion,
@@ -25,14 +26,12 @@ export type {
   A11ySnapshotReading,
   A11ySnapshotView,
   A11yTabBinding,
-  A11yTabLeak,
 } from "./core/a11y-snapshot.js";
 export {
   A11Y_CHANNEL,
   A11Y_INPUT_ROLES,
+  A11Y_PAGE_READ_ARGS,
   A11Y_SNAPSHOT_MODES,
-  AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS,
-  attributeTabLeak,
   evaluateA11yAssertion,
   findRefsByRoleName,
   isA11ySnapshotMode,
@@ -52,25 +51,9 @@ export {
   A11Y_SNAPSHOT_ARTIFACT_KIND,
   A11Y_SNAPSHOT_EFFECT,
   A11Y_SNAPSHOT_OBSERVER_NAME,
-  bindOwnedTab,
+  a11yChannelSummary,
   createA11ySnapshotObserver,
-  tabLeakOf,
 } from "./core/a11y-snapshot-observer.js";
-export type {
-  AgentBrowserProbe,
-  AgentBrowserResolution,
-  CdpEndpoint,
-  CdpTarget,
-} from "./core/a11y-snapshot-runtime.js";
-export {
-  AGENT_BROWSER_MIN_VERSION,
-  agentBrowserAdapter,
-  listCdpTargets,
-  probeAgentBrowser,
-  probeCdpEndpoint,
-  resolveAgentBrowserResolution,
-  resolveCdpEndpoint,
-} from "./core/a11y-snapshot-runtime.js";
 export type { ArtifactKind, ArtifactListEntry, WriteArtifactOptions } from "./core/artifacts.js";
 export {
   ARTIFACT_FILE_MODE,

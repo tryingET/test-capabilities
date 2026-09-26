@@ -1,10 +1,12 @@
 /**
  * `a11y-snapshot.v1` and `a11y-assert.v1`: the accessibility observation channel's contract.
  *
- * The schema is the durable asset and agent-browser is a replaceable producer (a11y-snapshot
- * packet, Clash 3 and the refinement's consequence 5): `channel` names the producer in every
- * receipt, so the day a direct CDP reader or `surf page.read --json` emits the same fields the
- * observer switches producer and no consumer changes.
+ * The schema is the durable asset and the producer is replaceable (a11y-snapshot packet,
+ * Clash 3 and the refinement's consequence 5): `channel` names the producer in every receipt.
+ * The producer was agent-browser over CDP until the packet's sunset condition was met on
+ * 2026-09-26 (AK #5915): surf's own `page.read --structure --full-page --nodes` emits roles,
+ * names, headings and landmarks deterministically, so the second tool, its CDP attachment and
+ * its stray tab are gone and no consumer changed.
  *
  * Two rules from the packet's adjudication live here, and nowhere else:
  *
@@ -19,8 +21,8 @@
  *     is the role and the accessible name (Clash 4). Ambiguity is a typed `unverified`, never a
  *     guess and never an `nth`.
  *
- * Pure ring: types, the digest, the counts and the resolution rules. The transport, the file and
- * the session live in `a11y-snapshot-runtime.ts` and `a11y-snapshot-observer.ts`.
+ * Pure ring: types, the digest, the counts and the resolution rules. The step, the file and the
+ * session live in `a11y-snapshot-observer.ts`.
  */
 
 import { createHash } from "node:crypto";
@@ -31,7 +33,15 @@ export const A11Y_SNAPSHOT_KIND = "a11y-snapshot";
 export const A11Y_ASSERT_KIND = "a11y-assert";
 
 /** The producer this artifact came from; a switch is visible in every receipt. */
-export const A11Y_CHANNEL = "agent-browser-cdp";
+export const A11Y_CHANNEL = "surf-page-read";
+
+/** The one read the channel makes; `--nodes` is the structured, footer-free form (AK #5915). */
+export const A11Y_PAGE_READ_ARGS: readonly string[] = [
+  "--structure",
+  "--full-page",
+  "--no-text",
+  "--nodes",
+];
 
 /** The observation name the session registers this channel under. */
 export const A11Y_SNAPSHOT_OBSERVATION = "a11y-snapshot";
@@ -76,47 +86,11 @@ export interface A11yDomProbeCounts {
   inputs: number;
 }
 
+/** The tab the tree was read from: the one surf opened for this run. */
 export interface A11yTabBinding {
-  /** the CDP target id: the same string in `/json/list` and in `tab list --json` */
-  targetId: string;
-  /** the tab id surf owns, so the two tools' views of one tab are joined in the receipt */
   surfTabId?: number;
   url: string;
   title: string;
-}
-
-/**
- * Stray pages the run left behind, compared over `/json/list` before and after (packet,
- * "Coexistence with surf on the same tab"). Only the channel acts between the two reads, so
- * every new page is the channel's; `attribution` says whether it is the one the producer is
- * measured to strand (evidence) or anything else (a `required` channel refuses with
- * `tab_leak`). Adjudicated in `docs/project/2026-09-23-tableak-greats-adjudication.md`.
- */
-export interface A11yTabLeak {
-  before: number;
-  after: number;
-  urls: string[];
-  attribution: "known_producer_stray" | "unexplained";
-}
-
-/**
- * The agent-browser versions measured to create exactly one `about:blank` page target on the
- * first command of a new session, pinned or not, and to leave it behind on `close` (S9 live run
- * §5.2, §6; 0.38.0 in `2026-09-23-frame-probe-live-measurement.md` §1). A version not listed
- * here that strays is `unexplained` until it is re-measured.
- */
-export const AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS: readonly string[] = ["0.35.1", "0.38.0"];
-
-/** Known only on the measured signature: one page, `about:blank`, a measured version. */
-export function attributeTabLeak(
-  urls: readonly string[],
-  toolVersion: string | undefined,
-): A11yTabLeak["attribution"] {
-  const measured =
-    toolVersion !== undefined && AGENT_BROWSER_NEW_SESSION_STRAY_VERSIONS.includes(toolVersion);
-  return measured && urls.length === 1 && urls[0] === "about:blank"
-    ? "known_producer_stray"
-    : "unexplained";
 }
 
 export interface A11ySnapshotCaptured {
@@ -124,8 +98,6 @@ export interface A11ySnapshotCaptured {
   kind: typeof A11Y_SNAPSHOT_KIND;
   channel: typeof A11Y_CHANNEL;
   tool: { command: string; version: string };
-  endpoint: { url: string; browser: string };
-  session: string;
   tab: A11yTabBinding;
   /** orders artifacts within a run; it is *not* an invalidator (refinement, Clash 5) */
   sequence: number;
@@ -142,7 +114,6 @@ export interface A11ySnapshotCaptured {
   semanticCoverage?: A11ySemanticCoverage;
   /** why `semanticCoverage` is absent: `dom_probe_missing`, never a zero */
   coverageReason?: "dom_probe_missing";
-  tabLeak?: A11yTabLeak;
   status: "captured";
 }
 
@@ -151,7 +122,7 @@ export interface A11ySnapshotUnavailable {
   kind: typeof A11Y_SNAPSHOT_KIND;
   channel: typeof A11Y_CHANNEL;
   status: "unavailable";
-  /** the registered code that says why: `agent_browser_missing`, `cdp_endpoint_refused`, ... */
+  /** the registered code that says why: `surf_page_read_unsupported`, `snapshot_failed`, ... */
   reason: string;
   detail?: string;
 }
@@ -180,10 +151,7 @@ export interface A11ySnapshotObservation {
   semanticCoverage?: A11ySemanticCoverage;
   coverageReason?: "dom_probe_missing";
   tab?: A11yTabBinding;
-  session?: string;
-  endpoint?: string;
   tool?: { command: string; version: string };
-  tabLeak?: A11yTabLeak;
 }
 
 /** The three channel modes; `off` is the default, so an existing run is byte-compatible. */
@@ -298,9 +266,10 @@ export function semanticCoverageGaps(coverage: A11ySemanticCoverage): Array<{
     .filter((entry) => entry.missing > 0);
 }
 
-/** What one `snapshot -i --json` says about the page, before anything is decided about it. */
+/** What one structured read says about the page, before anything is decided about it. */
 export interface A11ySnapshotReading {
   origin: string;
+  title: string;
   refs: A11yRefMap;
   snapshot: string;
 }
@@ -309,42 +278,63 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** surf appends the window size to the tree; it is not the page, so it is not digested. */
+const VIEWPORT_FOOTER = /\n*\[Viewport: \d+x\d+\]\s*$/;
+
 /**
- * Map a producer's snapshot payload onto the reading this schema is built from, or say what is
- * wrong with it.
+ * Map surf's `page.read --nodes` payload (`{pageContent, nodes, url, title}`) onto the reading
+ * this schema is built from, or say what is wrong with it.
  *
- * Three fields and nothing else: the `origin` the producer computed (checked against the bound
- * tab by the caller), the refs map (the parser-free source of `{role, name}` - deriving it from
- * the text would recreate the `parseSnapshot` failure this channel exists to avoid) and the
- * text (the only digest input). An empty tree is a `snapshot_failed`/`empty_snapshot` decision
- * for the caller, not a zero-element success: the packet is explicit that the empty case is a
- * failure (assessment row 5).
+ * The refs map comes from `nodes` - the parser-free source of `{role, name}`; deriving it from
+ * the text would recreate the `parseSnapshot` failure this channel exists to avoid - and the
+ * text, without its viewport line, is the only digest input. A payload without `nodes` is a
+ * surf that does not know `--nodes` (`surf_page_read_unsupported`). An empty tree is a failure,
+ * never a zero-element success (assessment row 5).
  */
-export function parseA11ySnapshotPayload(
-  payload: unknown,
-):
+export function parseA11ySnapshotPayload(payload: unknown):
   | { reading: A11ySnapshotReading }
-  | { error: "snapshot_failed" | "empty_snapshot"; detail: string } {
+  | {
+      error: "snapshot_failed" | "empty_snapshot" | "surf_page_read_unsupported";
+      detail: string;
+    } {
+  if (typeof payload === "string") {
+    return {
+      error: "surf_page_read_unsupported",
+      detail: `page.read answered text instead of the --nodes object (${payload.slice(0, 80).replace(/\s+/g, " ")}...)`,
+    };
+  }
   if (!isRecord(payload)) {
     return {
       error: "snapshot_failed",
       detail: `payload is ${payload === null ? "null" : typeof payload}, not an object`,
     };
   }
-  const { origin, refs, snapshot } = payload;
-  if (typeof snapshot !== "string") {
-    return { error: "snapshot_failed", detail: "payload carries no 'snapshot' text" };
+  const { pageContent, nodes, url, title } = payload;
+  if (nodes === undefined) {
+    return {
+      error: "surf_page_read_unsupported",
+      detail: "page.read answered without 'nodes'; this surf does not know --nodes",
+    };
   }
-  if (!isRecord(refs)) {
-    return { error: "snapshot_failed", detail: "payload carries no 'refs' map" };
+  if (typeof pageContent !== "string") {
+    return { error: "snapshot_failed", detail: "payload carries no 'pageContent' text" };
+  }
+  if (!Array.isArray(nodes)) {
+    return { error: "snapshot_failed", detail: "payload 'nodes' is not a list" };
   }
   const parsedRefs: A11yRefMap = {};
-  for (const [ref, node] of Object.entries(refs)) {
-    if (!isRecord(node) || typeof node.role !== "string" || typeof node.name !== "string") {
-      return { error: "snapshot_failed", detail: `ref '${ref}' is not a {role, name} node` };
+  for (const [index, node] of nodes.entries()) {
+    if (
+      !isRecord(node) ||
+      typeof node.ref !== "string" ||
+      typeof node.role !== "string" ||
+      typeof node.name !== "string"
+    ) {
+      return { error: "snapshot_failed", detail: `node ${index} is not a {ref, role, name} node` };
     }
-    parsedRefs[ref] = { role: node.role, name: node.name };
+    parsedRefs[node.ref] = { role: node.role, name: node.name };
   }
+  const snapshot = pageContent.replace(VIEWPORT_FOOTER, "");
   if (snapshot.trim().length === 0 || Object.keys(parsedRefs).length === 0) {
     return {
       error: "empty_snapshot",
@@ -353,7 +343,8 @@ export function parseA11ySnapshotPayload(
   }
   return {
     reading: {
-      origin: typeof origin === "string" ? origin : "",
+      origin: typeof url === "string" ? url : "",
+      title: typeof title === "string" ? title : "",
       refs: parsedRefs,
       snapshot,
     },
@@ -368,7 +359,7 @@ export function parseA11ySnapshotPayload(
 export interface A11yExpectation {
   role?: string;
   name?: string;
-  /** agent-browser's computed style-and-geometry predicate, never a perceptual claim */
+  /** the reader's computed style-and-geometry predicate, never a perceptual claim */
   visible?: boolean;
   text?: string;
   attr?: Record<string, string>;
@@ -665,7 +656,7 @@ export function renderTesterPromptInput(
       ? [...lines.slice(0, options.maxLines), `… ${lines.length - options.maxLines} more line(s)`]
       : lines;
 
-  const header = `Page: ${artifact.tab.url} (readiness: ready). Accessibility snapshot (${artifact.tool.command.split("/").pop() ?? "agent-browser"}, ${artifact.refCount} refs):`;
+  const header = `Page: ${artifact.tab.url} (readiness: ready). Accessibility snapshot (${artifact.channel}, ${artifact.refCount} refs):`;
 
   const gapLine = artifact.semanticCoverage
     ? gapSentence(artifact.semanticCoverage)

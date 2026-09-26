@@ -598,13 +598,7 @@ function renderA11yEvidence(observation: A11ySnapshotObservation): string[] {
       `a11y-snapshot: unavailable ${observation.reason ?? "unknown"}${observation.artifact ? ` artifact=${observation.artifact}` : ""}`,
     ];
   }
-  const leak = observation.tabLeak;
   return [
     `a11y-snapshot: captured ${observation.digest} refs=${observation.refCount} artifact=${observation.artifact ?? "(not written)"}`,
-    ...(leak
-      ? [
-          `a11y-snapshot: tabLeak ${leak.before} -> ${leak.after} ${leak.urls.join(", ")} (${leak.attribution})`,
-        ]
-      : []),
   ];
 }

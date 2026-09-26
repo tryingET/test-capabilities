@@ -142,44 +142,26 @@ export const FRAME_ROOT_CAUSE_ERROR_CODES = [
 
 /**
  * The a11y snapshot observation channel (a11y-snapshot packet, "Behaviour and failure modes";
- * slice S9). The first five are the gate: the channel goes `unavailable` with one of them and
- * never with a launched browser. The rest are what one observation or one assertion refuses
- * with.
+ * slice S9; producer switched to surf `page.read --nodes` under AK #5915). The channel reads
+ * through the run's own surf session, so the agent-browser and CDP-endpoint codes are gone with
+ * the second tool: there is no binary to resolve, no endpoint to probe, no tab to bind and no
+ * stray page to account for.
  *
- * Two are additions to the packet's table, both because a rule it states needs a code to speak
- * with: `a11y_command_not_allowed` is the read-only argv allowlist refusing a verb or a flag,
- * and `a11y_check_unavailable` is an expectation nothing could read, which must not pass
- * silently. `dom_probe_missing` is deliberately *not* here: it is recorded evidence on a
- * captured artifact, not a refusal. `tab_leak` is, since AK #5567: the producer's measured stray
- * stays evidence, and any other page the channel leaves refuses a `required` channel.
+ * `a11y_check_unavailable` is an expectation nothing could read, which must not pass silently.
+ * `dom_probe_missing` is deliberately *not* here: it is recorded evidence on a captured artifact,
+ * not a refusal.
  */
 export const A11Y_CHANNEL_ERROR_CODES = [
-  /** no agent-browser at the env var, on PATH, or in ~/.npm-global/bin */
-  "agent_browser_missing",
-  /** the binary answered --version below the measured floor */
-  "agent_browser_too_old",
-  /** the configured CDP endpoint is not a loopback URL; refused before any request is made */
-  "cdp_endpoint_refused",
-  /** nothing answered at the endpoint; the channel never starts a browser instead */
-  "cdp_endpoint_unreachable",
-  /** something answered that is not a Chromium DevTools endpoint */
-  "cdp_endpoint_not_chromium",
-  /** the argv allowlist refused a verb or a flag; this channel reads and never acts */
-  "a11y_command_not_allowed",
   /** `--a11y-snapshot=required` and the channel could not observe; the page is unverified */
   "a11y_channel_unavailable",
-  /** the surf-owned tab is not in /json/list, or it is there more than once */
-  "tab_bind_ambiguous",
-  /** `snapshot -i --json` failed, or answered a shape the framework cannot read */
+  /** the resolved surf answered `page.read` without `--nodes` (it predates AK #5915's patch) */
+  "surf_page_read_unsupported",
+  /** `page.read --nodes` failed, or answered a shape the framework cannot read */
   "snapshot_failed",
   /** the snapshot carries no refs at all: a failure, never a zero-element success */
   "empty_snapshot",
-  /** the snapshot's own origin is not the bound tab's URL */
+  /** the snapshot's own URL is not the page the readiness gate saw */
   "origin_mismatch",
-  /** the bound tab went away during the run */
-  "tab_lost",
-  /** a page appeared while the channel held its session that is not the producer's measured stray */
-  "tab_leak",
   /** a ref was minted against another snapshot; never `failed`, never `passed` */
   "ref_context_drift",
   /** no control with that role and name in the fresh snapshot */

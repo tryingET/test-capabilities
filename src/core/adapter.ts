@@ -20,7 +20,7 @@ import type {
   ResultSource,
 } from "./result-classification.js";
 
-export type AdapterId = ResultSource | "agent-browser";
+export type AdapterId = ResultSource;
 
 /** Effect classes as the mutation-safety packet defines them; S5 owns the enforcing ledger. */
 export type AdapterEffectClass = "read_only" | "mutating" | "unclassified";

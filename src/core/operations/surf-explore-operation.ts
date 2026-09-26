@@ -809,6 +809,7 @@ async function explorePage(
         required: a11yMode === "required",
         sequence: pageIndex,
         domCounts: () => domCounts,
+        ...(runtime.probe.version ? { toolVersion: runtime.probe.version } : {}),
       })
     : undefined;
   if (a11y) {

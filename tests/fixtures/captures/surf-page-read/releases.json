@@ -1,0 +1,1452 @@
+{
+  "capture_version": 1,
+  "captured_at": "2026-09-26",
+  "tool": {
+    "name": "surf",
+    "version": "2.20.0+adopted cfc78e4 (feat/page-read-nodes)",
+    "browser": "Chromium (Agent) Chrome/153"
+  },
+  "source": "live",
+  "url": "https://github.com/nicobailon/surf-cli/releases",
+  "note": "surf page.read --structure --full-page --no-text --nodes --json on the S9 reference page (owned tab, no login). Two consecutive reads were byte-identical. The DOM carried 233 anchors, 36 buttons and 42 input/textarea/select elements; the tree names 119 links, 24 buttons and one searchbox. The `target` envelope is dropped: it carries per-run tab and epoch ids the fake must not reproduce.",
+  "command": ["page.read", "--structure", "--full-page", "--no-text", "--nodes", "--json"],
+  "exitCode": 0,
+  "stdoutKind": "json",
+  "digest": "sha256:f407610585395a92a9330090267fe420af85df64a8d3219e64e5406c6296c8cf",
+  "refCount": 236,
+  "bytes": 15154,
+  "domCounts": {
+    "anchors": 233,
+    "buttons": 36,
+    "inputs": 42
+  },
+  "stdout": {
+    "result": {
+      "pageContent": "link \"Skip to content\" [e1] [cursor=pointer] href=\"#start-of-content\"\nbanner [e2]\n  heading \"Navigation Menu\" [e3] [level=2]\n  button \"Toggle navigation\" [e4] [collapsed] [cursor=pointer] type=\"button\"\n  link \"Homepage\" [e5] [cursor=pointer] href=\"/\"\n  link \"Sign in\" [e6] [cursor=pointer] href=\"/login?return_to=https%3A%2F%2Fgithub.com%2Fnicobailon%2Fsurf-cli%2Freleases\"\n  button \"Appearance settings\" [e7] [cursor=pointer] type=\"button\"\nmain [e8]\n  link \"nicobailon\" [e9] [cursor=pointer] href=\"/nicobailon\"\n  link \"surf-cli\" [e10] [cursor=pointer] href=\"/nicobailon/surf-cli\"\n  link \"You must be signed in to change notification settings\" [e11] [cursor=pointer] href=\"/login?return_to=%2Fnicobailon%2Fsurf-cli\"\n  link \"Fork 60\" [e12] [cursor=pointer] href=\"/login?return_to=%2Fnicobailon%2Fsurf-cli\"\n  link \"You must be signed in to star a repository\" [e13] [cursor=pointer] href=\"/login?return_to=%2Fnicobailon%2Fsurf-cli\"\n  navigation \"Repository\" [e14]\n    link \"Code\" [e15] [active] [cursor=pointer] href=\"/nicobailon/surf-cli\"\n    link \"Issues 1\" [e16] [cursor=pointer] href=\"/nicobailon/surf-cli/issues\"\n    link \"Pull requests 0\" [e17] [cursor=pointer] href=\"/nicobailon/surf-cli/pulls\"\n    link \"Actions\" [e18] [cursor=pointer] href=\"/nicobailon/surf-cli/actions\"\n    link \"Projects\" [e19] [cursor=pointer] href=\"/nicobailon/surf-cli/projects\"\n    link \"Security and quality 0\" [e20] [cursor=pointer] href=\"/nicobailon/surf-cli/security\"\n    link \"Insights\" [e21] [cursor=pointer] href=\"/nicobailon/surf-cli/pulse\"\n  heading \"Releases: nicobailon/surf-cli\" [e22] [level=1]\n  navigation \"Releases and Tags\" [e23]\n    link \"Releases\" [e24] [active] [cursor=pointer] href=\"/nicobailon/surf-cli/releases\"\n    link \"Tags\" [e25] [cursor=pointer] href=\"/nicobailon/surf-cli/tags\"\n  searchbox \"Find a release\" [e26] type=\"search\" placeholder=\"Find a release\"\n  heading \"Release list\" [e27] [level=2]\n  navigation \"Release list navigation\" [e28]\n    link \"v2.20.0\" [e29] [active] [cursor=pointer] href=\"#release-v2.20.0\"\n    link \"v2.19.0\" [e30] [cursor=pointer] href=\"#release-v2.19.0\"\n    link \"v2.18.0\" [e31] [cursor=pointer] href=\"#release-v2.18.0\"\n    link \"v2.17.0\" [e32] [cursor=pointer] href=\"#release-v2.17.0\"\n    link \"v2.16.1\" [e33] [cursor=pointer] href=\"#release-v2.16.1\"\n    link \"v2.16.0\" [e34] [cursor=pointer] href=\"#release-v2.16.0\"\n    link \"v2.15.2\" [e35] [cursor=pointer] href=\"#release-v2.15.2\"\n    link \"v2.15.1\" [e36] [cursor=pointer] href=\"#release-v2.15.1\"\n    link \"v2.15.0\" [e37] [cursor=pointer] href=\"#release-v2.15.0\"\n    link \"v2.14.0\" [e38] [cursor=pointer] href=\"#release-v2.14.0\"\n  navigation \"Release list pagination\" [e39]\n    link \"Previous page\" [e40] [disabled]\n    link \"Next page\" [e41] [cursor=pointer] href=\"/nicobailon/surf-cli/releases?page=2\"\n  region \"v2.20.0\" [e42]\n    heading \"v2.20.0\" [e43] [level=2]\n    link \"v2.20.0\" [e44] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.20.0\"\n    link \"Latest\" [e45] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/latest\"\n    button \"Compare\" [e46] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e47] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.20.0\" [e48] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.20.0\"\n    link \"f779289\" [e49] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/f7792899abfac4eaa83929a443cf49d011d4a471\"\n    heading \"Highlights\" [e50] [level=3]\n    heading \"Full changelog\" [e51] [level=3]\n    heading \"Highlights\" [e52] [level=3]\n    heading \"Added\" [e53] [level=3]\n    heading \"Changed\" [e54] [level=3]\n    heading \"Fixed\" [e55] [level=3]\n    link \"#316\" [e56] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/316\"\n    link \"@gimbo\" [e57] [cursor=pointer] href=\"https://github.com/gimbo\"\n    link \"#280\" [e58] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/280\"\n    link \"@Ananasiy\" [e59] [cursor=pointer] href=\"https://github.com/Ananasiy\"\n    link \"#291\" [e60] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/291\"\n    link \"@gimbo\" [e61] [cursor=pointer] href=\"https://github.com/gimbo\"\n    link \"#279\" [e62] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/279\"\n    link \"@hongyuatcufe\" [e63] [cursor=pointer] href=\"https://github.com/hongyuatcufe\"\n    link \"@airtonix\" [e64] [cursor=pointer] href=\"https://github.com/airtonix\"\n    link \"#290\" [e65] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/290\"\n    group [e66]\n      button \"Assets 2\" [e67] [expanded] [cursor=pointer]\n  region \"v2.19.0\" [e68]\n    heading \"v2.19.0\" [e69] [level=2]\n    link \"v2.19.0\" [e70] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.19.0\"\n    button \"Compare\" [e71] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e72] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.19.0\" [e73] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.19.0\"\n    link \"56faa5a\" [e74] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/56faa5aec29763de0866e212e5e1fb39a9dd1d79\"\n    heading \"Highlights\" [e75] [level=2]\n    heading \"Full changelog\" [e76] [level=2]\n    heading \"Highlights\" [e77] [level=3]\n    heading \"Added\" [e78] [level=3]\n    link \"@marcoatpaladin\" [e79] [cursor=pointer] href=\"https://github.com/marcoatpaladin\"\n    link \"#259\" [e80] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/259\"\n    link \"@tryingET\" [e81] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#255\" [e82] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/255\"\n    link \"@tryingET\" [e83] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#257\" [e84] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/257\"\n    link \"@tryingET\" [e85] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#257\" [e86] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/257\"\n    link \"#258\" [e87] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/258\"\n    heading \"Changed\" [e88] [level=3]\n    heading \"Fixed\" [e89] [level=3]\n    link \"@tryingET\" [e90] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#258\" [e91] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/258\"\n    link \"@Whamp\" [e92] [cursor=pointer] href=\"https://github.com/Whamp\"\n    link \"#250\" [e93] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/250\"\n    link \"@tryingET\" [e94] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#251\" [e95] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/251\"\n    link \"#256\" [e96] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/256\"\n    link \"@tryingET\" [e97] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#252\" [e98] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/252\"\n    link \"@tryingET\" [e99] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#253\" [e100] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/253\"\n    link \"@tryingET\" [e101] [cursor=pointer] href=\"https://github.com/tryingET\"\n    link \"#254\" [e102] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/pull/254\"\n    group [e103]\n      button \"Assets 2\" [e104] [collapsed] [cursor=pointer]\n  region \"v2.18.0\" [e105]\n    heading \"v2.18.0\" [e106] [level=2]\n    link \"v2.18.0\" [e107] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.18.0\"\n    button \"Compare\" [e108] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e109] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.18.0\" [e110] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.18.0\"\n    link \"15080ff\" [e111] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/15080ff9d2e129f0c394ac2e78d72502e85221a0\"\n    heading \"Highlights\" [e112] [level=3]\n    heading \"Need to know\" [e113] [level=3]\n    heading \"Full changelog\" [e114] [level=2]\n    heading \"Highlights\" [e115] [level=3]\n    heading \"Added\" [e116] [level=3]\n    link \"@marcoatpaladin\" [e117] [cursor=pointer] href=\"https://github.com/marcoatpaladin\"\n    link \"#233\" [e118] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/233\"\n    link \"@marcoatpaladin\" [e119] [cursor=pointer] href=\"https://github.com/marcoatpaladin\"\n    link \"#225\" [e120] [cursor=pointer] href=\"https://github.com/nicobailon/surf-cli/issues/225\"\n    heading \"Changed\" [e121] [level=3]\n    heading \"Fixed\" [e122] [level=3]\n    group [e123]\n      button \"Assets 2\" [e124] [collapsed] [cursor=pointer]\n  region \"v2.17.0\" [e125]\n    heading \"v2.17.0\" [e126] [level=2]\n    link \"v2.17.0\" [e127] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.17.0\"\n    button \"Compare\" [e128] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e129] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.17.0\" [e130] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.17.0\"\n    link \"b845041\" [e131] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/b845041e23107e6c71211ab73411373fd5a18808\"\n    heading \"Highlights\" [e132] [level=3]\n    heading \"Full changelog\" [e133] [level=3]\n    heading \"Highlights\" [e134] [level=3]\n    heading \"Added\" [e135] [level=3]\n    heading \"Fixed\" [e136] [level=3]\n    group [e137]\n      button \"Assets 2\" [e138] [collapsed] [cursor=pointer]\n  region \"v2.16.1\" [e139]\n    heading \"v2.16.1\" [e140] [level=2]\n    link \"v2.16.1\" [e141] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.16.1\"\n    button \"Compare\" [e142] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e143] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.16.1\" [e144] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.16.1\"\n    link \"6ef6cad\" [e145] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/6ef6cad2f7a4eefb396012a6180212fe7f2db39b\"\n    heading \"Highlights\" [e146] [level=3]\n    heading \"Full changelog\" [e147] [level=3]\n    heading \"Highlights\" [e148] [level=3]\n    heading \"Fixed\" [e149] [level=3]\n    group [e150]\n      button \"Assets 2\" [e151] [collapsed] [cursor=pointer]\n  region \"v2.16.0\" [e152]\n    heading \"v2.16.0\" [e153] [level=2]\n    link \"v2.16.0\" [e154] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.16.0\"\n    button \"Compare\" [e155] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e156] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.16.0\" [e157] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.16.0\"\n    link \"a10296b\" [e158] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/a10296beb6fc74aa72ea2b7d565af9d929418ddc\"\n    heading \"Highlights\" [e159] [level=3]\n    heading \"Full changelog\" [e160] [level=2]\n    heading \"Highlights\" [e161] [level=3]\n    heading \"Added\" [e162] [level=3]\n    heading \"Fixed\" [e163] [level=3]\n    group [e164]\n      button \"Assets 2\" [e165] [collapsed] [cursor=pointer]\n  region \"v2.15.2\" [e166]\n    heading \"v2.15.2\" [e167] [level=2]\n    link \"v2.15.2\" [e168] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.15.2\"\n    button \"Compare\" [e169] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e170] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.15.2\" [e171] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.15.2\"\n    link \"2548f1e\" [e172] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/2548f1ef1cae36cb0a111361039880ce1cef35e5\"\n    heading \"Highlights\" [e173] [level=3]\n    heading \"Full changelog\" [e174] [level=2]\n    heading \"Highlights\" [e175] [level=3]\n    heading \"Fixed\" [e176] [level=3]\n    group [e177]\n      button \"Assets 2\" [e178] [collapsed] [cursor=pointer]\n  region \"v2.15.1\" [e179]\n    heading \"v2.15.1\" [e180] [level=2]\n    link \"v2.15.1\" [e181] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.15.1\"\n    button \"Compare\" [e182] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e183] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.15.1\" [e184] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.15.1\"\n    link \"194e6c7\" [e185] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/194e6c7e5821ed19345326af0a9eec38e2b7c2e1\"\n    heading \"Highlights\" [e186] [level=3]\n    heading \"Changed\" [e187] [level=3]\n    heading \"Fixed\" [e188] [level=3]\n    group [e189]\n      button \"Assets 2\" [e190] [collapsed] [cursor=pointer]\n  region \"v2.15.0\" [e191]\n    heading \"v2.15.0\" [e192] [level=2]\n    link \"v2.15.0\" [e193] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.15.0\"\n    button \"Compare\" [e194] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e195] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.15.0\" [e196] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.15.0\"\n    link \"7302fa4\" [e197] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/7302fa4679ebdcf7e3d78016daa8c3e2c792187f\"\n    heading \"Highlights\" [e198] [level=2]\n    heading \"Full changelog\" [e199] [level=2]\n    heading \"Highlights\" [e200] [level=3]\n    heading \"Added\" [e201] [level=3]\n    heading \"Changed\" [e202] [level=3]\n    heading \"Fixed\" [e203] [level=3]\n    group [e204]\n      button \"Assets 2\" [e205] [collapsed] [cursor=pointer]\n  region \"v2.14.0\" [e206]\n    heading \"v2.14.0\" [e207] [level=2]\n    link \"v2.14.0\" [e208] [cursor=pointer] href=\"/nicobailon/surf-cli/releases/tag/v2.14.0\"\n    button \"Compare\" [e209] [collapsed] [cursor=pointer] type=\"button\"\n    link \"nicobailon\" [e210] [cursor=pointer] href=\"/nicobailon\"\n    link \"v2.14.0\" [e211] [cursor=pointer] href=\"/nicobailon/surf-cli/tree/v2.14.0\"\n    link \"a692c41\" [e212] [cursor=pointer] href=\"/nicobailon/surf-cli/commit/a692c41f9774bc5f184102bbd3912f677ae65be1\"\n    heading \"Added\" [e213] [level=3]\n    heading \"Fixed\" [e214] [level=3]\n    group [e215]\n      button \"Assets 2\" [e216] [collapsed] [cursor=pointer]\n  navigation \"Pagination\" [e217]\n    link \"Previous page\" [e218] [disabled]\n    link \"Page 1\" [e219] [active] [cursor=pointer] href=\"/nicobailon/surf-cli/releases?page=1\"\n    link \"Page 2\" [e220] [cursor=pointer] href=\"/nicobailon/surf-cli/releases?page=2\"\n    link \"Page 3\" [e221] [cursor=pointer] href=\"/nicobailon/surf-cli/releases?page=3\"\n    link \"Next page\" [e222] [cursor=pointer] href=\"/nicobailon/surf-cli/releases?page=2\"\ncontentinfo [e223]\n  heading \"Footer\" [e224] [level=2]\n  link \"GitHub Homepage\" [e225] [cursor=pointer] href=\"https://github.com\"\n  navigation \"Footer\" [e226]\n    heading \"Footer navigation\" [e227] [level=3]\n    link \"Terms\" [e228] [cursor=pointer] href=\"https://docs.github.com/site-policy/github-terms/github-terms-of-service\"\n    link \"Privacy\" [e229] [cursor=pointer] href=\"https://docs.github.com/site-policy/privacy-policies/github-privacy-statement\"\n    link \"Security\" [e230] [cursor=pointer] href=\"https://github.com/security\"\n    link \"Status\" [e231] [cursor=pointer] href=\"https://www.githubstatus.com/\"\n    link \"Community\" [e232] [cursor=pointer] href=\"https://github.community/\"\n    link \"Docs\" [e233] [cursor=pointer] href=\"https://docs.github.com/\"\n    link \"Contact\" [e234] [cursor=pointer] href=\"https://support.github.com?tags=dotcom-footer\"\n    button \"Manage cookies\" [e235] [cursor=pointer] type=\"button\"\n    button \"Do not share my personal information\" [e236] [cursor=pointer] type=\"button\"\n\n[Viewport: 948x949]",
+      "nodes": [
+        {
+          "ref": "e1",
+          "role": "link",
+          "name": "Skip to content",
+          "depth": 0
+        },
+        {
+          "ref": "e2",
+          "role": "banner",
+          "name": "",
+          "depth": 0
+        },
+        {
+          "ref": "e3",
+          "role": "heading",
+          "name": "Navigation Menu",
+          "depth": 1
+        },
+        {
+          "ref": "e4",
+          "role": "button",
+          "name": "Toggle navigation",
+          "depth": 1
+        },
+        {
+          "ref": "e5",
+          "role": "link",
+          "name": "Homepage",
+          "depth": 1
+        },
+        {
+          "ref": "e6",
+          "role": "link",
+          "name": "Sign in",
+          "depth": 1
+        },
+        {
+          "ref": "e7",
+          "role": "button",
+          "name": "Appearance settings",
+          "depth": 1
+        },
+        {
+          "ref": "e8",
+          "role": "main",
+          "name": "",
+          "depth": 0
+        },
+        {
+          "ref": "e9",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 1
+        },
+        {
+          "ref": "e10",
+          "role": "link",
+          "name": "surf-cli",
+          "depth": 1
+        },
+        {
+          "ref": "e11",
+          "role": "link",
+          "name": "You must be signed in to change notification settings",
+          "depth": 1
+        },
+        {
+          "ref": "e12",
+          "role": "link",
+          "name": "Fork 60",
+          "depth": 1
+        },
+        {
+          "ref": "e13",
+          "role": "link",
+          "name": "You must be signed in to star a repository",
+          "depth": 1
+        },
+        {
+          "ref": "e14",
+          "role": "navigation",
+          "name": "Repository",
+          "depth": 1
+        },
+        {
+          "ref": "e15",
+          "role": "link",
+          "name": "Code",
+          "depth": 2
+        },
+        {
+          "ref": "e16",
+          "role": "link",
+          "name": "Issues 1",
+          "depth": 2
+        },
+        {
+          "ref": "e17",
+          "role": "link",
+          "name": "Pull requests 0",
+          "depth": 2
+        },
+        {
+          "ref": "e18",
+          "role": "link",
+          "name": "Actions",
+          "depth": 2
+        },
+        {
+          "ref": "e19",
+          "role": "link",
+          "name": "Projects",
+          "depth": 2
+        },
+        {
+          "ref": "e20",
+          "role": "link",
+          "name": "Security and quality 0",
+          "depth": 2
+        },
+        {
+          "ref": "e21",
+          "role": "link",
+          "name": "Insights",
+          "depth": 2
+        },
+        {
+          "ref": "e22",
+          "role": "heading",
+          "name": "Releases: nicobailon/surf-cli",
+          "depth": 1
+        },
+        {
+          "ref": "e23",
+          "role": "navigation",
+          "name": "Releases and Tags",
+          "depth": 1
+        },
+        {
+          "ref": "e24",
+          "role": "link",
+          "name": "Releases",
+          "depth": 2
+        },
+        {
+          "ref": "e25",
+          "role": "link",
+          "name": "Tags",
+          "depth": 2
+        },
+        {
+          "ref": "e26",
+          "role": "searchbox",
+          "name": "Find a release",
+          "depth": 1
+        },
+        {
+          "ref": "e27",
+          "role": "heading",
+          "name": "Release list",
+          "depth": 1
+        },
+        {
+          "ref": "e28",
+          "role": "navigation",
+          "name": "Release list navigation",
+          "depth": 1
+        },
+        {
+          "ref": "e29",
+          "role": "link",
+          "name": "v2.20.0",
+          "depth": 2
+        },
+        {
+          "ref": "e30",
+          "role": "link",
+          "name": "v2.19.0",
+          "depth": 2
+        },
+        {
+          "ref": "e31",
+          "role": "link",
+          "name": "v2.18.0",
+          "depth": 2
+        },
+        {
+          "ref": "e32",
+          "role": "link",
+          "name": "v2.17.0",
+          "depth": 2
+        },
+        {
+          "ref": "e33",
+          "role": "link",
+          "name": "v2.16.1",
+          "depth": 2
+        },
+        {
+          "ref": "e34",
+          "role": "link",
+          "name": "v2.16.0",
+          "depth": 2
+        },
+        {
+          "ref": "e35",
+          "role": "link",
+          "name": "v2.15.2",
+          "depth": 2
+        },
+        {
+          "ref": "e36",
+          "role": "link",
+          "name": "v2.15.1",
+          "depth": 2
+        },
+        {
+          "ref": "e37",
+          "role": "link",
+          "name": "v2.15.0",
+          "depth": 2
+        },
+        {
+          "ref": "e38",
+          "role": "link",
+          "name": "v2.14.0",
+          "depth": 2
+        },
+        {
+          "ref": "e39",
+          "role": "navigation",
+          "name": "Release list pagination",
+          "depth": 1
+        },
+        {
+          "ref": "e40",
+          "role": "link",
+          "name": "Previous page",
+          "depth": 2
+        },
+        {
+          "ref": "e41",
+          "role": "link",
+          "name": "Next page",
+          "depth": 2
+        },
+        {
+          "ref": "e42",
+          "role": "region",
+          "name": "v2.20.0",
+          "depth": 1
+        },
+        {
+          "ref": "e43",
+          "role": "heading",
+          "name": "v2.20.0",
+          "depth": 2
+        },
+        {
+          "ref": "e44",
+          "role": "link",
+          "name": "v2.20.0",
+          "depth": 2
+        },
+        {
+          "ref": "e45",
+          "role": "link",
+          "name": "Latest",
+          "depth": 2
+        },
+        {
+          "ref": "e46",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e47",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e48",
+          "role": "link",
+          "name": "v2.20.0",
+          "depth": 2
+        },
+        {
+          "ref": "e49",
+          "role": "link",
+          "name": "f779289",
+          "depth": 2
+        },
+        {
+          "ref": "e50",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e51",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e52",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e53",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e54",
+          "role": "heading",
+          "name": "Changed",
+          "depth": 2
+        },
+        {
+          "ref": "e55",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e56",
+          "role": "link",
+          "name": "#316",
+          "depth": 2
+        },
+        {
+          "ref": "e57",
+          "role": "link",
+          "name": "@gimbo",
+          "depth": 2
+        },
+        {
+          "ref": "e58",
+          "role": "link",
+          "name": "#280",
+          "depth": 2
+        },
+        {
+          "ref": "e59",
+          "role": "link",
+          "name": "@Ananasiy",
+          "depth": 2
+        },
+        {
+          "ref": "e60",
+          "role": "link",
+          "name": "#291",
+          "depth": 2
+        },
+        {
+          "ref": "e61",
+          "role": "link",
+          "name": "@gimbo",
+          "depth": 2
+        },
+        {
+          "ref": "e62",
+          "role": "link",
+          "name": "#279",
+          "depth": 2
+        },
+        {
+          "ref": "e63",
+          "role": "link",
+          "name": "@hongyuatcufe",
+          "depth": 2
+        },
+        {
+          "ref": "e64",
+          "role": "link",
+          "name": "@airtonix",
+          "depth": 2
+        },
+        {
+          "ref": "e65",
+          "role": "link",
+          "name": "#290",
+          "depth": 2
+        },
+        {
+          "ref": "e66",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e67",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e68",
+          "role": "region",
+          "name": "v2.19.0",
+          "depth": 1
+        },
+        {
+          "ref": "e69",
+          "role": "heading",
+          "name": "v2.19.0",
+          "depth": 2
+        },
+        {
+          "ref": "e70",
+          "role": "link",
+          "name": "v2.19.0",
+          "depth": 2
+        },
+        {
+          "ref": "e71",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e72",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e73",
+          "role": "link",
+          "name": "v2.19.0",
+          "depth": 2
+        },
+        {
+          "ref": "e74",
+          "role": "link",
+          "name": "56faa5a",
+          "depth": 2
+        },
+        {
+          "ref": "e75",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e76",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e77",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e78",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e79",
+          "role": "link",
+          "name": "@marcoatpaladin",
+          "depth": 2
+        },
+        {
+          "ref": "e80",
+          "role": "link",
+          "name": "#259",
+          "depth": 2
+        },
+        {
+          "ref": "e81",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e82",
+          "role": "link",
+          "name": "#255",
+          "depth": 2
+        },
+        {
+          "ref": "e83",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e84",
+          "role": "link",
+          "name": "#257",
+          "depth": 2
+        },
+        {
+          "ref": "e85",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e86",
+          "role": "link",
+          "name": "#257",
+          "depth": 2
+        },
+        {
+          "ref": "e87",
+          "role": "link",
+          "name": "#258",
+          "depth": 2
+        },
+        {
+          "ref": "e88",
+          "role": "heading",
+          "name": "Changed",
+          "depth": 2
+        },
+        {
+          "ref": "e89",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e90",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e91",
+          "role": "link",
+          "name": "#258",
+          "depth": 2
+        },
+        {
+          "ref": "e92",
+          "role": "link",
+          "name": "@Whamp",
+          "depth": 2
+        },
+        {
+          "ref": "e93",
+          "role": "link",
+          "name": "#250",
+          "depth": 2
+        },
+        {
+          "ref": "e94",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e95",
+          "role": "link",
+          "name": "#251",
+          "depth": 2
+        },
+        {
+          "ref": "e96",
+          "role": "link",
+          "name": "#256",
+          "depth": 2
+        },
+        {
+          "ref": "e97",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e98",
+          "role": "link",
+          "name": "#252",
+          "depth": 2
+        },
+        {
+          "ref": "e99",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e100",
+          "role": "link",
+          "name": "#253",
+          "depth": 2
+        },
+        {
+          "ref": "e101",
+          "role": "link",
+          "name": "@tryingET",
+          "depth": 2
+        },
+        {
+          "ref": "e102",
+          "role": "link",
+          "name": "#254",
+          "depth": 2
+        },
+        {
+          "ref": "e103",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e104",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e105",
+          "role": "region",
+          "name": "v2.18.0",
+          "depth": 1
+        },
+        {
+          "ref": "e106",
+          "role": "heading",
+          "name": "v2.18.0",
+          "depth": 2
+        },
+        {
+          "ref": "e107",
+          "role": "link",
+          "name": "v2.18.0",
+          "depth": 2
+        },
+        {
+          "ref": "e108",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e109",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e110",
+          "role": "link",
+          "name": "v2.18.0",
+          "depth": 2
+        },
+        {
+          "ref": "e111",
+          "role": "link",
+          "name": "15080ff",
+          "depth": 2
+        },
+        {
+          "ref": "e112",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e113",
+          "role": "heading",
+          "name": "Need to know",
+          "depth": 2
+        },
+        {
+          "ref": "e114",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e115",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e116",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e117",
+          "role": "link",
+          "name": "@marcoatpaladin",
+          "depth": 2
+        },
+        {
+          "ref": "e118",
+          "role": "link",
+          "name": "#233",
+          "depth": 2
+        },
+        {
+          "ref": "e119",
+          "role": "link",
+          "name": "@marcoatpaladin",
+          "depth": 2
+        },
+        {
+          "ref": "e120",
+          "role": "link",
+          "name": "#225",
+          "depth": 2
+        },
+        {
+          "ref": "e121",
+          "role": "heading",
+          "name": "Changed",
+          "depth": 2
+        },
+        {
+          "ref": "e122",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e123",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e124",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e125",
+          "role": "region",
+          "name": "v2.17.0",
+          "depth": 1
+        },
+        {
+          "ref": "e126",
+          "role": "heading",
+          "name": "v2.17.0",
+          "depth": 2
+        },
+        {
+          "ref": "e127",
+          "role": "link",
+          "name": "v2.17.0",
+          "depth": 2
+        },
+        {
+          "ref": "e128",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e129",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e130",
+          "role": "link",
+          "name": "v2.17.0",
+          "depth": 2
+        },
+        {
+          "ref": "e131",
+          "role": "link",
+          "name": "b845041",
+          "depth": 2
+        },
+        {
+          "ref": "e132",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e133",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e134",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e135",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e136",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e137",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e138",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e139",
+          "role": "region",
+          "name": "v2.16.1",
+          "depth": 1
+        },
+        {
+          "ref": "e140",
+          "role": "heading",
+          "name": "v2.16.1",
+          "depth": 2
+        },
+        {
+          "ref": "e141",
+          "role": "link",
+          "name": "v2.16.1",
+          "depth": 2
+        },
+        {
+          "ref": "e142",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e143",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e144",
+          "role": "link",
+          "name": "v2.16.1",
+          "depth": 2
+        },
+        {
+          "ref": "e145",
+          "role": "link",
+          "name": "6ef6cad",
+          "depth": 2
+        },
+        {
+          "ref": "e146",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e147",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e148",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e149",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e150",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e151",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e152",
+          "role": "region",
+          "name": "v2.16.0",
+          "depth": 1
+        },
+        {
+          "ref": "e153",
+          "role": "heading",
+          "name": "v2.16.0",
+          "depth": 2
+        },
+        {
+          "ref": "e154",
+          "role": "link",
+          "name": "v2.16.0",
+          "depth": 2
+        },
+        {
+          "ref": "e155",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e156",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e157",
+          "role": "link",
+          "name": "v2.16.0",
+          "depth": 2
+        },
+        {
+          "ref": "e158",
+          "role": "link",
+          "name": "a10296b",
+          "depth": 2
+        },
+        {
+          "ref": "e159",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e160",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e161",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e162",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e163",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e164",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e165",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e166",
+          "role": "region",
+          "name": "v2.15.2",
+          "depth": 1
+        },
+        {
+          "ref": "e167",
+          "role": "heading",
+          "name": "v2.15.2",
+          "depth": 2
+        },
+        {
+          "ref": "e168",
+          "role": "link",
+          "name": "v2.15.2",
+          "depth": 2
+        },
+        {
+          "ref": "e169",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e170",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e171",
+          "role": "link",
+          "name": "v2.15.2",
+          "depth": 2
+        },
+        {
+          "ref": "e172",
+          "role": "link",
+          "name": "2548f1e",
+          "depth": 2
+        },
+        {
+          "ref": "e173",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e174",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e175",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e176",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e177",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e178",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e179",
+          "role": "region",
+          "name": "v2.15.1",
+          "depth": 1
+        },
+        {
+          "ref": "e180",
+          "role": "heading",
+          "name": "v2.15.1",
+          "depth": 2
+        },
+        {
+          "ref": "e181",
+          "role": "link",
+          "name": "v2.15.1",
+          "depth": 2
+        },
+        {
+          "ref": "e182",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e183",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e184",
+          "role": "link",
+          "name": "v2.15.1",
+          "depth": 2
+        },
+        {
+          "ref": "e185",
+          "role": "link",
+          "name": "194e6c7",
+          "depth": 2
+        },
+        {
+          "ref": "e186",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e187",
+          "role": "heading",
+          "name": "Changed",
+          "depth": 2
+        },
+        {
+          "ref": "e188",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e189",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e190",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e191",
+          "role": "region",
+          "name": "v2.15.0",
+          "depth": 1
+        },
+        {
+          "ref": "e192",
+          "role": "heading",
+          "name": "v2.15.0",
+          "depth": 2
+        },
+        {
+          "ref": "e193",
+          "role": "link",
+          "name": "v2.15.0",
+          "depth": 2
+        },
+        {
+          "ref": "e194",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e195",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e196",
+          "role": "link",
+          "name": "v2.15.0",
+          "depth": 2
+        },
+        {
+          "ref": "e197",
+          "role": "link",
+          "name": "7302fa4",
+          "depth": 2
+        },
+        {
+          "ref": "e198",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e199",
+          "role": "heading",
+          "name": "Full changelog",
+          "depth": 2
+        },
+        {
+          "ref": "e200",
+          "role": "heading",
+          "name": "Highlights",
+          "depth": 2
+        },
+        {
+          "ref": "e201",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e202",
+          "role": "heading",
+          "name": "Changed",
+          "depth": 2
+        },
+        {
+          "ref": "e203",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e204",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e205",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e206",
+          "role": "region",
+          "name": "v2.14.0",
+          "depth": 1
+        },
+        {
+          "ref": "e207",
+          "role": "heading",
+          "name": "v2.14.0",
+          "depth": 2
+        },
+        {
+          "ref": "e208",
+          "role": "link",
+          "name": "v2.14.0",
+          "depth": 2
+        },
+        {
+          "ref": "e209",
+          "role": "button",
+          "name": "Compare",
+          "depth": 2
+        },
+        {
+          "ref": "e210",
+          "role": "link",
+          "name": "nicobailon",
+          "depth": 2
+        },
+        {
+          "ref": "e211",
+          "role": "link",
+          "name": "v2.14.0",
+          "depth": 2
+        },
+        {
+          "ref": "e212",
+          "role": "link",
+          "name": "a692c41",
+          "depth": 2
+        },
+        {
+          "ref": "e213",
+          "role": "heading",
+          "name": "Added",
+          "depth": 2
+        },
+        {
+          "ref": "e214",
+          "role": "heading",
+          "name": "Fixed",
+          "depth": 2
+        },
+        {
+          "ref": "e215",
+          "role": "group",
+          "name": "",
+          "depth": 2
+        },
+        {
+          "ref": "e216",
+          "role": "button",
+          "name": "Assets 2",
+          "depth": 3
+        },
+        {
+          "ref": "e217",
+          "role": "navigation",
+          "name": "Pagination",
+          "depth": 1
+        },
+        {
+          "ref": "e218",
+          "role": "link",
+          "name": "Previous page",
+          "depth": 2
+        },
+        {
+          "ref": "e219",
+          "role": "link",
+          "name": "Page 1",
+          "depth": 2
+        },
+        {
+          "ref": "e220",
+          "role": "link",
+          "name": "Page 2",
+          "depth": 2
+        },
+        {
+          "ref": "e221",
+          "role": "link",
+          "name": "Page 3",
+          "depth": 2
+        },
+        {
+          "ref": "e222",
+          "role": "link",
+          "name": "Next page",
+          "depth": 2
+        },
+        {
+          "ref": "e223",
+          "role": "contentinfo",
+          "name": "",
+          "depth": 0
+        },
+        {
+          "ref": "e224",
+          "role": "heading",
+          "name": "Footer",
+          "depth": 1
+        },
+        {
+          "ref": "e225",
+          "role": "link",
+          "name": "GitHub Homepage",
+          "depth": 1
+        },
+        {
+          "ref": "e226",
+          "role": "navigation",
+          "name": "Footer",
+          "depth": 1
+        },
+        {
+          "ref": "e227",
+          "role": "heading",
+          "name": "Footer navigation",
+          "depth": 2
+        },
+        {
+          "ref": "e228",
+          "role": "link",
+          "name": "Terms",
+          "depth": 2
+        },
+        {
+          "ref": "e229",
+          "role": "link",
+          "name": "Privacy",
+          "depth": 2
+        },
+        {
+          "ref": "e230",
+          "role": "link",
+          "name": "Security",
+          "depth": 2
+        },
+        {
+          "ref": "e231",
+          "role": "link",
+          "name": "Status",
+          "depth": 2
+        },
+        {
+          "ref": "e232",
+          "role": "link",
+          "name": "Community",
+          "depth": 2
+        },
+        {
+          "ref": "e233",
+          "role": "link",
+          "name": "Docs",
+          "depth": 2
+        },
+        {
+          "ref": "e234",
+          "role": "link",
+          "name": "Contact",
+          "depth": 2
+        },
+        {
+          "ref": "e235",
+          "role": "button",
+          "name": "Manage cookies",
+          "depth": 2
+        },
+        {
+          "ref": "e236",
+          "role": "button",
+          "name": "Do not share my personal information",
+          "depth": 2
+        }
+      ],
+      "viewport": {
+        "width": 948,
+        "height": 949
+      },
+      "url": "https://github.com/nicobailon/surf-cli/releases",
+      "title": "Releases · nicobailon/surf-cli"
+    }
+  }
+}
