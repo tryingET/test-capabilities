@@ -178,7 +178,7 @@ Options:
 | `--ready-selector <css>` | A visible CSS selector the readiness gate waits for (`surf wait.ready --selector`). A selector the gate cannot reach refuses with `[element_unreachable]` and carries a frame diagnosis taken in the same tab |
 | `--frame-probe` | With `--ready-selector` and no `--frame-hint`: for each top-level candidate frame, `frame.switch --index <domIndex>`, one `wait.element` for the selector, `frame.main`. A hit in exactly one candidate, with every candidate probed and answering, confirms the frame; hits in several are `undetermined`; anything else stays `suspected` - absence never excludes. Nested frames and frames without an answering content script count as unprobed and block a confirmation. A `frame.main` that fails closes the tab (`frame_context_unrestored`). Off by default |
 | `--frame-hint <kind=value>` | `urlPrefix=<prefix>` or `selector=<css>`, asserting which frame the `--ready-selector` target lives in. Only valid with `--ready-selector`; a shape the framework cannot read, or a hint that resolves to zero, several or an unreachable frame, refuses rather than weakening the determination |
-| `--a11y-snapshot[=mode]` | Attach the a11y observation channel (one surf `page.read --structure --full-page --nodes` in the owned tab). `optional` (the bare flag) records an `unavailable` observation and continues; `required` fails the page with `[a11y_channel_unavailable]`. Default `off`, so an envelope without the flag is unchanged |
+| `--a11y-snapshot[=mode]` | Attach the a11y observation channel (Chromium's accessibility tree of the owned tab over the loopback CDP endpoint). `optional` (the bare flag) records an `unavailable` observation and continues; `required` fails the page with `[a11y_channel_unavailable]`. Default `off`, so an envelope without the flag is unchanged |
 | `--json` | Print the full machine-readable operation envelope; a failure prints `{"error": {code, message, details}}` and exits 1 |
 | `--record` | Fails with an unsupported-option error until wired to a real runtime path |
 | `--validate` | Fails with an unsupported-option error until wired to a real runtime path |
@@ -208,32 +208,33 @@ without `--frame-hint`, `suspected` is the strongest answer it will give.
 
 #### A11y snapshot observation channel
 
-An optional, read-only *second* observation channel, read by surf itself in the tab the run
-already owns: one `page.read --structure --full-page --no-text --nodes`, through the session like
-every other read (tab-scoped, ledgered, `read_only`). The tree is controls, headings and landmarks
-across the whole page, independent of the window size, and `--nodes` makes it a full snapshot
-with no diff footer. It is off by default. A surf without `--nodes`, an empty tree, or a tree whose
-URL is not the gated page is a typed refusal. There is no second tool, no CDP endpoint and no tab
-binding (agent-browser was the producer until AK #5915; `docs/project/2026-09-26-a11y-producer-switch.md`).
+An optional, read-only *second* observation channel. surf keeps the tab and every action, and the
+channel reads **Chromium's own accessibility tree** of that tab over the loopback DevTools endpoint
+(`Accessibility.getFullAXTree`). It attaches to the existing page target and to each
+out-of-process frame below it through its own session, then detaches. It creates no target and no
+tab. It is off by default. An endpoint that is not loopback, not listening or not Chromium, a tab
+that is not exactly one target, or an empty tree is a typed refusal, never a launched browser.
+The producer was chosen by measurement: `docs/project/2026-09-26-a11y-producer-switch.md`.
 
-The artifact (`a11y-snapshot.v1`, channel `surf-page-read`, kind
-`test-capabilities.a11y.snapshot`) is written to `<receipts.dir>/<runId>/a11y-snapshot-*.json`
-at mode 0600 and holds the tree's text, its refs map, the role counts and `semanticCoverage`.
-`pages[].observations[]` in the envelope carries the digest, the refs map, the counts and the
-file's path - never the tree text.
+The artifact (`a11y-snapshot.v1`, channel `chromium-ax-cdp`, kind
+`test-capabilities.a11y.snapshot`) is written to `<receipts.dir>/<runId>/a11y-snapshot-*.json` at
+mode 0600 and holds the tree's text, its refs map, the role counts and `semanticCoverage`.
+`pages[].observations[]` carries the digest, the refs map, the counts and the file's path - never
+the tree text.
 
 | field | what it is |
 |---|---|
-| `digest` | `sha256:<hex>` of the snapshot text, without surf's `[Viewport: WxH]` line. A ref is valid **iff** a fresh snapshot's digest equals the digest that minted it; a reload that leaves the tree byte-identical keeps it valid, a navigation does not |
-| `refs` | `{ "e28": { role, name } }`, from surf's structured nodes. `eN` is a within-snapshot reading aid; what crosses runs is `{role, name}` |
+| `digest` | `sha256:<hex>` of the rendered tree: controls, headings and landmarks (named `form`/`region` only) and named images, with wrapper and text roles collapsed, and out-of-process frames under a `frame "<url>"` line. A ref is valid **iff** a fresh snapshot's digest equals the digest that minted it |
+| `refs` | `{ "e28": { role, name } }` with Chromium's computed role and accessible name. `eN` numbers the kept nodes in document order, so an unchanged reload keeps the text identical; what crosses runs is `{role, name}` |
 | `roleCounts` | how many nodes of each role the tree named |
-| `semanticCoverage` | the `dom` probe's `anchors`/`buttons`/`inputs` counts against the tree's. A gap is the number of controls the page has and the tree does not name; assert those through surf selectors. Absent with `coverageReason: "dom_probe_missing"` when the `dom` probe did not verify - never zeros |
-| `tool` | the command and the surf version that answered |
-| `tab` | surf's own tab id, the URL and the title the tree was read from |
+| `semanticCoverage` | the `dom` probe's `anchors`/`buttons`/`inputs` counts against the tree's. Absent with `coverageReason: "dom_probe_missing"` when the `dom` probe did not verify - never zeros |
+| `frames` | out-of-process frames read through their own sessions (`unreadableFrames` on the artifact names any that attached but could not be read) |
+| `tool` / `tab` | `CDP Accessibility.getFullAXTree` with the browser version; surf's tab id, the CDP target id, the URL and the title |
 
-The channel needs surf-cli with `page.read --structure --full-page --nodes` (branch
-`feat/page-read-nodes`, which the workstation's `adopted` build runs). `doctor` reports whether
-the resolved surf has it as `external.a11y_channel`.
+Environment: `TEST_CAPABILITIES_CDP_ENDPOINT` (default `http://127.0.0.1:9222`, loopback `http`
+only). `doctor` reports it as `external.a11y_channel`. The library's `openA11yLiveView(href)`
+returns a fresh view and a reader, so `evaluateA11yAssertion` can check `visible`, `text` and
+`attr` on the element a ref names, inside out-of-process frames too.
 
 Unsupported surf actions:
 - `flow`

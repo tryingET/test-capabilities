@@ -106,9 +106,12 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `frame_context_unrestored` | `frame.main` did not restore the owned tab after an in-frame probe; the tab was closed so nothing later runs in that frame, and the remaining candidates are recorded unprobed |
 | `frame_diagnosis_undetermined` | The frame inventory disagrees with itself (surf's counts against its own lists, or extension child frames no `<iframe>` accounts for), the page moved between the failure and the diagnosis, or `--frame-hint` resolved to zero, several, or an unreachable frame |
 | `heal_frame_refused` | The healer refused a selector rewrite because the frame determination does not permit one: `confirmed` (the rewrite is wrong by construction), `undetermined` or `unavailable` (there is no candidate list to show a reviewer) |
+| `cdp_endpoint_refused` | `TEST_CAPABILITIES_CDP_ENDPOINT` is not an `http` URL on `127.0.0.1`, `localhost` or `[::1]`. Refused before any request is made |
+| `cdp_endpoint_unreachable` | Nothing answered at the endpoint. Start Chromium (Agent) with its remote debugging port; the channel never launches a browser |
+| `cdp_endpoint_not_chromium` | Something answered that is not a Chromium DevTools endpoint (a non-200 status, no JSON, no `Browser` string, or no target list) |
+| `tab_bind_ambiguous` | The tab surf owns is not exactly one page target at the gated URL in `/json/list`. The framework reads exactly one tab or none, and never picks |
 | `a11y_channel_unavailable` | `--a11y-snapshot=required` and the channel could not observe. The page is unverified and the reason names which of the gates refused |
-| `surf_page_read_unsupported` | The resolved surf answered `page.read` without `--nodes` (text, or an object without `nodes`): it predates surf-cli `feat/page-read-nodes`. `doctor` reports it as `external.a11y_channel` |
-| `snapshot_failed` | `page.read --nodes` failed, or answered a shape the channel cannot read |
+| `snapshot_failed` | The accessibility tree could not be read over CDP, or answered a shape the channel cannot read |
 | `empty_snapshot` | The tree has no refs and no text. An empty tree is a failure, never a zero-element success |
 | `origin_mismatch` | The snapshot's own URL is not the page the readiness gate saw: the page moved between the gate and the snapshot |
 | `ref_context_drift` | An `a11y-ref` assertion was evaluated against a snapshot whose digest is not the one that minted the ref, or whose ref names another control. Never `failed`, never `passed` |

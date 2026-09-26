@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { probeCdpBrowser, resolveCdpEndpoint } from "../a11y-cdp.js";
 import { resolveBombadilBinaryResolution } from "../bombadil-runtime.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { MutationReceipt } from "../receipt-store.js";
@@ -370,44 +371,30 @@ function checkOptionalBombadil(env: NodeJS.ProcessEnv = process.env): DoctorChec
 
 /**
  * The a11y observation channel as an optional external, next to `external.surf` (a11y-snapshot
- * packet, "Placement"; producer switched to surf under AK #5915).
+ * packet, "Placement"; producer chosen by the measured series of AK #5915).
  *
- * The channel is one `page.read --nodes` through the run's own surf, so the only question is
- * whether that surf knows the flag: its `page.read --help` lists `--nodes`. A warning, never a
- * failure - the channel is off by default - but the detail names the refusal an
- * `--a11y-snapshot=required` run would get, so `doctor` answers before the run asks.
+ * The channel reads Chromium's accessibility tree over the loopback DevTools endpoint, so the
+ * question is whether that endpoint answers as Chromium. A warning, never a failure - the channel
+ * is off by default - but the detail names the refusal an `--a11y-snapshot=required` run would
+ * get, so `doctor` answers before the run asks.
  */
-function checkOptionalA11yChannel(env: NodeJS.ProcessEnv = process.env): DoctorCheck {
+async function checkOptionalA11yChannel(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<DoctorCheck> {
   const id = "external.a11y_channel";
-  const label = "Optional a11y snapshot channel (surf page.read --nodes)";
-  let resolution: ReturnType<typeof resolveSurfRuntimeResolution>;
+  const label = "Optional a11y snapshot channel (Chromium accessibility tree over CDP)";
+  let endpoint: string;
   try {
-    resolution = resolveSurfRuntimeResolution(env);
+    endpoint = resolveCdpEndpoint(env);
   } catch (error) {
     return warn(id, label, errorMessage(error));
   }
-  const help = runSurfCommand(resolution, ["page.read", "--help"], { timeoutMs: 15_000, env });
-  const text = `${help.stdout}\n${help.stderr}`;
-  const supported = help.ok && /--nodes\b/.test(text) && /--structure\b/.test(text);
-  const data = { command: resolution.command, nodes: supported };
-  return supported
-    ? {
-        ...pass(
-          id,
-          label,
-          `surf page.read --structure --full-page --nodes via ${resolution.command}`,
-          false,
-        ),
-        data,
-      }
-    : {
-        ...warn(
-          id,
-          label,
-          `surf at ${resolution.command} does not list page.read --nodes/--structure; --a11y-snapshot=required would refuse with surf_page_read_unsupported. The channel needs surf-cli feat/page-read-nodes (the workstation's adopted build).`,
-        ),
-        data,
-      };
+  try {
+    const browser = await probeCdpBrowser(endpoint);
+    return { ...pass(id, label, `${browser} at ${endpoint}`, false), data: { endpoint, browser } };
+  } catch (error) {
+    return { ...warn(id, label, errorMessage(error)), data: { endpoint, browser: null } };
+  }
 }
 
 /**
@@ -494,7 +481,7 @@ async function runDoctorOperation(
     ...(targetCheck ? [targetCheck] : []),
     checkOptionalSurf(),
     checkOptionalBombadil(),
-    checkOptionalA11yChannel(),
+    await checkOptionalA11yChannel(),
     await checkReceiptStore(context),
   ];
   const requiredFailed = checks.filter((check) => check.required && check.status === "fail");

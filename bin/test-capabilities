@@ -299,7 +299,7 @@ program
   )
   .option(
     "--a11y-snapshot [mode]",
-    "surf explore: attach the read-only accessibility observation channel (one surf page.read --structure --full-page --nodes in the owned tab); 'optional' (default) records an unavailable channel and continues, 'required' fails the page",
+    "surf explore: attach the read-only accessibility observation channel (Chromium's accessibility tree of the owned tab over the loopback CDP endpoint); 'optional' (default) records an unavailable channel and continues, 'required' fails the page",
   )
   .option(
     "--field <locator=value>",

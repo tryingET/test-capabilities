@@ -133,7 +133,7 @@ test-capabilities surf explore --url https://example.com --depth 2
 
 ---
 
-### 3c. Accessibility evidence for an LLM-written test (surf page.read as an observer)
+### 3c. Accessibility evidence for an LLM-written test (Chromium's tree as an observer)
 
 **Use**: `test-capabilities surf explore --url <url> --a11y-snapshot[=required]`, or
 `agents.<name>.observation.a11ySnapshot` on a surf agent.
@@ -144,17 +144,18 @@ test-capabilities surf explore --url https://example.com --a11y-snapshot=require
 ```
 
 **Why**: a DOM dump or a screenshot is not what a language model should read to write a browser
-test. One surf `page.read --structure --full-page --nodes` is a few thousand tokens of
-`{role, name}` lines with controls, headings and landmarks across the whole page, deterministic
-across runs and tabs, and it doubles as an accessibility reading of the page. The artifact records `semanticCoverage` - the DOM's control counts against the tree's - so
+test. Chromium's own accessibility tree, rendered as structure, is a few thousand tokens of
+`{role, name}` lines with the real accessible names, shadow DOM and out-of-process frames
+included, deterministic across runs and tabs. It doubles as an accessibility reading of the page. The artifact records `semanticCoverage` - the DOM's control counts against the tree's - so
 the controls the browser cannot name are visible instead of silently absent, and a tester routes
 those to surf selectors. A test written from it says `{kind: "a11y-role", role, name}`, which
 survives into another run; `eN` refs do not, and are bound to the snapshot digest that minted
 them.
 
-**Not for**: acting. The channel is one read-only `page.read` through the run's own surf session:
-no second tool, no CDP attachment and nothing that clicks. (agent-browser, attached over CDP, was
-the producer until AK #5915; it left a stray tab per session, vercel-labs/agent-browser#1986.)
+**Not for**: acting. The channel attaches read-only to the tab surf owns, over the loopback
+DevTools endpoint, and sends no command that navigates, clicks, types or evaluates writing script.
+surf is the only action channel. agent-browser and then surf's own `page.read` were earlier
+producers; the measured series is in `docs/project/2026-09-26-a11y-producer-switch.md`.
 
 ---
 

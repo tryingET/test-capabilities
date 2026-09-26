@@ -320,6 +320,7 @@
       "evidence": {
         "tests": [
           "tests/a11y_snapshot_contract.test.mjs",
+          "tests/a11y_cdp_contract.test.mjs",
           "tests/a11y_snapshot_observer_contract.test.mjs"
         ],
         "commands": ["npm test"],
@@ -331,7 +332,7 @@
       },
       "attach_points": ["src/index.ts"],
       "activation_requirements": [],
-      "notes": "An optional, read-only second observation channel registered on Session.observe: one surf page.read --structure --full-page --no-text --nodes in the tab the surf run already owns, through the run's own session (tab-scoped, ledgered, read_only). The schema a11y-snapshot.v1 is the contract and the producer is named in every artifact (channel surf-page-read; agent-browser over CDP until AK #5915 met the S9 sunset condition). The artifact carries the tree text (controls, headings and landmarks across the whole page, independent of window size; the viewport line is not digested), the {role, name} refs map from surf's structured nodes, the sha256 digest of the text, the role counts and semanticCoverage (the dom probe's counts against the tree's), and is written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. Ref validity is digest equality against a mandatory fresh snapshot and nothing else; cross-run identity is {role, name}, and ambiguity is a typed unverified with the candidates listed. No second tool, no CDP endpoint, no tab binding and no stray tab. A surf without page.read --nodes is surf_page_read_unsupported. Off by default. Captured live on github.com/nicobailon/surf-cli/releases: two consecutive reads byte-identical, 236 nodes, 15154 bytes."
+      "notes": "An optional, read-only second observation channel registered on Session.observe: Chromium's own accessibility tree of the tab the surf run already owns, read with Accessibility.getFullAXTree over the loopback CDP endpoint from the existing page target (no new target or tab) and from each out-of-process frame through its own flattened session, then detached. The producer was chosen by a measured series (AK #5915): surf's content-script tree missed 964 shadow-root buttons on MDN and gave non-accessible names (86% agreement on GitHub). The schema a11y-snapshot.v1 is the contract (channel chromium-ax-cdp). The artifact carries the rendered tree (controls, headings, landmarks, named images; wrappers collapsed; refs in document order), the {role, name} refs map, the sha256 digest, the role counts and semanticCoverage, written under receipts.dir/<runId>/ at 0600 while the envelope keeps the digest, the refs and the counts. openA11yLiveView gives evaluateA11yAssertion a read-only reader for visible, text and attr, in-frame too. The endpoint must be loopback and is refused before any request otherwise; the tab binds to exactly one target or refuses. Off by default. Live on Chromium (Agent) Chrome/153: GitHub releases 256 refs / 7308 bytes with the same digest across tabs and hours, MDN 1260 refs across 6 frames, page count unchanged, in-frame checks passed."
     },
     {
       "id": "library:executeCliOperation",

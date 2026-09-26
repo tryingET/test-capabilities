@@ -177,7 +177,7 @@ written before this key produces the same envelope it always did.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `a11ySnapshot` / `a11y_snapshot` | `off \| optional \| required` | The accessibility snapshot channel (one surf `page.read --structure --full-page --nodes` in the owned tab). `optional` records an `unavailable` observation and continues; `required` fails the page with `a11y_channel_unavailable` |
+| `a11ySnapshot` / `a11y_snapshot` | `off \| optional \| required` | The accessibility snapshot channel (Chromium's accessibility tree of the owned tab over the loopback CDP endpoint). `optional` records an `unavailable` observation and continues; `required` fails the page with `a11y_channel_unavailable` |
 
 ```yaml
 agents:
@@ -188,11 +188,12 @@ agents:
       a11ySnapshot: optional
 ```
 
-surf keeps the tab and every action, and the channel is one read-only `page.read` through the same
-session. A surf without `page.read --nodes`, an empty tree or a page that moved is a typed
-refusal. The artifact is written under `receipts.dir/<runId>/` at mode 0600, and
-`docs/api/cli.md` has the field table. There is no extra environment: the channel uses the surf the
-run resolved.
+surf keeps the tab and every action; the channel attaches to that tab's page target over the
+loopback DevTools endpoint (`TEST_CAPABILITIES_CDP_ENDPOINT`, default `http://127.0.0.1:9222`),
+reads Chromium's accessibility tree and detaches. An endpoint that is not loopback, not listening
+or not Chromium, a tab that is not exactly one target, or an empty tree is a typed refusal. The
+artifact is written under `receipts.dir/<runId>/` at mode 0600; `docs/api/cli.md` has the field
+table.
 
 ### `agents.<name>.readySelector`
 

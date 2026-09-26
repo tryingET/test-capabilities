@@ -16,6 +16,8 @@
       "!ontology/**/*",
       // Exported from AK; formatting is owned by the projection generator, not Biome.
       "!governance/work-items.json",
+      // Recorded browser output (Chromium accessibility trees): evidence, kept byte-for-byte.
+      "!tests/fixtures/captures/cdp-ax/**/*",
       "!**/*.min.js",
       "!**/*.generated.*"
     ]

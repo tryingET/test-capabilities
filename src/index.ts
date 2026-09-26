@@ -3,6 +3,18 @@
  * Fail-closed testing capability framework
  */
 
+export type { AxFrameTree, AxHandle, AxRawNode, AxRendering } from "./core/a11y-ax-tree.js";
+export { AX_KEPT_ROLES, renderAxForest } from "./core/a11y-ax-tree.js";
+export type { CdpTarget } from "./core/a11y-cdp.js";
+export {
+  bindOwnedTarget,
+  CDP_ENDPOINT_ENV,
+  createCdpCheckReader,
+  DEFAULT_CDP_ENDPOINT,
+  listCdpTargets,
+  probeCdpBrowser,
+  resolveCdpEndpoint,
+} from "./core/a11y-cdp.js";
 /**
  * The a11y observation channel's contract (slice S9). The schema is the durable asset and the
  * producer is replaceable - agent-browser until AK #5915, surf `page.read --nodes` since - so
@@ -23,19 +35,16 @@ export type {
   A11ySnapshotArtifact,
   A11ySnapshotMode,
   A11ySnapshotObservation,
-  A11ySnapshotReading,
   A11ySnapshotView,
   A11yTabBinding,
 } from "./core/a11y-snapshot.js";
 export {
   A11Y_CHANNEL,
   A11Y_INPUT_ROLES,
-  A11Y_PAGE_READ_ARGS,
   A11Y_SNAPSHOT_MODES,
   evaluateA11yAssertion,
   findRefsByRoleName,
   isA11ySnapshotMode,
-  parseA11ySnapshotPayload,
   renderTesterPromptInput,
   resolveA11yAssertion,
   roleCountsFrom,
@@ -44,6 +53,7 @@ export {
   snapshotDigest,
 } from "./core/a11y-snapshot.js";
 export type {
+  A11yLiveView,
   A11ySnapshotObserverHandle,
   A11ySnapshotObserverOptions,
 } from "./core/a11y-snapshot-observer.js";
@@ -53,6 +63,7 @@ export {
   A11Y_SNAPSHOT_OBSERVER_NAME,
   a11yChannelSummary,
   createA11ySnapshotObserver,
+  openA11yLiveView,
 } from "./core/a11y-snapshot-observer.js";
 export type { ArtifactKind, ArtifactListEntry, WriteArtifactOptions } from "./core/artifacts.js";
 export {

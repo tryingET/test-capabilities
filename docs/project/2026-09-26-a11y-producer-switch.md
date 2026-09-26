@@ -1,109 +1,137 @@
 ---
-summary: "AK #5915, operator-approved 2026-09-23: the a11y channel's producer moved from agent-browser over CDP to surf's own `page.read --structure --full-page --no-text --nodes`, which meets the S9 sunset condition (roles, names, landmarks and headings, deterministically, no stateful footer). The surf side is branch feat/page-read-nodes of contrib/surf-cli. It adds --nodes, --full-page and --structure, maps --all to its filter, and skips the host's path-rewrite walk when there is nothing to rewrite. The workstation runs it as the `adopted` build. The test-capabilities side deletes the agent-browser runtime and rewrites the observer as one read through the run's own session. Live: the S9 reference page reads 236 nodes / 15154 bytes with the same digest across tabs, and the page count is unchanged."
+summary: "AK #5915, 2026-09-26: the a11y channel's producer, decided by a measured series. agent-browser was retired first. surf `page.read --structure --full-page --nodes` briefly replaced it (the surf-cli fork's feat/page-read-nodes, still adopted and still worth upstreaming). A survey of current practice and two live measurements then showed that surf's content-script tree is not the accessibility truth: it misses shadow DOM (964 buttons on MDN), its names are not accessible names (86% agreement on GitHub), and it stops at out-of-process frames. The producer is now Chromium's own tree, `Accessibility.getFullAXTree` over the loopback CDP endpoint, attached to the tab surf owns, with recursive per-frame sessions and a read-only check reader. That reader finally gives the evaluator's visible/text/attr expectations something to read. Live: digest stable across tabs and hours, page count unchanged, in-frame checks pass."
 read_when:
-  - "You change the a11y channel, its producer, or the surf page.read flags it depends on."
-  - "An a11y run refuses with surf_page_read_unsupported, or doctor warns on external.a11y_channel."
-  - "You wonder where agent-browser, tabLeak or the CDP endpoint settings went."
+  - "You change the a11y channel, its producer, the CDP transport, or the rendering of the tree."
+  - "An a11y run refuses with cdp_endpoint_unreachable, cdp_endpoint_refused or tab_bind_ambiguous, or doctor warns on external.a11y_channel."
+  - "You wonder why the channel reads over CDP when surf owns the tab, or where agent-browser went."
 type: "decision"
 ---
 
-# The a11y producer switch: agent-browser → surf page.read (AK #5915, 2026-09-26)
+# The a11y producer, decided by measurement (AK #5915, #6032, 2026-09-26)
 
-## Why
+## Where this started
 
-S9 made `a11y-snapshot.v1` the contract and named a sunset condition for agent-browser: *the day
-`surf page.read --json` emits roles, names, landmarks and headings deterministically at the same
-schema, the observer switches producer and no consumer changes*
-(`2026-09-07-a11y-snapshot-channel-design.md`). The cost of the second tool was already
-measured:
-- a second binary with its own version floor;
-- a CDP endpoint and its loopback rule;
-- binding the tab by target id;
-- a pinned session with a teardown order;
-- a stray `about:blank` on every pinned attach, which forced the tab-leak attribution of AK #5567
-  and was filed upstream as vercel-labs/agent-browser#1986.
+S9 made `a11y-snapshot.v1` the contract and agent-browser a replaceable producer. agent-browser's
+cost was measured: a second binary, a version floor, a pinned session and its teardown, and a
+stray tab on every pinned attach (vercel-labs/agent-browser#1986). The operator agreed to retire
+it. The first replacement was surf's own `page.read`, extended on our fork (`feat/page-read-nodes`:
+`--nodes`, `--full-page`, `--structure`, `--all` mapped to its filter, and the path-rewrite walk
+skipped when there is nothing to rewrite). That build is adopted in the workstation runtime, and its
+fixes are real upstream bugs.
 
-The operator agreed to retire agent-browser on 2026-09-23.
+The operator then asked whether surf was the right tool for accessibility truth at all. This
+document records how that was settled.
 
-## What surf lacked, and what was added (contrib/surf-cli `feat/page-read-nodes`)
+## Survey (2026-09-26)
 
-Measured on upstream v2.20.0 (`f779289`, then latest main) before any change:
+The consensus shows up in GitHub issues and PRs rather than on X, which the web index barely
+covers:
+- **The ground truth is Chromium's tree over CDP.** `Accessibility.getFullAXTree` gives the
+  computed role, the accessible name and the ignored reasons. OpenClaw, VibeBrowser / Agent Labs
+  ("How browser agents should serialize accessibility trees") and the Agent Accessibility Scorer
+  build on it. The Scorer joins it to a DOM inventory on `backendNodeId` to find clickable elements
+  an agent cannot see.
+- **Out-of-process iframes need one session per frame.** Stagehand ships `Target.setAutoAttach`
+  with `flatten: true` and stitches the trees together, and agent-browser #925, axscope #8,
+  browser-tools #143 and Zenium #157 converged on the same fix. chrome-devtools-mcp's snapshot did
+  not see into iframes as of its #186.
+- **Serialization:** collapse wrapper roles (`generic`, `group`, `none`, `presentation`). There is
+  no formal standard.
+- **Performance:** `getPartialAXTree` for a subtree, not a full tree pruned afterwards (wmux #1371,
+  hermes-agent #115056). This is not needed at our page sizes yet.
 
-- The default `page.read` is the **interactive filter clipped to the viewport**. On the GitHub
-  releases page it returns 38 nodes, because it only sees what is scrolled into view. That is not
-  deterministic across window sizes.
-- `page.read --all` was documented as "Include all elements", but **nothing mapped it to the all
-  filter**, so it silently returned the viewport-clipped interactive tree.
-- The text carries a **stateful "Diff from previous snapshot" footer** when two reads fall within
-  5 s.
-- Structured output existed only as the internal `semanticObservation`, which has no headings or
-  landmarks.
-- Any response larger than 1000 values failed with "response exceeds path rewrite limits": the
-  host walked every response to rewrite transferred file paths, even when there were none.
+## Measurement 1: surf's tree against Chromium's tree, same owned tab
 
-Two commits on `feat/page-read-nodes`, cut from `main`:
+`{role, name}` multisets over controls, headings and landmarks. Chromium's tree is read
+read-only from the existing page target's socket.
 
-1. `fix(host): skip the path-rewrite walk when a response has nothing to rewrite` (`413eb50`).
-2. `feat(page.read): --structure, --full-page and --nodes; --all selects its filter` (`cfc78e4`):
-   - `--nodes` returns `{pageContent, nodes: [{ref, role, name, depth}], viewport, url, title}`
-     and always takes a full snapshot, so there is no footer;
-   - `--full-page` drops the viewport clip and keeps the visibility checks;
-   - `--structure` means controls plus headings and landmarks, without the named prose `--all`
-     adds.
+| page | surf | Chromium | agree | surf-only | Chromium-only |
+|---|---|---|---|---|---|
+| example.com | 2 | 2 | 2 | 0 | 0 |
+| GitHub releases | 226 | 237 | 204 (86%) | 22 (names) | 33 |
+| MDN `<iframe>` | 267 | 1222 | 239 | 28 | 983 |
 
-   The CLI rewrites `--full-page` to `fullpage` (the screenshot alias), and the host reads that
-   key. The live run found this; the unit test had passed with the pre-rewrite key.
+- **Shadow DOM.** MDN has 9 buttons in the light DOM and **964 inside shadow roots**
+  (`mdn-dropdown`, `mdn-copy-button`, …). surf's walk follows `element.children` and never enters a
+  shadow root.
+- **Names.** Every GitHub disagreement is a name. Chromium says "Pull requests" and "Tag v2.20.0"
+  where surf says "Pull requests 0" and "v2.20.0". Chromium's name is what a screen reader
+  announces.
+- **Frames.** CDP attached all three out-of-process frames through their own sessions, while
+  surf's read stops at the frame boundary.
+- **No side effects:** the page count was 1 before and 1 after on every page.
 
-The fork suite was 1177 tests on pristine main and is 1185 after the change, all passing, with
-every new case red first.
+## Measurement 2: a prototype CDP producer
 
-| page (live, Chrome 153) | `--full-page` | `--structure --full-page` |
-|---|---|---|
-| example.com | 1 node | 2 nodes (heading, link) |
-| github.com/nicobailon/surf-cli/releases | 154 nodes, 11461 B | **236 nodes, 15154 B**: 119 links, 63 headings, 24 buttons, 10 regions, 6 navigation, 1 banner |
-| MDN `<iframe>` reference | 221 nodes | 288 nodes |
+A canonical rendering with wrappers collapsed, recursive frame sessions, and a read-only check
+resolved from a node's backend id.
 
-Every read was byte-identical on repeat. On the releases page, S9 had measured agent-browser at
-204 refs.
+| page | lines | bytes | twice identical | frames | stray tabs |
+|---|---|---|---|---|---|
+| example.com | 2 | 54 | yes | 0 | none |
+| GitHub releases | 408 | 12 378 | yes | 0 | none |
+| MDN `<iframe>` | 3 448 | 184 501 | yes | 6 (nested included) | none |
 
-## What changed in test-capabilities
+The check read `visible`, `text` and `href` on all three. MDN showed the rendering needed a
+structure filter (1 033 `Abbr` and 934 table cells), which the implementation added.
 
-- **Deleted:** `src/core/a11y-snapshot-runtime.ts` (673 lines: the agent-browser adapter,
-  resolution, version floor, CDP endpoint, argv allowlist), its test suite, both fakes and the
-  agent-browser capture. The spawn-boundary guard lists three process-starting modules instead
-  of four.
-- **Observer:** 544 lines became about 290. It is one
-  `page.read --structure --full-page --no-text --nodes` in the owned tab via `session.step`:
-  tab-scoped, ledgered and `read_only` like every surf read. There is no binding, no teardown and
-  no tab leak.
-- **Contract:** unchanged in substance (`a11y-snapshot.v1`, digest identity, `{role, name}`
-  identity, the evaluator). Channel `surf-page-read`; the tab is surf's own tab id. The viewport
-  line is not digested, because the window size is not the page.
-- **Error codes:** the agent-browser and CDP codes and `tab_lost`/`tab_leak` are gone.
-  `surf_page_read_unsupported` covers a surf without `--nodes`.
-- **`doctor`:** `external.agent_browser` became `external.a11y_channel`, which asks whether the
-  resolved surf's `page.read --help` lists `--nodes` and `--structure`.
-- **Fixture:** `tests/fixtures/captures/surf-page-read/releases.json`, the live capture of the
-  releases page (236 nodes, digest `sha256:f4076105…`, with the DOM's counts), with a fidelity
-  test.
+## Decision
 
-## Live proof (Chromium (Agent), surf `adopted` = `cfc78e4`)
+**Chromium's accessibility tree over CDP is the a11y channel's producer, and surf keeps the tab
+and every action.** The `a11y-snapshot.v1` contract did not change; only the producer changed, as
+S9 designed for.
+
+## What was built (test-capabilities)
+
+- `src/core/a11y-ax-tree.ts` (pure) renders the forest.
+  - It keeps controls, headings and landmarks. `form` and `region` count only with a name; named
+    images are kept.
+  - Wrappers and text are collapsed, and ignored nodes are dropped.
+  - Refs are **document order (`eN`), not backend ids**, so an unchanged reload leaves the text
+    byte-identical. The backend ids stay in a private handle map.
+- `src/core/a11y-cdp.ts` is the transport.
+  - The endpoint must be loopback (`TEST_CAPABILITIES_CDP_ENDPOINT`, default
+    `http://127.0.0.1:9222`) and is refused before any request otherwise.
+  - The page target must be exactly one at the gated href (`tab_bind_ambiguous` otherwise).
+  - It uses a promise CDP connection over Node's WebSocket.
+  - The forest read uses event-driven recursive auto-attach.
+  - `releaseForest` detaches the frame sessions and only then turns auto-attach off.
+  - The check reader uses `DOM.resolveNode` and a fixed read-only function, and releases every
+    object.
+- **Observer:** one ledgered read-only step. `openA11yLiveView(href)` returns a fresh view plus
+  the reader for `evaluateA11yAssertion`, which is the first production reader the evaluator has
+  ever had.
+- **Error codes:** the CDP gate codes are back (`cdp_endpoint_refused`,
+  `cdp_endpoint_unreachable`, `cdp_endpoint_not_chromium`, `tab_bind_ambiguous`), and
+  `surf_page_read_unsupported` is gone. **`doctor`:** `external.a11y_channel` is the Browser string
+  at the endpoint.
+- **Tests** run against a fake DevTools endpoint (HTTP plus a minimal RFC 6455 socket) that replays
+  two recorded Chromium trees (`tests/fixtures/captures/cdp-ax/`). Its method log proves no writing
+  command is ever sent.
+
+The first live run found one bug the fake had hidden: turning auto-attach off on the page
+detaches every child session in Chromium, so the reader's in-frame read failed with "Session with
+given id not found". The fake now behaves the same way, and the test was red before the fix.
+
+## Live proof (Chromium (Agent) Chrome/153, owned tabs)
 
 | run | result |
 |---|---|
-| `doctor` | `external.surf`, `external.bombadil` and `external.a11y_channel` all `pass` |
-| `surf explore --url …/releases --a11y-snapshot=required`, twice | `captured`, channel `surf-page-read`, 236 refs, 15154 bytes, digest `sha256:f40761058539…` both times, **equal to the committed fixture** captured earlier in another tab; `semanticCoverage.anchors` dom 233 / tree 119 |
-| same on example.com | `captured`, 2 refs |
-| page targets before / after | 1 / 1: no stray tab |
-| `test` with `observation.a11ySnapshot: required` | `verified`; the report carries `a11y-snapshot: captured sha256:89738bce…` |
+| `surf explore --a11y-snapshot=required`, GitHub releases, twice | 256 refs, 7 308 bytes, the **same digest both times and equal to the fixture recorded hours earlier** |
+| same, MDN `<iframe>` | 1 260 refs, 938 buttons, 6 frames |
+| same, local page with an out-of-process frame | the frame's `button "Play"` is in the tree |
+| page targets before / after | 1 / 1 |
+| evaluator: `button "Play"` in the out-of-process frame, visible/text/attr | **passed**; with `text: "Pause"` **failed** and quoted the real reading |
+| evaluator: GitHub `link "Tags"` href, `searchbox` visible | passed |
+| evaluator: `link "Pull requests 0"` (surf's name) | unverified: Chromium's accessible name is "Pull requests" |
+| `test` with the agent's a11y channel | verified; the report carries the capture |
+| `doctor` | `external.a11y_channel` pass: Chrome/153.0.8010.47 at the endpoint |
 
-## Runtime and upstream
+## What stays open
 
-- The workstation runs contrib/surf-cli branch `adopted` (upstream `main` plus
-  `feat/page-read-nodes`). The name `local` is taken by `local/parked-edits-20260906`.
-- Rollback: `ln -sfn f779289 ~/.local/opt/surf-cli/current` (pure v2.20.0), then restart.
-  test-capabilities then reports `surf_page_read_unsupported` for the a11y channel and nothing
-  else changes.
-- Upstream: the two commits are ready as PRs to nicobailon/surf-cli (the path-rewrite fix and
-  the `page.read` flags). They go out through issue-tracker `bin/it` with the operator's authority
-  for each preview.
+- `within` landmark scoping for `a11y-role` assertions. The rendering now carries the landmark
+  nesting it needs.
+- Per-element coverage by joining the tree to the DOM inventory on backend ids (the Agent
+  Accessibility Scorer's idea), instead of the current counts.
+- Upstream: surf-cli issues for `--all`, the path-rewrite limit and the structured read are
+  drafted in issue-tracker, awaiting review and the operator's authority for each preview.

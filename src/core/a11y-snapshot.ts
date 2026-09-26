@@ -3,10 +3,10 @@
  *
  * The schema is the durable asset and the producer is replaceable (a11y-snapshot packet,
  * Clash 3 and the refinement's consequence 5): `channel` names the producer in every receipt.
- * The producer was agent-browser over CDP until the packet's sunset condition was met on
- * 2026-09-26 (AK #5915): surf's own `page.read --structure --full-page --nodes` emits roles,
- * names, headings and landmarks deterministically, so the second tool, its CDP attachment and
- * its stray tab are gone and no consumer changed.
+ * The producer is Chromium's own accessibility tree over CDP (`a11y-ax-tree.ts`,
+ * `a11y-cdp.ts`), chosen by the measured series of AK #5915: agent-browser before it stranded a
+ * tab per session, and surf's content-script tree missed shadow roots and accessible names. No
+ * consumer changed across either switch.
  *
  * Two rules from the packet's adjudication live here, and nowhere else:
  *
@@ -33,15 +33,7 @@ export const A11Y_SNAPSHOT_KIND = "a11y-snapshot";
 export const A11Y_ASSERT_KIND = "a11y-assert";
 
 /** The producer this artifact came from; a switch is visible in every receipt. */
-export const A11Y_CHANNEL = "surf-page-read";
-
-/** The one read the channel makes; `--nodes` is the structured, footer-free form (AK #5915). */
-export const A11Y_PAGE_READ_ARGS: readonly string[] = [
-  "--structure",
-  "--full-page",
-  "--no-text",
-  "--nodes",
-];
+export const A11Y_CHANNEL = "chromium-ax-cdp";
 
 /** The observation name the session registers this channel under. */
 export const A11Y_SNAPSHOT_OBSERVATION = "a11y-snapshot";
@@ -86,9 +78,10 @@ export interface A11yDomProbeCounts {
   inputs: number;
 }
 
-/** The tab the tree was read from: the one surf opened for this run. */
+/** The tab the tree was read from: the one surf opened for this run, and its CDP target. */
 export interface A11yTabBinding {
   surfTabId?: number;
+  targetId?: string;
   url: string;
   title: string;
 }
@@ -114,6 +107,10 @@ export interface A11ySnapshotCaptured {
   semanticCoverage?: A11ySemanticCoverage;
   /** why `semanticCoverage` is absent: `dom_probe_missing`, never a zero */
   coverageReason?: "dom_probe_missing";
+  /** out-of-process frames read through their own sessions */
+  frames?: number;
+  /** frames whose session attached but whose tree could not be read */
+  unreadableFrames?: string[];
   status: "captured";
 }
 
@@ -122,7 +119,7 @@ export interface A11ySnapshotUnavailable {
   kind: typeof A11Y_SNAPSHOT_KIND;
   channel: typeof A11Y_CHANNEL;
   status: "unavailable";
-  /** the registered code that says why: `surf_page_read_unsupported`, `snapshot_failed`, ... */
+  /** the registered code that says why: `cdp_endpoint_unreachable`, `tab_bind_ambiguous`, ... */
   reason: string;
   detail?: string;
 }
@@ -152,6 +149,7 @@ export interface A11ySnapshotObservation {
   coverageReason?: "dom_probe_missing";
   tab?: A11yTabBinding;
   tool?: { command: string; version: string };
+  frames?: number;
 }
 
 /** The three channel modes; `off` is the default, so an existing run is byte-compatible. */
@@ -264,91 +262,6 @@ export function semanticCoverageGaps(coverage: A11ySemanticCoverage): Array<{
   return (Object.keys(coverage) as Array<keyof A11ySemanticCoverage>)
     .map((family) => ({ family, missing: coverage[family].dom - coverage[family].tree }))
     .filter((entry) => entry.missing > 0);
-}
-
-/** What one structured read says about the page, before anything is decided about it. */
-export interface A11ySnapshotReading {
-  origin: string;
-  title: string;
-  refs: A11yRefMap;
-  snapshot: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** surf appends the window size to the tree; it is not the page, so it is not digested. */
-const VIEWPORT_FOOTER = /\n*\[Viewport: \d+x\d+\]\s*$/;
-
-/**
- * Map surf's `page.read --nodes` payload (`{pageContent, nodes, url, title}`) onto the reading
- * this schema is built from, or say what is wrong with it.
- *
- * The refs map comes from `nodes` - the parser-free source of `{role, name}`; deriving it from
- * the text would recreate the `parseSnapshot` failure this channel exists to avoid - and the
- * text, without its viewport line, is the only digest input. A payload without `nodes` is a
- * surf that does not know `--nodes` (`surf_page_read_unsupported`). An empty tree is a failure,
- * never a zero-element success (assessment row 5).
- */
-export function parseA11ySnapshotPayload(payload: unknown):
-  | { reading: A11ySnapshotReading }
-  | {
-      error: "snapshot_failed" | "empty_snapshot" | "surf_page_read_unsupported";
-      detail: string;
-    } {
-  if (typeof payload === "string") {
-    return {
-      error: "surf_page_read_unsupported",
-      detail: `page.read answered text instead of the --nodes object (${payload.slice(0, 80).replace(/\s+/g, " ")}...)`,
-    };
-  }
-  if (!isRecord(payload)) {
-    return {
-      error: "snapshot_failed",
-      detail: `payload is ${payload === null ? "null" : typeof payload}, not an object`,
-    };
-  }
-  const { pageContent, nodes, url, title } = payload;
-  if (nodes === undefined) {
-    return {
-      error: "surf_page_read_unsupported",
-      detail: "page.read answered without 'nodes'; this surf does not know --nodes",
-    };
-  }
-  if (typeof pageContent !== "string") {
-    return { error: "snapshot_failed", detail: "payload carries no 'pageContent' text" };
-  }
-  if (!Array.isArray(nodes)) {
-    return { error: "snapshot_failed", detail: "payload 'nodes' is not a list" };
-  }
-  const parsedRefs: A11yRefMap = {};
-  for (const [index, node] of nodes.entries()) {
-    if (
-      !isRecord(node) ||
-      typeof node.ref !== "string" ||
-      typeof node.role !== "string" ||
-      typeof node.name !== "string"
-    ) {
-      return { error: "snapshot_failed", detail: `node ${index} is not a {ref, role, name} node` };
-    }
-    parsedRefs[node.ref] = { role: node.role, name: node.name };
-  }
-  const snapshot = pageContent.replace(VIEWPORT_FOOTER, "");
-  if (snapshot.trim().length === 0 || Object.keys(parsedRefs).length === 0) {
-    return {
-      error: "empty_snapshot",
-      detail: `the tree has ${Object.keys(parsedRefs).length} ref(s) and ${snapshot.trim().length} characters of text`,
-    };
-  }
-  return {
-    reading: {
-      origin: typeof url === "string" ? url : "",
-      title: typeof title === "string" ? title : "",
-      refs: parsedRefs,
-      snapshot,
-    },
-  };
 }
 
 // ============================================

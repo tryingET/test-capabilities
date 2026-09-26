@@ -6,9 +6,8 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 /**
  * The a11y channel's producer-independent contract (a11y-snapshot packet; slice S9): the digest,
  * the ref and role resolution, the evaluator, the payload mapping, semantic coverage and the
- * tester prompt. Moved here from the agent-browser runtime suite when surf `page.read --nodes`
- * became the producer (AK #5915); the payload cases now speak surf's shape, and the fidelity case
- * pins the committed live capture.
+ * tester prompt, and the rendering of Chromium's accessibility tree (AK #5915), which the
+ * committed live captures pin.
  */
 
 const pure = await importRuntimeModule("core/a11y-snapshot.js");
@@ -158,60 +157,100 @@ test("a role that disagrees with the resolved node fails rather than resolving s
   assert.match(result.reason, /role is link, expected button/);
 });
 
-test("a surf page.read --nodes payload is mapped or refused; an empty tree is a failure", () => {
-  const good = pure.parseA11ySnapshotPayload({
-    pageContent: 'link "More" [e1]\n\n[Viewport: 800x600]',
-    nodes: [{ ref: "e1", role: "link", name: "More", depth: 0 }],
-    url: "https://example.com/",
-    title: "Example",
-  });
-  assert.equal(good.reading.origin, "https://example.com/");
-  assert.deepEqual(good.reading.refs, { e1: { role: "link", name: "More" } });
-  // the window size is not the page: the viewport line is never part of the digest input
-  assert.equal(good.reading.snapshot, 'link "More" [e1]');
+const { renderAxForest, AX_KEPT_ROLES } = await importRuntimeModule("core/a11y-ax-tree.js");
 
-  assert.equal(pure.parseA11ySnapshotPayload(null).error, "snapshot_failed");
-  assert.equal(
-    pure.parseA11ySnapshotPayload({ pageContent: "x", nodes: "nope" }).error,
-    "snapshot_failed",
+function forestOf(name) {
+  const capture = JSON.parse(
+    readFileSync(new URL(`./fixtures/captures/cdp-ax/${name}.json`, import.meta.url), "utf8"),
   );
-  assert.equal(pure.parseA11ySnapshotPayload({ nodes: [] }).error, "snapshot_failed");
+  return capture.frames.map((frame, index) => ({
+    frame: index === 0 ? "main" : `f${index}`,
+    url: frame.url,
+    nodes: frame.nodes ?? [],
+    ...(frame.error ? { error: frame.error } : {}),
+  }));
+}
+
+test("Chromium's tree renders as structure: controls, headings, landmarks; deterministic", () => {
+  const first = renderAxForest(forestOf("releases"));
+  const second = renderAxForest(forestOf("releases"));
+  assert.equal(first.snapshot, second.snapshot, "a pure function of the recorded nodes");
+  const roles = pure.roleCountsFrom(first.refs);
+  assert.equal(Object.keys(first.refs).length, 256);
+  assert.equal(roles.link, 119);
+  assert.equal(roles.heading, 63);
+  assert.equal(roles.button, 24);
+  assert.ok(roles.navigation > 0 && roles.main === 1 && roles.banner === 1);
+  // wrappers and text never survive; unnamed form/region are not landmarks
+  for (const role of Object.values(first.refs).map((ref) => ref.role)) {
+    assert.ok(AX_KEPT_ROLES.includes(role) || role === "image", role);
+  }
   assert.equal(
-    pure.parseA11ySnapshotPayload({ pageContent: "x", nodes: [{ ref: "e1", role: 1 }] }).error,
-    "snapshot_failed",
+    Object.values(first.refs).some((ref) => ["form", "region"].includes(ref.role) && !ref.name),
+    false,
   );
+  // refs are document order, never backend ids, so an unchanged reload keeps the text identical
+  assert.deepEqual(Object.keys(first.refs).slice(0, 3), ["e1", "e2", "e3"]);
+  assert.equal(/\[e\d+\]/.test(first.snapshot), true);
+  assert.ok(Object.keys(first.handles).length > 0, "handles keep the backend ids for checks");
+  // the accessible name, not the visible text: Chromium names the tab link "Pull requests"
   assert.equal(
-    pure.parseA11ySnapshotPayload({ pageContent: "", nodes: [], url: "https://example.com/" })
-      .error,
-    "empty_snapshot",
-  );
-  // a surf without --nodes answers text, or an object without nodes: that is unsupported, not empty
-  assert.equal(
-    pure.parseA11ySnapshotPayload('link "More" [e1]').error,
-    "surf_page_read_unsupported",
-  );
-  assert.equal(
-    pure.parseA11ySnapshotPayload({ pageContent: "x" }).error,
-    "surf_page_read_unsupported",
+    Object.values(first.refs).some((ref) => ref.role === "link" && ref.name === "Pull requests"),
+    true,
   );
 });
 
-test("the committed live capture maps to the recorded digest, refs and bytes (fidelity, review A17)", () => {
-  const capture = JSON.parse(
-    readFileSync(
-      new URL("./fixtures/captures/surf-page-read/releases.json", import.meta.url),
-      "utf8",
-    ),
+test("an out-of-process frame is read through its own session and rendered under a frame line", () => {
+  const rendering = renderAxForest(forestOf("local-oopif"));
+  assert.equal(rendering.frames, 1);
+  assert.equal(
+    rendering.snapshot,
+    'heading "host page" [e1]\nframe "http://localhost:18766/player.html"\n  button "Play" [e2]',
   );
-  const parsed = pure.parseA11ySnapshotPayload(capture.stdout.result);
-  assert.equal(pure.snapshotDigest(parsed.reading.snapshot), capture.digest);
-  assert.equal(Object.keys(parsed.reading.refs).length, capture.refCount);
-  assert.equal(Buffer.byteLength(parsed.reading.snapshot, "utf8"), capture.bytes);
-  const roles = pure.roleCountsFrom(parsed.reading.refs);
-  assert.ok(roles.heading > 0 && roles.navigation > 0, "structure: headings and landmarks are in");
-  const coverage = pure.semanticCoverageFrom(roles, capture.domCounts);
-  assert.equal(coverage.semanticCoverage.anchors.dom, 233);
-  assert.equal(coverage.semanticCoverage.anchors.tree, roles.link);
+  assert.deepEqual(rendering.handles.e2.frame, "f1");
+});
+
+test("a frame whose tree could not be read is named, never silently dropped", () => {
+  const rendering = renderAxForest([
+    { frame: "main", url: "https://example.com/", nodes: [] },
+    { frame: "f1", url: "https://ads.example/", nodes: [], error: "Frame detached" },
+  ]);
+  assert.deepEqual(rendering.unreadableFrames, ["https://ads.example/"]);
+  assert.match(
+    rendering.snapshot,
+    /frame "https:\/\/ads.example\/"\n {2}\(unreadable: Frame detached\)/,
+  );
+});
+
+test("ignored nodes and wrapper roles collapse into their kept ancestor", () => {
+  const nodes = [
+    { nodeId: "1", role: { value: "RootWebArea" }, childIds: ["2", "5"] },
+    {
+      nodeId: "2",
+      parentId: "1",
+      role: { value: "navigation" },
+      name: { value: "Primary" },
+      childIds: ["3"],
+    },
+    { nodeId: "3", parentId: "2", role: { value: "generic" }, childIds: ["4"] },
+    {
+      nodeId: "4",
+      parentId: "3",
+      role: { value: "link" },
+      name: { value: "Tags" },
+      backendDOMNodeId: 40,
+    },
+    {
+      nodeId: "5",
+      parentId: "1",
+      role: { value: "button" },
+      name: { value: "Hidden" },
+      ignored: true,
+    },
+  ];
+  const rendering = renderAxForest([{ frame: "main", url: "https://example.com/", nodes }]);
+  assert.equal(rendering.snapshot, 'navigation "Primary" [e1]\n  link "Tags" [e2]');
+  assert.deepEqual(rendering.handles.e2, { frame: "main", backendNodeId: 40 });
 });
 
 test("semanticCoverage measures the blind spot and never zeroes a probe that did not run", () => {
@@ -245,7 +284,7 @@ test("the tester prompt hands over the tree, the gap and the rule that refs are 
   const artifact = {
     schemaVersion: 1,
     kind: "a11y-snapshot",
-    channel: "surf-page-read",
+    channel: "chromium-ax-cdp",
     tool: {
       command: "surf page.read --structure --full-page --no-text --nodes",
       version: "2.20.0",
@@ -273,7 +312,7 @@ test("the tester prompt hands over the tree, the gap and the rule that refs are 
   };
 
   const prompt = pure.renderTesterPromptInput(artifact);
-  assert.match(prompt, /Accessibility snapshot \(surf-page-read, 2 refs\)/);
+  assert.match(prompt, /Accessibility snapshot \(chromium-ax-cdp, 2 refs\)/);
   assert.match(prompt, /searchbox "Find a release" \[ref=e28\]/);
   assert.match(prompt, /semanticCoverage gap\): 3 buttons, 1 inputs/);
   assert.match(prompt, /do not emit eN refs/);
@@ -302,11 +341,11 @@ test("the tester prompt hands over the tree, the gap and the rule that refs are 
   const unavailable = pure.renderTesterPromptInput({
     schemaVersion: 1,
     kind: "a11y-snapshot",
-    channel: "surf-page-read",
+    channel: "chromium-ax-cdp",
     status: "unavailable",
-    reason: "surf_page_read_unsupported",
+    reason: "cdp_endpoint_unreachable",
   });
-  assert.match(unavailable, /unavailable \(surf_page_read_unsupported\)/);
+  assert.match(unavailable, /unavailable \(cdp_endpoint_unreachable\)/);
   assert.match(unavailable, /Assert through surf selectors/);
 });
 

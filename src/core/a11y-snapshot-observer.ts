@@ -1,53 +1,60 @@
 /**
  * The a11y snapshot observer: a read-only `Session.observe` step over the tab a surf run
- * already owns (a11y-snapshot packet, "Session and tab binding" and "Snapshot artifact";
- * slice S9; producer switched to surf under AK #5915).
+ * already owns (a11y-snapshot packet; slice S9; producer decided by the measured series of
+ * AK #5915, `docs/project/2026-09-26-a11y-producer-switch.md`).
  *
- * One step: `page.read --structure --full-page --no-text --nodes` in the owned tab, through the
- * session like every other surf read, so it is tab-scoped, ledgered and classified by the same
- * rules. The tree is structure (controls, headings, landmarks) across the whole page and does not
- * depend on the window size; `--nodes` makes it a full snapshot with no diff footer, so the text
- * is the page's and nothing else's, and its digest is content identity.
- *
- * What the agent-browser producer needed and this one does not: a second binary, a CDP endpoint
- * and its loopback rule, binding the tab by target id, a pinned session with a teardown order,
- * and the accounting of the page that session stranded (AK #5567). Reading through the tool that
- * owns the tab removes all of it.
+ * The tree is Chromium's own accessibility tree, read over the loopback DevTools endpoint from
+ * the page target surf owns, and from each out-of-process frame below it through its own
+ * flattened session. surf keeps the tab and every action; this step attaches to the existing
+ * target (no new target, no new tab), reads, detaches and closes. Measured against surf's
+ * content-script tree, Chromium's tree carries the real accessible names, sees into shadow roots
+ * (964 buttons on MDN that surf missed) and reaches out-of-process frames.
  */
 
 import path from "node:path";
+import { type AxRendering, renderAxForest } from "./a11y-ax-tree.js";
+import {
+  bindOwnedTarget,
+  CdpConnection,
+  createCdpCheckReader,
+  listCdpTargets,
+  probeCdpBrowser,
+  readAxForest,
+  releaseForest,
+  resolveCdpEndpoint,
+} from "./a11y-cdp.js";
 import {
   A11Y_CHANNEL,
-  A11Y_PAGE_READ_ARGS,
   A11Y_SNAPSHOT_KIND,
   A11Y_SNAPSHOT_SCHEMA_VERSION,
+  type A11yCheckReader,
   type A11yDomProbeCounts,
   type A11ySnapshotArtifact,
   type A11ySnapshotObservation,
-  parseA11ySnapshotPayload,
+  type A11ySnapshotView,
   roleCountsFrom,
   semanticCoverageFrom,
   snapshotDigest,
 } from "./a11y-snapshot.js";
 import { writeJsonArtifactSync } from "./artifacts.js";
-import type { Session, SessionObserver, SessionReply } from "./browser-session.js";
+import type { Session, SessionObserver } from "./browser-session.js";
 import type { EffectDeclaration } from "./effects.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
-import { parseSurfJsonOutput } from "./surf-runtime.js";
 
 /** The artifact kind the snapshot file is written under (listable next to receipts). */
 export const A11Y_SNAPSHOT_ARTIFACT_KIND = "test-capabilities.a11y.snapshot";
 export const A11Y_SNAPSHOT_OBSERVER_NAME = "a11y-snapshot";
 
 /**
- * Read-only on the target and on the browser: one `page.read` in the tab this run already owns.
- * It opens, navigates and clicks nothing, and it starts no second tool.
+ * Read-only on the target and on the browser: it attaches to the existing page target, reads
+ * the accessibility tree and detaches. It opens, navigates and clicks nothing, and starts no
+ * process.
  */
 export const A11Y_SNAPSHOT_EFFECT: EffectDeclaration = {
   effect: "read_only",
   reason:
-    "reads the accessibility tree of the tab this run owns through surf page.read; it opens, navigates and clicks nothing",
+    "reads Chromium's accessibility tree of the tab this run owns over the loopback DevTools endpoint; it opens, navigates and clicks nothing",
 };
 
 export interface A11ySnapshotObserverOptions {
@@ -62,8 +69,8 @@ export interface A11ySnapshotObserverOptions {
    * `dom_probe_missing` - never three zeros.
    */
   domCounts?: () => A11yDomProbeCounts | undefined;
-  /** the surf version the run resolved, recorded as the producer version */
-  toolVersion?: string;
+  /** the DevTools endpoint comes from here (`TEST_CAPABILITIES_CDP_ENDPOINT`) */
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface A11ySnapshotObserverHandle {
@@ -72,20 +79,10 @@ export interface A11ySnapshotObserverHandle {
   observation(): A11ySnapshotObservation | undefined;
 }
 
-const PAGE_READ_COMMAND = `surf page.read ${A11Y_PAGE_READ_ARGS.join(" ")}`;
+const PRODUCER_COMMAND = "CDP Accessibility.getFullAXTree";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function normalizeHref(href: string): string {
-  try {
-    const url = new URL(href);
-    url.hash = "";
-    return url.href;
-  } catch {
-    return href;
-  }
 }
 
 interface CaptureResult {
@@ -145,6 +142,39 @@ function writeSnapshotArtifact(
   }
 }
 
+/** One read of the owned tab: bind, attach, read the forest, render, detach. */
+async function readOwnedTab(
+  href: string,
+  env: NodeJS.ProcessEnv,
+  keepOpen: boolean,
+): Promise<{
+  rendering: AxRendering;
+  browser: string;
+  target: { id: string; title: string };
+  connection?: CdpConnection;
+  sessions: Record<string, string | undefined>;
+}> {
+  const endpoint = resolveCdpEndpoint(env);
+  const browser = await probeCdpBrowser(endpoint);
+  const target = bindOwnedTarget(await listCdpTargets(endpoint), href);
+  const connection = await CdpConnection.open(target.webSocketDebuggerUrl as string);
+  let sessions: Record<string, string | undefined> = {};
+  try {
+    const read = await readAxForest(connection);
+    sessions = read.sessions;
+    const rendering = renderAxForest(read.forest);
+    if (keepOpen) {
+      return { rendering, browser, target, connection, sessions };
+    }
+    return { rendering, browser, target, sessions };
+  } finally {
+    if (!keepOpen) {
+      await releaseForest(connection, sessions);
+      connection.close();
+    }
+  }
+}
+
 async function capture(
   session: Session,
   options: A11ySnapshotObserverOptions,
@@ -152,48 +182,30 @@ async function capture(
 ): Promise<CaptureResult> {
   const href = session.readiness?.href ?? session.url;
   const startedAt = Date.now();
-  const reply = await session.step<SessionReply>({
+  const { rendering, browser, target } = await options.context.ledger.runStep({
     id: "a11y.snapshot",
-    command: "page.read",
-    args: [...A11Y_PAGE_READ_ARGS],
+    effect: A11Y_SNAPSHOT_EFFECT,
+    subject: href,
     intent: `read the accessibility tree of ${href} without acting on it`,
-    read: (value) => value,
+    run: () => readOwnedTab(href, options.env ?? process.env, false),
   });
 
-  let payload: unknown;
-  try {
-    payload = parseSurfJsonOutput(reply.stdout, "page.read").data;
-  } catch (error) {
-    return unavailable("snapshot_failed", errorMessage(error));
-  }
-  const parsed = parseA11ySnapshotPayload(payload);
-  if ("error" in parsed) {
+  if (rendering.snapshot.trim().length === 0 || Object.keys(rendering.refs).length === 0) {
     return unavailable(
-      parsed.error,
-      parsed.error === "empty_snapshot"
-        ? `The accessibility tree of ${href} is empty (${parsed.detail}). An empty tree is a failure, never a zero-element success: either the page carries no named controls at all, or the read did not reach it.`
-        : parsed.error === "surf_page_read_unsupported"
-          ? `The resolved surf cannot give the structured tree (${parsed.detail}). The a11y channel needs page.read --nodes (surf-cli branch feat/page-read-nodes, adopted by the workstation build).`
-          : `The a11y snapshot of ${href} answered a shape this channel cannot read: ${parsed.detail}.`,
+      "empty_snapshot",
+      `The accessibility tree of ${href} is empty (${Object.keys(rendering.refs).length} kept nodes). An empty tree is a failure, never a zero-element success: either the page carries no named controls at all, or the read did not reach it.`,
     );
   }
 
-  const reading = parsed.reading;
-  if (normalizeHref(reading.origin) !== normalizeHref(href)) {
-    return unavailable(
-      "origin_mismatch",
-      `The a11y snapshot reports ${reading.origin || "(no URL)"} while the gated page is ${href}. The page moved between the readiness gate and the snapshot, so the tree describes something this run never gated.`,
-    );
-  }
-
-  const roleCounts = roleCountsFrom(reading.refs);
+  const roleCounts = roleCountsFrom(rendering.refs);
   const coverage = semanticCoverageFrom(roleCounts, options.domCounts?.());
   const tab = {
     ...(session.tab ? { surfTabId: session.tab.id } : {}),
-    url: reading.origin,
-    title: reading.title,
+    targetId: target.id,
+    url: href,
+    title: target.title,
   };
-  const tool = { command: PAGE_READ_COMMAND, version: options.toolVersion ?? "" };
+  const tool = { command: PRODUCER_COMMAND, version: browser };
   const artifact: A11ySnapshotArtifact = {
     schemaVersion: A11Y_SNAPSHOT_SCHEMA_VERSION,
     kind: A11Y_SNAPSHOT_KIND,
@@ -203,13 +215,17 @@ async function capture(
     sequence,
     capturedAt: new Date().toISOString(),
     elapsedMs: Date.now() - startedAt,
-    bytes: Buffer.byteLength(reading.snapshot, "utf8"),
-    refCount: Object.keys(reading.refs).length,
-    digest: snapshotDigest(reading.snapshot),
-    refs: reading.refs,
-    snapshot: reading.snapshot,
+    bytes: Buffer.byteLength(rendering.snapshot, "utf8"),
+    refCount: Object.keys(rendering.refs).length,
+    digest: snapshotDigest(rendering.snapshot),
+    refs: rendering.refs,
+    snapshot: rendering.snapshot,
     roleCounts,
     ...coverage,
+    ...(rendering.frames > 0 ? { frames: rendering.frames } : {}),
+    ...(rendering.unreadableFrames.length > 0
+      ? { unreadableFrames: rendering.unreadableFrames }
+      : {}),
     status: "captured",
   };
 
@@ -229,6 +245,37 @@ async function capture(
       ...coverage,
       tab,
       tool,
+      ...(rendering.frames > 0 ? { frames: rendering.frames } : {}),
+    },
+  };
+}
+
+/** A fresh snapshot of an open tab and the reader that checks against it, for the evaluator. */
+export interface A11yLiveView {
+  view: A11ySnapshotView;
+  snapshot: string;
+  reader: A11yCheckReader;
+  close(): Promise<void>;
+}
+
+/**
+ * Open a fresh read of the page at `href` in the browser at the loopback endpoint and keep the
+ * connection for checks: `evaluateA11yAssertion(assertion, live.view, live.reader)`. Call
+ * `close()` when done; it detaches every frame session and closes the socket.
+ */
+export async function openA11yLiveView(
+  href: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<A11yLiveView> {
+  const read = await readOwnedTab(href, env, true);
+  const connection = read.connection as CdpConnection;
+  return {
+    view: { digest: snapshotDigest(read.rendering.snapshot), refs: read.rendering.refs },
+    snapshot: read.rendering.snapshot,
+    reader: createCdpCheckReader(connection, read.rendering.handles, read.sessions),
+    async close() {
+      await releaseForest(connection, read.sessions);
+      connection.close();
     },
   };
 }

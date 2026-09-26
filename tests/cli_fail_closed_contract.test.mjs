@@ -52,37 +52,6 @@ test("CLI doctor command passes as zero-external-dependency happy path", () => {
   );
 });
 
-test("doctor reports whether the resolved surf can serve the a11y channel (AK #5915)", () => {
-  for (const [mode, status] of [
-    ["branch", "pass"],
-    ["upstream", "warn"],
-  ]) {
-    const fake = createFakeSurf({ pages: readyPages({ "https://example.com/": {} }) });
-    try {
-      const result = runCli(["doctor", "--json"], {
-        TEST_CAPABILITIES_SURF_BIN: fake.path,
-        FAKE_SURF_MODE: mode,
-      });
-      const check = JSON.parse(result.stdout).checks.find(
-        (entry) => entry.id === "external.a11y_channel",
-      );
-      assert.equal(check?.status, status, mode);
-      assert.equal(check.required, false, "the channel is optional, never a doctor failure");
-      assert.equal(check.data.nodes, status === "pass");
-      if (status === "warn") {
-        assert.match(check.detail, /surf_page_read_unsupported/);
-      }
-      assert.equal(
-        JSON.parse(result.stdout).checks.some((entry) => entry.id === "external.agent_browser"),
-        false,
-        "agent-browser is retired",
-      );
-    } finally {
-      fake.cleanup();
-    }
-  }
-});
-
 test("CLI doctor command checks target executability without running target", () => {
   const result = runCli(["doctor", "--json", "--target", process.execPath], {
     PATH: path.dirname(process.execPath),
