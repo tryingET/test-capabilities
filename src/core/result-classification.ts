@@ -34,8 +34,11 @@ import {
   tryParseSurfJson,
 } from "./result-payload.js";
 
-/** Every sensor whose results this contract classifies. */
-export type ResultSource = "cli" | "surf" | "http" | "bombadil";
+/**
+ * Every sensor whose results this contract classifies. `cdp` is a session step run in a frame
+ * over the DevTools connection (CDP program S4).
+ */
+export type ResultSource = "cli" | "surf" | "http" | "bombadil" | "cdp";
 
 /**
  * A transport reply, before any judgement. Channels are separate: `stderr` is diagnostics and

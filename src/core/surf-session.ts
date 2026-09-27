@@ -38,6 +38,7 @@ import {
   findJsMutationSignals,
   SESSION_LIFECYCLE_EFFECT,
 } from "./browser-session.js";
+import { assertFrameStepCommand, runStepInFrame } from "./cdp-step-transport.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
 import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
 import type { ExplainUnreachableOptions } from "./frame-diagnosis.js";
@@ -156,6 +157,8 @@ interface LedgerStepRequest<T> {
   id: string;
   command: string;
   args: readonly string[];
+  /** run in this frame over CDP instead of on surf (CDP program S4) */
+  frame?: string;
   intent: string;
   declaration: EffectDeclaration;
   subject: string;
@@ -346,6 +349,7 @@ export class SurfSession implements Session {
     if (this.closed) {
       throw this.lifecycleRefusal(`run '${step.command}' on a session that is already closed`);
     }
+    if (step.frame !== undefined) assertFrameStepCommand(step.command);
     const declaration = this.declarationFor(step);
     const args = this.targetArgs(step.command, step.args ?? [], declaration);
     if (SESSION_SCREENSHOTTING_COMMANDS.has(step.command) && !args.includes("--no-screenshot")) {
@@ -357,6 +361,7 @@ export class SurfSession implements Session {
       id: step.id,
       command: step.command,
       args,
+      ...(step.frame === undefined ? {} : { frame: step.frame }),
       intent: step.intent,
       declaration,
       subject: this.subjectFor(this.url),
@@ -720,6 +725,17 @@ export class SurfSession implements Session {
       ...(request.verify ? { verify: request.verify } : {}),
       ...(declaration.effect === "mutating" ? { settle: request.settle ?? settleSurfAttempt } : {}),
       run: async (attempt) => {
+        if (request.frame !== undefined) {
+          const { frame } = request;
+          const effect = declaration.effect;
+          const reply = await runStepInFrame(this.url, process.env, {
+            command,
+            args,
+            frame,
+            effect,
+          });
+          return request.read(reply, attempt);
+        }
         const result = runSurfCommand(
           this.runtime.resolution,
           translateSurfArgs(command, [...args]),

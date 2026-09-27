@@ -6,7 +6,7 @@
     "src/core/orchestrator.ts": 1722,
     "src/core/surf-runtime.ts": 858,
     "src/healing/self-healing.ts": 1192,
-    "src/core/surf-session.ts": 746
+    "src/core/surf-session.ts": 762
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -135,7 +135,7 @@
       "file": "src/core/surf-runtime.ts",
       "from": 821,
       "to": 845,
-      "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet §8; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
+      "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet \u00a78; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
       "ref": "a9dce1d"
     },
     {
@@ -228,6 +228,13 @@
       "to": 746,
       "reason": "AK #6048: every session js/type/click step carries --no-screenshot; surf's capture otherwise waits out a 5 s timeout with the window off screen (evaluate 5.6 s -> 55 ms live, docs/project/2026-09-27-browser-tooling-bench.md).",
       "ref": "AK #6048"
+    },
+    {
+      "file": "src/core/surf-session.ts",
+      "from": 746,
+      "to": 762,
+      "reason": "AK #6132 (CDP program S4): a step that names a frame runs over CDP inside the same runLedgerStep - one branch in run() and one refusal in step(), so its declaration, key, receipt and settlement stay the session's. The transport itself lives in src/core/cdp-step-transport.ts; the scheduled shrink of the ledger-step plumbing (AK #5569 entry) is unchanged.",
+      "ref": "AK #6132"
     }
   ]
 }

@@ -9,6 +9,7 @@
  * - `sameProcess`: in-process child frames `{ url, id?, nodes, elements, owner, sameProcess }`;
  * - `owner`: the iframe element in the parent `{ backendNodeId, box }` (content box);
  * - `evals`: `{ expression: value }`.
+ * The page may carry `inputFails` (a mouse event type the endpoint answers with an error).
  * An element may carry: `backendNodeId`, `box` (null: no box), `appearAfterMs`, `movingUntilMs`,
  * `disabled`, `readonly`, `hidden`, `obscured`, `removed`, `options`, `type`, `checked`, `stuck`
  * (a checkbox that ignores clicks), `dialog` (`{ type, message }` opened by a click).
@@ -361,6 +362,10 @@ export function createFakeDom(page, initialEmit) {
         return true;
       }
       case "Input.dispatchMouseEvent": {
+        if (page.inputFails === params.type) {
+          send({ id, error: { message: `${params.type} failed` } });
+          return true;
+        }
         // Chromium aligns a move to the next animation frame; a window that paints no frames acks
         // it only after ~1 s, while a press flushes the queued move at once (measured live)
         if (params.type === "mouseMoved" && page.moveAckDelayMs) {

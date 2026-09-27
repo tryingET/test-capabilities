@@ -205,6 +205,8 @@ export const CDP_ACTION_ERROR_CODES = [
   "action_dialog_opened",
   /** a key or modifier name the channel does not know; nothing was sent */
   "action_key_unknown",
+  /** a session step named a frame, and its command has no frame form or its arguments are short */
+  "action_frame_step_unsupported",
 ] as const;
 
 /**

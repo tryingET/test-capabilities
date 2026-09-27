@@ -96,6 +96,58 @@ top-level case stays `confirmed`; surf's host log for both runs holds no `frame.
 turn one red), 2 CLI end to end against fake surf and a fake DevTools endpoint (both fail when
 the CDP probe is disabled), 1 in-process fallback test.
 
+### Order changed: S4 before S3
+
+Reading the apply runner showed that every page-facing call of plan and apply - the probe, each
+read-back, each value set, the observation, the submit click - goes through `Session.step`, which
+carries the effect class, the idempotency key, the receipt, settlement and `verify`. Forms in
+frames therefore need a step that can run in a frame, not a second copy of that machinery. S4
+lands first, narrowed to exactly that:
+
+- `BrowserStep.frame` (a frame URL, label or CDP frame id). A step without it is unchanged and
+  runs on surf; a step with it runs over CDP in that frame (`cdp-step-transport.ts`), inside the
+  same `runLedgerStep` - declaration, key, receipt, settle and verify untouched.
+- Commands: `js` (a `read_only` declaration evaluates in the frame's isolated world, a `mutating`
+  one in the page's world), `type` (trusted fill), `select`, `click`. Any other command with a
+  frame is refused before anything runs.
+- Replies carry a new result source, `cdp`, never `surf`. A refusal raised before any input
+  (not found, not ready, obscured, ambiguous, unsuitable, unknown frame) is a definite `failed`;
+  anything after input was sent settles `unknown` (`mutation_outcome_unknown`), never retried.
+
+**S4 result (AK #6132).** Landed as above, with two findings from the tests:
+
+- The frame check has to come first in `Session.step`. The session's own target check refuses
+  a command with no `--tab-id` mapping (`screenshot`) with `owned_tab_required`, which misnames
+  why a frame step is refused. `assertFrameStepCommand` now runs before the declaration and the
+  target arguments, so a frame step is refused as `action_frame_step_unsupported` before any
+  process or connection exists.
+- The class table still applies: `type`, `select` and `click` are mutating, so a frame step on
+  them declared `read_only` is refused as `effect_declaration_invalid`, exactly as on surf, and
+  a mutating frame step still needs `mutation.allowOrigins` to name the page's origin. A
+  malformed mutating step (no selector, no value) raises no input and settles `failed`.
+
+Live on Chromium 153 (Agent), 2026-09-27: a host page on `127.0.0.1` with a payment form in a
+`localhost` frame (a separate site, so out of process). Each run was one `SurfSession`, with surf
+owning the tab.
+
+| Step in the frame | Time | Result | Receipt |
+|---|---|---|---|
+| `js` read-only: status | 44 ms | `unpaid`, source `cdp` | none |
+| `type 4242 --selector #card` | 63 ms | `OK` | applied |
+| `select #country fr` | 49 ms | `Selected: fr` | applied |
+| `click --selector #pay` | 67 ms | `OK` | applied |
+| `js` read-only: status | 11 ms | `paid 4242 fr` (the form submitted) | none |
+| `js` mutating: `window.payCount` | 30 ms | `1`, read in the page's world | applied |
+| the same `click` key again | 1 ms | `mutation_replay_refused` | none |
+| `click --selector #covered` (overlaid) | 5053 ms | `action_target_obscured`, nothing clicked | failed |
+| `screenshot` with a frame | 0 ms | `action_frame_step_unsupported` | none |
+
+A step with no frame in the same session still ran on surf (`js document.title` → `checkout
+host`, 60 ms). Tests: 7 contract tests with a fake surf and a fake DevTools endpoint. Nine
+mutations were checked: world choice, the before-input set (obscured, unknown frame,
+unsupported), wrapping everything, rethrowing everything, the read-only rethrow, the select
+reply, the step-level refusal, and the frame branch. Every one turned a test red.
+
 ### S3 - forms inside frames
 
 Plan and apply read fields back with `js`, which surf refuses in a selected frame, so a form in
@@ -108,7 +160,8 @@ discovery, read-back and trusted input in the frame, with the submit gate unchan
 
 `SurfSession.step` routes `js`, `type`, `select` and `click` to the CDP channel when it is bound,
 with the same declaration, ledger step and receipt; surf keeps the tab lifecycle and the readiness
-gate. The action-channel gate decides whether it is on by default.
+gate. The action-channel gate decides whether it is on by default. The per-step form landed
+first; see "Order changed" above. Routing steps that name no frame stays with this gate.
 
 ## 4. Done when
 
