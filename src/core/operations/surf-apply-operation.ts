@@ -28,6 +28,7 @@ import { z } from "zod";
 import { writeJsonArtifact } from "../artifacts.js";
 import type { ApplyFieldResult, ApplyMode, ApplyRunner } from "../browser-session.js";
 import { canSubmit } from "../browser-session.js";
+import { bindsOverCdp } from "../cdp-step-transport.js";
 import type { EffectDeclaration } from "../effects.js";
 import { MutationError } from "../effects.js";
 import type { MutationReceiptEnvelopeCopy } from "../receipt-store.js";
@@ -252,6 +253,25 @@ function assertSubmitIdentified(plan: SurfPlan): void {
   );
 }
 
+/**
+ * Which channel the plan's steps take (AK #6157): the DevTools connection whenever it binds the
+ * owned tab - its acts are checked against their document just before input - and surf
+ * otherwise, which the envelope says in a note. A form in a frame has no surf route.
+ */
+async function applyChannelFor(
+  plan: SurfPlan,
+  session: SurfSession,
+  notes: string[],
+): Promise<"cdp" | "surf"> {
+  if (plan.target.frame) return "cdp";
+  const bound = await bindsOverCdp(session);
+  if (bound.binds) return "cdp";
+  notes.push(
+    `The plan's steps ran on surf: the DevTools connection did not bind the owned tab (${bound.code}), so no act was checked against its document just before input.`,
+  );
+  return "surf";
+}
+
 function postConditionFor(plan: SurfPlan, input: NormalizedSurfApplyOperationInput): PostCondition {
   if (input.untilUrlPrefix !== undefined) {
     return { kind: "url_prefix", expected: input.untilUrlPrefix };
@@ -369,15 +389,18 @@ async function runSurfApplyOperation(
   let runner: ApplyRunner | undefined;
   let fields: ApplyFieldResult[] = [];
   let submitted: boolean | "unknown" = false;
+  let channel: "cdp" | "surf" = "surf";
   const notes: string[] = [];
 
   try {
     await session.open();
     await session.gate();
+    channel = await applyChannelFor(plan, session, notes);
     runner = await session.apply({
       plan,
       mode,
       postCondition: postConditionFor(plan, normalized),
+      channel,
     });
 
     const { drift } = await runner.fingerprint();
@@ -434,6 +457,7 @@ async function runSurfApplyOperation(
           ...(mode === "submit" ? { postCondition: postConditionFor(plan, normalized) } : {}),
         },
         surfCalls: runner ? [...runner.surfCalls()] : [],
+        channel,
       },
       notes,
     },

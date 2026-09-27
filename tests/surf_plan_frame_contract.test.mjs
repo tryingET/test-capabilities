@@ -151,11 +151,15 @@ async function withFakes(body, { tree = cdpTree() } = {}) {
 const plan = (input) => executeCliOperation({ command: "surf", action: "plan" }, input);
 const apply = (input) => executeCliOperation({ command: "surf", action: "apply" }, input);
 const readPlan = (out) => JSON.parse(readFileSync(out, "utf-8"));
+const TAB_PROOF = "String(performance.timeOrigin)";
 const verbs = (surf) =>
   surf
     .calls()
+    // the one read that proves the DevTools target is the owned tab is set apart: `proofs`
+    .filter((call) => call[1] !== TAB_PROOF)
     .map((call) => call[0])
     .filter((command) => !command.startsWith("--"));
+const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
 
 test("surf plan --frame reads a form in a cross-origin frame and binds the plan to that frame", async () => {
   await withFakes(async ({ surf, cdp, out }) => {
@@ -556,4 +560,23 @@ test("every origin the plan acts on is allowlisted: where the frame landed, and 
     assert.equal(verbs(surf).length, opened, "no tab was opened");
     assert.deepEqual(cdp.input, []);
   });
+});
+
+test("a frame plan never acts in a tab at the page's URL that is not the owned tab", async () => {
+  const tree = cdpTree();
+  tree.timeOrigin = 1;
+  await withFakes(
+    async ({ cdp, dir, out }) => {
+      const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+      await assert.rejects(plan({ url: SHOP, field: FIELDS, frame: PAY, out, config }), {
+        code: "tab_bind_ambiguous",
+        message: /not the tab this run opened/,
+      });
+      assert.deepEqual(
+        cdp.worlds.filter((world) => world.frame === PAY),
+        [],
+      );
+    },
+    { tree },
+  );
 });

@@ -98,6 +98,11 @@ on it, with no dependency and no vendor:
   resolve.
 - Phase 1 (this task): module, fake-endpoint tests, live proof, and the comparison below.
   Wiring it into sessions as an action channel stays behind the section 4 gate.
+- The gate held for `surf apply` (AK #6157). Its steps run on this connection whenever it binds
+  the owned tab: a capability surf lacks (each act checked against its element's document just
+  before input) and a submit run 2.2x faster (863-907 ms against 1865-2101 ms). `surf explore`
+  stays on surf: its best case is still ~1.35x
+  (`2026-09-27-cdp-channel-program.md`, section 4).
 
 ## 7. Comparing it with surf and Vibium
 

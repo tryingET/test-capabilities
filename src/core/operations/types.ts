@@ -437,6 +437,11 @@ export interface SurfApplyOperationResultEnvelope extends OperationEffectEnvelop
     };
     /** the verbs this run issued with what they addressed, values elided: the click evidence */
     surfCalls: string[];
+    /**
+     * Which channel the plan's steps took: `cdp` (the DevTools connection, every act checked
+     * against its document just before input) whenever it binds the owned tab, else `surf`
+     */
+    channel: "cdp" | "surf";
   };
   notes: string[];
 }

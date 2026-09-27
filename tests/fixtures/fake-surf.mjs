@@ -416,6 +416,7 @@ function pageFor(url, state) {
     },
     jsResult: page.jsResult,
     jsThrows: page.jsThrows,
+    timeOrigin: page.timeOrigin,
   };
 }
 

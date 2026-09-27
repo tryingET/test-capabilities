@@ -148,6 +148,19 @@ export function bindOwnedTarget(targets: readonly CdpTarget[], href: string): Cd
   return target;
 }
 
+/** The page target a caller bound before, by id; gone is refused, never looked up by URL again. */
+export function boundTarget(targets: readonly CdpTarget[], id: string, href: string): CdpTarget {
+  const target = targets.find((entry) => entry.type === "page" && entry.id === id);
+  if (!target?.webSocketDebuggerUrl) {
+    throw new FrameworkError(
+      "tab_bind_ambiguous",
+      `The page target ${id} this run bound for ${href} is no longer in the browser's target list; the tab is gone, and another tab at the same URL is not this run's.`,
+      { url: href, target: id },
+    );
+  }
+  return target;
+}
+
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
@@ -187,10 +200,11 @@ export class CdpConnection {
   static async open(url: string): Promise<CdpConnection> {
     const socket = new WebSocket(url);
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("the DevTools socket did not open")),
-        HTTP_TIMEOUT_MS,
-      );
+      const timer = setTimeout(() => {
+        reject(new Error("the DevTools socket did not open"));
+        // a handshake that completes after this would leave a socket nobody owns
+        socket.close();
+      }, HTTP_TIMEOUT_MS);
       socket.addEventListener("open", () => {
         clearTimeout(timer);
         resolve();

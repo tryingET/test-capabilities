@@ -532,6 +532,7 @@ export class SurfSession implements Session {
       plan: request.plan,
       mode: request.mode,
       ...(request.postCondition ? { postCondition: request.postCondition } : {}),
+      ...(request.channel ? { channel: request.channel } : {}),
     });
   }
 

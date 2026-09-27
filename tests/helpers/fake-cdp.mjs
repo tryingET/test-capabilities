@@ -53,7 +53,8 @@ export async function startFakeCdp({
           Object.entries(pages).map(([id, page]) => ({
             id,
             type: "page",
-            url: page.url,
+            // the page's current URL, as Chromium lists it: a navigated tab is found by its id
+            url: page.tree?.url ?? page.url,
             title: page.title ?? "",
             webSocketDebuggerUrl: `ws://127.0.0.1:${port}/devtools/page/${id}`,
           })),

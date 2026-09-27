@@ -25,7 +25,7 @@
  * their body, so a change of implementation cannot silently change what the fake answers.
  */
 
-import { normalizeStubPage, runInStub } from "../fixtures/stub-dom.mjs";
+import { DEFAULT_TIME_ORIGIN, normalizeStubPage, runInStub } from "../fixtures/stub-dom.mjs";
 
 export function createFakeDom(page, initialEmit) {
   let emit = initialEmit;
@@ -254,6 +254,11 @@ export function createFakeDom(page, initialEmit) {
           const element = tree.elements?.[JSON.parse(probe[1])];
           const value = Boolean(element && present(element) && element.box && !element.hidden);
           reply({ result: { type: "boolean", value } });
+          return true;
+        }
+        if (params.expression === "String(performance.timeOrigin)") {
+          const origin = String(tree.timeOrigin ?? DEFAULT_TIME_ORIGIN);
+          reply({ result: { type: "string", value: origin } });
           return true;
         }
         if (params.expression === "location.href" && !tree.noHref) {

@@ -271,8 +271,56 @@ first; see "Order changed" above. Routing steps that name no frame stays with th
 
 ## 4. Where it stands
 
-All four slices have landed: S1 (AK #6126), S2 (AK #6131), S4 (AK #6132) and S3 (AK #6145). The
-one open follow-up is AK #6157.
+All four slices have landed: S1 (AK #6126), S2 (AK #6131), S4 (AK #6132) and S3 (AK #6145), and
+so has the follow-up, AK #6157.
+
+**AK #6157 result: top-document apply on the DevTools connection.** It passes the action-channel
+design's section 4 gate on both counts, on `surf apply`: a capability surf lacks (an act checked
+against its element's document just before input) and more than 2x on a whole submit run (live
+below). After the readiness gate, `surf apply` asks once whether the DevTools connection binds the
+owned tab. When it does, a top-document plan runs exactly as a frame plan does, in the page's own
+frame `main`: the fingerprint, each value, each read-back, the observations and the click, with
+every act naming its documents. When it does not, the steps run on surf as before, and the
+envelope says so (`result.channel`, and a note with the reason). A frame plan has no surf route.
+Measured before relying on it: a page target's id is its main frame's id, and both survive
+same-site and cross-site navigations. So a session now pins its tab by target id when it first
+binds it (at the URL the readiness gate saw it land on, not the URL asked for), and a submit that
+navigates the page is still observed. A pinned tab that is gone is refused, and never found again
+by URL. The fake endpoint now lists a page's current URL, as Chromium does, so the tests need the
+pin. `cdp-actions.ts` went over budget, and the frame worlds moved to `cdp-worlds.ts` instead of
+an exception.
+
+Live, three rounds, the same form as the top document:
+
+| | DevTools connection | surf |
+|---|---|---|
+| `surf apply` (fill) | 557-589 ms | 935-946 ms |
+| `surf apply --submit`, verified by the page leaving its URL | 863-907 ms | 1865-2101 ms |
+
+The frame route is unchanged (921-940 ms). Receipts say where each act ran ("in the page over
+the DevTools connection", "in frame ... over the DevTools connection", or surf's own words).
+Tests: 5 (fill, a submit through the pinned tab, a redirected landing, the surf fallback and its
+note, a gone target); six mutations each turn one red.
+
+Review (two rounds, `openai-codex-2/gpt-6-astra`), every finding fixed red-first:
+
+- **A URL does not prove whose tab it is.** If the owned tab had moved on after the gate and
+  another tab sat at its URL, the first bind would have pinned that tab and acted in it. The first
+  bind now proves ownership, read-only. The session reads its tab's document time origin through
+  surf, by tab id; the connection reads the bound target's in an isolated world; only equal
+  values bind. Measured before relying on it: surf, the page world and an isolated world report
+  the same `performance.timeOrigin`, and another tab of the same page reports a different one.
+  The proof is one surf read per session (about 50-100 ms). A refused bind is
+  `tab_bind_ambiguous`: apply then runs on surf, which acts by tab id, and a frame plan, which
+  has no surf route, stops before input.
+- **A failed open leaked its socket**, and the fallback probe made that path routine.
+  `openCdpActions` now closes the connection when its first read fails, and a refused bind closes
+  its actions.
+- **A socket whose handshake times out was never closed** (pre-existing), so a late handshake
+  would have left a connection nobody owned. It is now closed when the open gives up.
+
+Live after the fixes, three rounds: top-document fill 607-640 ms and submit 948-1065 ms on the
+connection (surf: 935-946 and 1865-2101 ms); frame submit 1010-1041 ms.
 
 ## 5. Done when
 

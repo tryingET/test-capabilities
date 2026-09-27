@@ -18,8 +18,10 @@
 import type { SessionReply } from "./browser-session.js";
 import type { CdpActions } from "./cdp-actions.js";
 import { assertDocument, openCdpActions } from "./cdp-actions.js";
+import type { EffectDeclaration } from "./effects.js";
 import { classifyResult } from "./result-classification.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
+import { parseSurfJsonOutput } from "./surf-runtime.js";
 
 /** The commands a step may run in a frame. */
 export const FRAME_STEP_COMMANDS: ReadonlySet<string> = new Set(["js", "type", "select", "click"]);
@@ -132,6 +134,9 @@ async function act(
   return "OK";
 }
 
+/** Where a frame step ran, in a receipt's words: `main` is the page itself. */
+const where = (frame: string) => (frame === "main" ? "in the page" : `in frame ${frame}`);
+
 /**
  * The declaration of a session step, for a step that names a frame: a command with no frame
  * form is refused before anything is declared or run, and the declaration says where the step
@@ -150,12 +155,100 @@ export function frameAwareDeclaration<D extends { reason: string }>(
   const reason = declaration.reason.replace(/^surf /, "");
   return {
     ...declaration,
-    reason: `${reason}, in frame ${frameName(step.frame)} over the DevTools connection`,
+    reason: `${reason}, ${where(frameName(step.frame))} over the DevTools connection`,
   };
 }
 
-/** Each session's pinned frames: the name a caller used, to the CDP frame id it first reached. */
-const pinsBySession = new WeakMap<object, Map<string, string>>();
+/**
+ * What a session has pinned: its tab's page target, bound once by URL, and each frame name to
+ * the CDP frame id it first reached. Both ids survive navigation (measured live 2026-09-27).
+ */
+interface SessionPins {
+  targetId?: string;
+  frames: Map<string, string>;
+}
+const pinsBySession = new WeakMap<object, SessionPins>();
+
+/**
+ * The session a frame step runs for: its page, where the readiness gate saw it land, and - to
+ * prove a target is its tab - a read-only script in the tab it owns, by that tab's id.
+ */
+export interface FrameStepSession {
+  readonly url: string;
+  readonly readiness?: { href?: string } | undefined;
+  evaluate?(
+    code: string,
+    declaration: EffectDeclaration,
+    options: { id: string; intent: string; read: (reply: SessionReply) => unknown },
+  ): Promise<unknown>;
+}
+
+/** A document's time origin: unique per document in practice, the same in every world of it. */
+const TIME_ORIGIN = "String(performance.timeOrigin)";
+const TIME_ORIGIN_EFFECT: EffectDeclaration = {
+  effect: "read_only",
+  reason: "reads the owned tab's document time origin, to prove a DevTools target is that tab",
+};
+
+/**
+ * Open actions on the session's tab: by its pinned target once it has one, else by the URL the
+ * readiness gate saw the page land on (a redirect lands elsewhere than the URL asked for). A URL
+ * does not prove whose tab it is: another tab may sit at it while the owned one has moved on.
+ * So the first bind compares the document's time origin, read through the session in the tab it
+ * owns, with the bound target's (measured live 2026-09-27: equal in surf, the page world and an
+ * isolated world; another tab of the same page differs), and pins the target only when they match.
+ */
+async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv) {
+  const pins = pinsBySession.get(session) ?? { frames: new Map<string, string>() };
+  pinsBySession.set(session, pins);
+  const href = session.readiness?.href ?? session.url;
+  if (pins.targetId !== undefined) {
+    const actions = await openCdpActions(href, env, { targetId: pins.targetId });
+    return { actions, pins: pins.frames };
+  }
+  const owned = await session.evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
+    id: "cdp.tab-proof",
+    intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
+    read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
+  });
+  const actions = await openCdpActions(href, env);
+  if (owned !== undefined) {
+    const bound = await actions
+      .evaluate<string>(TIME_ORIGIN, { world: "isolated" })
+      .catch(() => undefined);
+    if (bound !== owned) {
+      await actions.close();
+      throw new FrameworkError(
+        "tab_bind_ambiguous",
+        `The page at ${href} on the DevTools connection is not the tab this run opened: its document's time origin is ${bound ?? "unreadable"}, the owned tab's is ${owned}. Nothing was bound.`,
+        { url: href, target: actions.targetId },
+      );
+    }
+  }
+  pins.targetId = actions.targetId;
+  return { actions, pins: pins.frames };
+}
+
+/**
+ * Whether the DevTools connection binds this session's tab. A run that asks decides once, before
+ * it acts, which channel its steps take; binding here also pins the tab for them.
+ */
+export async function bindsOverCdp(
+  session: FrameStepSession,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ binds: true } | { binds: false; code: string; message: string }> {
+  try {
+    const { actions } = await openForSession(session, env);
+    await actions.close();
+    return { binds: true };
+  } catch (error) {
+    return {
+      binds: false,
+      code: isFrameworkError(error) ? error.code : "cdp_endpoint_unreachable",
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
 
 /**
  * The frame a step addresses. A name is pinned to the frame id it first resolves to, for the
@@ -184,20 +277,18 @@ async function pinnedFrame(actions: CdpActions, pins: Map<string, string>, frame
 /**
  * Run one surf-shaped step in `frame` of `session`'s owned tab, and answer the way the session's
  * `read` expects: a `{ result, target }` envelope on stdout, classified with source `cdp`. The
- * session is the key its frame pins are kept under.
+ * session is the key its pins (the tab, the frames) are kept under.
  */
 export async function runStepInFrame(
-  session: { readonly url: string },
+  session: FrameStepSession,
   env: NodeJS.ProcessEnv,
   step: FrameStep,
 ): Promise<SessionReply> {
   const { command, args, effect } = step;
   const frame = frameName(step.frame);
   const documents = typeof step.frame === "string" ? undefined : step.frame.documents;
-  const pins = pinsBySession.get(session) ?? new Map<string, string>();
-  pinsBySession.set(session, pins);
   const started = Date.now();
-  const actions = await openCdpActions(session.url, env);
+  const { actions, pins } = await openForSession(session, env);
   let value: unknown;
   let frameId: string | undefined;
   try {

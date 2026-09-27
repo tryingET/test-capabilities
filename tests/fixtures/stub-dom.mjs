@@ -214,6 +214,13 @@ export function stubDocument(page) {
   };
 }
 
+/**
+ * The document time origin both fakes report for a page, unless its model names another: the
+ * DevTools channel proves a target is the owned tab by it, so the same page in both fakes agrees
+ * and a test models "another tab at the same URL" with a different `timeOrigin`.
+ */
+export const DEFAULT_TIME_ORIGIN = 1790000000000.5;
+
 /** The defaults `fake-surf.mjs`'s `pageFor` fills, for a page model written by hand. */
 export function normalizeStubPage(model, url) {
   const fields = model.fields ?? {};
@@ -245,6 +252,7 @@ export function normalizeStubPage(model, url) {
  */
 export function runInStub(code, page, globals = {}) {
   const sandbox = {
+    performance: { timeOrigin: page.timeOrigin ?? DEFAULT_TIME_ORIGIN },
     document: stubDocument(page),
     location: { href: page.url, origin: new URL(page.url).origin },
     URL,

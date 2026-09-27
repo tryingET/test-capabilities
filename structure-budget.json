@@ -6,7 +6,7 @@
     "src/core/orchestrator.ts": 1722,
     "src/core/surf-runtime.ts": 858,
     "src/healing/self-healing.ts": 1192,
-    "src/core/surf-session.ts": 754
+    "src/core/surf-session.ts": 755
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -242,6 +242,13 @@
       "to": 754,
       "reason": "AK #6145 (CDP program S3): the frame branch of runLedgerStep hands the session itself to runStepInFrame, which keys the session's frame pins by it, and a frame step's refusal and declaration move into cdp-step-transport's frameAwareDeclaration; step() keeps one call.",
       "ref": "AK #6145"
+    },
+    {
+      "file": "src/core/surf-session.ts",
+      "from": 754,
+      "to": 755,
+      "reason": "AK #6157: Session.apply hands the runner the channel the operation chose (the DevTools connection whenever it binds the owned tab, else surf); the decision, the tab pin and the frame path live in cdp-step-transport.ts and surf-apply-runner.ts.",
+      "ref": "AK #6157"
     }
   ]
 }

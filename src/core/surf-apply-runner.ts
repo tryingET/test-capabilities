@@ -75,6 +75,12 @@ export interface ApplyRunnerOptions {
   /** the bounded wait for the effect the operator expects to see after the one click */
   postconditionTimeoutMs?: number;
   postCondition?: PostCondition;
+  /**
+   * Which channel a top-document plan's steps take (AK #6157): `cdp` runs them on the DevTools
+   * connection in the page itself - the same path, and the same document check before every act,
+   * as a form in a frame - and `surf` (the default) on surf. A frame plan always takes `cdp`.
+   */
+  channel?: "cdp" | "surf";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -163,12 +169,14 @@ export function createApplyRunner(
   const submitControl = plan.submit.status === "identified" ? plan.submit.control : undefined;
   const formSelector = plan.fields[0]?.control.form;
   // a form in a frame (CDP program S3): every read and act below happens in that frame, and
-  // "where the page is" is where the frame is
+  // "where the page is" is where the frame is; a top-document plan on the DevTools channel runs
+  // the same way in the page's own frame, `main` (AK #6157)
   const frame = plan.target.frame;
-  const inFrame = frame ? { frame: frame.url } : {};
+  const target = frame?.url ?? (options.channel === "cdp" ? "main" : undefined);
+  const inFrame = target ? { frame: target } : {};
   // an act names the documents the frame may hold, checked on the element just before input:
   // a frame that swapped its document keeps its selectors (reads follow the frame wherever)
-  const actsInFrame = frame ? { frame: { name: frame.url, documents: [...accepted] } } : {};
+  const actsInFrame = target ? { frame: { name: target, documents: [...accepted] } } : {};
   const startedFrom = frame?.landed_href ?? plan.target.landed_href;
   const controlEnableTimeoutMs =
     options.controlEnableTimeoutMs ?? context.config.surf.submit.controlEnableTimeoutMs;
@@ -325,7 +333,7 @@ export function createApplyRunner(
         randomUUID(),
         driftProbeRequestFor(plan),
         `check the page still matches plan ${plan.plan_id} before anything is typed`,
-        frame?.url,
+        target,
       );
       return { drift: fingerprintDrift(plan.fingerprint, fingerprintFromAnswer(plan, answer)) };
     },

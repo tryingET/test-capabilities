@@ -1,0 +1,284 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import test from "node:test";
+import { startFakeCdp } from "./helpers/fake-cdp.mjs";
+import { createFakeSurf, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
+import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
+
+/**
+ * `surf apply` on a top-document form over the DevTools connection (AK #6157). When the
+ * connection binds the owned tab, the plan's steps run in the page's own frame through the
+ * frame path of CDP program S3 - every act checked against its document just before input - and
+ * the tab is pinned by its target id, so the observation after a submit that navigates it still
+ * reaches it. Without the connection the steps run on surf, as before, and the envelope says so.
+ */
+
+const { executeCliOperation } = await importRuntimeModule("core/operations.js");
+const { openCdpActions } = await importRuntimeModule("core/cdp-actions.js");
+
+const FORM = "https://shop.example/pay";
+const LANDED = "https://shop.example/pay?step=1";
+const DONE = "https://shop.example/done";
+const ax = (id, role, name, backendDOMNodeId, children = []) => ({
+  nodeId: id,
+  role: { value: role },
+  ...(name ? { name: { value: name } } : {}),
+  ...(backendDOMNodeId ? { backendDOMNodeId } : {}),
+  childIds: children,
+});
+
+/** One form, as both fakes see it: the stub-DOM model, and elements with boxes for input. */
+const FORM_MODEL = {
+  title: "Pay",
+  fields: {
+    "#card": { value: "", name: "card", label: "Card number", form: "#pay-form" },
+    "#country": {
+      kind: "select",
+      value: "de",
+      name: "country",
+      label: "Country",
+      form: "#pay-form",
+    },
+  },
+  controls: [
+    { selector: "#pay", kind: "submit", text: "Pay", form: "#pay-form" },
+    { selector: "#save", kind: "button", text: "Save card", form: "#pay-form" },
+  ],
+};
+
+function cdpTree(url) {
+  return {
+    url,
+    nodes: [ax("1", "RootWebArea", "Pay", 0)],
+    elements: {
+      "#card": { backendNodeId: 21, box: [10, 10, 200, 20] },
+      "#country": {
+        backendNodeId: 22,
+        box: [10, 40, 100, 20],
+        options: [
+          { value: "de", label: "Germany" },
+          { value: "fr", label: "France" },
+        ],
+      },
+      "#pay": { backendNodeId: 23, box: [10, 70, 60, 20], navigatesTo: DONE },
+      "#save": { backendNodeId: 24, box: [100, 70, 60, 20] },
+    },
+    form: structuredClone(FORM_MODEL),
+  };
+}
+
+const FIELDS = ["label:Card number=4242", "label:Country=fr"];
+
+function writeConfig(dir) {
+  const file = path.join(dir, "tc.yaml");
+  writeFileSync(
+    file,
+    [
+      "receipts:",
+      `  dir: ${path.join(dir, "receipts")}`,
+      "  ephemeral: true",
+      "mutation:",
+      "  allow_origins:",
+      '    - "https://shop.example"',
+      "surf:",
+      "  submit:",
+      "    postcondition_timeout_ms: 600",
+      "",
+    ].join("\n"),
+  );
+  return file;
+}
+
+function receiptsIn(dir) {
+  const root = path.join(dir, "receipts");
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((run) =>
+      readdirSync(path.join(root, run.name))
+        .filter((entry) => entry.endsWith(".json"))
+        .map((entry) => JSON.parse(readFileSync(path.join(root, run.name, entry), "utf-8"))),
+    )
+    .filter((artifact) => artifact.artifact_kind === "test-capabilities.mutation.receipt");
+}
+
+/**
+ * A fake surf with the form at FORM (landing at `landed`), and - unless `cdp: false` - a fake
+ * DevTools endpoint holding the same page at the URL the tab landed on.
+ */
+async function withFakes(body, { cdp: withCdp = true, landed = FORM, otherTab = false } = {}) {
+  const surf = createFakeSurf({
+    pages: {
+      [FORM]: {
+        ...structuredClone(FORM_MODEL),
+        url: landed,
+        readiness: "ready",
+        links: [],
+        changeNavigatesTo: DONE,
+      },
+      [DONE]: { title: "Done", readiness: "ready", links: [] },
+    },
+  });
+  const tree = cdpTree(landed);
+  // another tab at the same URL: the one the endpoint lists is not the document surf opened
+  if (otherTab) tree.timeOrigin = 1;
+  const cdp = withCdp ? await startFakeCdp({ pages: { P1: { url: landed, tree } } }) : undefined;
+  const dir = mkdtempSync(path.join(os.tmpdir(), "tc-apply-cdp-"));
+  const previous = process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+  if (cdp) process.env.TEST_CAPABILITIES_CDP_ENDPOINT = cdp.url;
+  try {
+    await withFakeSurfEnv(surf.path, async () => {
+      await body({
+        surf,
+        cdp,
+        tree,
+        dir,
+        out: path.join(dir, "plan.json"),
+        config: writeConfig(dir),
+      });
+    });
+  } finally {
+    if (previous === undefined) delete process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+    else process.env.TEST_CAPABILITIES_CDP_ENDPOINT = previous;
+    surf.cleanup();
+    await cdp?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const plan = (input) => executeCliOperation({ command: "surf", action: "plan" }, input);
+const apply = (input) => executeCliOperation({ command: "surf", action: "apply" }, input);
+const readPlan = (out) => JSON.parse(readFileSync(out, "utf-8"));
+const TAB_PROOF = "String(performance.timeOrigin)";
+const verbs = (surf) =>
+  surf
+    .calls()
+    // the one read that proves the DevTools target is the owned tab is set apart: `proofs`
+    .filter((call) => call[1] !== TAB_PROOF)
+    .map((call) => call[0])
+    .filter((command) => !command.startsWith("--"));
+const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
+const ACTING = ["js", "type", "select", "click"];
+
+test("with the DevTools connection bound, a fill runs in the page over it and says so", async () => {
+  await withFakes(async ({ surf, cdp, dir, out, config }) => {
+    await plan({ url: FORM, field: FIELDS, out, config });
+    const planned = verbs(surf).length;
+    const envelope = await apply({ plan: out, config });
+    assert.equal(envelope.result.channel, "cdp");
+    assert.deepEqual(
+      envelope.result.fields.map((field) => field.matched),
+      [true, true],
+    );
+    assert.deepEqual(cdp.values, { "#card": "4242", "#country": "fr" });
+    assert.deepEqual(
+      verbs(surf)
+        .slice(planned)
+        .filter((verb) => ACTING.includes(verb)),
+      [],
+      "surf opened, gated and closed the tab; it read and set nothing",
+    );
+    assert.equal(proofs(surf), 1, "the tab was proven once, before the connection was bound");
+    for (const receipt of receiptsIn(dir)) {
+      assert.match(
+        receipt.evidence[0],
+        /^declared: (type|select) acts on the target page, in the page over the DevTools connection$/,
+      );
+    }
+  });
+});
+
+test("a submit that navigates the page is observed through the pinned tab, and verified", async () => {
+  await withFakes(async ({ cdp, tree, dir, out, config }) => {
+    await plan({ url: FORM, field: FIELDS, out, config });
+    const { approval_token: token } = readPlan(out);
+    const envelope = await apply({ plan: out, submit: true, confirmPlan: token, config });
+    assert.equal(envelope.result.channel, "cdp");
+    assert.equal(envelope.result.submitted, true);
+    assert.deepEqual(
+      cdp.clicks.map((click) => [click.frame, click.selector]),
+      [["main", "#pay"]],
+    );
+    // the tab now lists at DONE: only its pinned target id still finds it
+    assert.equal(tree.url, DONE);
+    const submit = receiptsIn(dir).find((receipt) => receipt.details.mode === "submit");
+    assert.equal(submit.outcome, "applied");
+    assert.ok(submit.evidence.some((line) => line.includes(DONE)));
+  });
+});
+
+test("the tab is bound where the readiness gate saw it land, not at the URL asked for", async () => {
+  await withFakes(
+    async ({ cdp, out, config }) => {
+      await plan({ url: FORM, field: FIELDS, out, config });
+      assert.equal(readPlan(out).target.landed_href, LANDED);
+      const envelope = await apply({ plan: out, config });
+      assert.equal(envelope.result.channel, "cdp");
+      assert.equal(cdp.values["#card"], "4242");
+    },
+    { landed: LANDED },
+  );
+});
+
+test("without a DevTools connection the steps run on surf, and the envelope says why", async () => {
+  await withFakes(
+    async ({ surf, out, config }) => {
+      await plan({ url: FORM, field: FIELDS, out, config });
+      const envelope = await apply({ plan: out, config });
+      assert.equal(envelope.result.channel, "surf");
+      assert.ok(
+        envelope.notes.some((note) =>
+          /ran on surf: the DevTools connection did not bind the owned tab \(cdp_endpoint_unreachable\)/.test(
+            note,
+          ),
+        ),
+      );
+      assert.ok(verbs(surf).includes("type"));
+    },
+    { cdp: false },
+  );
+});
+
+test("a pinned tab that is gone is refused by its id, never found again by URL", async (t) => {
+  const tree = cdpTree(FORM);
+  const fake = await startFakeCdp({ pages: { P1: { url: FORM, tree } } });
+  t.after(() => fake.close());
+  const env = { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url };
+  const bound = await openCdpActions(FORM, env);
+  assert.equal(bound.targetId, "P1");
+  await bound.close();
+  await assert.rejects(openCdpActions(FORM, env, { targetId: "P2" }), {
+    code: "tab_bind_ambiguous",
+    message: /P2 this run bound for https:\/\/shop\.example\/pay is no longer/,
+  });
+});
+
+test("a tab at the owned tab's URL that is not the owned tab is never bound: the steps run on surf", async () => {
+  await withFakes(
+    async ({ surf, cdp, out, config }) => {
+      await plan({ url: FORM, field: FIELDS, out, config });
+      const envelope = await apply({ plan: out, config });
+      assert.equal(envelope.result.channel, "surf");
+      assert.ok(
+        envelope.notes.some((note) =>
+          /did not bind the owned tab \(tab_bind_ambiguous\)/.test(note),
+        ),
+      );
+      assert.deepEqual(cdp.values, {}, "nothing was set in the other tab");
+      assert.ok(verbs(surf).includes("type"), "surf set the values in the tab it owns");
+      assert.equal(await cdp.drained(), 0, "the refused bind closed its connection");
+    },
+    { otherTab: true },
+  );
+});
+
+test("an open that fails part-way closes its own connection", async (t) => {
+  const tree = cdpTree(FORM);
+  tree.error = "Target crashed";
+  const fake = await startFakeCdp({ pages: { P1: { url: FORM, tree } } });
+  t.after(() => fake.close());
+  await assert.rejects(openCdpActions(FORM, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url }));
+  assert.equal(await fake.drained(), 0);
+});

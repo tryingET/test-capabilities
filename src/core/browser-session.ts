@@ -194,6 +194,8 @@ export interface SessionApplyRequest {
    * unmet post-condition leaves the receipt `unknown` rather than claiming a failure.
    */
   postCondition?: { kind: "url_prefix" | "text" | "left_url"; expected: string };
+  /** which channel a top-document plan's steps take; see `ApplyRunnerOptions.channel` */
+  channel?: "cdp" | "surf";
 }
 
 export type ApplyMode = "fill" | "submit";

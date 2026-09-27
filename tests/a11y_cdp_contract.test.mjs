@@ -13,6 +13,7 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const cdp = await importRuntimeModule("core/a11y-cdp.js");
 const { openA11yLiveView } = await importRuntimeModule("core/a11y-snapshot-observer.js");
+const { CdpConnection } = await importRuntimeModule("core/a11y-cdp.js");
 const { evaluateA11yAssertion } = await importRuntimeModule("core/a11y-snapshot.js");
 const { executeCliOperation } = await importRuntimeModule("index.js");
 
@@ -382,4 +383,26 @@ test("detached frames are forgotten; an unreadable frame tree or same-process fr
   await cdp.releaseForest(connection, sessions);
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.equal(connection.attached.length, 0, "the detach event took the frame off the list");
+});
+
+test("a socket that does not open in time is closed, so a late handshake leaves nothing behind", async (t) => {
+  // a WebSocket that never opens and records whether it was told to close
+  const closed = [];
+  const Original = globalThis.WebSocket;
+  globalThis.WebSocket = class {
+    constructor(url) {
+      this.url = url;
+    }
+    addEventListener() {}
+    close() {
+      closed.push(this.url);
+    }
+  };
+  t.after(() => {
+    globalThis.WebSocket = Original;
+  });
+  await assert.rejects(CdpConnection.open("ws://127.0.0.1:9/devtools/page/P1"), {
+    message: /did not open/,
+  });
+  assert.deepEqual(closed, ["ws://127.0.0.1:9/devtools/page/P1"]);
 });

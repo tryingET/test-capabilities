@@ -22,6 +22,7 @@ import { resolve as resolvePath } from "node:path";
 import { type AxFrameTree, type AxRendering, renderAxForest } from "./a11y-ax-tree.js";
 import {
   bindOwnedTarget,
+  boundTarget,
   CdpConnection,
   listCdpTargets,
   probeCdpBrowser,
@@ -40,6 +41,7 @@ import {
   waitForActionable,
 } from "./cdp-actionability.js";
 import { characterKey, type KeyDefinition, MODIFIER_BITS, parseChord } from "./cdp-keys.js";
+import { frameWorlds, type WorldFrame } from "./cdp-worlds.js";
 import { FrameworkError } from "./runtime-contract.js";
 
 /** An a11y ref from this view, a CSS selector in a frame, or a role and name found afresh. */
@@ -77,9 +79,17 @@ export interface CdpActionsOpenOptions extends CdpActionOptions {
   dialogs?: "dismiss" | "accept" | "fail";
   /** the text a prompt is accepted with under `dialogs: "accept"` */
   promptText?: string;
+  /**
+   * The page target to bind, by id, instead of by URL: a caller that bound the owned tab once
+   * keeps it across the tab's own navigations (the id survives same- and cross-site navigation,
+   * measured live 2026-09-27), where its URL would no longer find it.
+   */
+  targetId?: string;
 }
 
 export interface CdpActions {
+  /** the id of the page target these actions are bound to */
+  readonly targetId: string;
   /** the refs of the latest snapshot, `{ role, name }` each */
   readonly refs: Record<string, { role: string; name: string }>;
   /** every frame by label (`f1`...), with its URL - out-of-process and same-process */
@@ -110,11 +120,8 @@ export interface CdpActions {
   close(): Promise<void>;
 }
 
-interface FrameEntry {
+interface FrameEntry extends WorldFrame {
   label: string;
-  url: string;
-  frameId: string | undefined;
-  sessionId: string | undefined;
 }
 
 const SELECT_ALL =
@@ -157,7 +164,11 @@ export async function openCdpActions(
 ): Promise<CdpActions> {
   const endpoint = resolveCdpEndpoint(env);
   await probeCdpBrowser(endpoint);
-  const target = bindOwnedTarget(await listCdpTargets(endpoint), href);
+  const targets = await listCdpTargets(endpoint);
+  const target =
+    options.targetId === undefined
+      ? bindOwnedTarget(targets, href)
+      : boundTarget(targets, options.targetId, href);
   const connection = await CdpConnection.open(target.webSocketDebuggerUrl as string);
   const defaultTimeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -174,14 +185,22 @@ export async function openCdpActions(
     const forest = await readAxForest(connection);
     sessions = forest.sessions;
     rendering = renderAxForest(forest.forest);
+    // a page target's id is its main frame's id (measured live 2026-09-27, across same- and
+    // cross-site navigation), so the page is addressable by it even with no iframe to walk
     frames = forest.forest.map((tree: AxFrameTree) => ({
       label: tree.frame,
       url: tree.url,
-      frameId: tree.frameId,
+      frameId: tree.frameId ?? (tree.frame === "main" ? target.id : undefined),
       sessionId: forest.sessions[tree.frame],
     }));
   };
-  await read();
+  try {
+    await read();
+  } catch (error) {
+    // no actions object reaches the caller, so nothing else would close this socket
+    connection.close();
+    throw error;
+  }
 
   // dialogs: every session that hosts a frame reports them; each is answered by the policy
   const dialogs: CdpDialogRecord[] = [];
@@ -240,76 +259,7 @@ export async function openCdpActions(
     return found;
   };
 
-  // one isolated world per frame; a navigation destroys it, so a stale one is made again once
-  const worlds = new Map<string, number>();
-  const frameIdOf = async (frame: FrameEntry): Promise<string> => {
-    if (frame.frameId) return frame.frameId;
-    const { frameTree } = await connection.send<{ frameTree: { frame: { id: string } } }>(
-      "Page.getFrameTree",
-      {},
-      frame.sessionId,
-    );
-    frame.frameId = frameTree.frame.id;
-    return frame.frameId;
-  };
-  const worldOf = async (frame: FrameEntry, fresh = false): Promise<number> => {
-    const frameId = await frameIdOf(frame);
-    const known = worlds.get(frameId);
-    if (known !== undefined && !fresh) return known;
-    const { executionContextId } = await connection.send<{ executionContextId: number }>(
-      "Page.createIsolatedWorld",
-      { frameId, worldName: WORLD },
-      frame.sessionId,
-    );
-    worlds.set(frameId, executionContextId);
-    return executionContextId;
-  };
-  // the page's own world of a frame: `Runtime.enable` reports one default context per frame of
-  // the session before it answers (measured live 2026-09-27), so a same-process frame is reached
-  // by its frame id rather than landing in its host's document
-  const pageWorlds = new Map<string, number>();
-  const pageWorldOf = async (frame: FrameEntry, fresh = false): Promise<number> => {
-    const frameId = await frameIdOf(frame);
-    const known = pageWorlds.get(frameId);
-    if (known !== undefined && !fresh) return known;
-    const found: number[] = [];
-    const off = connection.on("Runtime.executionContextCreated", (params, sessionId) => {
-      const context = params.context as { id: number; auxData?: Record<string, unknown> };
-      if (sessionId !== frame.sessionId || context.auxData?.frameId !== frameId) return;
-      if (context.auxData.isDefault === true) found.push(context.id);
-    });
-    try {
-      await connection.send("Runtime.enable", {}, frame.sessionId);
-      await connection.send("Runtime.disable", {}, frame.sessionId);
-    } finally {
-      off();
-    }
-    const contextId = found[0];
-    if (contextId === undefined) {
-      throw new FrameworkError(
-        "action_frame_unknown",
-        `frame ${frame.url} reported no page world; it may be navigating`,
-        { frame: frame.url },
-      );
-    }
-    pageWorlds.set(frameId, contextId);
-    return contextId;
-  };
-  // a navigation destroys a world; a stale one is made again once
-  const inContext = async <T>(
-    world: (frame: FrameEntry, fresh?: boolean) => Promise<number>,
-    frame: FrameEntry,
-    body: (contextId: number) => Promise<T>,
-  ): Promise<T> => {
-    try {
-      return await body(await world(frame));
-    } catch (error) {
-      if (!/context/i.test(error instanceof Error ? error.message : "")) throw error;
-      return body(await world(frame, true));
-    }
-  };
-  const inWorld = <T>(frame: FrameEntry, body: (contextId: number) => Promise<T>): Promise<T> =>
-    inContext(worldOf, frame, body);
+  const { frameIdOf, worldOf, pageWorldOf, inContext, inWorld } = frameWorlds(connection, WORLD);
 
   const describe = (actionTarget: CdpActionTarget): string =>
     "ref" in actionTarget
@@ -541,6 +491,7 @@ export async function openCdpActions(
 
   let closed = false;
   return {
+    targetId: target.id,
     get refs() {
       return rendering.refs;
     },

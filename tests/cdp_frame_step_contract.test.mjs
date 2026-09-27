@@ -117,11 +117,15 @@ const step = (id, command, args, declare, extra = {}) => ({
 });
 
 /** The surf verbs issued, without the capability probe every resolution makes. */
+const TAB_PROOF = "String(performance.timeOrigin)";
 const verbs = (surf) =>
   surf
     .calls()
+    // the one read that proves the DevTools target is the owned tab is set apart: `proofs`
+    .filter((call) => call[1] !== TAB_PROOF)
     .map((call) => call[0])
     .filter((command) => !command.startsWith("--"));
+const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
 
 test("a read-only script in a frame reads in its isolated world, from the cdp channel, and writes no receipt", async () => {
   await withFrameSession(async ({ session, context, cdp, surf }) => {
@@ -137,6 +141,7 @@ test("a read-only script in a frame reads in its isolated world, from the cdp ch
     assert.deepEqual(context.ledger.receipts(), []);
     assert.ok(cdp.worlds.some((world) => world.name === "test-capabilities"));
     assert.equal(verbs(surf).includes("js"), false, "surf ran no script");
+    assert.equal(proofs(surf), 1, "only the read that proves the target is the owned tab");
     // a read that throws is the read's own failure: nothing was at stake, so nothing is unknown
     await assert.rejects(session.step(step("test.nope", "js", ["nope"], READ_ONLY_JS)), {
       code: "action_evaluate_failed",
