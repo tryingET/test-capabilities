@@ -149,6 +149,11 @@ export function createFakeDom(page, initialEmit) {
       }
       case "Page.createIsolatedWorld": {
         const tree = treeInSession(sessionId, params.frameId) ?? rootOf(sessionId);
+        if (tree?.worldError) {
+          // a frame navigating away while the world is made
+          send({ id, error: { message: tree.worldError } });
+          return true;
+        }
         const contextId = ++nextContext;
         worlds.set(contextId, tree);
         record.worlds.push({ frame: tree?.url, name: params.worldName });
@@ -171,6 +176,13 @@ export function createFakeDom(page, initialEmit) {
                 ? { type: "object", objectId: handOut(element.backendNodeId) }
                 : { type: "object", subtype: "null", value: null },
           });
+          return true;
+        }
+        const probe = /^\/\* tc:probe (".*?") \*\//.exec(params.expression);
+        if (probe) {
+          const element = tree.elements?.[JSON.parse(probe[1])];
+          const value = Boolean(element && present(element) && element.box && !element.hidden);
+          reply({ result: { type: "boolean", value } });
           return true;
         }
         if (Object.hasOwn(tree.evals ?? {}, params.expression)) {
@@ -258,6 +270,8 @@ export function createFakeDom(page, initialEmit) {
           );
           if (option) record.values[entry.selector] = option.value;
           value = Boolean(option);
+        } else if (marker === "iframe-index") {
+          value = element.iframeIndex ?? -1;
         } else if (marker === "connected") {
           value = Boolean(entry) && !element.removed;
         } else if (marker === "select-all" || marker === "focus-check") {
@@ -305,6 +319,16 @@ export function createFakeDom(page, initialEmit) {
         reply({
           backendNodeId: found && !found.element.obscured ? found.element.backendNodeId : cover,
         });
+        return true;
+      }
+      case "DOM.getFrameOwner": {
+        // a same-process frame's owner answers in the session that hosts both
+        const owned = frames.find(
+          (entry) =>
+            entry.parent && entry.session === sessionId && frameIdOf(entry.tree) === params.frameId,
+        );
+        if (!owned) return false;
+        reply({ backendNodeId: owned.tree.owner.backendNodeId });
         return true;
       }
       case "DOM.focus":

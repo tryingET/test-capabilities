@@ -232,6 +232,11 @@ export async function startFakeCdp({
         }
         case "DOM.getFrameOwner": {
           const frame = targets.find((target) => target.frame.id === params.frameId)?.frame;
+          // Chromium answers only in the session that hosts the frame's parent
+          if (!frame || trees.get(sessionId) !== parents.get(frame)) {
+            send({ id, error: { message: "Frame with the given id was not found." } });
+            return;
+          }
           send({ id, result: { backendNodeId: frame.owner.backendNodeId } });
           return;
         }

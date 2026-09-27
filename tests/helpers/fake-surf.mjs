@@ -111,6 +111,7 @@ function readCalls(logFile) {
 }
 
 const RUNTIME_ENV_KEYS = [
+  "TEST_CAPABILITIES_CDP_ENDPOINT",
   "TEST_CAPABILITIES_SURF_BIN",
   "TEST_CAPABILITIES_SURF_GO_BIN",
   "TEST_CAPABILITIES_SURF_GO_REPO",
@@ -120,6 +121,9 @@ const RUNTIME_ENV_KEYS = [
 export async function withFakeSurfEnv(surfPath, callback) {
   const previous = Object.fromEntries(RUNTIME_ENV_KEYS.map((key) => [key, process.env[key]]));
   process.env.TEST_CAPABILITIES_SURF_BIN = surfPath;
+  // hermetic: no real DevTools endpoint unless the test named one
+  process.env.TEST_CAPABILITIES_CDP_ENDPOINT =
+    previous.TEST_CAPABILITIES_CDP_ENDPOINT ?? "http://127.0.0.1:9";
   delete process.env.TEST_CAPABILITIES_SURF_GO_BIN;
   delete process.env.TEST_CAPABILITIES_SURF_GO_REPO;
 

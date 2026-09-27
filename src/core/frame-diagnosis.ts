@@ -24,10 +24,11 @@
 import path from "node:path";
 import { writeJsonArtifactSync } from "./artifacts.js";
 import type { BrowserStep, OwnedTab, SessionReply } from "./browser-session.js";
+import { CDP_FRAME_PROBE_EFFECT, probeCandidatesOverCdp } from "./cdp-frame-probe.js";
 import type { EffectDeclaration } from "./effects.js";
 import type { FrameProbeReading, FrameRootCause } from "./frame-root-cause.js";
 import { determineFrameRootCause, parseFrameHint } from "./frame-root-cause.js";
-import type { FrameTopology, SurfFrameDiagnosis } from "./frame-topology.js";
+import type { FrameCandidate, FrameTopology, SurfFrameDiagnosis } from "./frame-topology.js";
 import { classifyFrameTopology, parseSurfFrameDiagnosis } from "./frame-topology.js";
 import type { ResultOutcome } from "./result-classification.js";
 import type { RunContext } from "./run-context.js";
@@ -113,11 +114,46 @@ const WAIT_ELEMENT_TIMEOUT = /Timeout waiting for "/;
  * `frame.main`, through `Session.inFrame`. Nested candidates are `unprobed`: `--index` numbers
  * top-level frames in DOM order, and the nested order was not measured well enough to address.
  */
+/**
+ * The probe over CDP (CDP program S2): one read-only ledger step that reads every candidate -
+ * nested and same-process included - in its own frame, switching nothing. `undefined` when the
+ * DevTools channel is not available or fails part-way (the ledger records the failed step), and
+ * the surf probe, which the determination has always been proven against, runs instead.
+ */
+async function probeOverCdp(
+  session: FrameDiagnosisSession,
+  context: RunContext,
+  candidates: readonly FrameCandidate[],
+  selector: string,
+): Promise<FrameProbeReading[] | undefined> {
+  try {
+    return await context.ledger.runStep({
+      id: "surf.frame.probe.cdp",
+      effect: CDP_FRAME_PROBE_EFFECT,
+      subject: session.url,
+      intent: `look for '${selector}' in each candidate frame of ${session.url} without switching`,
+      run: () =>
+        probeCandidatesOverCdp(
+          session.url,
+          process.env,
+          candidates,
+          selector,
+          FRAME_PROBE_TIMEOUT_MS,
+        ),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 async function probeCandidates(
   session: FrameDiagnosisSession,
+  context: RunContext,
   topology: FrameTopology,
   selector: string,
 ): Promise<FrameProbeReading[]> {
+  const overCdp = await probeOverCdp(session, context, topology.candidates, selector);
+  if (overCdp) return overCdp;
   const readings: FrameProbeReading[] = [];
   let stopped: string | undefined;
   for (const candidate of topology.candidates) {
@@ -295,7 +331,7 @@ export async function explainUnreachable(
     !hint &&
     !entry.unavailableReason &&
     entry.topology.candidates.length > 0
-      ? await probeCandidates(session, entry.topology, selector)
+      ? await probeCandidates(session, context, entry.topology, selector)
       : undefined;
   const rootCause = determineFrameRootCause({
     selector,

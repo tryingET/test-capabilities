@@ -19,6 +19,8 @@ export async function importRuntimeModule(modulePath) {
 export function runtimeEnv(extra = {}) {
   return {
     ...process.env,
+    // hermetic: child runs reach no real DevTools endpoint unless a test names one
+    TEST_CAPABILITIES_CDP_ENDPOINT: "http://127.0.0.1:9",
     ...extra,
     TEST_CAPABILITIES_DIST_ROOT: extra.TEST_CAPABILITIES_DIST_ROOT ?? resolveRuntimeDistRoot(),
     TEST_CAPABILITIES_PACKAGE_ROOT: extra.TEST_CAPABILITIES_PACKAGE_ROOT ?? path.join(repoRoot),

@@ -83,6 +83,19 @@ the tab (`frame_context_unrestored`). Over CDP the probe is a read in the candid
   no `frame.switch` in the ledger; a live page with a nested target confirmed where today it is
   `unprobed`.
 
+**S2 result.** `cdp-frame-probe.ts`; `frame-diagnosis.ts` runs it as one read-only ledger step
+(`surf.frame.probe.cdp`) and falls back to the surf probe when the DevTools channel is absent or
+fails part-way. Measured live first: surf's frame tree holds only the page's in-process frames,
+so out-of-process candidates arrive with no CDP frame id; they are mapped by DOM index (the owner
+iframe's index in the top document, exact even after a redirect) or, nested, by URL; a candidate
+that maps to none or several is `unanswered`. Live: the nested target that was `suspected` ("1 of
+2 candidate frame(s) could not be probed") is now `confirmed` (nested frame .../inner2.html); the
+top-level case stays `confirmed`; surf's host log for both runs holds no `frame.switch`,
+`wait.element` or `frame.main`, so `frame_context_unrestored` cannot happen on this path. Tests:
+7 unit (mapping, redirect, polling, ambiguity, worlds, read-only, release; four mutations each
+turn one red), 2 CLI end to end against fake surf and a fake DevTools endpoint (both fail when
+the CDP probe is disabled), 1 in-process fallback test.
+
 ### S3 - forms inside frames
 
 Plan and apply read fields back with `js`, which surf refuses in a selected frame, so a form in

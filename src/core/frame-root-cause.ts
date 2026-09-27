@@ -413,7 +413,7 @@ function decideFromProbe(
       return rootCause(
         input,
         "confirmed",
-        `the in-frame probe found '${input.selector}' inside exactly one of ${total} candidate frame(s) (${candidate.primaryTag ?? "same-process same-origin frame"}, DOM index ${candidate.domIndex}) and in none of the others, and a main-page selector does not reach into a frame`,
+        `the in-frame probe found '${input.selector}' inside exactly one of ${total} candidate frame(s) (${candidate.primaryTag ?? "same-process same-origin frame"}, ${candidate.domIndex === null ? `nested frame ${candidate.src}` : `DOM index ${candidate.domIndex}`}) and in none of the others, and a main-page selector does not reach into a frame`,
         candidate,
       );
     }

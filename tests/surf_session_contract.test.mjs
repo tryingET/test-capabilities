@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { startFakeCdp } from "./helpers/fake-cdp.mjs";
 import { createFakeSurf, readyPages, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
@@ -743,6 +744,32 @@ test("explainUnreachable runs frame.diagnose in the owned tab and answers suspec
     assert.equal(artifact.diagnosis.domIframes.length, 2);
     assert.equal(rootCause.artifact.path.startsWith(dir), true);
   });
+});
+
+test("without the DevTools channel, or with one that fails part-way, the probe is surf's", async () => {
+  // no endpoint: the hermetic default reaches nothing
+  await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, fake }) => {
+    const rootCause = await session.explainUnreachable("#play", { probe: true });
+    assert.ok(rootCause.probe, "a probe ran");
+    assert.ok(commandsOf(fake).includes("frame.switch"), "surf's switch-based probe ran");
+  });
+  // an endpoint that answers and then fails reading the page
+  const broken = await startFakeCdp({
+    pages: { P1: { url: URL_UNDER_TEST, tree: { nodes: [], error: "Target crashed" } } },
+  });
+  const previous = process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+  process.env.TEST_CAPABILITIES_CDP_ENDPOINT = broken.url;
+  try {
+    await withSession({ gate: true, pages: FRAMED_PAGE }, async ({ session, fake }) => {
+      const rootCause = await session.explainUnreachable("#play", { probe: true });
+      assert.ok(rootCause.probe);
+      assert.ok(commandsOf(fake).includes("frame.switch"));
+    });
+  } finally {
+    if (previous === undefined) delete process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+    else process.env.TEST_CAPABILITIES_CDP_ENDPOINT = previous;
+    await broken.close();
+  }
 });
 
 test("a --frame-hint that resolves to one reachable frame confirms; the topology is read once", async () => {
