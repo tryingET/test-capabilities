@@ -118,6 +118,11 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `role_name_missing` | No control with that role and accessible name in the fresh snapshot |
 | `role_name_ambiguous` | More than one. There is no landmark scoping in v1, so the candidate refs are reported and nothing is guessed |
 | `a11y_check_unavailable` | An assertion expects something this evaluation had no read-only channel for. An expectation nothing checked never passes |
+| `action_target_not_found` | `openCdpActions`: no element for that ref in the snapshot, or no element matches the selector in that frame |
+| `action_target_obscured` | `openCdpActions`: another element covers the target's centre (or it has no box); no mouse button went down |
+| `action_frame_unknown` | `openCdpActions`: the named frame (label or URL) is not one of the owned tab's out-of-process frames |
+| `action_option_not_found` | `openCdpActions`: the select element offers no option with that value or label |
+| `action_evaluate_failed` | `openCdpActions`: the expression threw in the page or frame; the exception's description is in the message |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

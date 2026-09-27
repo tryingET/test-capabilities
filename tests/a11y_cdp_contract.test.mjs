@@ -304,3 +304,17 @@ test("a frame whose tree errors is named unreadable, noise on the socket is igno
   // a ref without an element handle cannot be read, and says so rather than guessing
   await assert.rejects(live.reader.text("e99"), (error) => error.code === "a11y_check_unavailable");
 });
+
+test("a command on a closed connection fails at once instead of waiting out its timeout", async (t) => {
+  const fake = await startFakeCdp({
+    pages: { P1: { url: LOCAL_URL, tree: treeFromCapture(LOCAL) } },
+  });
+  t.after(() => fake.close());
+  const [target] = await cdp.listCdpTargets(fake.url);
+  const connection = await cdp.CdpConnection.open(target.webSocketDebuggerUrl);
+  connection.close();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const started = performance.now();
+  await assert.rejects(connection.send("Accessibility.getFullAXTree"), /socket is not open/);
+  assert.ok(performance.now() - started < 1000);
+});

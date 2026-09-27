@@ -159,7 +159,14 @@ export class CdpConnection {
   private readonly socket: WebSocket;
   private readonly pending = new Map<number, Pending>();
   private nextId = 0;
-  readonly attached: Array<{ sessionId: string; targetId: string; type: string; url: string }> = [];
+  /** frame targets as they attach; `parentSessionId` is the session that announced one (none: the page) */
+  readonly attached: Array<{
+    sessionId: string;
+    targetId: string;
+    type: string;
+    url: string;
+    parentSessionId?: string;
+  }> = [];
 
   private constructor(socket: WebSocket) {
     this.socket = socket;
@@ -198,6 +205,7 @@ export class CdpConnection {
       result?: unknown;
       error?: { message?: string };
       method?: string;
+      sessionId?: string;
       params?: {
         sessionId?: string;
         targetInfo?: { targetId?: string; type?: string; url?: string };
@@ -228,12 +236,17 @@ export class CdpConnection {
         targetId: message.params.targetInfo?.targetId ?? "",
         type: message.params.targetInfo?.type ?? "",
         url: message.params.targetInfo?.url ?? "",
+        ...(message.sessionId ? { parentSessionId: message.sessionId } : {}),
       });
     }
   }
 
   send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
     const id = ++this.nextId;
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      // a closed socket answers nothing: fail now instead of waiting out the command timeout
+      return Promise.reject(new Error(`${method}: the DevTools socket is not open`));
+    }
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);

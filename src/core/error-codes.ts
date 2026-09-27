@@ -177,6 +177,23 @@ export const A11Y_CHANNEL_ERROR_CODES = [
 ] as const;
 
 /**
+ * Actions on the owned tab over the loopback CDP connection (AK #6099): each is a refusal, never a
+ * silent no-op. The endpoint and binding codes are the a11y channel's.
+ */
+export const CDP_ACTION_ERROR_CODES = [
+  /** no element for that ref in the snapshot, or no element matches the selector in that frame */
+  "action_target_not_found",
+  /** the element's centre is covered by another element; no button went down */
+  "action_target_obscured",
+  /** the named frame is not one of the owned tab's out-of-process frames */
+  "action_frame_unknown",
+  /** the select element offers no option with that value or label */
+  "action_option_not_found",
+  /** the expression threw in the page, or the element could not be acted on */
+  "action_evaluate_failed",
+] as const;
+
+/**
  * Classifier-owned outcome codes. Process codes (`exit_<n>`, `signal_<name>`), HTTP codes
  * (`http_<status>`) and surf codes are patterned or pass-through and are listed separately.
  */
@@ -230,6 +247,7 @@ export type EffectErrorCode = (typeof EFFECT_ERROR_CODES)[number];
 export type SubmitGateErrorCode = (typeof SUBMIT_GATE_ERROR_CODES)[number];
 export type FrameRootCauseErrorCode = (typeof FRAME_ROOT_CAUSE_ERROR_CODES)[number];
 export type A11yChannelErrorCode = (typeof A11Y_CHANNEL_ERROR_CODES)[number];
+export type CdpActionErrorCode = (typeof CDP_ACTION_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -242,6 +260,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...SUBMIT_GATE_ERROR_CODES,
   ...FRAME_ROOT_CAUSE_ERROR_CODES,
   ...A11Y_CHANNEL_ERROR_CODES,
+  ...CDP_ACTION_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];
