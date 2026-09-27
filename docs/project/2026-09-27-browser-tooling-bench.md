@@ -1,5 +1,5 @@
 ---
-summary: "Measured on 2026-09-26/27, one Chromium (Agent) Chrome/153 over CDP, same pages, medians of 5: surf + our CDP reader (status quo), agent-browser 0.38.1, playwright-cli 0.1.21, dev-browser 0.2.9, and playwright-core driven in-process. surf's default screenshot after each action costs 3-5.6 s per verb when the window is not on screen (form flow 12.1 s; 0.37 s with --no-screenshot). agent-browser is the fastest CLI but still leaks one about:blank per session (#1986). Playwright in-process is fastest overall (form flow 55 ms, cross-origin-iframe click 98 ms). Three proposals with numbers; the recommendation is to fix the surf path now and to measure Playwright as the action channel next."
+summary: "(Corrected 2026-09-27: surf clicks inside a cross-origin frame after frame.switch.) Measured on 2026-09-26/27, one Chromium (Agent) Chrome/153 over CDP, same pages, medians of 5: surf + our CDP reader (status quo), agent-browser 0.38.1, playwright-cli 0.1.21, dev-browser 0.2.9, and playwright-core driven in-process. surf's default screenshot after each action costs 3-5.6 s per verb when the window is not on screen (form flow 12.1 s; 0.37 s with --no-screenshot). agent-browser is the fastest CLI but still leaks one about:blank per session (#1986). Playwright in-process is fastest overall (form flow 55 ms, cross-origin-iframe click 98 ms). Three proposals with numbers; the recommendation is to fix the surf path now and to measure Playwright as the action channel next."
 read_when:
   - "You choose or change the browser tool that acts for test-capabilities, or wonder why runs are slow."
   - "Someone proposes agent-browser, dev-browser, playwright-cli or Playwright instead of surf."
@@ -35,7 +35,7 @@ refs). Their public numbers are their own; these are ours.
 | U4 GitHub releases: navigate + snapshot | 1 530 + 389 ms, 7.3 KB | 1 316 + 119 ms, 62 KB | 763 + 292 ms, 83 KB | 495 + 176 ms, 85 KB | not measured |
 | U4 same snapshot twice | identical | identical | identical | identical | - |
 | U5 cross-origin iframe: button in snapshot | yes | yes | yes | yes | - |
-| U5 click it | **cannot** (surf acts in the top frame; nicobailon/surf-cli#319) | 91 ms | 1 001 ms | 163 ms | 98 ms |
+| U5 click it | 69 ms after `frame.switch` (corrected: the benchmark first clicked without switching) | 91 ms | 1 001 ms | 163 ms | 98 ms |
 | U6 MDN: snapshot time, size, buttons | 1 127 ms, 60 KB, 938 | 390 ms, 304 KB, 936 | 631 ms, 426 KB, 938 | 664 ms, 430 KB, 938 | not measured |
 | U7 tabs left behind per session | 0 | **1 `about:blank`** (after `tab close` and `close`) | 0 | 0 | 0 |
 | footprint | surf (installed) | 1 native binary | Node per call + daemon | daemon + QuickJS sandbox; `install` downloads 167 MiB Chromium even for `--connect` | 1 npm dep, no browser download |
@@ -65,7 +65,7 @@ What the numbers say:
   Measured: form flow 12.1 s -> ~0.37 s unattended; `js` 5.6 s -> 55 ms.
 - Skip the frame settle when the page's tree has no iframe node (255 ms -> expected tens of ms;
   to be measured).
-- Remains: no actions inside cross-origin frames (surf#319, open upstream).
+- Frames: surf acts inside a cross-origin frame after `frame.switch` (click 69 ms, verified by the frame's own message); since upstream #323/#324 `js` in a selected frame refuses (`UNSUPPORTED_FRAME_EXECUTION`) instead of answering from the top frame.
 
 **B. Playwright (playwright-core) in-process as the action channel, over the same CDP - measure next.**
 - Fastest measured: connect 45 ms, form 55 ms, cross-origin-frame click 98 ms, no tab left.
