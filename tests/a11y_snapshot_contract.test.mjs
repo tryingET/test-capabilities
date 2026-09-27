@@ -286,8 +286,8 @@ test("the tester prompt hands over the tree, the gap and the rule that refs are 
     kind: "a11y-snapshot",
     channel: "chromium-ax-cdp",
     tool: {
-      command: "surf page.read --structure --full-page --no-text --nodes",
-      version: "2.20.0",
+      command: "CDP Accessibility.getFullAXTree",
+      version: "Chrome/153.0.8010.47",
     },
     tab: {
       surfTabId: 7,

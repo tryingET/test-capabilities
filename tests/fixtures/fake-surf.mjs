@@ -214,13 +214,6 @@ if (command === "page.read" && hasFlag("--help")) {
       "Options:",
       "  --all                Include all elements",
       "  --no-text            Exclude visible text content",
-      ...(mode === "upstream"
-        ? []
-        : [
-            "  --structure          Controls plus headings and landmarks",
-            "  --full-page          Include elements outside the viewport",
-            "  --nodes              Structured output (use with --json)",
-          ]),
     ].join("\n"),
   );
   process.exit(0);
@@ -1233,46 +1226,10 @@ switch (command) {
     break;
   }
   case "page.read": {
-    // `--nodes` is surf-cli feat/page-read-nodes (AK #5915): the tree text plus its nodes, url
-    // and title as JSON. A page model may carry the live capture (`pageRead`), or "unsupported"
-    // to answer the way a surf without --nodes does: plain text. Otherwise a small tree is built
-    // from the page's links and controls.
+    // upstream surf answers the tree as text; the fork's structured --nodes read left the runtime
+    // on 2026-09-27 (workstation AK6068)
     const tab = resolveTab(state);
-    const page = pageFor(tab.url, state);
-    if (!hasFlag("--nodes") || page.pageRead === "unsupported") {
-      emit(`link "Fake" [e1]\n\n[Viewport: 800x600]`, targetMeta(tab));
-      break;
-    }
-    if (page.pageRead) {
-      emit({ ...page.pageRead, url: page.pageRead.url ?? page.url }, targetMeta(tab));
-      break;
-    }
-    const nodes = [
-      { ref: "e1", role: "heading", name: page.title, depth: 0 },
-      ...page.links.map((link, index) => ({
-        ref: `e${index + 2}`,
-        role: "link",
-        name: typeof link === "string" ? link : (link.text ?? link.href ?? "link"),
-        depth: 0,
-      })),
-      ...page.controls.map((control, index) => ({
-        ref: `e${page.links.length + index + 2}`,
-        role: "button",
-        name: control.text ?? control.selector,
-        depth: 0,
-      })),
-    ];
-    const pageContent = `${nodes.map((node) => `${node.role} "${node.name}" [${node.ref}]`).join("\n")}\n\n[Viewport: 800x600]`;
-    emit(
-      {
-        pageContent,
-        nodes,
-        viewport: { width: 800, height: 600 },
-        url: page.url,
-        title: page.title,
-      },
-      targetMeta(tab),
-    );
+    emit(`link "Fake" [e1]\n\n[Viewport: 800x600]`, targetMeta(tab));
     break;
   }
   case "frame.switch": {

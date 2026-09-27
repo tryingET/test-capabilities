@@ -484,3 +484,15 @@ test("resolveSurfRuntimeCommand composes the resolved binary with the mapped arg
     tmp.cleanup();
   }
 });
+
+test("page.read passes upstream surf's flags and refuses the fork-only structured read", () => {
+  // The runtime is upstream surf-cli since 2026-09-27 (workstation AK6068); --structure, --full-page
+  // and --nodes were feat/page-read-nodes only, and the a11y channel reads over CDP (AK #6032).
+  assert.deepEqual(
+    translateSurfArgs("page.read", ["--all", "--no-text", "--depth", "3", "--tab-id", "7"]),
+    ["page.read", "--depth", "3", "--tab-id", "7", "--no-text", "--all"],
+  );
+  for (const flag of ["--structure", "--full-page", "--nodes"]) {
+    assert.throws(() => translateSurfArgs("page.read", [flag]), new RegExp(flag), flag);
+  }
+});

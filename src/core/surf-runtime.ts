@@ -715,9 +715,9 @@ function translateEmulateViewport(args: string[]): string[] {
 }
 
 function translatePageRead(args: string[]): string[] {
-  // --structure, --full-page and --nodes are surf-cli feat/page-read-nodes (AK #5915): the a11y
-  // channel's structured, footer-free, viewport-independent read. --nodes answers JSON.
-  const boolFlags = ["--compact", "--no-text", "--all", "--structure", "--full-page", "--nodes"];
+  // Upstream surf's flags only: the fork's --structure/--full-page/--nodes left the runtime on
+  // 2026-09-27 (workstation AK6068); the a11y channel reads over CDP (AK #6032).
+  const boolFlags = ["--compact", "--no-text", "--all"];
   const parsed = parseCommandArgs("page.read", args, {
     valueFlags: ["--depth", "--max-bytes", "--tab-id"],
     boolFlags,
@@ -730,7 +730,6 @@ function translatePageRead(args: string[]): string[] {
     "page.read",
     ...passthroughValues(parsed, ["--depth", "--max-bytes", "--tab-id"]),
     ...passthroughFlags(parsed, boolFlags),
-    ...(parsed.flags.has("--nodes") ? ["--json"] : []),
   ];
 }
 

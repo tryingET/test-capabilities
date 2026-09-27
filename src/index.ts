@@ -17,7 +17,7 @@ export {
 } from "./core/a11y-cdp.js";
 /**
  * The a11y observation channel's contract (slice S9). The schema is the durable asset and the
- * producer is replaceable - agent-browser until AK #5915, surf `page.read --nodes` since - so
+ * producer is replaceable - agent-browser until AK #5915, Chromium's tree over CDP since AK #6032 - so
  * what a consumer imports is the artifact shape, the digest rule and the assertion evaluator,
  * never the tool.
  */
