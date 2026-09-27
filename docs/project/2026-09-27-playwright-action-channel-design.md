@@ -75,3 +75,32 @@ selected frame.
 Harness note: surf's `wait --element` (not `wait.element`) ignores the flag and sleeps ~1 s,
 answering OK for a selector that does not exist; test-capabilities translates `wait --element`
 to `wait.element`, so its frame probe is unaffected.
+
+## 6. Variant chosen by the operator: actions on our own CDP client (AK #6099)
+
+Playwright's speed came from one held CDP connection, not from Playwright; test-capabilities
+already holds one for the a11y channel (`a11y-cdp.ts`, ~4 ms per read). So the actions are built
+on it, with no dependency and no vendor:
+
+- `src/core/cdp-actions.ts`: `click`, `fill`, `select`, `evaluate` on the owned tab, addressed
+  by an a11y ref (its backend node) or by a CSS selector in a named frame.
+- `click` is real input: scroll into view, the element's content quad, the page coordinates of
+  every enclosing out-of-process frame (`DOM.getFrameOwner` in the parent session), a hit test
+  (`elementFromPoint` must be the element or inside it, else `action_target_obscured`), then
+  `Input.dispatchMouseEvent` on the page session. `fill` focuses, selects and
+  `Input.insertText`s (trusted input events). `select` sets the option and fires input/change.
+  `evaluate` runs in the frame's own session - the read surf refuses in a selected frame.
+- Its effect is **mutating**, so it is a separate entry point (`openCdpActions`), never part of
+  the read-only a11y channel. The attach events record their parent session, so nested frames
+  resolve.
+- Phase 1 (this task): module, fake-endpoint tests, live proof, and the comparison below.
+  Wiring it into sessions as an action channel stays behind the section 4 gate.
+
+## 7. Comparing it with surf and Vibium
+
+Same owned tab of Chromium (Agent), same pages, same verbs as section 4, median of 7, plus:
+- attaches to the running browser and its owned tab (Vibium drives chromedriver/WebDriver BiDi and
+  launches its own Chrome by default; attaching is chromedriver's `debuggerAddress`);
+- page targets before and after (no stray tabs);
+- clicks and reads inside a cross-origin frame; trusted input;
+- footprint and governance (license, who controls it, protocol: CDP or W3C BiDi).
