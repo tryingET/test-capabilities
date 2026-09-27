@@ -105,6 +105,7 @@ function envelopeResultFrom(plan: SurfPlan): SurfPlanOperationResultEnvelope["re
         ? {
             frame: {
               url: plan.target.frame.url,
+              ...(plan.target.frame.match ? { match: plan.target.frame.match } : {}),
               origin: plan.target.frame.origin,
               landedHref: plan.target.frame.landed_href,
             },

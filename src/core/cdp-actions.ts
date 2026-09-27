@@ -42,6 +42,7 @@ import {
 } from "./cdp-actionability.js";
 import { characterKey, type KeyDefinition, MODIFIER_BITS, parseChord } from "./cdp-keys.js";
 import { frameWorlds, type WorldFrame } from "./cdp-worlds.js";
+import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
 
 /** An a11y ref from this view, a CSS selector in a frame, or a role and name found afresh. */
@@ -59,6 +60,8 @@ export interface CdpActionOptions {
    * document keeps its selectors, and an element there is not the one the caller meant.
    */
   documents?: readonly string[];
+  /** Keep the fragment too when guarding a freshly bound per-run document (AK #6162). */
+  exactDocuments?: boolean;
 }
 
 export interface CdpClickOptions extends CdpActionOptions {
@@ -114,7 +117,7 @@ export interface CdpActions {
    * The CDP frame id of a frame named by label, URL or id. It stays the frame's id while the
    * frame lives, across its own navigations, so a caller can pin a frame it found by URL.
    */
-  frameId(frame?: string): Promise<string>;
+  frameId(frame?: string, match?: "origin_path"): Promise<string>;
   /** read the page again: refs and frames as they are now */
   refresh(): Promise<void>;
   close(): Promise<void>;
@@ -139,8 +142,16 @@ const DOCUMENT = "function () { /* tc:document */ return this.ownerDocument.loca
 const withoutFragment = (href: string) => href.split("#")[0];
 
 /** Refuse, before any input, an element or a frame whose document is not one of `documents`. */
-export function assertDocument(href: string, documents: readonly string[], what: string): void {
-  if (!documents.map(withoutFragment).includes(withoutFragment(href))) {
+export function assertDocument(
+  href: string,
+  documents: readonly string[],
+  what: string,
+  exact = false,
+): void {
+  const matches = exact
+    ? documents.includes(href)
+    : documents.map(withoutFragment).includes(withoutFragment(href));
+  if (!matches) {
     throw new FrameworkError(
       "action_document_changed",
       `the document is ${href}, not ${documents.join(" or ")}; ${what}`,
@@ -247,11 +258,28 @@ export async function openCdpActions(
   await enablePages();
 
   // a frame by label (`main`, `f1`...), URL or CDP frame id
-  const frameOf = (name = "main"): FrameEntry => {
-    const found =
-      frames.find((frame) => frame.label === name) ??
-      frames.find((frame) => frame.label !== "main" && frame.url === name) ??
-      frames.find((frame) => frame.frameId === name);
+  const frameOf = (name = "main", match?: "origin_path"): FrameEntry => {
+    const address = match ? frameOriginPath(name) : undefined;
+    const candidates = match
+      ? frames.filter(
+          (frame) =>
+            frame.label !== "main" &&
+            address !== undefined &&
+            frameOriginPath(frame.url) === address,
+        )
+      : [];
+    if (candidates.length > 1) {
+      throw new FrameworkError(
+        "action_frame_ambiguous",
+        `${candidates.length} frames match origin+path ${address}; none was guessed`,
+        { frame: name },
+      );
+    }
+    const found = match
+      ? candidates[0]
+      : (frames.find((frame) => frame.label === name) ??
+        frames.find((frame) => frame.label !== "main" && frame.url === name) ??
+        frames.find((frame) => frame.frameId === name));
     if (!found) {
       throw new FrameworkError(
         "action_frame_unknown",
@@ -462,7 +490,12 @@ export async function openCdpActions(
     try {
       if (options?.documents) {
         const href = await callOn<string>(connection, element.resolved, DOCUMENT);
-        assertDocument(href, options.documents, `nothing was sent to ${describe(actionTarget)}`);
+        assertDocument(
+          href,
+          options.documents,
+          `nothing was sent to ${describe(actionTarget)}`,
+          options.exactDocuments,
+        );
       }
       await body(element);
     } finally {
@@ -643,8 +676,8 @@ export async function openCdpActions(
       }
       return result.value as T;
     },
-    frameId(name?: string) {
-      return frameIdOf(frameOf(name));
+    frameId(name?: string, match?: "origin_path") {
+      return frameIdOf(frameOf(name, match));
     },
     async refresh() {
       await read();

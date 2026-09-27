@@ -288,6 +288,12 @@ export function createFakeDom(page, initialEmit) {
           // any other script reads the frame's form model, with what the actions typed over it
           try {
             const value = runInStub(params.expression, formPage(tree));
+            // A transient document change visible in this read-back, gone by the next observation.
+            if (
+              tree.readbackHref &&
+              params.expression.includes("const el = document.querySelector(")
+            )
+              value.href = tree.readbackHref;
             reply({ result: { type: typeof value, value: value ?? null } });
           } catch (error) {
             reply({

@@ -21,6 +21,7 @@ import type {
   SessionReply,
 } from "./browser-session.js";
 import type { EffectDeclaration } from "./effects.js";
+import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
 import type {
   FieldLocator,
@@ -264,7 +265,7 @@ export function planProbeStep(
   probeId: string,
   request: PlanProbeRequest,
   intent: string,
-  frame?: string,
+  frame?: BrowserStep<unknown>["frame"],
 ): BrowserStep<PlanProbeAnswer> {
   return {
     id,
@@ -285,7 +286,7 @@ export async function runPlanProbe(
   probeId: string,
   request: PlanProbeRequest,
   intent: string,
-  frame?: string,
+  frame?: BrowserStep<unknown>["frame"],
 ): Promise<PlanProbeAnswer> {
   return session.step(planProbeStep(id, probeId, request, intent, frame));
 }
@@ -530,7 +531,8 @@ export function buildPlan(
       ...(frame
         ? {
             frame: {
-              url: frame,
+              url: frameOriginPath(frame) as string,
+              match: "origin_path" as const,
               origin: new URL(frame).origin,
               landed_href: answer.href || frame,
             },
@@ -597,7 +599,7 @@ export async function planFromSession(
       { url: session.url },
     );
   }
-  if (request.frame !== undefined && !URL.canParse(request.frame)) {
+  if (request.frame !== undefined && !frameOriginPath(request.frame)) {
     throw new FrameworkError(
       "config_invalid",
       `A plan names its frame by URL, and '${request.frame}' is not one: the frame's origin is what mutation.allowOrigins has to name before anything in it is typed.`,
@@ -626,9 +628,17 @@ export async function planFromSession(
       ...(request.submitSelector ? { submitSelector: request.submitSelector } : {}),
     },
     `read the form on ${context.url}${request.frame ? ` in frame ${request.frame}` : ""} without changing it`,
-    request.frame,
+    request.frame
+      ? { name: frameOriginPath(request.frame) as string, match: "origin_path" }
+      : undefined,
   );
   await assertFieldsReachable(session, request, answer);
+  if (request.frame && frameOriginPath(answer.href) !== frameOriginPath(request.frame)) {
+    throw new FrameworkError(
+      "action_document_changed",
+      "The frame left its addressed origin+path during the plan probe; no plan was written.",
+    );
+  }
   return buildPlan(request, answer, context);
 }
 

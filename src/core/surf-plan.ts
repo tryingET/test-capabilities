@@ -20,6 +20,7 @@
 
 import { z } from "zod";
 import { canonicalDigest } from "./canonical-json.js";
+import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
 
 export const SURF_PLAN_KIND = "test-capabilities.surf.plan";
@@ -113,6 +114,8 @@ export interface PlanTarget {
 }
 
 export interface PlanFrame {
+  /** Absent in legacy plans: exact URL. New plans bind HTTP(S) origin plus exact path. */
+  match?: "origin_path";
   url: string;
   origin: string;
   landed_href: string;
@@ -173,7 +176,18 @@ export function approvalTokenContent(plan: {
   return {
     origin: plan.target.origin,
     // a frame plan binds to the frame it acts in; a top-document plan's content is unchanged
-    ...(plan.target.frame ? { frame: plan.target.frame.url } : {}),
+    ...(plan.target.frame
+      ? {
+          frame:
+            plan.target.frame.match === "origin_path"
+              ? {
+                  match: "origin_path",
+                  origin: new URL(plan.target.frame.url).origin,
+                  path: new URL(plan.target.frame.url).pathname,
+                }
+              : plan.target.frame.url,
+        }
+      : {}),
     fields: plan.fields.map((field) => ({
       resolved_selector: field.resolved_selector,
       intended_value: field.intended_value,
@@ -399,6 +413,7 @@ export const SurfPlanSchema = z
         readiness: z.object({ state: z.string().min(1), evidence: z.array(z.string()) }).strict(),
         frame: z
           .object({
+            match: z.literal("origin_path").optional(),
             url: z.string().url(),
             origin: z.string().min(1),
             landed_href: z.string().url(),
@@ -410,6 +425,21 @@ export const SurfPlanSchema = z
             message: "must be the origin of target.frame.url",
             path: ["origin"],
           })
+          .refine(
+            (frame) => frame.match !== "origin_path" || frameOriginPath(frame.url) === frame.url,
+            {
+              message: "must be canonical HTTP(S) origin+path with no query or fragment",
+              path: ["url"],
+            },
+          )
+          .refine(
+            (frame) =>
+              frame.match !== "origin_path" || frameOriginPath(frame.landed_href) === frame.url,
+            {
+              message: "must land at the addressed origin+path",
+              path: ["landed_href"],
+            },
+          )
           .optional(),
       })
       .strict(),

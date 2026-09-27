@@ -404,7 +404,7 @@ export interface SurfPlanOperationResultEnvelope extends OperationEffectEnvelope
       title: string;
       readiness: { state: string; evidence: string[] };
       /** the frame the form is in, when it is in one */
-      frame?: { url: string; origin: string; landedHref: string };
+      frame?: { url: string; origin: string; landedHref: string; match?: "origin_path" };
     };
     runtime: PlanRuntime;
     fields: SurfPlanEnvelopeField[];

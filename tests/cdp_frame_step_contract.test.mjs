@@ -127,6 +127,29 @@ const verbs = (surf) =>
     .filter((command) => !command.startsWith("--"));
 const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
 
+test("an ambiguous origin+path step is refused before input with a failed receipt", async () => {
+  const tree = page();
+  const other = structuredClone(tree.frames[0]);
+  other.url += "?token=other";
+  other.owner.backendNodeId = 51;
+  tree.frames.push(other);
+  await withFrameSession(
+    async ({ session, context, cdp }) => {
+      await assert.rejects(
+        session.step(
+          step("test.ambiguous", "type", ["4242", "--selector", "#card"], MUTATING, {
+            frame: { name: PAY, match: "origin_path" },
+          }),
+        ),
+        { code: "action_frame_ambiguous" },
+      );
+      assert.equal(context.ledger.receipts()[0].outcome, "failed");
+      assert.deepEqual(cdp.values, {});
+    },
+    { tree },
+  );
+});
+
 test("a script dialog is also refused, even without an element action settlement", async () => {
   const tree = page();
   tree.frames[0].evals["confirm('Pay?')"] = false;

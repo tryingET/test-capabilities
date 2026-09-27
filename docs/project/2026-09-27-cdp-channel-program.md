@@ -367,6 +367,75 @@ the second also stops input; removing both was killed. No coverage exceptions ad
 Residual: dialogs scheduled after a completed step are not monitored across the connection gap;
 the surf fallback retains its existing behavior. Unknown does not claim rollback of handler effects.
 
+### AK #6162 — tokenized frame URLs (design before implementation)
+
+Measured first on Chromium 153: a real cross-origin iframe in the local test site generates a
+fresh UUID query token on every host load. Two opens reported different full URLs and frame ids;
+the previous full URL and the query-free URL each refused `action_frame_unknown`. This is a
+local payment-form embed, not an assertion about a production Stripe/Adyen/OAuth integration.
+
+New `surf plan --frame <url>` artifacts explicitly declare `target.frame.match: "origin_path"`.
+Their address is canonical HTTP(S) origin plus exact pathname; query and fragment are not part
+of frame identity. This is not a prefix match. The approval token binds the mode, origin and
+path; the schema binds the recorded origin and landing to that address, and the landing still
+equals the fingerprint URL. Existing artifacts without `match` retain exact matching and their
+existing token calculation. A caller needing query-specific identity can still use a legacy
+exact artifact; the CLI help must make the new matching policy visible.
+
+Resolution considers all child frames, including nested/same-process/OOPIF. Zero matches refuse;
+multiple matches refuse without preferring one that happens to have the old query. Pin the one
+resolved frame id for the run, including after a submit navigates it; never re-resolve by URL.
+
+On apply, first read the fresh form and check its origin+path and structural fingerprint. Only
+if they match, freeze that run's **full** URL (query and fragment included) as its sole pre-input document,
+fill/submit observation guard, and `left_url` starting point. A changed query is allowed across
+runs, never after this binding within a run. Repeated fingerprint checks cannot rebind it.
+The frame's origin still needs the allowlist. Top-document plans and exact legacy plans retain
+their existing checks. No changes to shadow roots, flows or the top-document plan channel.
+
+Red-first tests: rotating tokens with same approval, unique resolution vs ambiguity, changed
+path/origin and forged schema, query drift after binding, unchanged URL after click (unknown),
+navigation after click (verified), and legacy exact behavior. Mutation checks and live CLI proof
+on the rotating-token embed precede independent inspection, commit, push and AK completion.
+
+**Result.** Implemented as designed. `frame-address.ts` owns the canonical address. Only the
+initial frame lookup is origin+path; all later steps use its pinned id. `ApplyRunner.documentHref`
+reports the run's frozen URL after a successful fingerprint check; receipts and the envelope's
+`left_url` expected value use it rather than the plan's stale token. New-mode inputs opt into
+exact-document checks; legacy/top-document behavior is unchanged.
+
+Independent inspection (`openai-codex-2/gpt-6-astra`, three rounds) found three defects, each
+fixed red-first: a read-back could come from a transiently different document that moved back
+before the next observation; fragment changes bypassed the promised full-URL binding; and
+`URL.parse` is absent on supported Node 22.0. Read-back now checks the URL in its own response,
+new-mode guards include fragments, and the helper uses `URL.canParse` plus `new URL`. A test
+removes `URL.parse` to exercise that compatibility boundary (not a full Node 22.0 runtime test).
+Final inspection found no concrete defects in scope.
+
+Live on Chromium (Agent) 153 at 127.0.0.1:9222, workspace 5 inactive and unfocused: three
+plan/submit pairs used six different UUID query tokens, all with the same approval token.
+Every apply filled both fields, submitted, and verified the frame at `paid.html`; its receipt
+recorded the new run's full URL. A fourth final-version submit also passed. A non-navigating
+submit stayed unknown; two same-address frames refused before planning; a query or fragment
+change during fill stopped before the next field; a fragment change after the click satisfied
+the new-mode `left_url` check. Page targets 1 → 1. These are local real browser embeds, not
+production-provider certification. Scratch proof: `$TMPDIR/cdp-6162-<session-id>/`.
+
+`npm run check`: 716 passed, 1 skipped, 4/4 behavior scenarios, changed lines 220/220 covered;
+structure check passed, no new exceptions. Mutation checks killed changes to address matching,
+ambiguity, before-input settlement, mode transport, pinning, token mode/path/origin, landing
+schema, document guard, frozen run URL, read-back, exact fragments, starting URL, receipt
+baseline, fill observation, plan-probe drift and Node compatibility. Two single-site mutants
+survived through redundant constraints: the main forest entry has an empty URL already, and
+the landing's canonical-address equality also enforces a canonical address. Neither survivor
+was claimed as a killed mutant. No test or coverage bypass was added.
+
+Residuals: origin+path cannot distinguish two same-path embeds (refused), or meanings encoded
+only in query parameters (not part of new-mode identity). URLs are not redacted session tokens;
+plan/receipt artifacts and URL diagnostics remain sensitive. Full URL equality cannot detect
+replacement by another document at the identical URL. The existing check-then-act round trips
+remain; no stronger document-instance atomicity is claimed.
+
 ## 6. Done when
 
 Each slice: design section updated with what was learned, red-first tests with mutation checks

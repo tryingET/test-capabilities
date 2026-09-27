@@ -30,7 +30,9 @@ export const FRAME_STEP_COMMANDS: ReadonlySet<string> = new Set(["js", "type", "
  * A frame, by URL, label or CDP frame id as `openCdpActions` names them - optionally with the
  * documents it must hold when an element in it is acted on (`CdpActionOptions.documents`).
  */
-export type StepFrame = string | { name: string; documents: readonly string[] };
+export type StepFrame =
+  | string
+  | { name: string; match?: "origin_path"; documents?: readonly string[] };
 
 /** One step to run in a frame: the surf command and its arguments, the frame, the declared effect. */
 export interface FrameStep {
@@ -52,6 +54,7 @@ const BEFORE_INPUT = new Set([
   "action_target_ambiguous",
   "action_target_unsuitable",
   "action_frame_unknown",
+  "action_frame_ambiguous",
   "action_option_not_found",
   "action_frame_step_unsupported",
   "action_document_changed",
@@ -86,9 +89,15 @@ async function act(
   command: string,
   args: readonly string[],
   frame: string,
-  step: { effect: "read_only" | "mutating"; documents?: readonly string[] },
+  step: {
+    effect: "read_only" | "mutating";
+    documents?: readonly string[];
+    exactDocuments: boolean;
+  },
 ): Promise<unknown> {
-  const options = step.documents ? { documents: step.documents } : {};
+  const options = step.documents
+    ? { documents: step.documents, exactDocuments: step.exactDocuments }
+    : {};
   const flag = (after: number) =>
     valueAfter(args.slice(after), "--selector") ?? valueAfter(args.slice(after), "--into");
   if (command === "js") {
@@ -106,7 +115,7 @@ async function act(
             { frame },
           );
         });
-      assertDocument(href, step.documents, "the script was not run");
+      assertDocument(href, step.documents, "the script was not run", step.exactDocuments);
     }
     return actions.evaluate(code, { frame, world });
   }
@@ -255,11 +264,17 @@ export async function bindsOverCdp(
  * life of the session: a frame that navigates (a submit, a redirect) is still the frame the
  * caller meant, and a URL is never matched again against whatever frame holds it later.
  */
-async function pinnedFrame(actions: CdpActions, pins: Map<string, string>, frame: string) {
-  const pinned = pins.get(frame);
+async function pinnedFrame(
+  actions: CdpActions,
+  pins: Map<string, string>,
+  frame: string,
+  match?: "origin_path",
+) {
+  const address = JSON.stringify([frame, match ?? "exact"]);
+  const pinned = pins.get(address);
   if (pinned === undefined) {
-    const frameId = await actions.frameId(frame);
-    pins.set(frame, frameId);
+    const frameId = await actions.frameId(frame, match);
+    pins.set(address, frameId);
     return frameId;
   }
   try {
@@ -292,9 +307,15 @@ export async function runStepInFrame(
   let value: unknown;
   let frameId: string | undefined;
   try {
-    frameId = await pinnedFrame(actions, pins, frame);
+    frameId = await pinnedFrame(
+      actions,
+      pins,
+      frame,
+      typeof step.frame === "string" ? undefined : step.frame.match,
+    );
     value = await act(actions, command, args, frameId, {
       effect,
+      exactDocuments: typeof step.frame !== "string" && step.frame.match === "origin_path",
       ...(documents ? { documents } : {}),
     });
     // evaluate() has no element settlement, but its script may also open a dialog.

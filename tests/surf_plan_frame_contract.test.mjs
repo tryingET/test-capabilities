@@ -21,6 +21,38 @@ const { approvalTokenFor } = await importRuntimeModule("core/surf-plan.js");
 const { planFromSession } = await importRuntimeModule("core/surf-plan-probe.js");
 const { createApplyRunner } = await importRuntimeModule("core/surf-apply-runner.js");
 const { createRunContext } = await importRuntimeModule("core/run-context.js");
+const { SurfSession } = await importRuntimeModule("core/surf-session.js");
+const { frameOriginPath } = await importRuntimeModule("core/frame-address.js");
+
+test("frame addressing does not require URL.parse (absent on supported Node 22.0)", () => {
+  const parse = URL.parse;
+  try {
+    URL.parse = undefined;
+    assert.equal(frameOriginPath("https://pay.example/form?token=one"), "https://pay.example/form");
+    assert.equal(frameOriginPath("not a URL"), undefined);
+  } finally {
+    URL.parse = parse;
+  }
+});
+
+test("a frame navigating to another address during the plan probe cannot produce a plan", async () => {
+  const session = {
+    url: "https://shop.example/",
+    readiness: { state: "ready", evidence: [] },
+    runtime: { resolution: { provider: "fake" }, probe: {} },
+    step: async () => ({
+      href: "https://evil.example/form",
+      fields: [],
+      controls: [],
+      formCount: 0,
+      frameCount: 0,
+    }),
+  };
+  await assert.rejects(
+    planFromSession(session, { fields: [], frame: "https://pay.example/form" }),
+    { code: "action_document_changed" },
+  );
+});
 
 const SHOP = "https://shop.example/checkout";
 const PAY = "https://pay.example/form";
@@ -89,6 +121,34 @@ function cdpTree() {
 }
 
 const FIELDS = ["label:Card number=4242", "label:Country=fr"];
+
+for (const href of [`${PAY}?other=token`, `${PAY}#changed`]) {
+  test(`a read-back from a transiently different document is refused (${href})`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out }) => {
+      const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+      await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+      tree.frames[0].readbackHref = href;
+      await assert.rejects(apply({ plan: out, config }), { code: "fill_side_effect_observed" });
+      assert.deepEqual(cdp.values, { "#card": "4242" });
+      assert.equal(tree.frames[0].url, PAY, "later observation would see the original URL again");
+    });
+  });
+}
+
+test("a submit may be verified by a fragment change only after the click, using the full run URL", async () => {
+  await withFakes(async ({ tree, dir, out }) => {
+    const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    tree.frames[0].elements["#pay"].navigatesTo = `${PAY}#paid`;
+    const result = await apply({
+      plan: out,
+      submit: true,
+      confirmPlan: readPlan(out).approval_token,
+      config,
+    });
+    assert.equal(result.result.submitted, true);
+  });
+});
 
 function writeConfig(dir, allowOrigins) {
   const file = path.join(dir, "tc.yaml");
@@ -159,13 +219,195 @@ const verbs = (surf) =>
     .filter((call) => call[1] !== TAB_PROOF)
     .map((call) => call[0])
     .filter((command) => !command.startsWith("--"));
-const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
+test("frame origin+path accepts only HTTP(S), strips token and fragment, and keeps exact path", () => {
+  assert.equal(frameOriginPath("https://PAY.example:443/form?a=one#x"), PAY);
+  for (const invalid of ["f1", "about:blank", "file:///form"])
+    assert.equal(frameOriginPath(invalid), undefined);
+});
+
+for (const suffix of ["?session=three", "?session=two#changed"]) {
+  test(`a run freezes its full document and never rebinds (${suffix})`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out }) => {
+      await plan({ url: SHOP, field: FIELDS, frame: PAY, out });
+      const planned = readPlan(out);
+      const context = createRunContext({
+        operationId: "surf.apply",
+        effect: { effect: "mutating", scope: "target", reason: "test apply" },
+        env: {
+          ...process.env,
+          TEST_CAPABILITIES_RECEIPTS_DIR: dir,
+          TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+        },
+        config: { mutation: { allowOrigins: ["https://shop.example", "https://pay.example"] } },
+      });
+      const session = new SurfSession({ context, url: SHOP, idPrefix: "test.binding" });
+      try {
+        await session.open();
+        await session.gate();
+        tree.frames[0].url = `${PAY}?session=two`;
+        const runner = createApplyRunner(session, session.readiness, {
+          context,
+          plan: planned,
+          mode: "fill",
+        });
+        assert.equal(runner.documentHref, undefined);
+        assert.deepEqual((await runner.fingerprint()).drift, []);
+        assert.equal(runner.documentHref, `${PAY}?session=two`);
+        tree.frames[0].url = `${PAY}${suffix}`;
+        assert.match((await runner.fingerprint()).drift.join(";"), /url/);
+        assert.equal(runner.documentHref, `${PAY}?session=two`);
+        await assert.rejects(runner.setValue("f1"), { code: "action_document_changed" });
+        assert.deepEqual(cdp.values, {});
+        assert.deepEqual(cdp.input, []);
+        tree.frames[0].url = "https://evil.example/form";
+        assert.ok((await runner.fingerprint()).drift.includes("frame origin+path changed"));
+      } finally {
+        await session.close();
+      }
+    });
+  });
+}
+
+for (const navigates of [false, true]) {
+  test(`tokenized frames bind origin+path across runs, with an exact run baseline (navigates=${navigates})`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out }) => {
+      const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+      tree.frames[0].url = `${PAY}?session=one`;
+      await plan({ url: SHOP, field: FIELDS, frame: `${PAY}?session=old#fragment`, out, config });
+      const first = readPlan(out);
+      assert.deepEqual(first.target.frame, {
+        url: PAY,
+        origin: "https://pay.example",
+        landed_href: `${PAY}?session=one`,
+        match: "origin_path",
+      });
+      tree.frames[0].url = `${PAY}?session=two`;
+      await plan({ url: SHOP, field: FIELDS, frame: PAY, out: `${out}.new`, config });
+      assert.equal(readPlan(`${out}.new`).approval_token, first.approval_token);
+      if (!navigates) delete tree.frames[0].elements["#pay"].navigatesTo;
+      const applying = apply({
+        plan: out,
+        submit: true,
+        confirmPlan: first.approval_token,
+        config,
+      });
+      if (navigates) assert.equal((await applying).result.submitted, true);
+      else await assert.rejects(applying, { code: "submit_postcondition_unmet" });
+      assert.deepEqual(cdp.values, { "#card": "4242", "#country": "fr" });
+      const submit = receiptsIn(dir).find((entry) => entry.details.mode === "submit");
+      assert.equal(submit.outcome, navigates ? "applied" : "unknown");
+      assert.equal(submit.details.submit.post_condition.expected, `${PAY}?session=two`);
+      assert.equal(cdp.clicks.length, 1);
+    });
+  });
+}
+
+test("two frames at one origin+path are ambiguous even when one has the old exact URL", async () => {
+  await withFakes(async ({ cdp, tree, dir, out }) => {
+    const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    const other = structuredClone(tree.frames[0]);
+    other.url = `${PAY}?session=other`;
+    other.owner.backendNodeId = 51;
+    tree.frames.push(other);
+    await assert.rejects(apply({ plan: out, config }), { code: "action_frame_ambiguous" });
+    assert.deepEqual(cdp.values, {});
+    assert.deepEqual(cdp.input, []);
+  });
+});
+
+for (const changed of ["https://evil.example/form", "https://pay.example/form-extra"]) {
+  test(`origin+path is exact, not a prefix: ${changed}`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out }) => {
+      const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+      await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+      tree.frames[0].url = changed;
+      await assert.rejects(apply({ plan: out, config }), { code: "action_frame_unknown" });
+      assert.deepEqual(cdp.input, []);
+    });
+  });
+}
+
+test("query changes after the run binds its frame are not allowed to reach a later field", async () => {
+  await withFakes(async ({ cdp, tree, dir, out }) => {
+    const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    tree.frames[0].url = `${PAY}?session=two`;
+    tree.frames[0].elements["#card"].inputNavigatesTo = `${PAY}?session=three`;
+    await assert.rejects(apply({ plan: out, config }), { code: "fill_side_effect_observed" });
+    assert.deepEqual(cdp.values, { "#card": "4242" });
+    assert.deepEqual(cdp.clicks, []);
+  });
+});
+
+test("legacy frame plans keep exact URL matching and their original token content", async () => {
+  await withFakes(async ({ cdp, tree, dir, out }) => {
+    const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    const legacy = readPlan(out);
+    delete legacy.target.frame.match;
+    legacy.approval_token = approvalTokenFor(legacy);
+    writeFileSync(out, JSON.stringify(legacy));
+    tree.frames[0].url = `${PAY}?session=two`;
+    await assert.rejects(apply({ plan: out, config }), { code: "action_frame_unknown" });
+    assert.deepEqual(cdp.input, []);
+    tree.frames[0].url = PAY;
+    assert.equal(
+      (await apply({ plan: out, config })).result.fields.every((field) => field.matched),
+      true,
+    );
+  });
+});
+
+test("frame schema and approval bind matching mode, canonical origin+path, and landing", async () => {
+  await withFakes(async ({ cdp, dir, out }) => {
+    const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
+    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    const original = readPlan(out);
+    for (const mode of [undefined, "exact"]) {
+      const edited = structuredClone(original);
+      edited.target.frame.match = mode;
+      assert.notEqual(approvalTokenFor(edited), original.approval_token);
+    }
+    for (const change of [
+      (p) => {
+        p.target.frame.url += "?session=forged";
+      },
+      (p) => {
+        p.target.frame.landed_href = p.fingerprint.url = "https://evil.example/form";
+      },
+      (p) => {
+        p.target.frame.landed_href = p.fingerprint.url = `${PAY}/other`;
+      },
+    ]) {
+      const edited = structuredClone(original);
+      change(edited);
+      writeFileSync(out, JSON.stringify(edited));
+      await assert.rejects(apply({ plan: out, config }), { code: "config_invalid" });
+    }
+    const changedPath = structuredClone(original);
+    changedPath.target.frame.url =
+      changedPath.target.frame.landed_href =
+      changedPath.fingerprint.url =
+        `${PAY}/other`;
+    assert.notEqual(approvalTokenFor(changedPath), original.approval_token);
+    const changedOrigin = structuredClone(original);
+    changedOrigin.target.frame.url =
+      changedOrigin.target.frame.landed_href =
+      changedOrigin.fingerprint.url =
+        "https://evil.example/form";
+    changedOrigin.target.frame.origin = "https://evil.example";
+    assert.notEqual(approvalTokenFor(changedOrigin), original.approval_token);
+    assert.deepEqual(cdp.input, []);
+  });
+});
 
 test("surf plan --frame reads a form in a cross-origin frame and binds the plan to that frame", async () => {
   await withFakes(async ({ surf, cdp, out }) => {
     const envelope = await plan({ url: SHOP, field: FIELDS, frame: PAY, out });
     const written = readPlan(out);
     assert.deepEqual(written.target.frame, {
+      match: "origin_path",
       url: PAY,
       origin: "https://pay.example",
       landed_href: PAY,
@@ -192,6 +434,7 @@ test("surf plan --frame reads a form in a cross-origin frame and binds the plan 
     const { frame: _frame, ...topTarget } = written.target;
     assert.notEqual(approvalTokenFor({ ...written, target: topTarget }), written.approval_token);
     assert.deepEqual(envelope.result.target.frame, {
+      match: "origin_path",
       url: PAY,
       origin: "https://pay.example",
       landedHref: PAY,
@@ -419,7 +662,7 @@ test("a frame that moves to the page's own URL while filling is a side effect, n
       await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
       await assert.rejects(apply({ plan: out, config }), {
         code: "fill_side_effect_observed",
-        message: /navigated to https:\/\/shop\.example\/checkout/,
+        message: /read-back.*different document URL/,
       });
       assert.deepEqual(cdp.values, { "#card": "4242" }, "nothing after the move was set");
     },
@@ -440,7 +683,7 @@ test("a plan's recorded landing is its fingerprint's: a forged baseline is refus
       code: "config_invalid",
       message: /landed_href/,
     });
-    // moved together with the fingerprint: the live frame is not there, so the plan is stale
+    // moved together with the fingerprint: the address-bound schema now refuses it outright
     const both = structuredClone(planned);
     both.target.frame.landed_href = PAID;
     both.fingerprint.url = PAID;
@@ -448,8 +691,8 @@ test("a plan's recorded landing is its fingerprint's: a forged baseline is refus
     await assert.rejects(
       apply({ plan: out, submit: true, confirmPlan: both.approval_token, config }),
       {
-        code: "plan_stale",
-        message: /url https:\/\/pay\.example\/paid -> https:\/\/pay\.example\/form/,
+        code: "config_invalid",
+        message: /landed_href/,
       },
     );
     // a top-document plan's landing is held to its fingerprint the same way
@@ -468,6 +711,8 @@ test("every fill and the click name the documents the frame may hold; the reads 
     const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
     await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
     const planned = readPlan(out);
+    // Keep the legacy runner contract here; tokenized runs bind through fingerprint first.
+    delete planned.target.frame.match;
     // a stub session: it records every step and answers each script with its own marker
     const steps = [];
     const session = {
@@ -537,6 +782,7 @@ test("every origin the plan acts on is allowlisted: where the frame landed, and 
     const opened = verbs(surf).length;
     // the frame was named on pay.example and landed on another origin (a cross-origin redirect)
     const landed = readPlan(out);
+    delete landed.target.frame.match; // legacy redirect plans retain the original allowlist checks
     landed.target.frame.landed_href = "https://psp.example/form";
     landed.fingerprint.url = "https://psp.example/form";
     writeFileSync(out, JSON.stringify(landed));

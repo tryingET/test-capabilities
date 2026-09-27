@@ -187,6 +187,8 @@ export const CDP_ACTION_ERROR_CODES = [
   "action_target_obscured",
   /** the named frame is not one of the owned tab's out-of-process frames */
   "action_frame_unknown",
+  /** more than one child frame has the addressed origin+path; none was guessed */
+  "action_frame_ambiguous",
   /** the select element offers no option with that value or label */
   "action_option_not_found",
   /** the expression threw in the page, or the element could not be acted on */

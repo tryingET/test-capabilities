@@ -33,6 +33,7 @@ import type {
   SubmitApplyRunner,
 } from "./browser-session.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement } from "./effects.js";
+import { frameOriginPath } from "./frame-address.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
 import { settleSurfAttempt } from "./surf-adapter.js";
@@ -139,6 +140,7 @@ export function evaluatePostCondition(
   condition: PostCondition,
   observation: ApplyObservation,
   startedFrom: string,
+  exactDocument = false,
 ): PostConditionResult {
   const href = observation.href;
   const base = { kind: condition.kind, expected: condition.expected, observed: href };
@@ -151,7 +153,12 @@ export function evaluatePostCondition(
   if (condition.kind === "text") {
     return { ...base, satisfied: observation.detail === "text-present" };
   }
-  return { ...base, satisfied: normalizeHref(href) !== normalizeHref(startedFrom) };
+  return {
+    ...base,
+    satisfied: exactDocument
+      ? href !== startedFrom
+      : normalizeHref(href) !== normalizeHref(startedFrom),
+  };
 }
 
 /**
@@ -172,19 +179,35 @@ export function createApplyRunner(
   // "where the page is" is where the frame is; a top-document plan on the DevTools channel runs
   // the same way in the page's own frame, `main` (AK #6157)
   const frame = plan.target.frame;
+  const normalizeDocument = (href: string) =>
+    frame?.match === "origin_path" ? href : normalizeHref(href);
   const target = frame?.url ?? (options.channel === "cdp" ? "main" : undefined);
-  const inFrame = target ? { frame: target } : {};
+  const address = frame?.match === "origin_path" ? { name: frame.url, match: frame.match } : target;
+  const inFrame = address ? { frame: address } : {};
+  let boundHref: string | undefined;
+  if (frame?.match === "origin_path") accepted.clear();
   // an act names the documents the frame may hold, checked on the element just before input:
   // a frame that swapped its document keeps its selectors (reads follow the frame wherever)
-  const actsInFrame = target ? { frame: { name: target, documents: [...accepted] } } : {};
-  const startedFrom = frame?.landed_href ?? plan.target.landed_href;
+  const actsInFrame = () =>
+    target
+      ? {
+          frame: {
+            name: target,
+            ...(frame?.match ? { match: frame.match } : {}),
+            documents: [...accepted],
+          },
+        }
+      : {};
+  let startedFrom = frame?.landed_href ?? plan.target.landed_href;
   const controlEnableTimeoutMs =
     options.controlEnableTimeoutMs ?? context.config.surf.submit.controlEnableTimeoutMs;
   const postconditionTimeoutMs =
     options.postconditionTimeoutMs ?? context.config.surf.submit.postconditionTimeoutMs;
-  const postCondition: PostCondition = options.postCondition ?? {
-    kind: "left_url",
-    expected: startedFrom,
+  const postCondition: PostCondition = {
+    ...(options.postCondition ?? {
+      kind: "left_url",
+      expected: startedFrom,
+    }),
   };
   let submitConsumed = false;
 
@@ -224,7 +247,7 @@ export function createApplyRunner(
       return;
     }
     const href = isRecord(parsed) && typeof parsed.url === "string" ? parsed.url : undefined;
-    if (href !== undefined && !accepted.has(normalizeHref(href))) {
+    if (href !== undefined && !accepted.has(normalizeDocument(href))) {
       throw sideEffect(field, `setting it navigated the tab to ${href}`);
     }
   };
@@ -255,6 +278,9 @@ export function createApplyRunner(
     });
 
     const boolean = isBooleanControl(field.control);
+    if (frame?.match === "origin_path" && answer.href !== boundHref) {
+      throw sideEffect(field, "the field read-back came from a different document URL");
+    }
     const actual = boolean ? String(answer.checked === true) : ((answer.value as string) ?? "");
     return {
       id: field.id,
@@ -319,6 +345,9 @@ export function createApplyRunner(
 
   const base: ApplyRunner = {
     planId: plan.plan_id,
+    get documentHref() {
+      return frame?.match === "origin_path" ? boundHref : startedFrom;
+    },
     mode,
     readiness,
     get tab(): OwnedTab | undefined {
@@ -333,9 +362,26 @@ export function createApplyRunner(
         randomUUID(),
         driftProbeRequestFor(plan),
         `check the page still matches plan ${plan.plan_id} before anything is typed`,
-        target,
+        address,
       );
-      return { drift: fingerprintDrift(plan.fingerprint, fingerprintFromAnswer(plan, answer)) };
+      const actual = fingerprintFromAnswer(plan, answer);
+      const expected =
+        frame?.match === "origin_path"
+          ? { ...plan.fingerprint, url: boundHref ?? actual.url }
+          : plan.fingerprint;
+      const drift = fingerprintDrift(expected, actual);
+      if (frame?.match === "origin_path") {
+        if (frameOriginPath(actual.url) !== frame.url) drift.push("frame origin+path changed");
+        if (boundHref !== undefined && actual.url !== boundHref)
+          drift.push("frame document url changed");
+        if (drift.length === 0 && boundHref === undefined) {
+          boundHref = actual.url;
+          accepted.add(boundHref);
+          startedFrom = boundHref;
+          if (postCondition.kind === "left_url") postCondition.expected = boundHref;
+        }
+      }
+      return { drift };
     },
 
     async setValue(fieldId: string): Promise<void> {
@@ -362,7 +408,7 @@ export function createApplyRunner(
       calls.push(redactedCall(command, field.resolved_selector));
 
       await session.step<SessionReply>({
-        ...actsInFrame,
+        ...actsInFrame(),
         id: `surf.apply.field:${plan.plan_id}:${field.id}`,
         command,
         args,
@@ -428,7 +474,7 @@ export function createApplyRunner(
         { plan_id: plan.plan_id, control: control.selector },
       );
     }
-    if (observation.href !== undefined && !accepted.has(normalizeHref(observation.href))) {
+    if (observation.href !== undefined && !accepted.has(normalizeDocument(observation.href))) {
       // a page (or a frame) that moved may carry the same selectors in another document: the
       // control there is not the one the plan reviewed, and a click would be a guess
       throw new FrameworkError(
@@ -468,6 +514,10 @@ export function createApplyRunner(
    */
   const submitRunner: SubmitApplyRunner = {
     ...base,
+    // Object spread takes a getter's current value; preserve the live binding here.
+    get documentHref() {
+      return base.documentHref;
+    },
     async clickSubmit() {
       if (submitConsumed) {
         throw new FrameworkError(
@@ -498,7 +548,7 @@ export function createApplyRunner(
 
       calls.push(redactedCall("click", control.selector));
       await session.step<SessionReply>({
-        ...actsInFrame,
+        ...actsInFrame(),
         id: `surf.apply.submit:${plan.plan_id}`,
         command: "click",
         args: ["--selector", control.selector, "--no-screenshot"],
@@ -524,7 +574,12 @@ export function createApplyRunner(
           const deadline = Date.now() + postconditionTimeoutMs;
           for (;;) {
             observed = await observe();
-            result = evaluatePostCondition(postCondition, observed, startedFrom);
+            result = evaluatePostCondition(
+              postCondition,
+              observed,
+              startedFrom,
+              frame?.match === "origin_path",
+            );
             if (result.satisfied || Date.now() >= deadline) {
               break;
             }

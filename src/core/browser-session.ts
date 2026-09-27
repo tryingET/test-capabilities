@@ -102,7 +102,7 @@ export interface BrowserStep<T> {
    * `type`, `select` and `click` have a frame form. `{ name, documents }` also names the
    * documents the frame must hold when the step acts; anything else is refused before input.
    */
-  frame?: string | { name: string; documents: readonly string[] };
+  frame?: string | { name: string; match?: "origin_path"; documents?: readonly string[] };
   /** one line: what this step is for; it is rendered in receipts and refusals */
   intent: string;
   /**
@@ -236,6 +236,8 @@ export interface ApplyObservation {
  */
 export interface ApplyRunner {
   readonly planId: string;
+  /** Full document URL frozen by this run's first successful fingerprint check. */
+  readonly documentHref?: string | undefined;
   readonly mode: ApplyMode;
   readonly readiness: SessionReadiness | undefined;
   readonly tab: OwnedTab | undefined;

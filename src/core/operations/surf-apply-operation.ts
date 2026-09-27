@@ -272,7 +272,11 @@ async function applyChannelFor(
   return "surf";
 }
 
-function postConditionFor(plan: SurfPlan, input: NormalizedSurfApplyOperationInput): PostCondition {
+function postConditionFor(
+  plan: SurfPlan,
+  input: NormalizedSurfApplyOperationInput,
+  documentHref?: string,
+): PostCondition {
   if (input.untilUrlPrefix !== undefined) {
     return { kind: "url_prefix", expected: input.untilUrlPrefix };
   }
@@ -280,7 +284,10 @@ function postConditionFor(plan: SurfPlan, input: NormalizedSurfApplyOperationInp
     return { kind: "text", expected: input.untilText };
   }
   // a form in a frame leaves where the frame was, never the page around it
-  return { kind: "left_url", expected: plan.target.frame?.landed_href ?? plan.target.landed_href };
+  return {
+    kind: "left_url",
+    expected: documentHref ?? plan.target.frame?.landed_href ?? plan.target.landed_href,
+  };
 }
 
 /** Every field, in the plan's order: set it, read it back, and look at what the page did. */
@@ -314,7 +321,7 @@ async function assertNoSideEffect(runner: ApplyRunner, plan: SurfPlan): Promise<
     );
   }
   const href = observation.href;
-  if (href !== undefined && !isAcceptedHref(href, plan)) {
+  if (href !== undefined && !isAcceptedHref(href, plan, runner.documentHref)) {
     throw new FrameworkError(
       "fill_side_effect_observed",
       `The page navigated to ${href} while filling plan ${plan.plan_id}; nothing was clicked. A form whose change handlers act on their own is a finding, not a passed dry run.`,
@@ -330,7 +337,10 @@ async function assertNoSideEffect(runner: ApplyRunner, plan: SurfPlan): Promise<
   }
 }
 
-function isAcceptedHref(href: string, plan: SurfPlan): boolean {
+function isAcceptedHref(href: string, plan: SurfPlan, documentHref?: string): boolean {
+  if (plan.target.frame?.match === "origin_path") {
+    return documentHref !== undefined && href === documentHref;
+  }
   return acceptedHrefs(plan).has(normalizeHref(href));
 }
 
@@ -452,7 +462,9 @@ async function runSurfApplyOperation(
           status: plan.submit.status,
           ...(plan.submit.control ? { control: plan.submit.control.selector } : {}),
           clicked: submitted === true,
-          ...(mode === "submit" ? { postCondition: postConditionFor(plan, normalized) } : {}),
+          ...(mode === "submit"
+            ? { postCondition: postConditionFor(plan, normalized, runner?.documentHref) }
+            : {}),
         },
         surfCalls: runner ? [...runner.surfCalls()] : [],
         channel,

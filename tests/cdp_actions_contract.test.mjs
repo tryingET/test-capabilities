@@ -96,8 +96,7 @@ function page() {
   };
 }
 
-async function open(t, options = {}) {
-  const tree = page();
+async function open(t, options = {}, tree = page()) {
   const fake = await startFakeCdp({ pages: { P1: { url: URL_UNDER_TEST, tree } } });
   const actions = await openCdpActions(
     URL_UNDER_TEST,
@@ -117,6 +116,22 @@ async function open(t, options = {}) {
 /** Commands that would create, navigate or close something; actions never send one. */
 const FORBIDDEN =
   /^(Page\.navigate|Page\.reload|Target\.createTarget|Target\.closeTarget|Emulation\.)/;
+
+test("origin+path resolves nested and same-process frames, never the page or an invalid address", async (t) => {
+  const tree = page();
+  const frames = [tree.frames[0], tree.frames[0].frames[0], tree.sameProcess[0]];
+  for (const frame of frames) frame.url += "?token=new";
+  const { actions } = await open(t, {}, tree);
+  for (const frame of frames) {
+    const address = frame.url.split("?")[0];
+    assert.equal(await actions.frameId(address, "origin_path"), await actions.frameId(frame.url));
+  }
+  for (const absent of [URL_UNDER_TEST, "f1", "about:blank"]) {
+    await assert.rejects(async () => actions.frameId(absent, "origin_path"), {
+      code: "action_frame_unknown",
+    });
+  }
+});
 
 test("a click is real input at the element's centre, and lands on it", async (t) => {
   const { fake, actions, ref } = await open(t);
