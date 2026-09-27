@@ -262,6 +262,10 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
   const main = await connection.send<{ nodes: AxRawNode[] }>("Accessibility.getFullAXTree");
   const forest: AxFrameTree[] = [{ frame: "main", url: "", nodes: main.nodes }];
   const sessions: Record<string, string | undefined> = { main: undefined };
+  // No iframe node, no out-of-process frame to wait for: the settle cost ~250 ms on every read.
+  if (!main.nodes.some((node) => node.role?.value === "Iframe")) {
+    return { forest, sessions };
+  }
   const autoAttach = (on: boolean, sessionId?: string) =>
     connection.send(
       "Target.setAutoAttach",

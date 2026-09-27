@@ -90,6 +90,9 @@ const SESSION_TAB_SCOPED_COMMANDS = new Set([
   "click",
 ]);
 
+/** surf screenshots after these; off screen each capture waits 5 s (2026-09-27 tooling bench). */
+const SESSION_SCREENSHOTTING_COMMANDS = new Set(["js", "type", "click"]);
+
 /** Read-only commands that address no tab at all; the packet exempts them from the rule. */
 const SESSION_UNTARGETED_COMMANDS = new Set(["tab.list"]);
 
@@ -345,6 +348,9 @@ export class SurfSession implements Session {
     }
     const declaration = this.declarationFor(step);
     const args = this.targetArgs(step.command, step.args ?? [], declaration);
+    if (SESSION_SCREENSHOTTING_COMMANDS.has(step.command) && !args.includes("--no-screenshot")) {
+      args.push("--no-screenshot");
+    }
     this.assertScriptDeclarationHonest(step.command, args, declaration);
 
     return this.runLedgerStep<T>({

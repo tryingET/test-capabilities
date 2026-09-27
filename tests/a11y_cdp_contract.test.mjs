@@ -120,6 +120,38 @@ test("frames attach recursively as flattened sessions, and every session is deta
   );
 });
 
+test("a page whose tree has no iframe is read without attaching or waiting for frames", async (t) => {
+  // the frame settle cost ~250 ms per read on every page (docs/project/2026-09-27-browser-tooling-bench.md)
+  const releases = capture("releases");
+  const fake = await startFakeCdp({
+    pages: { P1: { url: releases.url, tree: treeFromCapture(releases) } },
+  });
+  t.after(() => fake.close());
+  const started = performance.now();
+  const live = await openA11yLiveView(releases.url, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url });
+  const elapsed = performance.now() - started;
+  const beforeClose = [...fake.methods];
+  await live.close();
+  assert.ok(live.view.refs.e1, "the tree was read");
+  assert.deepEqual(
+    beforeClose.filter((m) => m.startsWith("Target.")),
+    [],
+    "no frame attach was needed",
+  );
+  assert.ok(elapsed < 200, `read took ${Math.round(elapsed)} ms`);
+
+  // a page with an iframe node still waits for, and reads, its out-of-process frames
+  const withFrames = await startFakeCdp({
+    pages: { P1: { url: LOCAL_URL, tree: treeFromCapture(LOCAL) } },
+  });
+  t.after(() => withFrames.close());
+  const framed = await openA11yLiveView(LOCAL_URL, {
+    TEST_CAPABILITIES_CDP_ENDPOINT: withFrames.url,
+  });
+  await framed.close();
+  assert.match(framed.snapshot, /button "Play"/);
+});
+
 test("the check reader gives the evaluator real visible/text/attr readings, in-frame too", async (t) => {
   const tree = treeFromCapture(LOCAL);
   const playNode = tree.frames[0].nodes.find((node) => node.name?.value === "Play");

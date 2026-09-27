@@ -6,7 +6,7 @@
     "src/core/orchestrator.ts": 1722,
     "src/core/surf-runtime.ts": 859,
     "src/healing/self-healing.ts": 1192,
-    "src/core/surf-session.ts": 740
+    "src/core/surf-session.ts": 746
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -135,7 +135,7 @@
       "file": "src/core/surf-runtime.ts",
       "from": 821,
       "to": 845,
-      "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet \u00a78; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
+      "reason": "slice S7, from the live dogfood: `--no-screenshot` is accepted and forwarded for `type`, `select`, `click` and `js`. The surf build saves a screenshot of the page to /tmp after every value-setting verb and after every `js` call, which is a copy of the value that was just typed, outside the 0600 artifacts the packet's A10 rule is about (submit-gate packet §8; measured live 2026-09-08: four screenshots per fill run before the flag, none after). Twenty-four lines: the flag constant, one helper, and one bool-flag plus passthrough per verb. Scheduled shrink: the argv translation table moves behind the adapter's translate() seam once a second adapter needs one.",
       "ref": "a9dce1d"
     },
     {
@@ -221,6 +221,13 @@
       "to": 740,
       "reason": "AK #5915: page.read joins the tab-scoped commands, so the a11y read happens in the owned tab like every other read.",
       "ref": "AK #5915"
+    },
+    {
+      "file": "src/core/surf-session.ts",
+      "from": 740,
+      "to": 746,
+      "reason": "AK #6048: every session js/type/click step carries --no-screenshot; surf's capture otherwise waits out a 5 s timeout with the window off screen (evaluate 5.6 s -> 55 ms live, docs/project/2026-09-27-browser-tooling-bench.md).",
+      "ref": "AK #6048"
     }
   ]
 }

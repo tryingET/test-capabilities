@@ -279,7 +279,9 @@ test("a step that names another tab is refused; one that names the owned tab pas
     await session.step({ ...TITLE_STEP, args: ["document.title", "--tab-id", "100"] });
     const jsCalls = fake.calls().filter((call) => call[0] === "js");
     assert.equal(jsCalls.length, 1);
-    assert.deepEqual(jsCalls[0].slice(-3), ["--tab-id", "100", "--json"]);
+    const tabAt = jsCalls[0].indexOf("--tab-id");
+    assert.deepEqual(jsCalls[0].slice(tabAt, tabAt + 2), ["--tab-id", "100"]);
+    assert.equal(jsCalls[0].filter((arg) => arg === "--tab-id").length, 1);
   });
 });
 
@@ -289,6 +291,22 @@ test("the session points every step at the tab it owns without being asked", asy
     const jsCall = fake.calls().find((call) => call[0] === "js");
     assert.ok(jsCall.includes("--tab-id"));
     assert.equal(jsCall[jsCall.indexOf("--tab-id") + 1], "100");
+  });
+});
+
+test("a step surf would screenshot after carries --no-screenshot, exactly once", async () => {
+  // surf saves a screenshot after js/type/click; with the window off screen each capture waits
+  // out a 5 s timeout (docs/project/2026-09-27-browser-tooling-bench.md), and the image persists
+  // what the page showed. A session never asks for it.
+  await withSession({ gate: true }, async ({ session, fake }) => {
+    await session.evaluate("document.title", READ_ONLY_JS);
+    await session.step(TITLE_STEP);
+    await session.step({ ...TITLE_STEP, args: ["document.title", "--no-screenshot"] });
+    const jsCalls = fake.calls().filter((call) => call[0] === "js");
+    assert.equal(jsCalls.length, 3);
+    for (const call of jsCalls) {
+      assert.equal(call.filter((arg) => arg === "--no-screenshot").length, 1, call.join(" "));
+    }
   });
 });
 

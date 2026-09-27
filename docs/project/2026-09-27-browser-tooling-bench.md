@@ -44,9 +44,9 @@ What the numbers say:
 1. **surf's cost is its screenshot, not surf.** Every value-setting verb and `js` captures a
    screenshot; with no window on screen the capture waits for its 5 s timeout
    (`SCREENSHOT_TIMEOUT_MS=5e3` in the extension). Measured per verb: `js` 5 626 ms ->
-   **55 ms** with `--no-screenshot`, `click` 5 752 -> 180 ms, `type` 775 -> 70 ms. Our own
-   `Session.evaluate` (`src/core/surf-session.ts`) sends `js` without the flag today, so every
-   evaluate step of a run pays it.
+   **55 ms** with `--no-screenshot`, `click` 5 752 -> 180 ms, `type` 775 -> 70 ms. Our
+   production callers (explore probes, plan probe, apply runner) already passed the flag;
+   `SurfSession.step`/`evaluate` did not, so a library caller or a new step paid it.
 2. **Our reader spends ~250 ms waiting for frames** (`FRAME_SETTLE_MS`) even on pages with none;
    255 ms in-process on a 7-node page.
 3. **agent-browser is the fastest CLI** and reaches cross-origin frames, but **#1986 is not fixed**
@@ -81,3 +81,16 @@ What the numbers say:
 Not proposed: playwright-cli (slowest per call), dev-browser as a harness dependency (its speed
 comes from one script per step, which B gives without a daemon and a 167 MiB download; it stays a
 good interactive tool for an agent exploring a site).
+
+## Proposal A, applied (AK #6048, 2026-09-27)
+
+- `SurfSession.step` appends `--no-screenshot` to every `js`, `type` and `click` it sends (once,
+  also when the caller passed it). Live, `SurfSession.evaluate` x5 on the form page, same browser
+  state, old build then new: before 661 / 3 301 / 5 628 / 5 625 / 5 625 ms, after 50-57 ms.
+- `readAxForest` returns without attaching or waiting when the page's tree has no `Iframe` node.
+  Live, in-process, open + read + close: form page 255 -> 4 ms, GitHub releases 316 -> 65 ms; the
+  page with out-of-process frames is unchanged (507 ms, frame read, `button "Play"` present).
+- `surf explore --a11y-snapshot=required`, 3 runs each, old -> new build: form page 807 -> 565 ms,
+  frame page 1 070 -> 1 110 ms (noise); digests identical old vs new on both pages.
+- Next for frame pages: stop waiting once every `Iframe` node's frame has attached, instead of a
+  fixed settle.
