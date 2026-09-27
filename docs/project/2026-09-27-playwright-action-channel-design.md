@@ -104,3 +104,33 @@ Same owned tab of Chromium (Agent), same pages, same verbs as section 4, median 
 - page targets before and after (no stray tabs);
 - clicks and reads inside a cross-origin frame; trusted input;
 - footprint and governance (license, who controls it, protocol: CDP or W3C BiDi).
+
+## 8. Comparison, measured 2026-09-27
+
+Chromium (Agent) 153, median of 7 per verb. surf, our CDP actions and Playwright ran in one run
+on the same owned tab; Vibium (26.8.21, Apache-2.0, WebDriver BiDi through chromedriver
+153.0.8010.47 from the Arch chromium package) ran on a page of its own (see below):
+
+| verb | surf CLI | own CDP (`openCdpActions`) | Playwright | Vibium |
+|---|---|---|---|---|
+| readiness / `js` read | 57-59 ms | 0-1 ms | 0-1 ms | 1 ms |
+| type | 72 ms | 2 ms | 5 ms | 6 ms |
+| select | 67 ms | 1 ms | 4 ms | 5 ms |
+| click | 192 ms | 14 ms | 25 ms | 59 ms |
+| click in a cross-origin frame | 191 ms | 10 ms | 26 ms | 60 ms |
+| read inside that frame | refuses | 0 ms | 3 ms | 1 ms |
+| attaches to the owned tab of the running browser | yes | yes | yes | **no** |
+| stray targets | none | none | none | a hidden BiDi target while attached |
+| dependency / control | installed / nicobailon | none / us | npm / Microsoft | npm + chromedriver / VibiumDev |
+
+Vibium on the shared browser, measured: attaching goes through chromedriver's `debuggerAddress`;
+the attach turned the existing `chrome://newtab/` page into `about:blank` and added a hidden
+`other` target (the BiDi mapper); Vibium's `pages()` did not include the tab surf owns; and
+**`DELETE /session` shut Chromium (Agent) down** - every surf session and agent on it with it.
+Stopping chromedriver without ending the session leaves the browser up and removes the hidden
+target. Vibium fits a browser it launches itself (and Firefox, through BiDi), not a shared,
+logged-in agent browser.
+
+Result: our own CDP client is the fastest option that also works on the shared browser, with no
+dependency. It is a library entry point today; routing session steps through it stays behind the
+section 4 gate (1.35x on a whole explore run today).
