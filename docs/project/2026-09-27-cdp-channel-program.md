@@ -246,7 +246,14 @@ was fixed red-first:
    unaffected.
 
 The surf (top-document) click keeps one residual that the frame route no longer has: it cannot
-check its element's document just before input. Tests: 8 for plan and
+check its element's document just before input. Routing top-document acts over CDP as well is
+AK #6157, behind the action-channel gate.
+
+surf's own click is not affected by the input misrouting. It dispatches page-level too
+(`src/cdp/controller.ts`), but after `frame.switch` it landed in the out-of-process frame 10 of
+10 times in the same unpainted window. It awaits its `mouseMoved`, which takes about a second
+there, and that may be what gives the compositor its hit-test data; this was not measured. So
+nothing was filed upstream. Tests: 8 for plan and
 apply in a frame (fake surf plus a fake DevTools endpoint whose frame answers the real probe,
 read-back and observe scripts). The fake surf's DOM stub now lives in
 `tests/fixtures/stub-dom.mjs`, so both fakes run the same scripts against the same form model.
@@ -262,7 +269,12 @@ with the same declaration, ledger step and receipt; surf keeps the tab lifecycle
 gate. The action-channel gate decides whether it is on by default. The per-step form landed
 first; see "Order changed" above. Routing steps that name no frame stays with this gate.
 
-## 4. Done when
+## 4. Where it stands
+
+All four slices have landed: S1 (AK #6126), S2 (AK #6131), S4 (AK #6132) and S3 (AK #6145). The
+one open follow-up is AK #6157.
+
+## 5. Done when
 
 Each slice: design section updated with what was learned, red-first tests with mutation checks
 on the properties that matter, `npm run check` green, a live proof on Chromium (Agent), pushed
