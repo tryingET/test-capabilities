@@ -207,6 +207,8 @@ export const CDP_ACTION_ERROR_CODES = [
   "action_key_unknown",
   /** a session step named a frame, and its command has no frame form or its arguments are short */
   "action_frame_step_unsupported",
+  /** the element's (or the frame's) document is not one the step named; nothing was sent */
+  "action_document_changed",
 ] as const;
 
 /**

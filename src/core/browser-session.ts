@@ -99,9 +99,10 @@ export interface BrowserStep<T> {
   /**
    * A frame of the owned tab (URL, label or CDP frame id): the step runs there over the DevTools
    * connection instead of on surf, through the same ledger step (CDP program S4). Only `js`,
-   * `type`, `select` and `click` have a frame form.
+   * `type`, `select` and `click` have a frame form. `{ name, documents }` also names the
+   * documents the frame must hold when the step acts; anything else is refused before input.
    */
-  frame?: string;
+  frame?: string | { name: string; documents: readonly string[] };
   /** one line: what this step is for; it is rendered in receipts and refusals */
   intent: string;
   /**
@@ -175,6 +176,12 @@ export interface SessionPlanRequest {
   submitSelector?: string;
   /** the plan id the caller will file this artifact under; one is minted when absent */
   planId?: string;
+  /**
+   * The frame the form lives in, by URL (CDP program S3). Every read and every act of the plan
+   * and its apply run then happens in that frame over the DevTools connection; the page itself
+   * is still opened and gated by surf.
+   */
+  frame?: string;
 }
 
 /** What a caller hands `apply`: a plan to carry out, and how far it may go. */

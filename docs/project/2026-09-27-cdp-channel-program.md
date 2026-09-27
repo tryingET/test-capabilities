@@ -156,6 +156,105 @@ discovery, read-back and trusted input in the frame, with the submit gate unchan
 - **Gate:** plan and apply a form in a cross-origin frame live, receipts and read-backs as for a
   main-page form; nothing submitted without the gate.
 
+**S3 result (AK #6145).** `surf plan --frame <url>` (`SessionPlanRequest.frame`) runs the plan
+probe as a frame step. The plan records `target.frame` (`url`, `origin`, `landed_href`); its
+fingerprint is taken over the frame; its approval token binds the frame's URL, while a
+top-document plan's token is unchanged. The page's own `landed_href` and title still come from
+the readiness gate. `surf apply` then runs every step in the frame: the fingerprint, each value,
+each read-back, each observation and the one click, all through the same runner and ledger steps.
+`mutation.allowOrigins` has to name the frame's origin as well as the page's, and the refusal
+says which one is missing. The default `left_url` post-condition is judged against the frame's
+URL, never the page's. A field the named frame does not have is `plan_field_not_found` naming the
+frame, with no frame diagnosis. A frame that is not named by URL is refused, because its origin
+is what the allowlist judges.
+
+Four findings, three of them only visible live, each measured before the fix and each with a
+test that turns red without it:
+
+- **Page-level input does not reliably reach an out-of-process frame in an unpainted window.**
+  With the window on an unseen workspace, 4 of 10 page-level clicks on a button in an OOPIF
+  landed on the host's `<iframe>` element instead. Chromium routes input into an OOPIF by
+  hit-test data that a window painting no frames does not have. The same click sent on the
+  frame's own session, in the frame's coordinates, landed 10 of 10. S1 dispatched every pointer
+  event on the page session at page coordinates. It now dispatches on the session that hosts the
+  element, at the element's point in that session's coordinates, with held modifiers on the same
+  session, and the page-origin arithmetic is gone. The first live submit found this: the click
+  "succeeded", the form never submitted, and the receipt correctly settled `unknown`. After the
+  fix: 10 of 10 through `openCdpActions`, and the S1 page regression is unchanged (late 536 ms,
+  sliding 22, late-enabled 21, covered refused).
+- **A page-world `evaluate` in a same-process frame ran in the host's document.** It was sent
+  without a context. `Runtime.enable` reports one default context per frame before it answers
+  (measured: `auxData {frameId, isDefault: true}`, alongside surf's isolated world). The page
+  world of any frame is now that context, found by frame id and remade once when a navigation
+  destroys it. Live: a global set in the inner frame's page world is visible there and not in
+  its isolated world.
+- **A frame found by URL is lost when the frame navigates.** A submit that moves the frame
+  (`payform.html` -> `paid.html?...`) leaves no frame at the URL the plan named, so the
+  observation that verifies the submit could not find it. Measured: an OOPIF keeps its CDP frame
+  id across its own navigation. A session now pins each frame name to the frame id it first
+  resolves to; a pinned frame that is gone is refused by the caller's name, and never looked up
+  by URL again. Replies carry the `frameId`.
+- **Frame receipts named surf.** The class map's declaration reason ("surf type acts on the
+  target page") became the receipt's evidence for an act surf never ran. A frame step's
+  declaration now says "type acts on the target page, in frame <url> over the DevTools
+  connection", so every frame receipt names the frame and the channel.
+
+Live on Chromium 153 (Agent), window on an unseen workspace, through the CLI. The page is on
+`127.0.0.1` with the form in a `localhost` frame (out of process); the control is the same form
+as the top document. Three rounds:
+
+| Step | Frame form | Same form as top document |
+|---|---|---|
+| `surf plan` | 452-469 ms, submit identified, Save card forbidden | 467 ms |
+| apply, frame origin not allowlisted | refused before a tab opened, 90 ms | - |
+| apply (fill) | 594-607 ms, 2 fields read back, 2 receipts applied | 922 ms |
+| apply `--submit --confirm-plan` | 926-931 ms, receipt applied, verified by the frame reaching `paid.html` | 2330 ms |
+| the same submit again | `submit_already_attempted`, 93 ms | - |
+
+The receipts of both routes have the same keys, step ids, effects, scopes, outcomes and
+`verified_by`; the frame route's evidence adds the frame and the channel.
+
+**Review (three rounds, `openai-codex-2/gpt-6-astra`).** Every finding below was real, and each
+was fixed red-first:
+
+1. The stored `target.frame.origin` was trusted, but the approval token binds only the frame's
+   URL. An edited origin passed the allowlist while the acts landed elsewhere. The schema now
+   refuses a frame origin that is not its URL's.
+2. While a disabled submit waited to enable, nothing checked where the page or frame was. A
+   frame replaced by another document with the same selectors would have been clicked. The
+   runner now refuses to click when the observed URL is not one the plan read
+   (`submit_control_changed`), and for a frame plan only the frame's own URLs count.
+3. The operation passed the page's URL as the `left_url` baseline for a frame plan, and the
+   fill-time side-effect check accepted the page's URL inside the frame. Both now use the frame.
+4. The recorded landing was not bound. The schema now requires it to equal `fingerprint.url`,
+   and apply refuses a live URL that is not the fingerprint's, so a forged baseline goes
+   nowhere (live: `plan_stale`).
+5. The check-then-act gap between the last observation and the click: pinning keeps the frame,
+   not its document. Every fill and the click now name the documents the frame may hold. The
+   element's `ownerDocument` URL is read after it is actionable and immediately before any
+   input; anything else is `action_document_changed`, a refusal before input (live: 82 ms,
+   nothing sent, receipt `failed`). A script step that names documents reads the frame's URL
+   first. The window left is two CDP round trips.
+6. The transport re-parsed the session's `--tab-id`-extended argv and skipped flags, so a value
+   of `--into` swallowed `--selector` and the selector was typed as the text. A frame step now
+   gets the caller's own argv, read by position, with flags looked up only after the positional
+   words: `--into` is typed as `--into`.
+7. The allowlist judged the origin a frame was named by, not the one it landed on after a
+   cross-origin redirect. The same gap held for a top-document page that redirects (http to
+   https, a login bounce). Every origin the plan acts on must now be allowlisted: the page's,
+   where it landed, the frame's, and where the frame landed. Plans with no redirect are
+   unaffected.
+
+The surf (top-document) click keeps one residual that the frame route no longer has: it cannot
+check its element's document just before input. Tests: 8 for plan and
+apply in a frame (fake surf plus a fake DevTools endpoint whose frame answers the real probe,
+read-back and observe scripts). The fake surf's DOM stub now lives in
+`tests/fixtures/stub-dom.mjs`, so both fakes run the same scripts against the same form model.
+There is 1 new frame-pinning test, and the S1 tests now model the unpainted window. Twenty
+mutations were checked (each frame site in the runner, the start URL, both origins, the token,
+the not-found branch, the page facts, the fingerprint URL, the pins, the page world, the
+session and modifiers of pointer input, and the declaration); every one turned a test red.
+
 ### S4 - a CDP step backend for the session
 
 `SurfSession.step` routes `js`, `type`, `select` and `click` to the CDP channel when it is bound,

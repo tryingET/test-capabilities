@@ -8,15 +8,24 @@
  * - `elements`: `{ selector: element }`, boxes in that frame's own coordinates;
  * - `sameProcess`: in-process child frames `{ url, id?, nodes, elements, owner, sameProcess }`;
  * - `owner`: the iframe element in the parent `{ backendNodeId, box }` (content box);
- * - `evals`: `{ expression: value }`.
- * The page may carry `inputFails` (a mouse event type the endpoint answers with an error).
+ * - `evals`: `{ expression: value }`;
+ * - `form`: a `stub-dom.mjs` page model (`fields`, `controls`, `title`); any other script is
+ *   evaluated against it, with the values the actions set laid over it.
+ * A frame may carry `noPageWorld` (Runtime.enable reports no default context for it, as for a
+ * frame caught mid-navigation). The page may carry `inputFails` (a mouse event type the
+ * endpoint answers with an error), and `unpainted` (a window that paints no frames: input sent on
+ * the page's session never reaches an out-of-process frame).
  * An element may carry: `backendNodeId`, `box` (null: no box), `appearAfterMs`, `movingUntilMs`,
  * `disabled`, `readonly`, `hidden`, `obscured`, `removed`, `options`, `type`, `checked`, `stuck`
- * (a checkbox that ignores clicks), `dialog` (`{ type, message }` opened by a click).
+ * (a checkbox that ignores clicks), `navigatesTo` (a click moves its frame to that URL),
+ * `inputNavigatesTo` (typing into it moves its frame to that URL),
+ * `dialog` (`{ type, message }` opened by a click).
  *
  * Module functions are dispatched on their marker comment (`tc:state`, `tc:hit`, ...), never on
  * their body, so a change of implementation cannot silently change what the fake answers.
  */
+
+import { normalizeStubPage, runInStub } from "../fixtures/stub-dom.mjs";
 
 export function createFakeDom(page, initialEmit) {
   let emit = initialEmit;
@@ -98,7 +107,8 @@ export function createFakeDom(page, initialEmit) {
     return [ox + x + drift, oy + y, w, h];
   };
 
-  const worlds = new Map(); // context id -> tree
+  const worlds = new Map(); // isolated context id -> tree
+  const pageWorlds = new Map(); // page-world context id -> tree
   let nextContext = 100;
   let focused;
   let pendingDialog;
@@ -112,6 +122,21 @@ export function createFakeDom(page, initialEmit) {
     frames.find((entry) => entry.session === session && frameIdOf(entry.tree) === frameId)?.tree;
   const rootOf = (session) =>
     frames.find((entry) => entry.session === session && !entry.parent)?.tree;
+
+  // a frame's form model as the page shows it now: typed values, selected options and checked
+  // states from the actions, over the values the model started with
+  const formPage = (tree) => {
+    const fields = {};
+    for (const [selector, field] of Object.entries(tree.form.fields ?? {})) {
+      const element = tree.elements?.[selector];
+      fields[selector] = {
+        ...field,
+        ...(Object.hasOwn(record.values, selector) ? { value: record.values[selector] } : {}),
+        ...(element && typeof element.checked === "boolean" ? { checked: element.checked } : {}),
+      };
+    }
+    return normalizeStubPage({ ...tree.form, fields }, tree.url);
+  };
 
   const nodeError = (id) => ({ id, error: { message: "No node with given id found" } });
 
@@ -127,6 +152,44 @@ export function createFakeDom(page, initialEmit) {
         return true;
       }
       case "Page.enable":
+        reply({});
+        return true;
+      case "Runtime.enable": {
+        // one default context per frame of the session, reported before the answer
+        for (const entry of frames.filter((frame) => frame.session === sessionId)) {
+          if (entry.tree.noPageWorld) continue;
+          // an extension's isolated world comes first, as Chromium reports surf's (measured live)
+          const extension = ++nextContext;
+          worlds.set(extension, entry.tree);
+          send({
+            method: "Runtime.executionContextCreated",
+            ...(sessionId ? { sessionId } : {}),
+            params: {
+              context: {
+                id: extension,
+                name: "Surf",
+                auxData: { isDefault: false, type: "isolated", frameId: frameIdOf(entry.tree) },
+              },
+            },
+          });
+          const contextId = ++nextContext;
+          pageWorlds.set(contextId, entry.tree);
+          send({
+            method: "Runtime.executionContextCreated",
+            ...(sessionId ? { sessionId } : {}),
+            params: {
+              context: {
+                id: contextId,
+                name: "",
+                auxData: { isDefault: true, type: "default", frameId: frameIdOf(entry.tree) },
+              },
+            },
+          });
+        }
+        reply({});
+        return true;
+      }
+      case "Runtime.disable":
         reply({});
         return true;
       case "Page.handleJavaScriptDialog":
@@ -162,11 +225,18 @@ export function createFakeDom(page, initialEmit) {
         return true;
       }
       case "Runtime.evaluate": {
-        if (params.contextId && !worlds.has(params.contextId)) {
+        if (
+          params.contextId &&
+          !worlds.has(params.contextId) &&
+          !pageWorlds.has(params.contextId)
+        ) {
           send({ id, error: { message: "Cannot find context with specified id" } });
           return true;
         }
-        const tree = params.contextId ? worlds.get(params.contextId) : rootOf(sessionId);
+        const isolated = worlds.has(params.contextId);
+        const tree = params.contextId
+          ? (worlds.get(params.contextId) ?? pageWorlds.get(params.contextId))
+          : rootOf(sessionId);
         if (!tree) return false;
         const query = /^document\.querySelector\((".*")\)$/.exec(params.expression);
         if (query) {
@@ -186,11 +256,28 @@ export function createFakeDom(page, initialEmit) {
           reply({ result: { type: "boolean", value } });
           return true;
         }
+        if (params.expression === "location.href" && !tree.noHref) {
+          reply({ result: { type: "string", value: tree.url } });
+          return true;
+        }
         if (Object.hasOwn(tree.evals ?? {}, params.expression)) {
           const value = tree.evals[params.expression];
           reply({
-            result: { type: typeof value, value: params.contextId ? `isolated:${value}` : value },
+            result: { type: typeof value, value: isolated ? `isolated:${value}` : value },
           });
+          return true;
+        }
+        if (tree.form) {
+          // any other script reads the frame's form model, with what the actions typed over it
+          try {
+            const value = runInStub(params.expression, formPage(tree));
+            reply({ result: { type: typeof value, value: value ?? null } });
+          } catch (error) {
+            reply({
+              result: { type: "object", subtype: "error" },
+              exceptionDetails: { text: "Uncaught", exception: { description: String(error) } },
+            });
+          }
           return true;
         }
         reply({
@@ -273,6 +360,8 @@ export function createFakeDom(page, initialEmit) {
           value = Boolean(option);
         } else if (marker === "iframe-index") {
           value = element.iframeIndex ?? -1;
+        } else if (marker === "document") {
+          value = entry.tree.url;
         } else if (marker === "connected") {
           value = Boolean(entry) && !element.removed;
         } else if (marker === "select-all" || marker === "focus-check") {
@@ -338,6 +427,8 @@ export function createFakeDom(page, initialEmit) {
         return true;
       case "Input.insertText":
         record.values[focused.selector] = params.text;
+        // a change handler that navigates its frame
+        if (focused.element.inputNavigatesTo) focused.tree.url = focused.element.inputNavigatesTo;
         reply({});
         return true;
       case "Input.dispatchKeyEvent":
@@ -346,6 +437,7 @@ export function createFakeDom(page, initialEmit) {
           key: params.key,
           text: params.text,
           modifiers: params.modifiers ?? 0,
+          session: sessionId ?? "page",
         });
         // a key that types nothing arrives as rawKeyDown, as Chromium takes it
         if ((params.type === "keyDown" || params.type === "rawKeyDown") && focused) {
@@ -395,7 +487,9 @@ export function createFakeDom(page, initialEmit) {
           session: sessionId ?? "page",
         });
         if (params.type === "mouseReleased") {
-          const landed = pageHit(params.x, params.y);
+          const landed = sessionId
+            ? sessionHit(sessionId, params.x, params.y)
+            : pageHit(params.x, params.y);
           if (landed) {
             record.clicks.push({
               frame: landed.frame,
@@ -404,6 +498,8 @@ export function createFakeDom(page, initialEmit) {
             });
             const element = landed.element;
             if (element.type === "checkbox" && !element.stuck) element.checked = !element.checked;
+            // a submit that navigates its frame: same frame, same id, a new URL
+            if (element.navigatesTo) landed.tree.url = element.navigatesTo;
             if (element.dialog) {
               pendingDialog = { ...element.dialog, frame: landed.frame };
               emit({
@@ -422,12 +518,14 @@ export function createFakeDom(page, initialEmit) {
     }
   }
 
-  // page-level hit: out-of-process offsets come from `pageOrigin`, supplied by the transport
+  // page-level hit: out-of-process offsets come from `pageOrigin`, supplied by the transport. In
+  // an unpainted window page input never reaches an out-of-process frame (measured live).
   let pageOrigin = () => [0, 0];
   function pageHit(x, y) {
     let found;
     for (const entry of elements()) {
       if (!present(entry.element) || entry.element.obscured) continue;
+      if (page.unpainted && entry.session !== undefined) continue;
       const box = localBox(entry);
       if (!box) continue;
       const [ox, oy] = pageOrigin(entry.session);
@@ -443,6 +541,19 @@ export function createFakeDom(page, initialEmit) {
     return found;
   }
 
+  // input sent on a frame's own session: its elements, in that session's local coordinates
+  function sessionHit(session, x, y) {
+    let found;
+    for (const entry of elements()) {
+      if (entry.session !== session || !present(entry.element) || entry.element.obscured) continue;
+      const box = localBox(entry);
+      if (box && x >= box[0] && x <= box[0] + box[2] && y >= box[1] && y <= box[1] + box[3]) {
+        found = { ...entry, frame: entry.tree === page ? "main" : entry.tree.url };
+      }
+    }
+    return found;
+  }
+
   return {
     handle,
     record,
@@ -450,6 +561,7 @@ export function createFakeDom(page, initialEmit) {
     /** what a navigation does to every isolated world */
     dropWorlds() {
       worlds.clear();
+      pageWorlds.clear();
     },
     setEmit(fn) {
       emit = fn;

@@ -255,15 +255,20 @@ export function readPlanProbeAnswer(reply: SessionReply, probeId: string): PlanP
   };
 }
 
-/** The one read-only step both `surf plan` and `surf apply` run to see the form. */
+/**
+ * The one read-only step both `surf plan` and `surf apply` run to see the form - in `frame` when
+ * the form is in one (CDP program S3).
+ */
 export function planProbeStep(
   id: string,
   probeId: string,
   request: PlanProbeRequest,
   intent: string,
+  frame?: string,
 ): BrowserStep<PlanProbeAnswer> {
   return {
     id,
+    ...(frame === undefined ? {} : { frame }),
     command: "js",
     // `--no-screenshot`: this probe reads a form, and the surf build would otherwise save a
     // picture of it - values included - to /tmp (submit-gate packet §8).
@@ -280,8 +285,9 @@ export async function runPlanProbe(
   probeId: string,
   request: PlanProbeRequest,
   intent: string,
+  frame?: string,
 ): Promise<PlanProbeAnswer> {
-  return session.step(planProbeStep(id, probeId, request, intent));
+  return session.step(planProbeStep(id, probeId, request, intent, frame));
 }
 
 // ============================================
@@ -504,7 +510,10 @@ export function buildPlan(
     ...(request.submitText ? { submitText: request.submitText } : {}),
     ...(request.submitSelector ? { submitSelector: request.submitSelector } : {}),
   });
-  const landedHref = answer.href || context.readiness.href || context.url;
+  // in a frame plan the probe answered from the frame: the page's own facts come from the gate
+  const { frame } = request;
+  const landedHref = (frame ? undefined : answer.href) || context.readiness.href || context.url;
+  const title = (frame ? undefined : answer.title) || context.readiness.title || "";
 
   const draft = {
     schema_version: SURF_PLAN_SCHEMA_VERSION,
@@ -516,14 +525,23 @@ export function buildPlan(
       url: context.url,
       origin: new URL(context.url).origin,
       landed_href: landedHref,
-      title: answer.title || context.readiness.title || "",
+      title,
       readiness: { state: context.readiness.state, evidence: [...context.readiness.evidence] },
+      ...(frame
+        ? {
+            frame: {
+              url: frame,
+              origin: new URL(frame).origin,
+              landed_href: answer.href || frame,
+            },
+          }
+        : {}),
     },
     fields,
     submit: decision.submit,
     forbidden_controls: decision.forbidden,
     fingerprint: fingerprintFor({
-      url: landedHref,
+      url: frame ? answer.href || frame : landedHref,
       formCount: answer.formCount,
       fields,
       submitControl: decision.submit.control,
@@ -579,6 +597,13 @@ export async function planFromSession(
       { url: session.url },
     );
   }
+  if (request.frame !== undefined && !URL.canParse(request.frame)) {
+    throw new FrameworkError(
+      "config_invalid",
+      `A plan names its frame by URL, and '${request.frame}' is not one: the frame's origin is what mutation.allowOrigins has to name before anything in it is typed.`,
+      { frame: request.frame },
+    );
+  }
   const context: PlanBuildContext = {
     planId: request.planId ?? randomUUID(),
     generatedAt: new Date().toISOString(),
@@ -600,7 +625,8 @@ export async function planFromSession(
       ...(request.submitText ? { submitText: request.submitText } : {}),
       ...(request.submitSelector ? { submitSelector: request.submitSelector } : {}),
     },
-    `read the form on ${context.url} without changing it`,
+    `read the form on ${context.url}${request.frame ? ` in frame ${request.frame}` : ""} without changing it`,
+    request.frame,
   );
   await assertFieldsReachable(session, request, answer);
   return buildPlan(request, answer, context);
@@ -629,6 +655,16 @@ async function assertFieldsReachable(
   }
 
   const first = unresolved[0] as PlanFieldRequest;
+  if (request.frame !== undefined) {
+    // the operator named the frame and the probe read it: there is no boundary left to diagnose
+    throw fieldRefusal(
+      "plan_field_not_found",
+      first,
+      `it matched no element in frame ${request.frame}`,
+      "Name a field that exists in that frame, or re-run once the form is rendered.",
+      { frame: request.frame },
+    );
+  }
   const rootCause = await session.explainUnreachable(describeLocator(first.locator));
   const determination = rootCause.determination.value;
   if (determination === "excluded") {

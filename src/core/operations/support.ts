@@ -24,7 +24,7 @@ const SURF_EXPLORE_ONLY_OPTIONS = [
   "aiDiff",
   "file",
 ];
-const SURF_PLAN_ONLY_OPTIONS = ["field", "submitText", "submitSelector", "out"];
+const SURF_PLAN_ONLY_OPTIONS = ["field", "submitText", "submitSelector", "frame", "out"];
 /** `surf apply` takes its target from the plan, so naming a URL on the command line is a lie. */
 const SURF_TARGET_URL_OPTION = ["url"];
 const SURF_APPLY_ONLY_OPTIONS = [
@@ -96,7 +96,7 @@ export function assertSupportedSurfPlanOptions(options: Record<string, unknown>)
     "plan",
     options,
     [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_APPLY_ONLY_OPTIONS],
-    "Use --url, --field, --submit-text or --submit-selector, --out, --config and --json; a plan reads a form and writes an artifact, it never carries one out.",
+    "Use --url, --field, --submit-text or --submit-selector, --frame, --out, --config and --json; a plan reads a form and writes an artifact, it never carries one out.",
   );
 }
 

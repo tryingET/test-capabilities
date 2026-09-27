@@ -63,6 +63,7 @@ export const SurfPlanOperationInputSchema = z.preprocess(
         }),
       submitText: z.string().min(1).optional(),
       submitSelector: z.string().min(1).optional(),
+      frame: z.string().url("Surf plan --frame must name the frame by its URL.").optional(),
       out: z.string({ required_error: "Surf plan requires --out <plan.json>." }).min(1),
       config: z.string().min(1).optional(),
       json: z.boolean().optional().default(false),
@@ -100,6 +101,15 @@ function envelopeResultFrom(plan: SurfPlan): SurfPlanOperationResultEnvelope["re
       landedHref: plan.target.landed_href,
       title: plan.target.title,
       readiness: plan.target.readiness,
+      ...(plan.target.frame
+        ? {
+            frame: {
+              url: plan.target.frame.url,
+              origin: plan.target.frame.origin,
+              landedHref: plan.target.frame.landed_href,
+            },
+          }
+        : {}),
     },
     runtime: plan.runtime,
     fields: plan.fields.map((field) => ({
@@ -135,6 +145,7 @@ async function planPage(
       fields,
       ...(normalized.submitText ? { submitText: normalized.submitText } : {}),
       ...(normalized.submitSelector ? { submitSelector: normalized.submitSelector } : {}),
+      ...(normalized.frame ? { frame: normalized.frame } : {}),
     });
     return { plan, notes: [...session.notes()] };
   } finally {

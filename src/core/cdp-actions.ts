@@ -11,7 +11,7 @@
  * - every frame is addressable by label, URL or CDP frame id - out-of-process frames through their
  *   sessions, same-process frames in their host's session - and elements are resolved into an
  *   isolated world per frame, where the page's scripts cannot see or tamper with the reads;
- * - pointer input is real, dispatched at page coordinates through enclosing out-of-process frames;
+ * - pointer input is real, dispatched on the session that hosts the element, in its coordinates;
  * - dialogs an action opens are answered by policy, never left blocking the page.
  * Its effect is mutating, so it is its own entry point, never part of the read-only a11y channel.
  * It creates, navigates and closes nothing.
@@ -51,6 +51,12 @@ export type CdpActionTarget =
 export interface CdpActionOptions {
   /** how long an action waits for its element to become actionable (default 5000) */
   timeoutMs?: number;
+  /**
+   * The documents the element may be in, by URL (the fragment ignored). Read from the element's
+   * own document once it is actionable, immediately before any input: a frame that swapped its
+   * document keeps its selectors, and an element there is not the one the caller meant.
+   */
+  documents?: readonly string[];
 }
 
 export interface CdpClickOptions extends CdpActionOptions {
@@ -94,6 +100,11 @@ export interface CdpActions {
     expression: string,
     frame?: string | { frame?: string; world?: "page" | "isolated" },
   ): Promise<T>;
+  /**
+   * The CDP frame id of a frame named by label, URL or id. It stays the frame's id while the
+   * frame lives, across its own navigations, so a caller can pin a frame it found by URL.
+   */
+  frameId(frame?: string): Promise<string>;
   /** read the page again: refs and frames as they are now */
   refresh(): Promise<void>;
   close(): Promise<void>;
@@ -117,6 +128,19 @@ const SELECT_OPTION = `function (wanted) { /* tc:select-option */
   return true;
 }`;
 const CONNECTED = "function () { /* tc:connected */ return this.isConnected; }";
+const DOCUMENT = "function () { /* tc:document */ return this.ownerDocument.location.href; }";
+const withoutFragment = (href: string) => href.split("#")[0];
+
+/** Refuse, before any input, an element or a frame whose document is not one of `documents`. */
+export function assertDocument(href: string, documents: readonly string[], what: string): void {
+  if (!documents.map(withoutFragment).includes(withoutFragment(href))) {
+    throw new FrameworkError(
+      "action_document_changed",
+      `the document is ${href}, not ${documents.join(" or ")}; ${what}`,
+      { href, documents: [...documents] },
+    );
+  }
+}
 const WORLD = "test-capabilities";
 const DEFAULT_TIMEOUT_MS = 5000;
 const STATE_SETTLE_MS = 1000;
@@ -240,17 +264,52 @@ export async function openCdpActions(
     worlds.set(frameId, executionContextId);
     return executionContextId;
   };
-  const inWorld = async <T>(
+  // the page's own world of a frame: `Runtime.enable` reports one default context per frame of
+  // the session before it answers (measured live 2026-09-27), so a same-process frame is reached
+  // by its frame id rather than landing in its host's document
+  const pageWorlds = new Map<string, number>();
+  const pageWorldOf = async (frame: FrameEntry, fresh = false): Promise<number> => {
+    const frameId = await frameIdOf(frame);
+    const known = pageWorlds.get(frameId);
+    if (known !== undefined && !fresh) return known;
+    const found: number[] = [];
+    const off = connection.on("Runtime.executionContextCreated", (params, sessionId) => {
+      const context = params.context as { id: number; auxData?: Record<string, unknown> };
+      if (sessionId !== frame.sessionId || context.auxData?.frameId !== frameId) return;
+      if (context.auxData.isDefault === true) found.push(context.id);
+    });
+    try {
+      await connection.send("Runtime.enable", {}, frame.sessionId);
+      await connection.send("Runtime.disable", {}, frame.sessionId);
+    } finally {
+      off();
+    }
+    const contextId = found[0];
+    if (contextId === undefined) {
+      throw new FrameworkError(
+        "action_frame_unknown",
+        `frame ${frame.url} reported no page world; it may be navigating`,
+        { frame: frame.url },
+      );
+    }
+    pageWorlds.set(frameId, contextId);
+    return contextId;
+  };
+  // a navigation destroys a world; a stale one is made again once
+  const inContext = async <T>(
+    world: (frame: FrameEntry, fresh?: boolean) => Promise<number>,
     frame: FrameEntry,
     body: (contextId: number) => Promise<T>,
   ): Promise<T> => {
     try {
-      return await body(await worldOf(frame));
+      return await body(await world(frame));
     } catch (error) {
       if (!/context/i.test(error instanceof Error ? error.message : "")) throw error;
-      return body(await worldOf(frame, true));
+      return body(await world(frame, true));
     }
   };
+  const inWorld = <T>(frame: FrameEntry, body: (contextId: number) => Promise<T>): Promise<T> =>
+    inContext(worldOf, frame, body);
 
   const describe = (actionTarget: CdpActionTarget): string =>
     "ref" in actionTarget
@@ -361,70 +420,59 @@ export async function openCdpActions(
       describe(actionTarget),
     );
 
-  const parentOf = (sessionId: string) =>
-    connection.attached.find((entry) => entry.sessionId === sessionId)?.parentSessionId;
-  // the page coordinates of a session's local root: its iframe's content box, recursively
-  const sessionOrigin = async (sessionId: string | undefined): Promise<[number, number]> => {
-    if (sessionId === undefined) return [0, 0];
-    const parent = parentOf(sessionId);
-    const { frameTree } = await connection.send<{ frameTree: { frame: { id: string } } }>(
-      "Page.getFrameTree",
-      {},
+  const key = (
+    type: "keyDown" | "keyUp",
+    definition: KeyDefinition,
+    modifiers: number,
+    sessionId?: string,
+  ) =>
+    connection.send(
+      "Input.dispatchKeyEvent",
+      {
+        type: type === "keyDown" && !definition.text ? "rawKeyDown" : type,
+        key: definition.key,
+        code: definition.code,
+        windowsVirtualKeyCode: definition.keyCode,
+        modifiers,
+        ...(type === "keyDown" && definition.text ? { text: definition.text } : {}),
+      },
       sessionId,
     );
-    const { backendNodeId } = await connection.send<{ backendNodeId: number }>(
-      "DOM.getFrameOwner",
-      { frameId: frameTree.frame.id },
-      parent,
-    );
-    const { model } = await connection.send<{ model: { content: number[] } }>(
-      "DOM.getBoxModel",
-      { backendNodeId },
-      parent,
-    );
-    const [px, py] = await sessionOrigin(parent);
-    return [px + (model.content[0] ?? 0), py + (model.content[1] ?? 0)];
-  };
-
-  const key = (type: "keyDown" | "keyUp", definition: KeyDefinition, modifiers: number) =>
-    connection.send("Input.dispatchKeyEvent", {
-      type: type === "keyDown" && !definition.text ? "rawKeyDown" : type,
-      key: definition.key,
-      code: definition.code,
-      windowsVirtualKeyCode: definition.keyCode,
-      modifiers,
-      ...(type === "keyDown" && definition.text ? { text: definition.text } : {}),
-    });
 
   const pointer = async (
     element: ActionableElement,
     clickCount: number,
     options: CdpClickOptions,
   ) => {
-    const [ox, oy] = await sessionOrigin(element.resolved.sessionId);
-    const at = { x: ox + element.point.x, y: oy + element.point.y };
+    // Input goes to the session that hosts the element, at its point in that session's own
+    // coordinates. Page-level input into an out-of-process frame is routed by hit-test data a
+    // window that paints no frames does not have: measured live 2026-09-27 on an unseen
+    // workspace, 4 of 10 page-level clicks landed on the host's <iframe>, 10 of 10 sent on the
+    // frame's own session landed on the element.
+    const { sessionId } = element.resolved;
+    const at = element.point;
+    const send = (type: string, extra: Record<string, unknown>) =>
+      connection.send("Input.dispatchMouseEvent", { type, ...at, ...extra }, sessionId);
     const chord = parseChord([...(options.modifiers ?? []), "a"].join("+"));
     let held = 0;
     for (const modifier of chord.modifiers) {
       held |= MODIFIER_BITS[modifier.key] ?? 0;
-      await key("keyDown", modifier, held);
+      await key("keyDown", modifier, held, sessionId);
     }
     // A move is aligned to the next animation frame; in a window that paints no frames its ack
     // takes ~1 s, while the press that follows flushes it at once with the event order intact
     // (measured live 2026-09-27: 974 ms awaited, 1-2 ms not). So a click does not wait for it.
-    const moved = connection.send("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      ...at,
-      modifiers: chord.mask,
-    });
+    const moved = send("mouseMoved", { modifiers: chord.mask });
     const button = options.button ?? "left";
     for (let count = 1; count <= clickCount; count++) {
-      const click = { ...at, button, clickCount: count, modifiers: chord.mask };
-      await connection.send("Input.dispatchMouseEvent", { type: "mousePressed", ...click });
-      await connection.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...click });
+      const click = { button, clickCount: count, modifiers: chord.mask };
+      await send("mousePressed", click);
+      await send("mouseReleased", click);
     }
     await moved;
-    for (const modifier of [...chord.modifiers].reverse()) await key("keyUp", modifier, 0);
+    for (const modifier of [...chord.modifiers].reverse()) {
+      await key("keyUp", modifier, 0, sessionId);
+    }
   };
 
   // every action ends here: releases its element, and raises a dialog the `fail` policy caught
@@ -449,6 +497,10 @@ export async function openCdpActions(
   ) => {
     const element = await actionable(actionTarget, needs, options?.timeoutMs);
     try {
+      if (options?.documents) {
+        const href = await callOn<string>(connection, element.resolved, DOCUMENT);
+        assertDocument(href, options.documents, `nothing was sent to ${describe(actionTarget)}`);
+      }
       await body(element);
     } finally {
       await settle(element);
@@ -596,7 +648,7 @@ export async function openCdpActions(
       const { frame: name, world = "page" } =
         typeof where === "string" ? { frame: where } : (where ?? {});
       const frame = frameOf(name);
-      const run = (contextId?: number) =>
+      const run = (contextId: number) =>
         connection.send<{
           result: { value?: T };
           exceptionDetails?: { text?: string; exception?: { description?: string } };
@@ -606,12 +658,15 @@ export async function openCdpActions(
             expression,
             returnByValue: true,
             awaitPromise: true,
-            ...(contextId ? { contextId } : {}),
+            contextId,
           },
           frame.sessionId,
         );
-      const { result, exceptionDetails } =
-        world === "isolated" ? await inWorld(frame, (contextId) => run(contextId)) : await run();
+      const { result, exceptionDetails } = await inContext(
+        world === "isolated" ? worldOf : pageWorldOf,
+        frame,
+        run,
+      );
       if (exceptionDetails) {
         throw new FrameworkError(
           "action_evaluate_failed",
@@ -620,6 +675,9 @@ export async function openCdpActions(
         );
       }
       return result.value as T;
+    },
+    frameId(name?: string) {
+      return frameIdOf(frameOf(name));
     },
     async refresh() {
       await read();

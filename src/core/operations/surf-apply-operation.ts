@@ -35,8 +35,9 @@ import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
 import type { PostCondition } from "../surf-apply-runner.js";
+import { acceptedHrefs } from "../surf-apply-runner.js";
 import type { SurfPlan } from "../surf-plan.js";
-import { approvalTokenFor, parsePlanArtifact } from "../surf-plan.js";
+import { approvalTokenFor, normalizeHref, parsePlanArtifact } from "../surf-plan.js";
 import { resolveSurfSessionRuntime, SurfSession } from "../surf-session.js";
 import { assertSupportedSurfApplyOptions } from "./support.js";
 import type {
@@ -138,24 +139,43 @@ async function readPlanFile(planPath: string): Promise<SurfPlan> {
   return parsePlanArtifact(raw, resolved);
 }
 
-/** Hazard 2, the world: the operator's declaration about the origin, before any tab. */
+/**
+ * Hazard 2, the world: the operator's declaration about the origin, before any tab. Every origin
+ * the plan acts on has to be named: the page's, where it landed (a redirect to another origin
+ * is another world), and for a form in a frame the frame's and where the frame landed. A landing
+ * is trustworthy here because it is the fingerprint's URL, which apply checks against the page.
+ */
 function assertOriginAllowed(plan: SurfPlan, mode: ApplyMode, context: RunContext): void {
   const allowed = context.config.mutation.allowOrigins;
-  if (allowed.includes(plan.target.origin)) {
+  const { frame } = plan.target;
+  const origins: Array<[string, string]> = [
+    [plan.target.origin, ""],
+    [new URL(plan.target.landed_href).origin, " (where the page landed)"],
+    ...(frame
+      ? ([
+          [frame.origin, " (the frame the form is in)"],
+          [new URL(frame.landed_href).origin, " (where the frame landed)"],
+        ] as Array<[string, string]>)
+      : []),
+  ];
+  const missing = origins.find(([origin]) => !allowed.includes(origin));
+  if (missing === undefined) {
     return;
   }
+  const [origin, role] = missing;
   const where = context.config.configPath ?? "the config file";
+  const on = `${origin}${role}`;
   if (mode === "submit") {
     throw new FrameworkError(
       "submit_origin_not_allowed",
-      `Refusing to submit on ${plan.target.origin}: mutation.allowOrigins in ${where} does not name it. Which origins this suite may act on is the operator's declaration about the world, not the run's: add the origin to the config. No flag and no environment variable adds one.`,
-      { plan_id: plan.plan_id, origin: plan.target.origin, config: where },
+      `Refusing to submit on ${on}: mutation.allowOrigins in ${where} does not name it. Which origins this suite may act on is the operator's declaration about the world, not the run's: add the origin to the config. No flag and no environment variable adds one.`,
+      { plan_id: plan.plan_id, origin, config: where },
     );
   }
   throw new FrameworkError(
     "mutation_origin_not_allowed",
-    `Refusing to fill a form on ${plan.target.origin}: mutation.allowOrigins in ${where} does not name it. A fill is a bounded mutation, not a safe one - a change handler can navigate or post on its own - so the origin has to be declared acceptable before anything is typed.`,
-    { plan_id: plan.plan_id, origin: plan.target.origin, config: where },
+    `Refusing to fill a form on ${on}: mutation.allowOrigins in ${where} does not name it. A fill is a bounded mutation, not a safe one - a change handler can navigate or post on its own - so the origin has to be declared acceptable before anything is typed.`,
+    { plan_id: plan.plan_id, origin, config: where },
   );
 }
 
@@ -239,7 +259,8 @@ function postConditionFor(plan: SurfPlan, input: NormalizedSurfApplyOperationInp
   if (input.untilText !== undefined) {
     return { kind: "text", expected: input.untilText };
   }
-  return { kind: "left_url", expected: plan.target.landed_href };
+  // a form in a frame leaves where the frame was, never the page around it
+  return { kind: "left_url", expected: plan.target.frame?.landed_href ?? plan.target.landed_href };
 }
 
 /** Every field, in the plan's order: set it, read it back, and look at what the page did. */
@@ -290,19 +311,7 @@ async function assertNoSideEffect(runner: ApplyRunner, plan: SurfPlan): Promise<
 }
 
 function isAcceptedHref(href: string, plan: SurfPlan): boolean {
-  const strip = (value: string): string => {
-    try {
-      const url = new URL(value);
-      url.hash = "";
-      return url.href;
-    } catch {
-      return value;
-    }
-  };
-  const accepted = new Set(
-    [plan.target.url, plan.target.landed_href, plan.fingerprint.url].map(strip),
-  );
-  return accepted.has(strip(href));
+  return acceptedHrefs(plan).has(normalizeHref(href));
 }
 
 /** The receipt an operator will look at first: the submit if there was one, else the last fill. */

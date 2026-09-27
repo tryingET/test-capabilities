@@ -84,10 +84,13 @@ on it, with no dependency and no vendor:
 
 - `src/core/cdp-actions.ts`: `click`, `fill`, `select`, `evaluate` on the owned tab, addressed
   by an a11y ref (its backend node) or by a CSS selector in a named frame.
-- `click` is real input: scroll into view, the element's content quad, the page coordinates of
-  every enclosing out-of-process frame (`DOM.getFrameOwner` in the parent session), a hit test
+- `click` is real input: scroll into view, the element's content quad, a hit test
   (`elementFromPoint` must be the element or inside it, else `action_target_obscured`), then
-  `Input.dispatchMouseEvent` on the page session. `fill` focuses, selects and
+  `Input.dispatchMouseEvent`. As first built it summed the page coordinates of every enclosing
+  out-of-process frame and sent the input on the page session. CDP program S3 found that
+  misroutes 4 of 10 clicks into an OOPIF in a window that paints no frames, so the input now goes
+  on the session that hosts the element, in its own coordinates
+  (`2026-09-27-cdp-channel-program.md`, S3 result). `fill` focuses, selects and
   `Input.insertText`s (trusted input events). `select` sets the option and fires input/change.
   `evaluate` runs in the frame's own session - the read surf refuses in a selected frame.
 - Its effect is **mutating**, so it is a separate entry point (`openCdpActions`), never part of

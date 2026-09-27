@@ -107,6 +107,8 @@ export interface SurfPlanOperationInput {
   field?: string[];
   submitText?: string;
   submitSelector?: string;
+  /** the frame the form lives in, by URL; the plan and its apply run read and act only there */
+  frame?: string;
   out?: string;
   config?: string;
   json?: boolean;
@@ -401,6 +403,8 @@ export interface SurfPlanOperationResultEnvelope extends OperationEffectEnvelope
       landedHref: string;
       title: string;
       readiness: { state: string; evidence: string[] };
+      /** the frame the form is in, when it is in one */
+      frame?: { url: string; origin: string; landedHref: string };
     };
     runtime: PlanRuntime;
     fields: SurfPlanEnvelopeField[];

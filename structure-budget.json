@@ -6,7 +6,7 @@
     "src/core/orchestrator.ts": 1722,
     "src/core/surf-runtime.ts": 858,
     "src/healing/self-healing.ts": 1192,
-    "src/core/surf-session.ts": 762
+    "src/core/surf-session.ts": 754
   },
   "allowed_cycles": [],
   "pure_ring": [
@@ -235,6 +235,13 @@
       "to": 762,
       "reason": "AK #6132 (CDP program S4): a step that names a frame runs over CDP inside the same runLedgerStep - one branch in run() and one refusal in step(), so its declaration, key, receipt and settlement stay the session's. The transport itself lives in src/core/cdp-step-transport.ts; the scheduled shrink of the ledger-step plumbing (AK #5569 entry) is unchanged.",
       "ref": "AK #6132"
+    },
+    {
+      "file": "src/core/surf-session.ts",
+      "from": 762,
+      "to": 754,
+      "reason": "AK #6145 (CDP program S3): the frame branch of runLedgerStep hands the session itself to runStepInFrame, which keys the session's frame pins by it, and a frame step's refusal and declaration move into cdp-step-transport's frameAwareDeclaration; step() keeps one call.",
+      "ref": "AK #6145"
     }
   ]
 }

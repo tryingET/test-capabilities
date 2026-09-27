@@ -130,7 +130,7 @@ test("a read-only script in a frame reads in its isolated world, from the cdp ch
     );
     assert.deepEqual(payload, {
       result: "isolated:checkout",
-      target: { frame: PAY, channel: "cdp" },
+      target: { frame: PAY, frameId: "FRAME1", channel: "cdp" },
     });
     assert.equal(reply.outcome.source, "cdp");
     assert.deepEqual(reply.display, ["cdp", "js", `frame=${PAY}`]);
@@ -273,4 +273,73 @@ test("a mutating step in a frame is still bound by mutation.allowOrigins", async
     },
     { allow: false },
   );
+});
+
+test("a frame is pinned to the frame it first resolved to, so it stays addressable after it navigates", async () => {
+  await withFrameSession(async ({ session, tree }) => {
+    const first = await session.step(step("test.title", "js", ["document.title"], READ_ONLY_JS));
+    const pinned = first.payload.target.frameId;
+    assert.equal(typeof pinned, "string");
+    // the frame navigates on its own (a submit, a redirect): the URL no longer names it
+    tree.frames[0].url = "https://pay.example/done";
+    const after = await session.step(step("test.title-2", "js", ["document.title"], READ_ONLY_JS));
+    assert.equal(after.payload.target.frameId, pinned);
+    assert.equal(after.payload.target.frame, PAY, "the reply names the frame as the caller did");
+    // a frame that is gone is refused by the name the caller used, never guessed again by URL
+    tree.frames.pop();
+    await assert.rejects(
+      session.step(step("test.title-3", "js", ["document.title"], READ_ONLY_JS)),
+      { code: "action_frame_unknown", message: /https:\/\/pay\.example\/checkout.*pinned/ },
+    );
+  });
+});
+
+test("arguments are read by position: a value that reads as a flag is typed as the value", async () => {
+  await withFrameSession(async ({ session, cdp }) => {
+    // `type <text> --selector <css>`: the text is the first word whatever it looks like, and the
+    // flags are looked up after it - `--into` is not a flag here, and `#card` is not the text
+    await session.step(step("test.flag", "type", ["--into", "--selector", "#card"], MUTATING));
+    assert.equal(cdp.values["#card"], "--into");
+    await session.step(
+      step("test.flag-2", "type", ["--selector", "--selector", "#card"], MUTATING),
+    );
+    assert.equal(cdp.values["#card"], "--selector");
+    // `select <css> <value>`: a value that starts with -- is looked for as an option
+    await assert.rejects(
+      session.step(step("test.flag-select", "select", ["#country", "--de"], MUTATING)),
+      { code: "action_option_not_found" },
+    );
+  });
+});
+
+test("a frame step that names its documents acts only while its frame holds one of them", async () => {
+  await withFrameSession(async ({ session, context, cdp, tree }) => {
+    const at = { frame: { name: PAY, documents: [PAY] } };
+    await session.step(step("test.card", "type", ["4242", "--selector", "#card"], MUTATING, at));
+    assert.equal(cdp.values["#card"], "4242");
+    // the frame now holds another document with the same form: the element resolves, is
+    // actionable, and still nothing is sent to it
+    tree.frames[0].url = "https://pay.example/other";
+    await assert.rejects(
+      session.step(step("test.pay", "click", ["--selector", "#pay"], MUTATING, at)),
+      { code: "action_document_changed", message: /https:\/\/pay\.example\/other/ },
+    );
+    assert.deepEqual(cdp.clicks, []);
+    // a script that names its documents is not run in another one either
+    await assert.rejects(
+      session.step(step("test.script", "js", ["document.title"], MUTATING, at)),
+      { code: "action_document_changed", message: /the script was not run/ },
+    );
+    // a frame whose document cannot be read is not one the script may run in
+    tree.frames[0].url = PAY;
+    tree.frames[0].noHref = true;
+    await assert.rejects(
+      session.step(step("test.script-2", "js", ["document.title"], MUTATING, at)),
+      { code: "action_document_changed", message: /could not be read/ },
+    );
+    assert.deepEqual(
+      context.ledger.receipts().map((receipt) => receipt.outcome),
+      ["applied", "failed", "failed", "failed"],
+    );
+  });
 });

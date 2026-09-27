@@ -116,13 +116,17 @@ function observeScript(
 })()`;
 }
 
-/** The pages this run gated; a reply that answers from anywhere else is the page moving. */
-function acceptedHrefs(plan: SurfPlan): Set<string> {
-  return new Set(
-    [plan.target.url, plan.target.landed_href, plan.fingerprint.url].map((href) =>
-      normalizeHref(href),
-    ),
-  );
+/**
+ * Where the form may be: the pages this run gated, or for a form in a frame the frame's own
+ * URLs only - the page's URL in the frame is the frame having moved. An observation from
+ * anywhere else is the page (or the frame) moving.
+ */
+export function acceptedHrefs(plan: SurfPlan): Set<string> {
+  const { frame } = plan.target;
+  const hrefs = frame
+    ? [frame.url, frame.landed_href, plan.fingerprint.url]
+    : [plan.target.url, plan.target.landed_href, plan.fingerprint.url];
+  return new Set(hrefs.map((href) => normalizeHref(href)));
 }
 
 export function evaluatePostCondition(
@@ -158,13 +162,21 @@ export function createApplyRunner(
   const accepted = acceptedHrefs(plan);
   const submitControl = plan.submit.status === "identified" ? plan.submit.control : undefined;
   const formSelector = plan.fields[0]?.control.form;
+  // a form in a frame (CDP program S3): every read and act below happens in that frame, and
+  // "where the page is" is where the frame is
+  const frame = plan.target.frame;
+  const inFrame = frame ? { frame: frame.url } : {};
+  // an act names the documents the frame may hold, checked on the element just before input:
+  // a frame that swapped its document keeps its selectors (reads follow the frame wherever)
+  const actsInFrame = frame ? { frame: { name: frame.url, documents: [...accepted] } } : {};
+  const startedFrom = frame?.landed_href ?? plan.target.landed_href;
   const controlEnableTimeoutMs =
     options.controlEnableTimeoutMs ?? context.config.surf.submit.controlEnableTimeoutMs;
   const postconditionTimeoutMs =
     options.postconditionTimeoutMs ?? context.config.surf.submit.postconditionTimeoutMs;
   const postCondition: PostCondition = options.postCondition ?? {
     kind: "left_url",
-    expected: plan.target.landed_href,
+    expected: startedFrom,
   };
   let submitConsumed = false;
 
@@ -215,6 +227,7 @@ export function createApplyRunner(
     // `--no-screenshot`: a read-back names the value it read, and the surf build would save a
     // picture of the page - with that value in it - to /tmp (packet §8).
     const answer = await session.step<Record<string, unknown>>({
+      ...inFrame,
       command: "js",
       args: [fieldReadScript(probeId, field.resolved_selector), "--no-screenshot"],
       declare: APPLY_READ_EFFECT,
@@ -250,6 +263,7 @@ export function createApplyRunner(
     calls.push(redactedCall("js", "observe"));
     try {
       const answer = await session.step<Record<string, unknown>>({
+        ...inFrame,
         command: "js",
         args: [
           observeScript(
@@ -311,6 +325,7 @@ export function createApplyRunner(
         randomUUID(),
         driftProbeRequestFor(plan),
         `check the page still matches plan ${plan.plan_id} before anything is typed`,
+        frame?.url,
       );
       return { drift: fingerprintDrift(plan.fingerprint, fingerprintFromAnswer(plan, answer)) };
     },
@@ -339,6 +354,7 @@ export function createApplyRunner(
       calls.push(redactedCall(command, field.resolved_selector));
 
       await session.step<SessionReply>({
+        ...actsInFrame,
         id: `surf.apply.field:${plan.plan_id}:${field.id}`,
         command,
         args,
@@ -404,6 +420,15 @@ export function createApplyRunner(
         { plan_id: plan.plan_id, control: control.selector },
       );
     }
+    if (observation.href !== undefined && !accepted.has(normalizeHref(observation.href))) {
+      // a page (or a frame) that moved may carry the same selectors in another document: the
+      // control there is not the one the plan reviewed, and a click would be a guess
+      throw new FrameworkError(
+        "submit_control_changed",
+        `The ${frame ? "frame" : "page"} the plan reviewed moved to ${observation.href} before the click, so ${control.selector} there is not the control the plan named. Nothing was clicked.`,
+        { plan_id: plan.plan_id, control: control.selector, href: observation.href },
+      );
+    }
     if (observation.submitUnique !== true) {
       throw new FrameworkError(
         "submit_control_changed",
@@ -446,7 +471,6 @@ export function createApplyRunner(
       submitConsumed = true;
       await assertControlReady();
 
-      const startedFrom = plan.target.landed_href;
       let observed: ApplyObservation = { available: false };
       let result: PostConditionResult = {
         kind: postCondition.kind,
@@ -462,6 +486,7 @@ export function createApplyRunner(
 
       calls.push(redactedCall("click", control.selector));
       await session.step<SessionReply>({
+        ...actsInFrame,
         id: `surf.apply.submit:${plan.plan_id}`,
         command: "click",
         args: ["--selector", control.selector, "--no-screenshot"],

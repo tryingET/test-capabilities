@@ -150,6 +150,10 @@ Options:
                                visible button text
   --submit-selector <css>      surf plan: narrow the submit candidates by CSS
                                selector
+  --frame <url>                surf plan: the form is in the frame at this URL;
+                               the plan and its apply run read and act only
+                               there, over the DevTools endpoint, and apply
+                               needs the frame's origin allowlisted too
   --out <file>                 surf plan: write the reviewable plan artifact
                                here (mode 0600)
   --plan <file>                surf apply: the plan artifact to carry out

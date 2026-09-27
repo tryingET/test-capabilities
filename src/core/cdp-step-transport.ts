@@ -17,21 +17,30 @@
 
 import type { SessionReply } from "./browser-session.js";
 import type { CdpActions } from "./cdp-actions.js";
-import { openCdpActions } from "./cdp-actions.js";
+import { assertDocument, openCdpActions } from "./cdp-actions.js";
 import { classifyResult } from "./result-classification.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
 
 /** The commands a step may run in a frame. */
 export const FRAME_STEP_COMMANDS: ReadonlySet<string> = new Set(["js", "type", "select", "click"]);
 
+/**
+ * A frame, by URL, label or CDP frame id as `openCdpActions` names them - optionally with the
+ * documents it must hold when an element in it is acted on (`CdpActionOptions.documents`).
+ */
+export type StepFrame = string | { name: string; documents: readonly string[] };
+
 /** One step to run in a frame: the surf command and its arguments, the frame, the declared effect. */
 export interface FrameStep {
   command: string;
   args: readonly string[];
-  /** a frame by URL, label or CDP frame id, as `openCdpActions` names them */
-  frame: string;
+  frame: StepFrame;
   effect: "read_only" | "mutating";
 }
+
+/** The name a step addresses its frame by. */
+export const frameName = (frame: StepFrame): string =>
+  typeof frame === "string" ? frame : frame.name;
 
 /** Refusals that happen before anything reaches the page: a mutating step that got one did nothing. */
 const BEFORE_INPUT = new Set([
@@ -43,6 +52,7 @@ const BEFORE_INPUT = new Set([
   "action_frame_unknown",
   "action_option_not_found",
   "action_frame_step_unsupported",
+  "action_document_changed",
   "ref_context_drift",
   "cdp_endpoint_refused",
   "cdp_endpoint_unreachable",
@@ -55,20 +65,6 @@ function valueAfter(args: readonly string[], flag: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-/** The positional arguments of a surf-shaped argv: every word that is not a flag or its value. */
-function positionals(args: readonly string[]): string[] {
-  const words: string[] = [];
-  for (let index = 0; index < args.length; index++) {
-    const word = args[index] as string;
-    if (word === "--selector" || word === "--tab-id" || word === "--into") {
-      index++;
-      continue;
-    }
-    if (!word.startsWith("--")) words.push(word);
-  }
-  return words;
-}
-
 function unsupported(command: string, why: string): FrameworkError {
   return new FrameworkError(
     "action_frame_step_unsupported",
@@ -77,63 +73,139 @@ function unsupported(command: string, why: string): FrameworkError {
   );
 }
 
+/**
+ * Run the command. Its argv is surf's documented shape, read by position - `js <code>`,
+ * `type <text> --selector <css>`, `select <css> <value>`, `click --selector <css>` - and flags
+ * are looked up only after the positional words: a value that reads as a flag (`--into`,
+ * `--help`) is a value, never a flag, and never makes another word the value.
+ */
 async function act(
   actions: CdpActions,
   command: string,
   args: readonly string[],
   frame: string,
-  effect: "read_only" | "mutating",
+  step: { effect: "read_only" | "mutating"; documents?: readonly string[] },
 ): Promise<unknown> {
-  const words = positionals(args);
+  const options = step.documents ? { documents: step.documents } : {};
+  const flag = (after: number) =>
+    valueAfter(args.slice(after), "--selector") ?? valueAfter(args.slice(after), "--into");
   if (command === "js") {
-    const code = words[0];
+    const [code] = args;
     if (code === undefined) throw unsupported(command, "there is no script");
-    return actions.evaluate(code, { frame, world: effect === "read_only" ? "isolated" : "page" });
+    const world = step.effect === "read_only" ? "isolated" : "page";
+    if (step.documents) {
+      // read before the script runs: a frame whose document cannot be read ran nothing
+      const href = await actions
+        .evaluate<string>("location.href", { frame, world: "isolated" })
+        .catch((error: unknown) => {
+          throw new FrameworkError(
+            "action_document_changed",
+            `the frame's document could not be read (${error instanceof Error ? error.message : String(error)}); the script was not run`,
+            { frame },
+          );
+        });
+      assertDocument(href, step.documents, "the script was not run");
+    }
+    return actions.evaluate(code, { frame, world });
   }
-  const selector = valueAfter(args, "--selector") ?? valueAfter(args, "--into");
   if (command === "type") {
-    if (selector === undefined || words[0] === undefined) {
+    const [text] = args;
+    const selector = flag(1);
+    if (selector === undefined || text === undefined) {
       throw unsupported(command, "it needs the text and --selector");
     }
-    await actions.fill({ selector, frame }, words[0]);
+    await actions.fill({ selector, frame }, text, options);
     return "OK";
   }
   if (command === "select") {
-    const [target, value] = words;
+    const [target, value] = args;
     if (target === undefined || value === undefined) {
       throw unsupported(command, "it needs a selector and a value");
     }
-    await actions.select({ selector: target, frame }, value);
+    await actions.select({ selector: target, frame }, value, options);
     return `Selected: ${value}`;
   }
-  // click: the only command left once `assertFrameStepCommand` has passed
+  // click: the only command left once `frameAwareDeclaration` has passed
+  const selector = flag(0);
   if (selector === undefined) throw unsupported(command, "it needs --selector");
-  await actions.click({ selector, frame });
+  await actions.click({ selector, frame }, options);
   return "OK";
 }
 
-/** Refuse, before anything runs, a step whose command has no frame form. */
-export function assertFrameStepCommand(command: string): void {
-  if (!FRAME_STEP_COMMANDS.has(command)) {
-    throw unsupported(command, "the command has no frame form");
+/**
+ * The declaration of a session step, for a step that names a frame: a command with no frame
+ * form is refused before anything is declared or run, and the declaration says where the step
+ * runs - surf never runs it, and the class map's reasons name surf - so its receipt's evidence
+ * names the frame and the channel. A step without a frame keeps its declaration as it is.
+ */
+export function frameAwareDeclaration<D extends { reason: string }>(
+  step: { command: string; frame?: StepFrame },
+  declare: () => D,
+): D {
+  if (step.frame === undefined) return declare();
+  if (!FRAME_STEP_COMMANDS.has(step.command)) {
+    throw unsupported(step.command, "the command has no frame form");
+  }
+  const declaration = declare();
+  const reason = declaration.reason.replace(/^surf /, "");
+  return {
+    ...declaration,
+    reason: `${reason}, in frame ${frameName(step.frame)} over the DevTools connection`,
+  };
+}
+
+/** Each session's pinned frames: the name a caller used, to the CDP frame id it first reached. */
+const pinsBySession = new WeakMap<object, Map<string, string>>();
+
+/**
+ * The frame a step addresses. A name is pinned to the frame id it first resolves to, for the
+ * life of the session: a frame that navigates (a submit, a redirect) is still the frame the
+ * caller meant, and a URL is never matched again against whatever frame holds it later.
+ */
+async function pinnedFrame(actions: CdpActions, pins: Map<string, string>, frame: string) {
+  const pinned = pins.get(frame);
+  if (pinned === undefined) {
+    const frameId = await actions.frameId(frame);
+    pins.set(frame, frameId);
+    return frameId;
+  }
+  try {
+    return await actions.frameId(pinned);
+  } catch (error) {
+    if (!isFrameworkError(error) || error.code !== "action_frame_unknown") throw error;
+    throw new FrameworkError(
+      "action_frame_unknown",
+      `frame ${frame} is gone: this session pinned it to frame id ${pinned} when it first reached it, and the tab no longer has that frame. It is not looked up by URL again.`,
+      { frame, frameId: pinned },
+    );
   }
 }
 
 /**
- * Run one surf-shaped step in `frame` of the owned tab at `href`, and answer the way the session's
- * `read` expects: a `{ result, target }` envelope on stdout, classified with source `cdp`.
+ * Run one surf-shaped step in `frame` of `session`'s owned tab, and answer the way the session's
+ * `read` expects: a `{ result, target }` envelope on stdout, classified with source `cdp`. The
+ * session is the key its frame pins are kept under.
  */
 export async function runStepInFrame(
-  href: string,
+  session: { readonly url: string },
   env: NodeJS.ProcessEnv,
   step: FrameStep,
 ): Promise<SessionReply> {
-  const { command, args, frame, effect } = step;
+  const { command, args, effect } = step;
+  const frame = frameName(step.frame);
+  const documents = typeof step.frame === "string" ? undefined : step.frame.documents;
+  const pins = pinsBySession.get(session) ?? new Map<string, string>();
+  pinsBySession.set(session, pins);
   const started = Date.now();
-  const actions = await openCdpActions(href, env);
+  const actions = await openCdpActions(session.url, env);
   let value: unknown;
+  let frameId: string | undefined;
   try {
-    value = await act(actions, command, args, frame, effect);
+    frameId = await pinnedFrame(actions, pins, frame);
+    value = await act(actions, command, args, frameId, {
+      effect,
+      ...(documents ? { documents } : {}),
+    });
   } catch (error) {
     if (effect === "read_only" || (isFrameworkError(error) && BEFORE_INPUT.has(error.code))) {
       throw error;
@@ -146,7 +218,8 @@ export async function runStepInFrame(
   } finally {
     await actions.close();
   }
-  const stdout = JSON.stringify({ result: value ?? null, target: { frame, channel: "cdp" } });
+  const target = { frame, frameId, channel: "cdp" };
+  const stdout = JSON.stringify({ result: value ?? null, target });
   const outcome = classifyResult({
     source: "cdp",
     exitCode: 0,

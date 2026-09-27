@@ -130,6 +130,7 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `action_file_missing` | `openCdpActions`: a file passed to `setFiles` does not exist; nothing was set |
 | `action_dialog_opened` | `openCdpActions` with `dialogs: "fail"`: an action opened an alert, confirm or prompt; it was dismissed so the page is not blocked |
 | `action_key_unknown` | `openCdpActions`: `press` got a key or modifier name the channel does not know; no key event was sent |
+| `action_document_changed` | A frame step named the documents its frame must hold, and the element (or the frame, for a script) is in another one - a frame that swapped its document keeps its selectors. Read immediately before any input; nothing was sent |
 | `action_frame_step_unsupported` | A session step named a frame, and its command has no frame form (only `js`, `type`, `select` and `click` run in a frame) or its arguments lack the script, text, selector or value that form needs. Nothing reached the page |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:

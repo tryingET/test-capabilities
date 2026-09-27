@@ -38,7 +38,7 @@ import {
   findJsMutationSignals,
   SESSION_LIFECYCLE_EFFECT,
 } from "./browser-session.js";
-import { assertFrameStepCommand, runStepInFrame } from "./cdp-step-transport.js";
+import { frameAwareDeclaration, runStepInFrame } from "./cdp-step-transport.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
 import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
 import type { ExplainUnreachableOptions } from "./frame-diagnosis.js";
@@ -158,7 +158,7 @@ interface LedgerStepRequest<T> {
   command: string;
   args: readonly string[];
   /** run in this frame over CDP instead of on surf (CDP program S4) */
-  frame?: string;
+  frame?: BrowserStep<T>["frame"];
   intent: string;
   declaration: EffectDeclaration;
   subject: string;
@@ -349,8 +349,7 @@ export class SurfSession implements Session {
     if (this.closed) {
       throw this.lifecycleRefusal(`run '${step.command}' on a session that is already closed`);
     }
-    if (step.frame !== undefined) assertFrameStepCommand(step.command);
-    const declaration = this.declarationFor(step);
+    const declaration = frameAwareDeclaration(step, () => this.declarationFor(step));
     const args = this.targetArgs(step.command, step.args ?? [], declaration);
     if (SESSION_SCREENSHOTTING_COMMANDS.has(step.command) && !args.includes("--no-screenshot")) {
       args.push("--no-screenshot");
@@ -360,8 +359,8 @@ export class SurfSession implements Session {
     return this.runLedgerStep<T>({
       id: step.id,
       command: step.command,
-      args,
-      ...(step.frame === undefined ? {} : { frame: step.frame }),
+      // a frame step gets the caller's own argv, read by position: the tab flags are surf's
+      ...(step.frame === undefined ? { args } : { args: step.args ?? [], frame: step.frame }),
       intent: step.intent,
       declaration,
       subject: this.subjectFor(this.url),
@@ -726,15 +725,8 @@ export class SurfSession implements Session {
       ...(declaration.effect === "mutating" ? { settle: request.settle ?? settleSurfAttempt } : {}),
       run: async (attempt) => {
         if (request.frame !== undefined) {
-          const { frame } = request;
-          const effect = declaration.effect;
-          const reply = await runStepInFrame(this.url, process.env, {
-            command,
-            args,
-            frame,
-            effect,
-          });
-          return request.read(reply, attempt);
+          const step = { command, args, frame: request.frame, effect: declaration.effect };
+          return request.read(await runStepInFrame(this, process.env, step), attempt);
         }
         const result = runSurfCommand(
           this.runtime.resolution,

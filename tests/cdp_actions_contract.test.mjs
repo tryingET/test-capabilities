@@ -159,29 +159,33 @@ test("a click at a fractional centre, as real layouts have, is hit-tested and la
 });
 
 test("clicks land in a cross-origin frame, a frame inside it, and a same-process frame", async (t) => {
-  const { fake, actions, ref, released } = await open(t);
+  const { tree, fake, actions, ref, released } = await open(t);
+  // the agent's window sits on an unseen workspace and paints no frames: Chromium then routes
+  // page-level input into an out-of-process frame only some of the time (measured live
+  // 2026-09-27: 4 of 10 clicks landed on the host's <iframe>), and input sent on the frame's own
+  // session always (10 of 10)
+  tree.unpainted = true;
   await actions.click({ ref: ref("button", "Play") });
   await actions.click({ selector: "#deep", frame: "https://deep.test/inner" });
   await actions.click({ selector: "#inner", frame: "https://app.test/embedded" });
   await actions.click({ ref: ref("button", "Inner") });
-  // out-of-process: every enclosing iframe's content origin plus the element's centre; same-process
-  // quads are already in the page's coordinates (measured live 2026-09-27)
+  // each click is sent on the session that hosts its element, at the element's centre in that
+  // session's own coordinates; same-process quads are already in the host's (measured live)
   assert.deepEqual(
     released().map((event) => [event.x, event.y]),
     [
-      [150, 240],
-      [175, 310],
+      [50, 40],
+      [25, 10],
       [435, 320],
       [435, 320],
     ],
   );
+  const [player, deep, inner] = released().map((event) => event.session);
+  assert.ok(player !== "page" && deep !== "page" && player !== deep, "each frame's own session");
+  assert.equal(inner, "page", "a same-process frame's input goes to its host's session");
   assert.deepEqual(
     fake.clicks.map((click) => click.selector),
     ["#play", "#deep", "#inner", "#inner"],
-  );
-  assert.ok(
-    fake.input.every((event) => event.session === "page"),
-    "input goes to the page",
   );
   assert.deepEqual(Object.values(actions.frames).sort(), [
     "https://app.test/embedded",
@@ -297,6 +301,22 @@ test("hover only moves; dblclick presses twice with rising click counts; modifie
   await actions.click({ selector: "#greet" }, { modifiers: ["Shift"], button: "right" });
   assert.equal(fake.input.at(-1).button, "right");
   assert.ok(fake.keys.some((key) => key.key === "Shift" && key.type === "rawKeyDown"));
+  // in an out-of-process frame the held modifier goes to the same session as the click
+  await actions.click(
+    { selector: "#play", frame: "https://player.test/embed" },
+    {
+      modifiers: ["Shift"],
+    },
+  );
+  const press = fake.input.at(-1);
+  assert.notEqual(press.session, "page");
+  assert.deepEqual(
+    fake.keys.slice(-2).map((key) => [key.key, key.session]),
+    [
+      ["Shift", press.session],
+      ["Shift", press.session],
+    ],
+  );
 });
 
 test("check and uncheck act only when needed and verify the state", async (t) => {
@@ -371,9 +391,16 @@ test("a dialog an action opens is answered by policy and never left blocking", a
 });
 
 test("evaluate runs in the page's world or an isolated one, in any frame", async (t) => {
-  const { actions, fake } = await open(t);
+  const { tree, actions, fake } = await open(t);
   assert.equal(await actions.evaluate("document.title"), "form");
   assert.equal(await actions.evaluate("document.title", "https://player.test/embed"), "player");
+  // a same-process frame shares its host's session: its own main world is found by frame id,
+  // never the host document's (measured live 2026-09-27: Runtime.enable reports one default
+  // context per frame before it answers)
+  assert.equal(await actions.evaluate("document.title", "https://app.test/embedded"), "embedded");
+  // a navigation destroys the page world too: the next evaluate finds the new one
+  fake.dropWorlds();
+  assert.equal(await actions.evaluate("document.title", "https://app.test/embedded"), "embedded");
   assert.equal(
     await actions.evaluate("document.title", {
       frame: "https://app.test/embedded",
@@ -381,6 +408,12 @@ test("evaluate runs in the page's world or an isolated one, in any frame", async
     }),
     "isolated:embedded",
   );
+  // a frame caught mid-navigation reports no page world: refused, never run in its host
+  tree.sameProcess[0].noPageWorld = true;
+  fake.dropWorlds();
+  await assert.rejects(actions.evaluate("document.title", "https://app.test/embedded"), {
+    code: "action_frame_unknown",
+  });
   await assert.rejects(actions.evaluate("nope"), {
     code: "action_evaluate_failed",
     message: /ReferenceError: nope is not defined/,

@@ -104,6 +104,18 @@ export interface PlanTarget {
   landed_href: string;
   title: string;
   readiness: { state: string; evidence: string[] };
+  /**
+   * The frame the form lives in (CDP program S3): `url` is how the plan names it, `origin` is
+   * the origin every fill and the submit act on, `landed_href` is where the frame was when the
+   * form was read. Absent: the form is in the top document.
+   */
+  frame?: PlanFrame;
+}
+
+export interface PlanFrame {
+  url: string;
+  origin: string;
+  landed_href: string;
 }
 
 export interface PlanRuntime {
@@ -147,18 +159,21 @@ export const SURF_PLAN_POLICY: SurfPlan["policy"] = {
 // ============================================
 
 /**
- * What the approval token is taken over: the origin acted on, the selector and value of every
- * field, and the control that may be clicked. Everything else in the plan - the plan id, the
- * timestamp, the candidate list, the runtime version - is context an operator reads, not
- * content an approval binds to, so re-planning the same intent yields the same token.
+ * What the approval token is taken over: the origin acted on (and the frame, when the form is
+ * in one), the selector and value of every field, and the control that may be clicked.
+ * Everything else in the plan - the plan id, the timestamp, the candidate list, the runtime
+ * version - is context an operator reads, not content an approval binds to, so re-planning the
+ * same intent yields the same token.
  */
 export function approvalTokenContent(plan: {
-  target: Pick<PlanTarget, "origin">;
+  target: Pick<PlanTarget, "origin" | "frame">;
   fields: readonly Pick<PlanField, "resolved_selector" | "intended_value">[];
   submit: Pick<PlanSubmit, "control">;
 }): Record<string, unknown> {
   return {
     origin: plan.target.origin,
+    // a frame plan binds to the frame it acts in; a top-document plan's content is unchanged
+    ...(plan.target.frame ? { frame: plan.target.frame.url } : {}),
     fields: plan.fields.map((field) => ({
       resolved_selector: field.resolved_selector,
       intended_value: field.intended_value,
@@ -218,10 +233,13 @@ export function fingerprintDrift(expected: PlanFingerprint, actual: PlanFingerpr
   if (expected.form_count !== actual.form_count) {
     drift.push(`form_count ${expected.form_count} -> ${actual.form_count}`);
   }
+  // the signatures are public content digests stored in the plan file, not secrets
   if (expected.field_signature !== actual.field_signature) {
+    // ubs:ignore -- public digest
     drift.push("field_signature (a field's tag, type, name or owning form changed)");
   }
   if (expected.control_signature !== actual.control_signature) {
+    // ubs:ignore -- public digest
     drift.push("control_signature (the submit control or the buttons around it changed)");
   }
   return drift;
@@ -376,9 +394,23 @@ export const SurfPlanSchema = z
       .object({
         url: z.string().url(),
         origin: z.string().min(1),
-        landed_href: z.string().min(1),
+        landed_href: z.string().url(),
         title: z.string(),
         readiness: z.object({ state: z.string().min(1), evidence: z.array(z.string()) }).strict(),
+        frame: z
+          .object({
+            url: z.string().url(),
+            origin: z.string().min(1),
+            landed_href: z.string().url(),
+          })
+          .strict()
+          // the token binds the frame's URL; the origin the allowlist judges must be that URL's,
+          // or an edited origin would pass the allowlist while the acts land elsewhere
+          .refine((frame) => frame.origin === new URL(frame.url).origin, {
+            message: "must be the origin of target.frame.url",
+            path: ["origin"],
+          })
+          .optional(),
       })
       .strict(),
     fields: z
@@ -428,7 +460,16 @@ export const SurfPlanSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
+  // the landing the gates and the post-condition judge by is the one the fingerprint holds, and
+  // apply refuses a live page whose URL is not the fingerprint's: a forged landing goes nowhere
+  .refine(
+    (plan) => (plan.target.frame ?? plan.target).landed_href === plan.fingerprint.url,
+    (plan) => ({
+      message: "must be the URL the fingerprint was taken at (fingerprint.url)",
+      path: plan.target.frame ? ["target", "frame", "landed_href"] : ["target", "landed_href"],
+    }),
+  );
 
 /** Parse a plan artifact, or refuse with the path in the message. */
 export function parsePlanArtifact(raw: unknown, planPath: string): SurfPlan {
