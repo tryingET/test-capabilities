@@ -92,5 +92,24 @@ good interactive tool for an agent exploring a site).
   page with out-of-process frames is unchanged (507 ms, frame read, `button "Play"` present).
 - `surf explore --a11y-snapshot=required`, 3 runs each, old -> new build: form page 807 -> 565 ms,
   frame page 1 070 -> 1 110 ms (noise); digests identical old vs new on both pages.
-- Next for frame pages: stop waiting once every `Iframe` node's frame has attached, instead of a
-  fixed settle.
+
+## Frame wait, applied (AK #6056, 2026-09-27)
+
+Measured live first: Chromium sends `Target.attachedToTarget` for every existing out-of-process
+frame *before* it answers `Target.setAutoAttach`, at every nesting level (4-5 ms). `Page.getFrameTree`
+on the page lists only in-process frames, and an `Iframe` node looks the same either way, so the
+expected set comes from `Target.getTargets` (iframe targets whose `parentFrameId` is a frame the
+page or an attached frame hosts).
+
+`readAxForest` now reads each level without sleeping, then waits in 25 ms polls only while such a
+target has not attached, up to 2 s; one that never attaches is named unreadable instead of missing.
+Live, in-process, open + read + close, median of 5, old -> new, digests identical:
+
+| page | old | new |
+|---|---|---|
+| one cross-origin + one same-origin frame | 506 ms | 5 ms |
+| nested cross-origin frames (2 levels) | 759 ms | 6 ms |
+| MDN `<iframe>` (6 frames) | 1 044 ms | 300 ms |
+
+The evaluator still reads inside the nested frame (`button "Play"`: passed; `text: "Pause"`:
+failed, quoting "Play"); page targets 1 -> 1.

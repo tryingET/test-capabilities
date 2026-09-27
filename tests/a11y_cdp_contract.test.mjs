@@ -152,6 +152,42 @@ test("a page whose tree has no iframe is read without attaching or waiting for f
   assert.match(framed.snapshot, /button "Play"/);
 });
 
+test("frames are read as soon as every one has attached; a late one is waited for, a missing one named", async (t) => {
+  // Chromium announces existing frames before setAutoAttach answers (measured live 2026-09-27),
+  // so a fixed settle only cost time: ~507 ms per read of a page with frames.
+  const open = async (tree) => {
+    const fake = await startFakeCdp({ pages: { P1: { url: LOCAL_URL, tree } } });
+    t.after(() => fake.close());
+    const started = performance.now();
+    const live = await openA11yLiveView(LOCAL_URL, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url });
+    const elapsed = performance.now() - started;
+    await live.close();
+    return { live, elapsed, fake };
+  };
+
+  const prompt = await open(treeFromCapture(LOCAL));
+  assert.match(prompt.live.snapshot, /button "Play"/);
+  assert.ok(prompt.elapsed < 150, `read took ${Math.round(prompt.elapsed)} ms`);
+
+  const late = treeFromCapture(LOCAL);
+  late.frames[0].lateMs = 300;
+  const waited = await open(late);
+  assert.match(waited.live.snapshot, /button "Play"/, "a frame that attaches late is still read");
+  assert.ok(
+    waited.elapsed >= 300 && waited.elapsed < 700,
+    `read took ${Math.round(waited.elapsed)} ms`,
+  );
+
+  const missing = treeFromCapture(LOCAL);
+  missing.frames[0].neverAttach = true;
+  const named = await open(missing);
+  assert.match(
+    named.live.snapshot,
+    /frame "http:\/\/localhost:18766\/player.html"\n {2}\(unreadable: .*did not attach/,
+  );
+  assert.ok(named.elapsed < 2600, `the wait is bounded: ${Math.round(named.elapsed)} ms`);
+});
+
 test("the check reader gives the evaluator real visible/text/attr readings, in-frame too", async (t) => {
   const tree = treeFromCapture(LOCAL);
   const playNode = tree.frames[0].nodes.find((node) => node.name?.value === "Play");

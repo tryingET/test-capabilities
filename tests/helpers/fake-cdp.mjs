@@ -8,7 +8,9 @@ import { createServer } from "node:http";
  *
  * `pages` maps a target id to `{ url, title, tree: { nodes, frames: [{ url, nodes, frames }] } }`.
  * Frames attach recursively through `Target.setAutoAttach` as flattened sessions, the way
- * Chromium attaches out-of-process iframes. `reads` maps a backend node id to
+ * Chromium attaches out-of-process iframes: the attach events of existing frames come before the
+ * command's answer (measured live 2026-09-27). A frame may set `lateMs` (it attaches that much
+ * later) or `neverAttach`; every frame is listed by `Target.getTargets` with its `parentFrameId`. `reads` maps a backend node id to
  * `{ visible, text, attrs }` for the check reader. Every command is logged in `methods`, so a
  * test can prove the producer only ever read.
  */
@@ -70,6 +72,18 @@ export async function startFakeCdp({
 
     // session id -> tree; the page itself is the session `undefined`
     const trees = new Map([[undefined, page?.tree ?? { nodes: [] }]]);
+    // frame ids: the page's main frame is the target id; each frame gets one, and its parent's
+    const frameIds = new Map();
+    const targets = [];
+    const index = (tree, parentId) => {
+      for (const frame of tree?.frames ?? []) {
+        frameIds.set(frame, frame.id ?? `FRAME${frameIds.size + 1}`);
+        targets.push({ frame, parentId });
+        index(frame, frameIds.get(frame));
+      }
+    };
+    frameIds.set(trees.get(undefined), targetId);
+    index(trees.get(undefined), targetId);
     const emitted = new Set();
     let nextSession = 0;
     let buffer = Buffer.alloc(0);
@@ -109,8 +123,35 @@ export async function startFakeCdp({
             send({ id, result: { nodes: tree?.nodes ?? [] } });
           }
           return;
+        case "Target.getTargets":
+          send({
+            id,
+            result: {
+              targetInfos: [
+                // another tab's frame: its parent is no frame of this page
+                { targetId: "OTHER", type: "iframe", url: "chrome://other/", parentFrameId: "X" },
+                ...targets.map(({ frame, parentId }) => ({
+                  targetId: frameIds.get(frame),
+                  type: "iframe",
+                  url: frame.url,
+                  parentFrameId: parentId,
+                })),
+              ],
+            },
+          });
+          return;
+        case "Page.getFrameTree":
+          if (tree?.error) {
+            // a frame that errors on its tree (detached) errors on its frame tree too
+            send({ id, error: { message: tree.error } });
+            return;
+          }
+          send({
+            id,
+            result: { frameTree: { frame: { id: frameIds.get(tree), url: tree?.url } } },
+          });
+          return;
         case "Target.setAutoAttach":
-          send({ id, result: {} });
           if (!params.autoAttach && sessionId === undefined) {
             // as Chromium does: turning auto-attach off on the page detaches the child sessions
             for (const key of [...trees.keys()]) {
@@ -119,20 +160,25 @@ export async function startFakeCdp({
           }
           if (params.autoAttach) {
             for (const frame of tree?.frames ?? []) {
-              if (emitted.has(frame)) continue;
+              if (emitted.has(frame) || frame.neverAttach) continue;
               emitted.add(frame);
-              const child = `S${++nextSession}`;
-              trees.set(child, frame);
-              send({
-                method: "Target.attachedToTarget",
-                params: {
-                  sessionId: child,
-                  targetInfo: { type: "iframe", url: frame.url },
-                  waitingForDebugger: false,
-                },
-              });
+              const attach = () => {
+                const child = `S${++nextSession}`;
+                trees.set(child, frame);
+                send({
+                  method: "Target.attachedToTarget",
+                  params: {
+                    sessionId: child,
+                    targetInfo: { targetId: frameIds.get(frame), type: "iframe", url: frame.url },
+                    waitingForDebugger: false,
+                  },
+                });
+              };
+              if (frame.lateMs) setTimeout(attach, frame.lateMs);
+              else attach();
             }
           }
+          send({ id, result: {} });
           return;
         case "DOM.resolveNode":
           send({ id, result: { object: { objectId: `obj:${params.backendNodeId}` } } });

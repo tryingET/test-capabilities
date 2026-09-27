@@ -26,9 +26,9 @@ export const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
 export const LOOPBACK_HOSTS: readonly string[] = ["127.0.0.1", "localhost", "::1", "[::1]"];
 const HTTP_TIMEOUT_MS = 3_000;
 const COMMAND_TIMEOUT_MS = 15_000;
-/** how long frame attachment may stay quiet before the forest is considered complete */
-const FRAME_SETTLE_MS = 250;
-const FRAME_ROUNDS = 8;
+/** how long a read waits for a frame target of this page that has not attached yet */
+const FRAME_WAIT_MS = 2_000;
+const FRAME_POLL_MS = 25;
 
 export interface CdpTarget {
   id: string;
@@ -159,7 +159,7 @@ export class CdpConnection {
   private readonly socket: WebSocket;
   private readonly pending = new Map<number, Pending>();
   private nextId = 0;
-  readonly attached: Array<{ sessionId: string; type: string; url: string }> = [];
+  readonly attached: Array<{ sessionId: string; targetId: string; type: string; url: string }> = [];
 
   private constructor(socket: WebSocket) {
     this.socket = socket;
@@ -198,7 +198,10 @@ export class CdpConnection {
       result?: unknown;
       error?: { message?: string };
       method?: string;
-      params?: { sessionId?: string; targetInfo?: { type?: string; url?: string } };
+      params?: {
+        sessionId?: string;
+        targetInfo?: { targetId?: string; type?: string; url?: string };
+      };
     };
     try {
       message = JSON.parse(raw);
@@ -222,6 +225,7 @@ export class CdpConnection {
     if (message.method === "Target.attachedToTarget" && message.params?.sessionId) {
       this.attached.push({
         sessionId: message.params.sessionId,
+        targetId: message.params.targetInfo?.targetId ?? "",
         type: message.params.targetInfo?.type ?? "",
         url: message.params.targetInfo?.url ?? "",
       });
@@ -252,11 +256,14 @@ export interface AxForestRead {
 }
 
 /**
- * Read the forest: the page, then every out-of-process frame that attaches, recursively. Returns
- * once no new frame has attached for {@link FRAME_SETTLE_MS}, or after {@link FRAME_ROUNDS}
- * rounds. The frame sessions stay attached, so a check can still read inside a frame; the caller
- * ends them with {@link releaseForest}. (Turning auto-attach off on the page detaches every child
- * session in Chromium - measured live 2026-09-26 - so it must not happen before the checks.)
+ * Read the forest: the page, then every out-of-process frame, recursively. Chromium announces the
+ * frames that exist before `setAutoAttach` answers (measured live 2026-09-27), so each level is
+ * read without waiting. The read then checks `Target.getTargets` for frame targets of this page
+ * that have not attached, and waits for those only, up to {@link FRAME_WAIT_MS}; one that never
+ * attaches is named unreadable. The frame sessions stay attached, so a check can still read inside
+ * a frame; the caller ends them with {@link releaseForest}. (Turning auto-attach off on the page
+ * detaches every child session in Chromium - measured live 2026-09-26 - so it must not happen
+ * before the checks.)
  */
 export async function readAxForest(connection: CdpConnection): Promise<AxForestRead> {
   const main = await connection.send<{ nodes: AxRawNode[] }>("Accessibility.getFullAXTree");
@@ -273,18 +280,15 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
       sessionId,
     );
   const read = new Set<string>();
+  const deadline = Date.now() + FRAME_WAIT_MS;
   await autoAttach(true);
-  for (let round = 0; round < FRAME_ROUNDS; round++) {
-    await new Promise((resolve) => setTimeout(resolve, FRAME_SETTLE_MS));
+  for (;;) {
     const fresh = connection.attached.filter(
       (entry) => entry.type === "iframe" && !read.has(entry.sessionId),
     );
-    if (fresh.length === 0) {
-      break;
-    }
     for (const entry of fresh) {
       read.add(entry.sessionId);
-      const frame = `f${read.size}`;
+      const frame = `f${forest.length}`;
       sessions[frame] = entry.sessionId;
       try {
         const tree = await connection.send<{ nodes: AxRawNode[] }>(
@@ -295,16 +299,77 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
         forest.push({ frame, url: entry.url, nodes: tree.nodes });
         await autoAttach(true, entry.sessionId);
       } catch (error) {
-        forest.push({
-          frame,
-          url: entry.url,
-          nodes: [],
-          error: error instanceof Error ? error.message : String(error),
-        });
+        forest.push({ frame, url: entry.url, nodes: [], error: errorText(error) });
       }
     }
+    if (fresh.length > 0) {
+      continue;
+    }
+    const pending = await unattachedFrameTargets(connection, sessions);
+    if (pending.length === 0) {
+      break;
+    }
+    if (Date.now() >= deadline) {
+      for (const target of pending) {
+        const error = `frame target did not attach within ${FRAME_WAIT_MS} ms`;
+        forest.push({ frame: `f${forest.length}`, url: target.url, nodes: [], error });
+      }
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, FRAME_POLL_MS));
   }
   return { forest, sessions };
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+interface FrameTargetInfo {
+  targetId: string;
+  type: string;
+  url: string;
+  parentFrameId?: string;
+}
+
+/**
+ * The out-of-process frame targets of this page that have no session yet: iframe targets whose
+ * parent frame is one of the frames the page or an attached frame session hosts. (The page's own
+ * frame tree lists only its in-process frames, and an `Iframe` node looks the same either way.)
+ */
+async function unattachedFrameTargets(
+  connection: CdpConnection,
+  sessions: Record<string, string | undefined>,
+): Promise<FrameTargetInfo[]> {
+  const frameIds = new Set<string>();
+  type FrameNode = { frame: { id: string }; childFrames?: FrameNode[] };
+  const collect = (node: FrameNode) => {
+    frameIds.add(node.frame.id);
+    for (const child of node.childFrames ?? []) collect(child);
+  };
+  for (const sessionId of Object.values(sessions)) {
+    try {
+      const { frameTree } = await connection.send<{ frameTree: FrameNode }>(
+        "Page.getFrameTree",
+        {},
+        sessionId,
+      );
+      collect(frameTree);
+    } catch {
+      // a frame that went away hosts no frame to wait for
+    }
+  }
+  const { targetInfos = [] } = await connection.send<{ targetInfos?: FrameTargetInfo[] }>(
+    "Target.getTargets",
+  );
+  const attached = new Set(connection.attached.map((entry) => entry.targetId));
+  return targetInfos.filter(
+    (target) =>
+      target.type === "iframe" &&
+      target.parentFrameId !== undefined &&
+      frameIds.has(target.parentFrameId) &&
+      !attached.has(target.targetId),
+  );
 }
 
 /**
