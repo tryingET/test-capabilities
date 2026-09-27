@@ -162,6 +162,100 @@ const verbs = (surf) =>
 const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
 const ACTING = ["js", "type", "select", "click"];
 
+test("a press dialog cancels held input away from the submit control", async () => {
+  await withFakes(async ({ cdp, tree, dir, out, config }) => {
+    await plan({ url: FORM, field: FIELDS, out, config });
+    tree.elements["#pay"].pressDialog = { type: "confirm", message: "Press?" };
+    await assert.rejects(
+      apply({ plan: out, submit: true, confirmPlan: readPlan(out).approval_token, config }),
+      { code: "action_dialog_opened" },
+    );
+    assert.equal(cdp.clicks.length, 0);
+    assert.equal(tree.url, FORM);
+    assert.ok(
+      cdp.input.some((event) => event.type === "mouseReleased" && event.x === -1 && event.y === -1),
+    );
+    assert.equal(
+      receiptsIn(dir).find((entry) => entry.details.mode === "submit").outcome,
+      "unknown",
+    );
+  });
+});
+
+for (const failedAnswer of [false, true]) {
+  test(`a focus dialog stops before text input, reports its actual answer, and stays private (failedAnswer=${failedAnswer})`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out, config }) => {
+      await plan({ url: FORM, field: FIELDS, out, config });
+      const secret = `private-card sha256:${"a".repeat(64)}`;
+      tree.elements["#card"].focusDialog = { type: "prompt", message: secret };
+      tree.dialogHandleFails = failedAnswer;
+      await assert.rejects(apply({ plan: out, config }), (error) => {
+        assert.equal(error.code, "action_dialog_opened");
+        assert.doesNotMatch(JSON.stringify(error), /private-card/);
+        return true;
+      });
+      const [receipt] = receiptsIn(dir);
+      assert.equal(receipt.outcome, "unknown");
+      const [dialog] = JSON.parse(
+        receipt.evidence.find((line) => line.startsWith("dialogs:")).slice(8),
+      );
+      assert.equal(dialog.message, secret);
+      assert.equal(dialog.answer, failedAnswer ? "unanswered" : "dismissed");
+      assert.deepEqual(cdp.values, {});
+    });
+  });
+}
+
+for (const navigates of [false, true]) {
+  test(`a submit dialog is reported and never promoted (navigation=${navigates})`, async () => {
+    await withFakes(async ({ cdp, tree, dir, out, config }) => {
+      await plan({ url: FORM, field: FIELDS, out, config });
+      tree.elements["#pay"].dialog = { type: navigates ? "alert" : "confirm", message: "Pay?" };
+      if (!navigates) delete tree.elements["#pay"].navigatesTo;
+      const input = { plan: out, submit: true, confirmPlan: readPlan(out).approval_token, config };
+      await assert.rejects(apply(input), (error) => {
+        assert.match(error.message, /dialog|Pay\?/);
+        return true;
+      });
+      const receipt = receiptsIn(dir).find((entry) => entry.details.mode === "submit");
+      assert.equal(receipt.outcome, "unknown");
+      assert.equal(receipt.verified_by, undefined);
+      assert.equal(receipt.error.code, "action_dialog_opened");
+      const dialog = receipt.evidence.find((line) => line.startsWith("dialogs:"));
+      assert.deepEqual(JSON.parse(dialog.slice("dialogs:".length)), [
+        {
+          type: navigates ? "alert" : "confirm",
+          message: "Pay?",
+          url: navigates ? DONE : FORM,
+          answer: "dismissed",
+        },
+      ]);
+      assert.equal(cdp.dialogs[0].accept, false);
+      assert.equal(cdp.clicks.length, 1);
+      await assert.rejects(apply(input), { code: "submit_already_attempted" });
+      assert.equal(cdp.clicks.length, 1);
+    });
+  });
+}
+
+test("a fill dialog stops before the next field or submit, with an unknown receipt", async () => {
+  await withFakes(async ({ cdp, tree, dir, out, config }) => {
+    await plan({ url: FORM, field: FIELDS, out, config });
+    tree.elements["#card"].inputDialog = { type: "prompt", message: "Continue?" };
+    await assert.rejects(apply({ plan: out, config }), {
+      code: "action_dialog_opened",
+      message: /dialog/,
+    });
+    const receipts = receiptsIn(dir);
+    assert.equal(receipts.length, 1);
+    assert.equal(receipts[0].outcome, "unknown");
+    assert.match(receipts[0].evidence.join("\n"), /dialogs:.*Continue\?/);
+    assert.deepEqual(cdp.values, { "#card": "4242" });
+    assert.equal(cdp.clicks.length, 0);
+    assert.equal(cdp.dialogs[0].accept, false);
+  });
+});
+
 test("with the DevTools connection bound, a fill runs in the page over it and says so", async () => {
   await withFakes(async ({ surf, cdp, dir, out, config }) => {
     await plan({ url: FORM, field: FIELDS, out, config });

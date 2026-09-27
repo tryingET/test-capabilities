@@ -203,7 +203,7 @@ async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv)
   pinsBySession.set(session, pins);
   const href = session.readiness?.href ?? session.url;
   if (pins.targetId !== undefined) {
-    const actions = await openCdpActions(href, env, { targetId: pins.targetId });
+    const actions = await openCdpActions(href, env, { targetId: pins.targetId, dialogs: "fail" });
     return { actions, pins: pins.frames };
   }
   const owned = await session.evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
@@ -211,7 +211,7 @@ async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv)
     intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
     read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
   });
-  const actions = await openCdpActions(href, env);
+  const actions = await openCdpActions(href, env, { dialogs: "fail" });
   if (owned !== undefined) {
     const bound = await actions
       .evaluate<string>(TIME_ORIGIN, { world: "isolated" })
@@ -297,7 +297,18 @@ export async function runStepInFrame(
       effect,
       ...(documents ? { documents } : {}),
     });
+    // evaluate() has no element settlement, but its script may also open a dialog.
+    if (actions.dialogs.length > 0) {
+      throw new FrameworkError("action_dialog_opened", "the step opened a dialog");
+    }
   } catch (error) {
+    if (actions.dialogs.length > 0) {
+      throw new FrameworkError(
+        "action_dialog_opened",
+        `${command} opened a dialog; dismissal was requested. Input may already have taken effect; inspect the receipt for the answer before proceeding.`,
+        { command, frame, dialogs: [...actions.dialogs], outcome: { basis: "indeterminate" } },
+      );
+    }
     if (effect === "read_only" || (isFrameworkError(error) && BEFORE_INPUT.has(error.code))) {
       throw error;
     }

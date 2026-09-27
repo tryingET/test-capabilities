@@ -250,7 +250,11 @@ export function redactReceipt(
   artifactPath?: string,
 ): MutationReceiptEnvelopeCopy {
   const { evidence, error, details, ...rest } = receipt;
-  const keptEvidence = evidence.filter((entry) => /sha256:[0-9a-f]{64}/.test(entry));
+  // Dialog text/URLs are page-controlled and may themselves contain a hash-shaped string.
+  // They belong only in the private receipt, never in its envelope copy.
+  const keptEvidence = evidence.filter(
+    (entry) => !entry.startsWith("dialogs:") && /sha256:[0-9a-f]{64}/.test(entry),
+  );
   return {
     ...rest,
     evidence: keptEvidence,

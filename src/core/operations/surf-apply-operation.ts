@@ -422,13 +422,11 @@ async function runSurfApplyOperation(
           { plan_id: plan.plan_id },
         );
       }
-      try {
-        await runner.clickSubmit();
-        submitted = true;
-      } catch (error) {
-        throw asPostconditionRefusal(error, plan, context);
-      }
+      await runner.clickSubmit();
+      submitted = true;
     }
+  } catch (error) {
+    throw asPostconditionRefusal(error, plan, context);
   } finally {
     notes.push(...(runner ? runner.notes() : session.notes()));
     await (runner ? runner.close() : session.close());
@@ -475,9 +473,18 @@ function asPostconditionRefusal(error: unknown, plan: SurfPlan, context: RunCont
   if (!isFrameworkError(error) || error.code !== "mutation_outcome_unknown") {
     return error;
   }
-  const receipt = context.ledger
-    .envelopeReceipts()
-    .find((entry) => entry.details?.mode === "submit");
+  const receipts = context.ledger.envelopeReceipts();
+  const dialog = receipts.find((entry) => entry.error?.code === "action_dialog_opened");
+  if (dialog) {
+    return new MutationError(
+      "action_dialog_opened",
+      `An apply step opened a dialog; dismissal was requested, not approval. Its effect remains unknown. Receipt ${dialog.receipt_id} records the dialog; execution stopped without retry. Inspect the page and receipt by hand.`,
+      receipts,
+      { plan_id: plan.plan_id, receipt_id: dialog.receipt_id },
+    );
+  }
+  const receipt = receipts.find((entry) => entry.details?.mode === "submit");
+  if (!receipt) return error;
   return new MutationError(
     "submit_postcondition_unmet",
     `The submit for plan ${plan.plan_id} was clicked and its post-condition was never observed, so whether it took effect is unknown. Receipt ${receipt?.receipt_id ?? "(unwritten)"} records the attempt as 'unknown' and refuses every later submit of this plan; inspect ${plan.target.origin} by hand. It is never retried.`,

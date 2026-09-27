@@ -193,6 +193,10 @@ export function createFakeDom(page, initialEmit) {
         reply({});
         return true;
       case "Page.handleJavaScriptDialog":
+        if (page.dialogHandleFails) {
+          send({ id, error: { message: "dialog answer failed" } });
+          return true;
+        }
         record.dialogs.push({
           ...pendingDialog,
           accept: params.accept,
@@ -267,6 +271,14 @@ export function createFakeDom(page, initialEmit) {
         }
         if (Object.hasOwn(tree.evals ?? {}, params.expression)) {
           const value = tree.evals[params.expression];
+          if (tree.evalDialogs?.[params.expression]) {
+            pendingDialog = { ...tree.evalDialogs[params.expression], frame: tree.url };
+            emit({
+              method: "Page.javascriptDialogOpening",
+              ...(sessionId ? { sessionId } : {}),
+              params: { ...tree.evalDialogs[params.expression], url: tree.url },
+            });
+          }
           reply({
             result: { type: typeof value, value: isolated ? `isolated:${value}` : value },
           });
@@ -428,12 +440,28 @@ export function createFakeDom(page, initialEmit) {
       }
       case "DOM.focus":
         focused = objectOf(params.objectId);
+        if (focused.element.focusDialog) {
+          pendingDialog = { ...focused.element.focusDialog, frame: focused.tree.url };
+          emit({
+            method: "Page.javascriptDialogOpening",
+            ...(focused.session ? { sessionId: focused.session } : {}),
+            params: { ...focused.element.focusDialog, url: focused.tree.url },
+          });
+        }
         reply({});
         return true;
       case "Input.insertText":
         record.values[focused.selector] = params.text;
         // a change handler that navigates its frame
         if (focused.element.inputNavigatesTo) focused.tree.url = focused.element.inputNavigatesTo;
+        if (focused.element.inputDialog) {
+          pendingDialog = { ...focused.element.inputDialog, frame: focused.tree.url };
+          emit({
+            method: "Page.javascriptDialogOpening",
+            ...(focused.session ? { sessionId: focused.session } : {}),
+            params: { ...focused.element.inputDialog, url: focused.tree.url },
+          });
+        }
         reply({});
         return true;
       case "Input.dispatchKeyEvent":
@@ -483,6 +511,19 @@ export function createFakeDom(page, initialEmit) {
           pendingMove.flush();
           pendingMove = undefined;
         }
+        if (params.type === "mousePressed") {
+          const landed = sessionId
+            ? sessionHit(sessionId, params.x, params.y)
+            : pageHit(params.x, params.y);
+          if (landed?.element.pressDialog) {
+            pendingDialog = { ...landed.element.pressDialog, frame: landed.tree.url };
+            emit({
+              method: "Page.javascriptDialogOpening",
+              ...(sessionId ? { sessionId } : {}),
+              params: { ...landed.element.pressDialog, url: landed.tree.url },
+            });
+          }
+        }
         record.input.push({
           type: params.type,
           x: params.x,
@@ -492,6 +533,7 @@ export function createFakeDom(page, initialEmit) {
           session: sessionId ?? "page",
         });
         if (params.type === "mouseReleased") {
+          // releases outside the viewport cancel held input, they do not click a control.
           const landed = sessionId
             ? sessionHit(sessionId, params.x, params.y)
             : pageHit(params.x, params.y);
@@ -510,7 +552,7 @@ export function createFakeDom(page, initialEmit) {
               emit({
                 method: "Page.javascriptDialogOpening",
                 ...(landed.session ? { sessionId: landed.session } : {}),
-                params: { ...element.dialog, url: landed.frame },
+                params: { ...element.dialog, url: landed.tree.url },
               });
             }
           }

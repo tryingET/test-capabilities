@@ -127,6 +127,52 @@ const verbs = (surf) =>
     .filter((command) => !command.startsWith("--"));
 const proofs = (surf) => surf.calls().filter((call) => call[1] === TAB_PROOF).length;
 
+test("a script dialog is also refused, even without an element action settlement", async () => {
+  const tree = page();
+  tree.frames[0].evals["confirm('Pay?')"] = false;
+  tree.frames[0].evalDialogs = { "confirm('Pay?')": { type: "confirm", message: "Pay?" } };
+  await withFrameSession(
+    async ({ session, context }) => {
+      await assert.rejects(
+        session.step(step("test.script-dialog", "js", ["confirm('Pay?')"], MUTATING)),
+        {
+          code: "mutation_outcome_unknown",
+        },
+      );
+      const [receipt] = context.ledger.receipts();
+      assert.equal(receipt.outcome, "unknown");
+      assert.equal(receipt.error.code, "action_dialog_opened");
+      assert.match(receipt.evidence.join("\n"), /dialogs:.*Pay/);
+    },
+    { tree },
+  );
+});
+
+test("the first CDP step dismisses and records an OOPIF dialog without treating it as no effect", async () => {
+  const tree = page();
+  tree.frames[0].elements["#pay"].dialog = { type: "confirm", message: "Pay?" };
+  await withFrameSession(
+    async ({ session, context, cdp }) => {
+      await assert.rejects(
+        session.step(step("test.dialog", "click", ["--selector", "#pay"], MUTATING)),
+        {
+          code: "mutation_outcome_unknown",
+        },
+      );
+      const [receipt] = context.ledger.receipts();
+      assert.equal(receipt.outcome, "unknown");
+      assert.equal(receipt.error.code, "action_dialog_opened");
+      assert.deepEqual(
+        JSON.parse(receipt.evidence.find((line) => line.startsWith("dialogs:")).slice(8)),
+        [{ type: "confirm", message: "Pay?", url: PAY, answer: "dismissed" }],
+      );
+      assert.equal(cdp.dialogs[0].accept, false);
+      assert.equal(cdp.clicks.length, 1);
+    },
+    { tree },
+  );
+});
+
 test("a read-only script in a frame reads in its isolated world, from the cdp channel, and writes no receipt", async () => {
   await withFrameSession(async ({ session, context, cdp, surf }) => {
     const { payload, reply } = await session.step(

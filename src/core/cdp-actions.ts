@@ -71,7 +71,7 @@ export interface CdpDialogRecord {
   type: string;
   message: string;
   url: string;
-  answer: "accepted" | "dismissed";
+  answer: "accepted" | "dismissed" | "unanswered";
 }
 
 export interface CdpActionsOpenOptions extends CdpActionOptions {
@@ -204,6 +204,7 @@ export async function openCdpActions(
 
   // dialogs: every session that hosts a frame reports them; each is answered by the policy
   const dialogs: CdpDialogRecord[] = [];
+  const pendingAnswers = new Set<Promise<void>>();
   let failingDialog: CdpDialogRecord | undefined;
   const policy = options.dialogs ?? "dismiss";
   const offDialogs = connection.on("Page.javascriptDialogOpening", (params, sessionId) => {
@@ -212,11 +213,11 @@ export async function openCdpActions(
       type: String(params.type ?? ""),
       message: String(params.message ?? ""),
       url: String(params.url ?? ""),
-      answer: accept ? "accepted" : "dismissed",
+      answer: "unanswered",
     };
     dialogs.push(record);
     if (policy === "fail") failingDialog = record;
-    void connection
+    const answering = connection
       .send(
         "Page.handleJavaScriptDialog",
         {
@@ -225,7 +226,14 @@ export async function openCdpActions(
         },
         sessionId,
       )
-      .catch(() => undefined);
+      .then(() => {
+        record.answer = accept ? "accepted" : "dismissed";
+      })
+      .catch(() => {
+        failingDialog = record;
+      });
+    pendingAnswers.add(answering);
+    void answering.then(() => pendingAnswers.delete(answering));
   });
   const enabledPages = new Set<string>();
   const enablePages = async () => {
@@ -417,7 +425,11 @@ export async function openCdpActions(
     for (let count = 1; count <= clickCount; count++) {
       const click = { button, clickCount: count, modifiers: chord.mask };
       await send("mousePressed", click);
-      await send("mouseReleased", click);
+      await Promise.all(pendingAnswers);
+      // A mousedown/focus dialog must not be followed by a release on the control:
+      // release outside the viewport to clear held input without completing its click.
+      await send("mouseReleased", failingDialog ? { ...click, x: -1, y: -1 } : click);
+      if (failingDialog) break;
     }
     await moved;
     for (const modifier of [...chord.modifiers].reverse()) {
@@ -428,12 +440,13 @@ export async function openCdpActions(
   // every action ends here: releases its element, and raises a dialog the `fail` policy caught
   const settle = async (element: ActionableElement | undefined) => {
     if (element) await release(connection, element.resolved);
+    await Promise.all(pendingAnswers);
     if (failingDialog) {
       const opened = failingDialog;
       failingDialog = undefined;
       throw new FrameworkError(
         "action_dialog_opened",
-        `the action opened a ${opened.type} ("${opened.message}"); it was dismissed`,
+        `the action opened a ${opened.type}; answer: ${opened.answer}`,
         { ...opened },
       );
     }
@@ -482,12 +495,14 @@ export async function openCdpActions(
       );
     });
 
-  const focusOn = (element: ActionableElement) =>
-    connection.send(
+  const focusOn = async (element: ActionableElement) => {
+    await connection.send(
       "DOM.focus",
       { objectId: element.resolved.objectId },
       element.resolved.sessionId,
     );
+    await settle(undefined);
+  };
 
   let closed = false;
   return {
@@ -511,6 +526,7 @@ export async function openCdpActions(
       act(actionTarget, { editable: true, hit: false }, options, async (element) => {
         await focusOn(element);
         await callOn(connection, element.resolved, SELECT_ALL);
+        await settle(undefined);
         if (text === "") {
           const erase = parseChord("Delete").key;
           await key("keyDown", erase, 0);
@@ -638,6 +654,7 @@ export async function openCdpActions(
       if (closed) return;
       closed = true;
       offDialogs();
+      await Promise.all(pendingAnswers);
       await releaseForest(connection, sessions);
       connection.close();
     },

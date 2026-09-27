@@ -34,7 +34,7 @@ import type {
 } from "./browser-session.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement } from "./effects.js";
 import type { RunContext } from "./run-context.js";
-import { FrameworkError } from "./runtime-contract.js";
+import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
 import { settleSurfAttempt } from "./surf-adapter.js";
 import type { PlanField, SurfPlan } from "./surf-plan.js";
 import {
@@ -487,10 +487,14 @@ export function createApplyRunner(
         satisfied: false,
       };
 
-      const settle = (attempt: EffectAttempt<SessionReply>): EffectSettlement =>
-        attempt.error === undefined
+      let dialogOpened = false;
+      const settle = (attempt: EffectAttempt<SessionReply>): EffectSettlement => {
+        dialogOpened =
+          isFrameworkError(attempt.error) && attempt.error.code === "action_dialog_opened";
+        return attempt.error === undefined
           ? { outcome: "unknown", evidence: ["click sent; post-condition not observed yet"] }
           : settleSurfAttempt(attempt);
+      };
 
       calls.push(redactedCall("click", control.selector));
       await session.step<SessionReply>({
@@ -512,6 +516,11 @@ export function createApplyRunner(
         settle,
         read: (reply: SessionReply) => reply,
         verify: async () => {
+          // Dismissing an alert may let the page navigate. That is not authorization to
+          // overlook the dialog policy failure, nor proof a dismissed confirm submitted.
+          if (dialogOpened) {
+            return { result: "indeterminate", evidence: ["dialog policy failed; no promotion"] };
+          }
           const deadline = Date.now() + postconditionTimeoutMs;
           for (;;) {
             observed = await observe();

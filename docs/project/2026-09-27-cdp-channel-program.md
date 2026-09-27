@@ -322,7 +322,52 @@ Review (two rounds, `openai-codex-2/gpt-6-astra`), every finding fixed red-first
 Live after the fixes, three rounds: top-document fill 607-640 ms and submit 948-1065 ms on the
 connection (surf: 935-946 and 1865-2101 ms); frame submit 1010-1041 ms.
 
-## 5. Done when
+## 5. Follow-up slices
+
+### AK #6161 — dialogs during apply (design before implementation)
+
+Session CDP steps use `dialogs: "fail"`, on first bind and every pinned reopen. A dialog
+cannot generally be predicted before dispatching input. Dismiss it to unblock Chromium, stop
+the step, and keep its effect **unknown**, not `failed`: an input handler may already have
+changed the page before asking. Record each dialog's type, message, URL and dismissal in the
+receipt's evidence, with `action_dialog_opened` as the cause. No automatic acceptance or retry.
+A submit that opened a dialog must not be promoted by a later URL/text observation; the policy
+failure remains visible even if an alert handler subsequently navigates. A fill failure stops
+before any later field or submit. The CLI diagnostic must name the dialog, not merely say that
+the post-condition was absent. The surf fallback's dialog behavior is unchanged.
+
+Tests first: confirm on submit, dialog during fill, and dialog followed by navigation (no
+promotion); mutation checks cover both connection opens, recording, stopping and promotion.
+Live proof uses a local confirm form in Chromium (Agent), window on the unseen workspace.
+
+**Result.** Session steps request dismissal and refuse as `action_dialog_opened`, settling
+`unknown`. Private receipts contain `dialogs:` JSON; the CLI names the failure without copying
+page-controlled messages or URLs. Dismissal is recorded only after its acknowledgement; a
+rejected answer stays `unanswered`. Submit verification cannot promote a dialog failure.
+
+Independent inspection (`openai-codex-2/gpt-6-astra`, three rounds) found four real defects,
+all fixed red-first: hash-shaped text bypassed envelope redaction; answer failure was hidden;
+a focus dialog still allowed typing; a mousedown dialog still completed the click. Dialog
+evidence is now always private. Fill checks after focus and selection. A press dialog cancels
+held mouse input by releasing outside the viewport (-1,-1), then releases held modifiers and
+refuses; it does not complete the target click. Final inspection found no defects in scope.
+
+Live on Chromium (Agent) 153, workspace 5 inactive, unfocused throughout: confirm on submit
+and prompt on fill each produced an unknown receipt with the full dialog record. Repeating the
+submit was refused. A focus confirm stopped before input (no input-handler request); a
+mousedown confirm produced the press-handler request but neither click nor submit requests
+in the HTTP server log. The cancellation coordinate was therefore checked live, not only in
+the fake. Page targets 1 → 1. Scratch proof: `$TMPDIR/cdp-6161-<session-id>/`.
+
+`npm run check`: 698 passed, 1 skipped, behavior scenarios 4/4, changed lines 78/78 covered.
+Mutation checks killed changes to first/pinned policy, records, receipt evidence, unknown vs
+failed settlement, promotion, diagnostic, script dialog check, redaction, acknowledgement,
+press cancellation and both fill checks. Removing only the first fill check survived because
+the second also stops input; removing both was killed. No coverage exceptions added.
+Residual: dialogs scheduled after a completed step are not monitored across the connection gap;
+the surf fallback retains its existing behavior. Unknown does not claim rollback of handler effects.
+
+## 6. Done when
 
 Each slice: design section updated with what was learned, red-first tests with mutation checks
 on the properties that matter, `npm run check` green, a live proof on Chromium (Agent), pushed

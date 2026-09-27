@@ -368,7 +368,7 @@ test("a dialog an action opens is answered by policy and never left blocking", a
   await dismissing.actions.click({ selector: "#alert" });
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(dismissing.actions.dialogs, [
-    { type: "alert", message: "hello", url: "main", answer: "dismissed" },
+    { type: "alert", message: "hello", url: "https://app.test/form", answer: "dismissed" },
   ]);
   assert.equal(dismissing.fake.dialogs[0].accept, false);
 

@@ -15,6 +15,7 @@ import { defaultMutationOutcomeForError } from "./effects.js";
 import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-classification.js";
 import { classifyResult } from "./result-classification.js";
 import { parseSurfErrorOutput } from "./result-payload.js";
+import { isFrameworkError } from "./runtime-contract.js";
 import { spawnStepSync } from "./spawn-step.js";
 import type { SurfCommandResult, SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
 import {
@@ -353,6 +354,12 @@ export function settleSurfAttempt<T>(attempt: EffectAttempt<T>): {
     return { outcome: "applied" };
   }
   const outcome = attempt.error instanceof SurfCommandError ? attempt.error.outcome : undefined;
+  if (isFrameworkError(attempt.error) && attempt.error.code === "action_dialog_opened") {
+    return {
+      outcome: "unknown",
+      evidence: [`dialogs:${JSON.stringify(attempt.error.details?.dialogs)}`],
+    };
+  }
   if (outcome?.basis === "indeterminate") {
     return {
       outcome: "unknown",
