@@ -107,7 +107,14 @@ export {
   CAPABILITY_MATRIX,
   validateCapabilityContract,
 } from "./core/capabilities.js";
-export type { CdpActions, CdpActionTarget } from "./core/cdp-actions.js";
+export type {
+  CdpActionOptions,
+  CdpActions,
+  CdpActionsOpenOptions,
+  CdpActionTarget,
+  CdpClickOptions,
+  CdpDialogRecord,
+} from "./core/cdp-actions.js";
 export { openCdpActions } from "./core/cdp-actions.js";
 export type {
   AgentConfig,

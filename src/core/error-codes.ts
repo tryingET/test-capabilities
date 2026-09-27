@@ -191,6 +191,20 @@ export const CDP_ACTION_ERROR_CODES = [
   "action_option_not_found",
   /** the expression threw in the page, or the element could not be acted on */
   "action_evaluate_failed",
+  /** the element never became actionable in time; the conditions that never held are named */
+  "action_target_not_ready",
+  /** a role and name matched more than one control; the candidates are reported, none guessed */
+  "action_target_ambiguous",
+  /** the element exists but cannot take this action (not a select, checkbox or file input) */
+  "action_target_unsuitable",
+  /** a check or uncheck did not change the element's state */
+  "action_state_unchanged",
+  /** a file to set on a file input does not exist */
+  "action_file_missing",
+  /** a dialog opened under the `fail` policy; it was dismissed so the page is not blocked */
+  "action_dialog_opened",
+  /** a key or modifier name the channel does not know; nothing was sent */
+  "action_key_unknown",
 ] as const;
 
 /**

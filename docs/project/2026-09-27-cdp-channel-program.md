@@ -48,6 +48,31 @@ and the gap list the operator asked for).
 - **Gate:** fake-endpoint tests for each condition red first; live on pages that render late,
   move, re-render, open dialogs and hold same-process frames.
 
+**S1 result (AK #6126).** `cdp-actionability.ts` (the wait), `cdp-keys.ts` (keys, chords),
+`cdp-actions.ts` (click, dblclick, hover, fill, type, press, check, uncheck, select, setFiles,
+evaluate, refresh), and same-process frames in the a11y snapshot. Measured live before relying on
+them, on Chromium 153:
+- the page's accessibility tree leaves same-process iframes out: each needs
+  `getFullAXTree({frameId})` in its host session - **the a11y channel missed them until now**;
+- quads of elements in same-process frames are already in the local root's coordinates, and
+  `DOM.getNodeForLocation` hit-tests into them - but only at **integer** coordinates (a fractional
+  centre is "Invalid parameters"; the first live run reported every click obscured);
+- a removed node still resolves while referenced, detached - so a ref checks `isConnected` and is
+  `ref_context_drift`, never "not ready";
+- `mouseMoved` is aligned to the next animation frame: in a window that paints no frames its ack
+  takes ~1 s, and the press that follows flushes it with the event order intact - a click no
+  longer awaits the move (974 ms -> 1-2 ms). Launcher flags were measured and rejected:
+  `--disable-backgrounding-occluded-windows` changes nothing, `--disable-frame-rate-limit` fixes
+  the move but burns 99 % of a core idle;
+- a dialog is reported to the connection with surf attached and is answered in ~8 ms.
+Live (window on an unseen workspace): a late button, a sliding one and a late-enabled one each
+clicked once ready (536 / 20 / 24 ms); a covered one refused; a re-rendered one found by role and
+name (48 ms) while its old ref is drift; key-by-key typing and Enter submitted the form; check,
+select by label and setFiles verified by the page; a same-process frame's button clicked by role
+and name; an alert dismissed and the page continued; pages 1 -> 1. Tests: 19 on a fake that models
+each of these behaviours; each of no waiting, no stability check, no hit test, a guessed
+ambiguity, no release and an unanswered dialog turns one red.
+
 ### S2 - the frame probe over CDP
 
 `frame-diagnosis.ts` probes each top-level candidate with `frame.switch`, `wait.element`,

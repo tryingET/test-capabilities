@@ -37,6 +37,8 @@ export interface AxRawNode {
 export interface AxFrameTree {
   frame: string;
   url: string;
+  /** the CDP frame id, when known: a target id for an out-of-process frame */
+  frameId?: string;
   nodes: AxRawNode[];
   /** set when the frame's session attached but its tree could not be read */
   error?: string;

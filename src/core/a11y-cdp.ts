@@ -158,6 +158,10 @@ interface Pending {
 export class CdpConnection {
   private readonly socket: WebSocket;
   private readonly pending = new Map<number, Pending>();
+  private readonly listeners = new Map<
+    string,
+    Set<(params: Record<string, unknown>, sessionId?: string) => void>
+  >();
   private nextId = 0;
   /** frame targets as they attach; `parentSessionId` is the session that announced one (none: the page) */
   readonly attached: Array<{
@@ -209,6 +213,7 @@ export class CdpConnection {
       params?: {
         sessionId?: string;
         targetInfo?: { targetId?: string; type?: string; url?: string };
+        [key: string]: unknown;
       };
     };
     try {
@@ -239,6 +244,28 @@ export class CdpConnection {
         ...(message.sessionId ? { parentSessionId: message.sessionId } : {}),
       });
     }
+    if (message.method === "Target.detachedFromTarget" && message.params?.sessionId) {
+      const gone = this.attached.findIndex(
+        (entry) => entry.sessionId === message.params?.sessionId,
+      );
+      if (gone >= 0) this.attached.splice(gone, 1);
+    }
+    if (message.method) {
+      for (const listener of this.listeners.get(message.method) ?? []) {
+        listener(message.params ?? {}, message.sessionId);
+      }
+    }
+  }
+
+  /** Call `listener` for every `method` event, on any session; returns the unsubscribe. */
+  on(
+    method: string,
+    listener: (params: Record<string, unknown>, sessionId?: string) => void,
+  ): () => void {
+    const set = this.listeners.get(method) ?? new Set();
+    set.add(listener);
+    this.listeners.set(method, set);
+    return () => set.delete(listener);
   }
 
   send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
@@ -262,6 +289,11 @@ export class CdpConnection {
   }
 }
 
+interface SessionFrameNode {
+  frame: { id: string; url: string };
+  childFrames?: SessionFrameNode[];
+}
+
 /** The page's tree and one per out-of-process frame, plus the session each frame was read on. */
 export interface AxForestRead {
   forest: AxFrameTree[];
@@ -282,10 +314,46 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
   const main = await connection.send<{ nodes: AxRawNode[] }>("Accessibility.getFullAXTree");
   const forest: AxFrameTree[] = [{ frame: "main", url: "", nodes: main.nodes }];
   const sessions: Record<string, string | undefined> = { main: undefined };
-  // No iframe node, no out-of-process frame to wait for: the settle cost ~250 ms on every read.
+  // No iframe node, no frame of either kind: the settle cost ~250 ms on every read.
   if (!main.nodes.some((node) => node.role?.value === "Iframe")) {
     return { forest, sessions };
   }
+  // A same-process frame is not in its session's tree (measured live 2026-09-27): each is read
+  // with its own frameId, in the session that hosts it. Returns the session's root frame id.
+  const readSameProcess = async (sessionId: string | undefined): Promise<string | undefined> => {
+    let root: SessionFrameNode;
+    try {
+      ({ frameTree: root } = await connection.send<{ frameTree: SessionFrameNode }>(
+        "Page.getFrameTree",
+        {},
+        sessionId,
+      ));
+    } catch {
+      return undefined;
+    }
+    const walk = async (node: SessionFrameNode): Promise<void> => {
+      for (const child of node.childFrames ?? []) {
+        const frame = `f${forest.length}`;
+        sessions[frame] = sessionId;
+        const { id: frameId, url } = child.frame;
+        try {
+          const tree = await connection.send<{ nodes: AxRawNode[] }>(
+            "Accessibility.getFullAXTree",
+            { frameId },
+            sessionId,
+          );
+          forest.push({ frame, url, frameId, nodes: tree.nodes });
+        } catch (error) {
+          forest.push({ frame, url, frameId, nodes: [], error: errorText(error) });
+        }
+        await walk(child);
+      }
+    };
+    await walk(root);
+    return root.frame.id;
+  };
+  const mainFrameId = await readSameProcess(undefined);
+  if (mainFrameId) forest[0] = { ...forest[0], frameId: mainFrameId };
   const autoAttach = (on: boolean, sessionId?: string) =>
     connection.send(
       "Target.setAutoAttach",
@@ -309,10 +377,17 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
           {},
           entry.sessionId,
         );
-        forest.push({ frame, url: entry.url, nodes: tree.nodes });
+        forest.push({ frame, url: entry.url, frameId: entry.targetId, nodes: tree.nodes });
+        await readSameProcess(entry.sessionId);
         await autoAttach(true, entry.sessionId);
       } catch (error) {
-        forest.push({ frame, url: entry.url, nodes: [], error: errorText(error) });
+        forest.push({
+          frame,
+          url: entry.url,
+          frameId: entry.targetId,
+          nodes: [],
+          error: errorText(error),
+        });
       }
     }
     if (fresh.length > 0) {
@@ -393,7 +468,8 @@ export async function releaseForest(
   connection: CdpConnection,
   sessions: Record<string, string | undefined>,
 ): Promise<void> {
-  for (const sessionId of Object.values(sessions)) {
+  // a same-process frame shares its host's session: detach each session once
+  for (const sessionId of new Set(Object.values(sessions))) {
     if (sessionId) {
       await connection.send("Target.detachFromTarget", { sessionId }).catch(() => undefined);
     }

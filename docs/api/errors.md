@@ -123,6 +123,13 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `action_frame_unknown` | `openCdpActions`: the named frame (label or URL) is not one of the owned tab's out-of-process frames |
 | `action_option_not_found` | `openCdpActions`: the select element offers no option with that value or label |
 | `action_evaluate_failed` | `openCdpActions`: the expression threw in the page or frame; the exception's description is in the message |
+| `action_target_not_ready` | `openCdpActions`: the element never became actionable within the timeout; `details.conditions` names what never held (`attached`, `visible`, `stable`, `enabled`, `editable`, `receivesEvents`) |
+| `action_target_ambiguous` | `openCdpActions`: a `{ role, name }` target matched more than one control; the candidate refs are reported and none is guessed |
+| `action_target_unsuitable` | `openCdpActions`: the element cannot take this action - `select` on a non-select, `check` on something not checkable, `setFiles` on a non-file input |
+| `action_state_unchanged` | `openCdpActions`: `check`/`uncheck` clicked and the checked state did not change |
+| `action_file_missing` | `openCdpActions`: a file passed to `setFiles` does not exist; nothing was set |
+| `action_dialog_opened` | `openCdpActions` with `dialogs: "fail"`: an action opened an alert, confirm or prompt; it was dismissed so the page is not blocked |
+| `action_key_unknown` | `openCdpActions`: `press` got a key or modifier name the channel does not know; no key event was sent |
 
 Codes from tools the framework does not own pass through verbatim and are never rewritten:
 surf's `page_login`, `page_challenge`, `page_not_found`, `page_error`, `page_timeout`,

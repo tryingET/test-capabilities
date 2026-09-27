@@ -318,3 +318,68 @@ test("a command on a closed connection fails at once instead of waiting out its 
   await assert.rejects(connection.send("Accessibility.getFullAXTree"), /socket is not open/);
   assert.ok(performance.now() - started < 1000);
 });
+
+test("a same-process iframe's controls are in the snapshot, read with its own frame id", async (t) => {
+  // Chromium's page tree leaves same-process frames out (measured live 2026-09-27)
+  const tree = {
+    nodes: [
+      { nodeId: "1", role: { value: "RootWebArea" }, childIds: ["2", "3"] },
+      {
+        nodeId: "2",
+        parentId: "1",
+        role: { value: "heading" },
+        name: { value: "outer" },
+        backendDOMNodeId: 5,
+      },
+      { nodeId: "3", parentId: "1", role: { value: "Iframe" }, backendDOMNodeId: 6 },
+    ],
+    sameProcess: [
+      {
+        url: "https://same.test/inner",
+        owner: { backendNodeId: 6, box: [0, 0, 100, 100] },
+        nodes: [
+          { nodeId: "1", role: { value: "RootWebArea" }, childIds: ["2"] },
+          {
+            nodeId: "2",
+            parentId: "1",
+            role: { value: "button" },
+            name: { value: "Inner" },
+            backendDOMNodeId: 7,
+          },
+        ],
+      },
+    ],
+  };
+  const fake = await startFakeCdp({ pages: { P1: { url: LOCAL_URL, tree } } });
+  t.after(() => fake.close());
+  const live = await openA11yLiveView(LOCAL_URL, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url });
+  await live.close();
+  assert.match(live.snapshot, /frame "https:\/\/same\.test\/inner"\n {2}button "Inner" \[e2\]/);
+});
+
+test("detached frames are forgotten; an unreadable frame tree or same-process frame is named", async (t) => {
+  const tree = treeFromCapture(LOCAL);
+  tree.frames[0].frameTreeError = "Frame detached";
+  tree.sameProcess = [
+    {
+      url: "https://same.test/broken",
+      owner: { backendNodeId: 6, box: [0, 0, 1, 1] },
+      error: "No frame",
+    },
+  ];
+  const fake = await startFakeCdp({ pages: { P1: { url: LOCAL_URL, tree } } });
+  t.after(() => fake.close());
+  const [target] = await cdp.listCdpTargets(fake.url);
+  const connection = await cdp.CdpConnection.open(target.webSocketDebuggerUrl);
+  t.after(() => connection.close());
+  const { forest, sessions } = await cdp.readAxForest(connection);
+  // the out-of-process frame is still read though its frame tree is not; the broken same-process one is named
+  assert.ok(forest.some((entry) => entry.url.includes("player") && entry.nodes.length > 0));
+  assert.ok(
+    forest.some((entry) => entry.url === "https://same.test/broken" && entry.error === "No frame"),
+  );
+  assert.equal(connection.attached.length, 1);
+  await cdp.releaseForest(connection, sessions);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(connection.attached.length, 0, "the detach event took the frame off the list");
+});

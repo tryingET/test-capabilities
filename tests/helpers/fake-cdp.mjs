@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import { createFakeDom } from "./fake-cdp-dom.mjs";
 
 /**
  * A fake Chromium DevTools endpoint on 127.0.0.1:0 for the a11y channel (AK #5915): HTTP
@@ -14,11 +15,9 @@ import { createServer } from "node:http";
  * `{ visible, text, attrs }` for the check reader. Every command is logged in `methods`, so a
  * test can prove the producer only ever read.
  *
- * For actions (AK #6099) a tree may carry `elements` (`{ selector: { backendNodeId, box: [x, y,
- * w, h], obscured?, options? } }`, boxes in that frame's own coordinates), `owner` (the iframe
- * element in the parent: `{ backendNodeId, box }`) and `evals` (`{ expression: value }`). Mouse
- * events go to `input`; a released click is resolved by a page-level hit test into `clicks`
- * (`{ frame: url, selector }`), and typed or selected values land in `values`.
+ * The DOM half - elements, same-process frames, isolated worlds, hit tests, input, dialogs - is
+ * `fake-cdp-dom.mjs`, one per page and shared by every socket to it; its record (`clicks`,
+ * `values`, `input`, `keys`, `dialogs`, `worlds`) is exposed here for the first page.
  */
 export async function startFakeCdp({
   pages = {},
@@ -31,10 +30,10 @@ export async function startFakeCdp({
   noise = false,
 } = {}) {
   const methods = [];
-  const input = [];
-  const clicks = [];
-  const values = {};
   const sockets = new Set();
+  // one DOM per page, shared by every socket to it; session ids are unique across sockets
+  const doms = new Map();
+  let nextSession = 0;
   let port = 0;
 
   const server = createServer((request, response) => {
@@ -80,55 +79,37 @@ export async function startFakeCdp({
     socket.on("error", () => sockets.delete(socket));
 
     // session id -> tree; the page itself is the session `undefined`
-    const trees = new Map([[undefined, page?.tree ?? { nodes: [] }]]);
-    // frame ids: the page's main frame is the target id; each frame gets one, and its parent's
-    const frameIds = new Map();
+    const pageTree = page?.tree ?? { nodes: [] };
+    const trees = new Map([[undefined, pageTree]]);
+    // frame ids: the page's main frame is the target id; each out-of-process frame gets one
     const targets = [];
-    const index = (tree, parentId) => {
-      for (const frame of tree?.frames ?? []) {
-        frameIds.set(frame, frame.id ?? `FRAME${frameIds.size + 1}`);
-        targets.push({ frame, parentId });
-        index(frame, frameIds.get(frame));
-      }
-    };
-    frameIds.set(trees.get(undefined), targetId);
-    index(trees.get(undefined), targetId);
-    // every element by backend node id, with its frame, and every iframe owner by backend node id
-    const elements = new Map();
-    const owners = new Map();
     const parents = new Map();
-    const indexDom = (tree, parent) => {
-      if (parent) parents.set(tree, parent);
-      for (const [selector, element] of Object.entries(tree?.elements ?? {})) {
-        elements.set(element.backendNodeId, { tree, selector, element });
+    pageTree.id ??= targetId;
+    let frameCount = 0;
+    const index = (tree) => {
+      for (const frame of tree?.frames ?? []) {
+        frame.id ??= `FRAME${++frameCount}`;
+        parents.set(frame, tree);
+        targets.push({ frame, parentId: tree.id });
+        index(frame);
       }
-      if (tree?.owner) owners.set(tree.owner.backendNodeId, tree);
-      for (const frame of tree?.frames ?? []) indexDom(frame, tree);
     };
-    indexDom(trees.get(undefined));
-    const offsetOf = (tree) => {
+    index(pageTree);
+    if (!doms.has(targetId))
+      doms.set(
+        targetId,
+        createFakeDom(pageTree, () => {}),
+      );
+    const dom = doms.get(targetId);
+    // the page coordinates of an out-of-process frame's viewport: its owners' boxes, summed
+    const origin = (tree) => {
       const parent = parents.get(tree);
       if (!parent) return [0, 0];
-      const [px, py] = offsetOf(parent);
+      const [px, py] = origin(parent);
       return [px + tree.owner.box[0], py + tree.owner.box[1]];
     };
-    const objectFor = (objectId) => elements.get(Number(String(objectId).split(":")[1]));
-    let focused;
-    // the element a page-level point lands on: the deepest frame whose element box holds it
-    const hit = (x, y) => {
-      let found;
-      for (const { tree, selector, element } of elements.values()) {
-        const [ox, oy] = offsetOf(tree);
-        if (!element.box) continue;
-        const [bx, by, bw, bh] = element.box;
-        if (x >= ox + bx && x <= ox + bx + bw && y >= oy + by && y <= oy + by + bh) {
-          if (!element.obscured) found = { frame: parents.has(tree) ? tree.url : "main", selector };
-        }
-      }
-      return found;
-    };
+    dom.setPageOrigin((session) => origin(trees.get(session) ?? pageTree));
     const emitted = new Set();
-    let nextSession = 0;
     let buffer = Buffer.alloc(0);
 
     const send = (value) => {
@@ -142,6 +123,7 @@ export async function startFakeCdp({
       socket.write(Buffer.concat([header, payload]));
     };
 
+    dom.setEmit(send);
     let noisy = noise;
     const handle = (message) => {
       const { id, method, params = {}, sessionId } = message;
@@ -158,6 +140,24 @@ export async function startFakeCdp({
         send({ id, error: { message: "Session with given id not found." } });
         return;
       }
+      if (method === "Page.getFrameTree" && tree?.frameTreeError) {
+        send({ id, error: { message: tree.frameTreeError } });
+        return;
+      }
+      if (method === "Target.detachFromTarget" && trees.has(params.sessionId)) {
+        send({ id, result: {} });
+        send({ method: "Target.detachedFromTarget", params: { sessionId: params.sessionId } });
+        return;
+      }
+      if (
+        (method === "Page.getFrameTree" || method === "Accessibility.getFullAXTree") &&
+        tree?.error
+      ) {
+        // a frame that errors on its tree (detached) errors on its frame tree too
+        send({ id, error: { message: tree.error } });
+        return;
+      }
+      if (dom.handle(message, send)) return;
       switch (method) {
         case "Accessibility.getFullAXTree":
           if (tree?.error) {
@@ -174,24 +174,13 @@ export async function startFakeCdp({
                 // another tab's frame: its parent is no frame of this page
                 { targetId: "OTHER", type: "iframe", url: "chrome://other/", parentFrameId: "X" },
                 ...targets.map(({ frame, parentId }) => ({
-                  targetId: frameIds.get(frame),
+                  targetId: frame.id,
                   type: "iframe",
                   url: frame.url,
                   parentFrameId: parentId,
                 })),
               ],
             },
-          });
-          return;
-        case "Page.getFrameTree":
-          if (tree?.error) {
-            // a frame that errors on its tree (detached) errors on its frame tree too
-            send({ id, error: { message: tree.error } });
-            return;
-          }
-          send({
-            id,
-            result: { frameTree: { frame: { id: frameIds.get(tree), url: tree?.url } } },
           });
           return;
         case "Target.setAutoAttach":
@@ -208,12 +197,13 @@ export async function startFakeCdp({
               const attach = () => {
                 const child = `S${++nextSession}`;
                 trees.set(child, frame);
+                dom.bindSession(frame, child);
                 send({
                   method: "Target.attachedToTarget",
                   ...(sessionId ? { sessionId } : {}),
                   params: {
                     sessionId: child,
-                    targetInfo: { targetId: frameIds.get(frame), type: "iframe", url: frame.url },
+                    targetInfo: { targetId: frame.id, type: "iframe", url: frame.url },
                     waitingForDebugger: false,
                   },
                 });
@@ -228,24 +218,6 @@ export async function startFakeCdp({
           send({ id, result: { object: { objectId: `obj:${params.backendNodeId}` } } });
           return;
         case "Runtime.callFunctionOn": {
-          const target = objectFor(params.objectId);
-          const args = (params.arguments ?? []).map((argument) => argument.value);
-          if (params.functionDeclaration.includes("elementFromPoint")) {
-            send({ id, result: { result: { type: "boolean", value: !target?.element.obscured } } });
-            return;
-          }
-          if (params.functionDeclaration.includes("options")) {
-            const option = (target?.element.options ?? []).find(
-              (candidate) => candidate.value === args[0] || candidate.label === args[0],
-            );
-            if (option) values[target.selector] = option.value;
-            send({ id, result: { result: { type: "boolean", value: Boolean(option) } } });
-            return;
-          }
-          if (params.functionDeclaration.includes("select()")) {
-            send({ id, result: { result: { type: "undefined" } } });
-            return;
-          }
           const backendId = Number(String(params.objectId).split(":")[1]);
           const node = reads[backendId] ?? {};
           const [what, name] = (params.arguments ?? []).map((argument) => argument.value);
@@ -258,82 +230,19 @@ export async function startFakeCdp({
           send({ id, result: { result: { type: "string", value } } });
           return;
         }
-        case "Runtime.evaluate": {
-          const query = /^document\.querySelector\((".*")\)$/.exec(params.expression);
-          if (query) {
-            const element = tree?.elements?.[JSON.parse(query[1])];
-            send({
-              id,
-              result: {
-                result: element
-                  ? { type: "object", objectId: `obj:${element.backendNodeId}` }
-                  : { type: "object", subtype: "null", value: null },
-              },
-            });
-            return;
-          }
-          if (Object.hasOwn(tree?.evals ?? {}, params.expression)) {
-            send({
-              id,
-              result: { result: { type: "string", value: tree.evals[params.expression] } },
-            });
-            return;
-          }
-          send({
-            id,
-            result: {
-              result: { type: "object", subtype: "error" },
-              exceptionDetails: {
-                text: "Uncaught",
-                exception: { description: "ReferenceError: nope is not defined" },
-              },
-            },
-          });
-          return;
-        }
-        case "DOM.getContentQuads": {
-          const box = objectFor(params.objectId).element.box;
-          if (!box) {
-            // display:none has no box to click
-            send({ id, result: { quads: [] } });
-            return;
-          }
-          const [x, y, w, h] = box;
-          send({ id, result: { quads: [[x, y, x + w, y, x + w, y + h, x, y + h]] } });
-          return;
-        }
         case "DOM.getFrameOwner": {
-          const frame = [...frameIds.entries()].find(
-            ([, frameId]) => frameId === params.frameId,
-          )?.[0];
+          const frame = targets.find((target) => target.frame.id === params.frameId)?.frame;
           send({ id, result: { backendNodeId: frame.owner.backendNodeId } });
           return;
         }
         case "DOM.getBoxModel": {
-          const [x, y, w, h] = owners.get(params.backendNodeId).owner.box;
+          const owned = targets.find(
+            (target) => target.frame.owner?.backendNodeId === params.backendNodeId,
+          );
+          const [x, y, w, h] = owned.frame.owner.box;
           send({ id, result: { model: { content: [x, y, x + w, y, x + w, y + h, x, y + h] } } });
           return;
         }
-        case "DOM.focus":
-          focused = objectFor(params.objectId);
-          send({ id, result: {} });
-          return;
-        case "Input.insertText":
-          values[focused.selector] = params.text;
-          send({ id, result: {} });
-          return;
-        case "Input.dispatchKeyEvent":
-          if (params.type === "keyDown" && params.key === "Delete") values[focused.selector] = "";
-          send({ id, result: {} });
-          return;
-        case "Input.dispatchMouseEvent":
-          input.push({ type: params.type, x: params.x, y: params.y, session: sessionId ?? "page" });
-          if (params.type === "mouseReleased") {
-            const landed = hit(params.x, params.y);
-            if (landed) clicks.push(landed);
-          }
-          send({ id, result: {} });
-          return;
         default:
           send({ id, result: {} });
       }
@@ -375,14 +284,38 @@ export async function startFakeCdp({
     });
   });
 
+  const firstDom = () => doms.values().next().value;
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   port = server.address().port;
   return {
     url: `http://127.0.0.1:${port}`,
     methods,
-    input,
-    clicks,
-    values,
+    get input() {
+      return firstDom()?.record.input ?? [];
+    },
+    get clicks() {
+      return firstDom()?.record.clicks ?? [];
+    },
+    get values() {
+      return firstDom()?.record.values ?? {};
+    },
+    get keys() {
+      return firstDom()?.record.keys ?? [];
+    },
+    get dialogs() {
+      return firstDom()?.record.dialogs ?? [];
+    },
+    get worlds() {
+      return firstDom()?.record.worlds ?? [];
+    },
+    /** what a navigation does to every isolated world of the first page */
+    dropWorlds() {
+      firstDom()?.dropWorlds();
+    },
+    /** remote objects handed out and not released, by object id */
+    get liveObjects() {
+      return firstDom()?.record.live ?? new Map();
+    },
     openSockets: () => sockets.size,
     /** resolves with the open socket count once it reaches 0, or after `ms` */
     async drained(ms = 1000) {
