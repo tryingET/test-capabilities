@@ -36,6 +36,7 @@ import type { EffectAttempt, EffectDeclaration, EffectSettlement } from "./effec
 import { frameOriginPath } from "./frame-address.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
+import { SHADOW_ONE_FUNCTION, SHADOW_QUERY_FUNCTION } from "./shadow-path.js";
 import { settleSurfAttempt } from "./surf-adapter.js";
 import type { PlanField, SurfPlan } from "./surf-plan.js";
 import {
@@ -93,8 +94,9 @@ function redactedCall(command: string, selector: string | undefined): string {
   return selector === undefined ? command : `${command} ${selector}`;
 }
 
+/** A field's value, found by its resolved selector - a shadow path included (AK #6163). */
 function fieldReadScript(probeId: string, selector: string): string {
-  return `(() => { const el = document.querySelector(${JSON.stringify(selector)}); return { ${APPLY_PROBE_FIELD}: ${JSON.stringify(probeId)}, href: location.href, found: el !== null, value: el && typeof el.value === 'string' ? el.value : null, checked: Boolean(el && el.checked) }; })()`;
+  return `(() => { const el = (${SHADOW_ONE_FUNCTION})(${JSON.stringify(selector)}); return { ${APPLY_PROBE_FIELD}: ${JSON.stringify(probeId)}, href: location.href, found: el !== null, value: el && typeof el.value === 'string' ? el.value : null, checked: Boolean(el && el.checked) }; })()`;
 }
 
 function observeScript(
@@ -110,14 +112,15 @@ function observeScript(
   const submitSelector = ${submit};
   const formSelector = ${form};
   const needle = ${needle};
-  const found = submitSelector ? Array.prototype.slice.call(document.querySelectorAll(submitSelector)) : [];
+  const query = ${SHADOW_QUERY_FUNCTION};
+  const found = submitSelector ? query(submitSelector) : { found: [], count: 0 };
   const body = document.body && typeof document.body.innerText === 'string' ? document.body.innerText : '';
   return {
     ${APPLY_PROBE_FIELD}: ${JSON.stringify(probeId)},
     href: location.href,
-    submitCount: found.length,
-    submitDisabled: found.length === 1 ? found[0].disabled === true : null,
-    formPresent: formSelector ? document.querySelectorAll(formSelector).length > 0 : null,
+    submitCount: found.count,
+    submitDisabled: found.count === 1 ? found.found[0].disabled === true : null,
+    formPresent: formSelector ? query(formSelector).count > 0 : null,
     textPresent: needle === null ? null : body.indexOf(needle) >= 0,
   };
 })()`;

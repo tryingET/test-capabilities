@@ -243,6 +243,17 @@ export function createFakeDom(page, initialEmit) {
           : rootOf(sessionId);
         if (!tree) return false;
         const query = /^document\.querySelector\((".*")\)$/.exec(params.expression);
+        if (query && JSON.parse(query[1]).includes(" >>> ")) {
+          // as Chromium answers: `>>>` is no CSS combinator (a shadow path goes to tc:shadow-query)
+          reply({
+            result: { type: "object", subtype: "error" },
+            exceptionDetails: {
+              text: "Uncaught",
+              exception: { description: "SyntaxError: not a valid selector" },
+            },
+          });
+          return true;
+        }
         if (query) {
           const element = tree.elements?.[JSON.parse(query[1])];
           reply({
@@ -250,6 +261,22 @@ export function createFakeDom(page, initialEmit) {
               element && present(element)
                 ? { type: "object", objectId: handOut(element.backendNodeId) }
                 : { type: "object", subtype: "null", value: null },
+          });
+          return true;
+        }
+        // a shadow path (AK #6163): the element keyed by the whole path, or `shadowCounts[path]`
+        // elements when the path reaches several (or none) - the page-side resolver itself runs
+        // against the stub DOM, where the probe and the reads use it
+        const shadow = /^\/\* tc:shadow-query (".*?") \*\//.exec(params.expression);
+        if (shadow) {
+          const path = JSON.parse(shadow[1]);
+          const element = tree.elements?.[path];
+          const count = tree.shadowCounts?.[path];
+          reply({
+            result:
+              count === undefined && element && present(element)
+                ? { type: "object", subtype: "node", objectId: handOut(element.backendNodeId) }
+                : { type: "number", value: count ?? 0 },
           });
           return true;
         }
@@ -289,10 +316,7 @@ export function createFakeDom(page, initialEmit) {
           try {
             const value = runInStub(params.expression, formPage(tree));
             // A transient document change visible in this read-back, gone by the next observation.
-            if (
-              tree.readbackHref &&
-              params.expression.includes("const el = document.querySelector(")
-            )
+            if (tree.readbackHref && params.expression.includes("found: el !== null"))
               value.href = tree.readbackHref;
             reply({ result: { type: typeof value, value: value ?? null } });
           } catch (error) {

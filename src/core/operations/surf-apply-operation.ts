@@ -35,6 +35,7 @@ import type { MutationReceiptEnvelopeCopy } from "../receipt-store.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
 import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
+import { isShadowPath } from "../shadow-path.js";
 import type { PostCondition } from "../surf-apply-runner.js";
 import { acceptedHrefs } from "../surf-apply-runner.js";
 import type { SurfPlan } from "../surf-plan.js";
@@ -253,10 +254,19 @@ function assertSubmitIdentified(plan: SurfPlan): void {
   );
 }
 
+/** The plan's selectors that are shadow paths (AK #6163): each needs the DevTools connection. */
+function shadowPathsOf(plan: SurfPlan): string[] {
+  return [
+    ...plan.fields.flatMap((field) => [field.resolved_selector, field.control.form ?? ""]),
+    plan.submit.control?.selector ?? "",
+  ].filter(isShadowPath);
+}
+
 /**
  * Which channel the plan's steps take (AK #6157): the DevTools connection whenever it binds the
  * owned tab - its acts are checked against their document just before input - and surf
- * otherwise, which the envelope says in a note. A form in a frame has no surf route.
+ * otherwise, which the envelope says in a note. A form in a frame, or with a field in a shadow
+ * root, has no surf route.
  */
 async function applyChannelFor(
   plan: SurfPlan,
@@ -266,6 +276,14 @@ async function applyChannelFor(
   if (plan.target.frame) return "cdp";
   const bound = await bindsOverCdp(session);
   if (bound.binds) return "cdp";
+  if (shadowPathsOf(plan).length > 0) {
+    // surf's selectors do not pierce a shadow root: there is no surf route to fall back on
+    throw new FrameworkError(
+      bound.code,
+      `Refusing to apply plan ${plan.plan_id}: it addresses ${shadowPathsOf(plan)[0]} inside a shadow root, which only the DevTools connection can act in, and that connection did not bind the owned tab (${bound.message}). Nothing was typed.`,
+      { plan_id: plan.plan_id, shadow_paths: shadowPathsOf(plan) },
+    );
+  }
   notes.push(
     `The plan's steps ran on surf: the DevTools connection did not bind the owned tab (${bound.code}), so no act was checked against its document just before input.`,
   );

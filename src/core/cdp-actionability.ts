@@ -66,8 +66,16 @@ export const STATE_FUNCTION = `function () { /* tc:state */
     tag: this.tagName, type: this.type ?? null };
 }`;
 
-const SAME_NODE = `function (other) { /* tc:same-node */
-  return this === other || this.contains(other);
+/**
+ * Whether a hit landed on the element: the element itself, or anything inside it - its own
+ * shadow tree included, where a host control renders (AK #6163). The walk crosses a shadow root
+ * to its host and stops at a fragment that has none.
+ */
+export const SAME_NODE = `function (other) { /* tc:same-node */
+  for (let node = other; node; node = node.parentNode || (node.nodeType === 11 ? node.host : null)) {
+    if (node === this) return true;
+  }
+  return false;
 }`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -144,12 +144,15 @@ Options:
                                unavailable channel and continues, 'required'
                                fails the page
   --field <locator=value>      surf plan: a field to fill, as
-                               '<label|selector|name>:<locator>=<value>';
-                               repeatable (default: [])
+                               '<label|selector|name>:<locator>=<value>'; label
+                               and name also search open shadow roots, a
+                               selector enters one as 'host >>> field' (closed
+                               roots cannot be read); repeatable (default: [])
   --submit-text <text>         surf plan: narrow the submit candidates by
                                visible button text
   --submit-selector <css>      surf plan: narrow the submit candidates by CSS
-                               selector
+                               selector; 'host >>> button' enters an open
+                               shadow root
   --frame <url>                surf plan: address one frame by exact HTTP(S)
                                origin+path, ignoring query and fragment;
                                ambiguous matches refuse. Apply pins that frame

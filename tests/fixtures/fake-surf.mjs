@@ -67,7 +67,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import path from "node:path";
-import { formSelectorsOf, runInStub, stubDocument } from "./stub-dom.mjs";
+import { documentFormCount, runInStub, stubDocument } from "./stub-dom.mjs";
 
 const argv = process.argv.slice(2);
 const mode = process.env.FAKE_SURF_MODE || "branch";
@@ -409,7 +409,7 @@ function pageFor(url, state) {
     counts: {
       anchors: (page.links || []).length,
       buttons: controls.length > 0 ? controls.length : 1,
-      forms: formSelectorsOf(fields, controls).length,
+      forms: documentFormCount(fields, controls),
       inputs: Object.keys(fields).length,
       iframes: frames.length,
       ...(page.counts || {}),
@@ -417,6 +417,8 @@ function pageFor(url, state) {
     jsResult: page.jsResult,
     jsThrows: page.jsThrows,
     timeOrigin: page.timeOrigin,
+    shadowHosts: page.shadowHosts,
+    closedShadowHosts: page.closedShadowHosts,
   };
 }
 
@@ -685,6 +687,13 @@ function readinessGate(page, _tab, { accept = [], wait = true, selector } = {}) 
 
 // ---------------------------------------------------------------- js evaluation against a stub DOM
 
+/** surf's selectors are CSS in the document: a shadow path is not one, as real surf refuses it. */
+function assertNoShadowPath(selector) {
+  if (String(selector).includes(" >>> ")) {
+    fail("invalid_selector", `'${selector}' is not a valid selector`);
+  }
+}
+
 function evaluateScript(code, page, options) {
   if (page.jsThrows) {
     fail("browser_error", page.jsThrows);
@@ -837,6 +846,7 @@ switch (command) {
     const selector = flag("--into") ?? flag("--selector");
     if (text === undefined) fail("usage", "type requires text");
     if (!selector) fail("usage", "type requires --into in this fixture");
+    assertNoShadowPath(selector);
     if (!page.fields[selector]) fail("no_element", `No element matches ${selector}`);
     writeFieldValue(state, page.url, selector, text);
     saveState(state);
@@ -857,6 +867,7 @@ switch (command) {
     const [selector, ...values] = positionals();
     if (!selector) fail("usage", "select requires a ref or selector");
     if (values.length === 0) fail("usage", "select requires at least one value");
+    assertNoShadowPath(selector);
     if (!page.fields[selector]) fail("no_element", `No element matches ${selector}`);
     writeFieldValue(state, page.url, selector, values[0]);
     saveState(state);
@@ -870,6 +881,7 @@ switch (command) {
     assertNotForbidden(page);
     const selector = flag("--selector") ?? positionals()[0];
     if (!selector) fail("usage", "click requires a ref or --selector");
+    assertNoShadowPath(selector);
     const field = page.fields[selector];
     if (field) {
       // A click on the input control itself: how a checkbox or radio is set (packet D3).

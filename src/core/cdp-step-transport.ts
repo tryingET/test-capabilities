@@ -17,7 +17,8 @@
 
 import type { SessionReply } from "./browser-session.js";
 import type { CdpActions } from "./cdp-actions.js";
-import { assertDocument, openCdpActions } from "./cdp-actions.js";
+import { openCdpActions } from "./cdp-actions.js";
+import { assertDocument } from "./cdp-element-functions.js";
 import type { EffectDeclaration } from "./effects.js";
 import { classifyResult } from "./result-classification.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";

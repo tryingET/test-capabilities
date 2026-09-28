@@ -11,6 +11,15 @@ import vm from "node:vm";
  * defaults for a model written by hand.
  */
 
+/** Between two segments of a shadow path, as `src/core/shadow-path.ts` writes it. */
+export const SHADOW_SEPARATOR = " >>> ";
+
+/** A form counted by `document.querySelectorAll("form")`: one in no shadow root. */
+export function documentFormCount(fields, controls) {
+  return formSelectorsOf(fields, controls).filter((form) => !form.includes(SHADOW_SEPARATOR))
+    .length;
+}
+
 /** Every distinct owning form named by a field or a control, in declaration order. */
 export function formSelectorsOf(fields, controls) {
   const seen = [];
@@ -71,6 +80,7 @@ function nodeAttribute(node, name) {
 }
 
 function matchesSimpleSelector(node, parsed) {
+  if (parsed.raw === "*") return true;
   if (node.selector && node.selector === parsed.raw) return true;
   if (parsed.tag && String(node.tagName || "").toLowerCase() !== parsed.tag) return false;
   if (parsed.id && node.id !== parsed.id) return false;
@@ -110,14 +120,85 @@ function idFromSelector(selector, declared) {
   return match ? match[1] : undefined;
 }
 
+/**
+ * A root: the document or a shadow root. Each holds its own nodes; `querySelectorAll` answers
+ * from them alone, as a real root does (a query never crosses into a shadow root).
+ */
+function stubRoot(host) {
+  const root = {
+    host,
+    nodes: [],
+    getElementById(id) {
+      return root.nodes.find((node) => node.id === id) ?? null;
+    },
+    querySelector(selector) {
+      return root.querySelectorAll(selector)[0] ?? null;
+    },
+    querySelectorAll(selector) {
+      const parsed = parseSelector(selector);
+      return root.nodes.filter((node) => parsed.some((part) => matchesSimpleSelector(node, part)));
+    },
+  };
+  return root;
+}
+
+/**
+ * A page model's selector keys may be shadow paths (`#host >>> #card`): each segment before the
+ * last is a host in the root before it, holding an open shadow root unless the page lists its
+ * path in `closedShadowHosts`; `shadowHosts[path].tag` names a host's tag. A node's `selector`
+ * is its own last segment, matched within its own root.
+ */
 export function stubDocument(page) {
+  const documentRoot = stubRoot(null);
+  const hosts = new Map();
+  const closed = new Set(page.closedShadowHosts ?? []);
+  // nodes are listed in this order within a root, whatever order they were made in
+  const RANK = ["INPUT", "SELECT", "BUTTON", "LABEL", "A", "IFRAME", "FORM"];
+  const place = (node, root) => {
+    node.getRootNode = () => (root === documentRoot ? documentObject : root);
+    node.rank = node.fieldLike ? 0 : node.controlLike ? 1 : RANK.indexOf(node.tagName) + 2 || 99;
+    root.nodes.push(node);
+    return node;
+  };
+  const hostOf = (path) => {
+    if (hosts.has(path)) return hosts.get(path);
+    const segments = path.split(SHADOW_SEPARATOR);
+    const segment = segments[segments.length - 1];
+    const parent =
+      segments.length > 1 ? hostOf(segments.slice(0, -1).join(SHADOW_SEPARATOR)) : null;
+    const parsed = parseSelector(segment)[0] ?? { tag: null, id: null };
+    const node = domNode({
+      tagName: String(parsed.tag ?? page.shadowHosts?.[path]?.tag ?? "div").toUpperCase(),
+      id: parsed.id ?? undefined,
+      selector: segment,
+    });
+    node.inner = stubRoot(node);
+    node.shadowRoot = closed.has(path) ? null : node.inner;
+    place(node, parent ? parent.inner : documentRoot);
+    hosts.set(path, node);
+    return node;
+  };
+  // where a key's node lives, and the key's own last segment
+  const placed = (key) => {
+    const segments = String(key).split(SHADOW_SEPARATOR);
+    const own = segments[segments.length - 1];
+    const root =
+      segments.length > 1
+        ? hostOf(segments.slice(0, -1).join(SHADOW_SEPARATOR)).inner
+        : documentRoot;
+    return { own, root };
+  };
   const forms = new Map();
   const formNode = (selector) => {
     if (!selector) return null;
     if (!forms.has(selector)) {
+      const { own, root } = placed(selector);
       forms.set(
         selector,
-        domNode({ tagName: "FORM", selector, id: idFromSelector(selector, undefined) }),
+        place(
+          domNode({ tagName: "FORM", selector: own, id: idFromSelector(own, undefined) }),
+          root,
+        ),
       );
     }
     return forms.get(selector);
@@ -127,80 +208,81 @@ export function stubDocument(page) {
   }
 
   const anchors = page.links.map((href) =>
-    domNode({ tagName: "A", href, selector: null, textContent: href }),
+    place(domNode({ tagName: "A", href, selector: null, textContent: href }), documentRoot),
   );
   const repeat = (count, tagName) =>
     Array.from({ length: count }, () => domNode({ tagName, selector: null }));
 
-  const fieldNodes = Object.entries(page.fields).map(([selector, field]) =>
-    domNode({
-      tagName: (field.kind || "text") === "select" ? "SELECT" : "INPUT",
-      type: field.kind || "text",
-      value: field.value ?? "",
-      checked: field.checked ?? false,
-      name: field.name,
-      id: idFromSelector(selector, field.id),
-      ariaLabel: field.ariaLabel,
-      hidden: field.hidden === true,
-      disabled: field.disabled === true,
-      form: formNode(field.form),
-      selector,
-    }),
-  );
-
-  const controlNodes = page.controls.map((control) =>
-    domNode({
-      tagName: control.tag ? String(control.tag).toUpperCase() : "BUTTON",
-      type: control.kind,
-      textContent: control.text ?? "",
-      disabled: control.enabled === false,
-      visible: control.visible,
-      name: control.name,
-      id: idFromSelector(control.selector, control.id),
-      role: control.role,
-      form: formNode(control.form),
-      selector: control.selector,
-    }),
-  );
-
-  const labelNodes = Object.entries(page.fields)
-    .filter(([, field]) => typeof field.label === "string" && field.label !== "")
-    .map(([selector, field]) =>
+  const fieldNodes = Object.entries(page.fields).map(([selector, field]) => {
+    const { own, root } = placed(selector);
+    return place(
       domNode({
-        tagName: "LABEL",
-        textContent: field.label,
-        selector: null,
-        control: fieldNodes.find((node) => node.selector === selector) ?? null,
+        tagName: (field.kind || "text") === "select" ? "SELECT" : "INPUT",
+        type: field.kind || "text",
+        value: field.value ?? "",
+        checked: field.checked ?? false,
+        name: field.name,
+        id: idFromSelector(own, field.id),
+        ariaLabel: field.ariaLabel,
+        hidden: field.hidden === true,
+        disabled: field.disabled === true,
+        form: formNode(field.form),
+        selector: own,
+        key: selector,
+        fieldLike: true,
       }),
+      root,
     );
+  });
 
-  const iframeNodes = page.frames.map((frame) =>
-    domNode({ tagName: "IFRAME", selector: null, src: frame.src }),
-  );
+  for (const control of page.controls) {
+    const { own, root } = placed(control.selector);
+    place(
+      domNode({
+        tagName: control.tag ? String(control.tag).toUpperCase() : "BUTTON",
+        type: control.kind,
+        textContent: control.text ?? "",
+        disabled: control.enabled === false,
+        visible: control.visible,
+        name: control.name,
+        id: idFromSelector(own, control.id),
+        role: control.role,
+        form: formNode(control.form),
+        selector: own,
+        controlLike: true,
+      }),
+      root,
+    );
+  }
 
-  const all = [
-    ...fieldNodes,
-    ...controlNodes,
-    ...labelNodes,
-    ...anchors,
-    ...iframeNodes,
-    ...forms.values(),
-  ];
+  for (const [selector, field] of Object.entries(page.fields)) {
+    if (typeof field.label !== "string" || field.label === "") continue;
+    const control = fieldNodes.find((node) => node.key === selector) ?? null;
+    place(
+      domNode({ tagName: "LABEL", textContent: field.label, selector: null, control }),
+      placed(selector).root,
+    );
+  }
 
-  return {
+  for (const frame of page.frames) {
+    place(domNode({ tagName: "IFRAME", selector: null, src: frame.src }), documentRoot);
+  }
+
+  for (const root of [documentRoot, ...[...hosts.values()].map((host) => host.inner)]) {
+    root.nodes.sort((a, b) => a.rank - b.rank);
+  }
+
+  const documentObject = {
     title: page.title,
     readyState: page.readyState,
     getElementById(id) {
-      return all.find((node) => node.id === id) ?? null;
+      return documentRoot.getElementById(id);
     },
     querySelector(selector) {
       return this.querySelectorAll(selector)[0] ?? null;
     },
     querySelectorAll(selector) {
-      const parsed = parseSelector(selector);
-      const matched = all.filter((node) =>
-        parsed.some((part) => matchesSimpleSelector(node, part)),
-      );
+      const matched = documentRoot.querySelectorAll(selector);
       if (matched.length > 0) return matched;
       // Pages that declare only counts (the S3 capture corpus) still answer count queries.
       const text = String(selector);
@@ -212,6 +294,7 @@ export function stubDocument(page) {
       return [];
     },
   };
+  return documentObject;
 }
 
 /**
@@ -229,6 +312,8 @@ export function normalizeStubPage(model, url) {
   const frames = model.frames ?? [];
   return {
     url,
+    shadowHosts: model.shadowHosts,
+    closedShadowHosts: model.closedShadowHosts,
     title: model.title ?? "Fake page",
     readyState: model.readyState ?? "complete",
     links,
@@ -238,7 +323,7 @@ export function normalizeStubPage(model, url) {
     counts: {
       anchors: links.length,
       buttons: controls.length > 0 ? controls.length : 1,
-      forms: formSelectorsOf(fields, controls).length,
+      forms: documentFormCount(fields, controls),
       inputs: Object.keys(fields).length,
       iframes: frames.length,
       ...(model.counts ?? {}),

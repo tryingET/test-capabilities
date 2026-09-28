@@ -40,10 +40,18 @@ import {
   STATE_FUNCTION,
   waitForActionable,
 } from "./cdp-actionability.js";
+import {
+  assertDocument,
+  CONNECTED,
+  DOCUMENT,
+  SELECT_ALL,
+  SELECT_OPTION,
+} from "./cdp-element-functions.js";
 import { characterKey, type KeyDefinition, MODIFIER_BITS, parseChord } from "./cdp-keys.js";
 import { frameWorlds, type WorldFrame } from "./cdp-worlds.js";
 import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
+import { isShadowPath, shadowQueryExpression } from "./shadow-path.js";
 
 /** An a11y ref from this view, a CSS selector in a frame, or a role and name found afresh. */
 export type CdpActionTarget =
@@ -127,38 +135,6 @@ interface FrameEntry extends WorldFrame {
   label: string;
 }
 
-const SELECT_ALL =
-  "function () { /* tc:select-all */ if (typeof this.select === 'function') this.select(); }";
-const SELECT_OPTION = `function (wanted) { /* tc:select-option */
-  const option = [...this.options].find((o) => o.value === wanted || o.label === wanted);
-  if (!option) return false;
-  this.value = option.value;
-  this.dispatchEvent(new Event("input", { bubbles: true }));
-  this.dispatchEvent(new Event("change", { bubbles: true }));
-  return true;
-}`;
-const CONNECTED = "function () { /* tc:connected */ return this.isConnected; }";
-const DOCUMENT = "function () { /* tc:document */ return this.ownerDocument.location.href; }";
-const withoutFragment = (href: string) => href.split("#")[0];
-
-/** Refuse, before any input, an element or a frame whose document is not one of `documents`. */
-export function assertDocument(
-  href: string,
-  documents: readonly string[],
-  what: string,
-  exact = false,
-): void {
-  const matches = exact
-    ? documents.includes(href)
-    : documents.map(withoutFragment).includes(withoutFragment(href));
-  if (!matches) {
-    throw new FrameworkError(
-      "action_document_changed",
-      `the document is ${href}, not ${documents.join(" or ")}; ${what}`,
-      { href, documents: [...documents] },
-    );
-  }
-}
 const WORLD = "test-capabilities";
 const DEFAULT_TIMEOUT_MS = 5000;
 const STATE_SETTLE_MS = 1000;
@@ -342,21 +318,34 @@ export async function openCdpActions(
 
   const bySelector = (selector: string, name: string | undefined): Promise<ElementLookup> => {
     const frame = frameOf(name);
+    const where = { selector, frame: name ?? "main" };
     return inWorld(frame, async (contextId) => {
-      const { result } = await connection.send<{ result: { objectId?: string } }>(
+      // a shadow path needs exactly one element at every segment (AK #6163)
+      const expression = isShadowPath(selector)
+        ? shadowQueryExpression(selector)
+        : `document.querySelector(${JSON.stringify(selector)})`;
+      const { result } = await connection.send<{ result: { objectId?: string; value?: unknown } }>(
         "Runtime.evaluate",
-        { expression: `document.querySelector(${JSON.stringify(selector)})`, contextId },
+        { expression, contextId },
         frame.sessionId,
       );
-      return result.objectId
-        ? { resolved: { objectId: result.objectId, sessionId: frame.sessionId, contextId } }
-        : {
-            missing: new FrameworkError(
-              "action_target_not_found",
-              `no element matches ${selector} in ${name ?? "the page"}`,
-              { selector, frame: name ?? "main" },
-            ),
-          };
+      if (result.objectId) {
+        return { resolved: { objectId: result.objectId, sessionId: frame.sessionId, contextId } };
+      }
+      if (typeof result.value === "number" && result.value > 1) {
+        throw new FrameworkError(
+          "action_target_ambiguous",
+          `${result.value} elements match ${selector} in ${name ?? "the page"}; none was guessed`,
+          { ...where, matches: result.value },
+        );
+      }
+      return {
+        missing: new FrameworkError(
+          "action_target_not_found",
+          `no element matches ${selector} in ${name ?? "the page"}`,
+          where,
+        ),
+      };
     });
   };
 

@@ -436,6 +436,107 @@ plan/receipt artifacts and URL diagnostics remain sensitive. Full URL equality c
 replacement by another document at the identical URL. The existing check-then-act round trips
 remain; no stronger document-instance atomicity is claimed.
 
+### AK #6163 — fields in open shadow roots (design before implementation)
+
+Measured first on Chromium 153 (Agent), window on the unseen workspace, page targets 1 → 1
+(`$TMPDIR/cdp-6163-<session-id>/measure-shadow.log`): surf's `js` world and an isolated world
+both reach an open root through `shadowRoot`, and both see `null` for a closed one; a label's
+`control` resolves inside its root; `DOM.getNodeForLocation` at the centre of a shadow input
+returns that input; `DOM.focus` plus `Input.insertText` fills it and its own `input` listener
+runs; its `ownerDocument.location.href` is the page's; `document.body.innerText` leaves shadow
+text out; `DOM.getDocument({pierce: true})` reports each root's type, `closed` included.
+
+**Address.** A resolved selector may be a *shadow path*: CSS segments joined by ` >>> `. Each
+segment after the first is resolved inside the open shadow root of the one element the previous
+segment matched. A one-segment path is a plain CSS selector resolved in the document exactly as
+before, so every existing plan, token and fingerprint is unchanged. No emitted segment contains
+the separator; the schema refuses an empty segment.
+
+**Locators.** `label:` and `name:` search the document and every open shadow root, nested ones
+included. `selector:` and `--submit-selector` are exact paths: plain CSS stays document-only,
+and ` >>> ` descends. More than one match anywhere is `plan_field_ambiguous`, never a guess. A
+host's segment is its id, its name, or its tag, whichever is unique in its own root; the field's
+own segment is derived as before, within its root.
+
+**Plan probe.** Controls are read in the document and every open root. Form ownership (`el.form`)
+is tree-scoped, so a document form's submit decision cannot change. The form, the submit control
+and each forbidden control carry paths. `form_count` stays the document's count (unchanged
+fingerprints). The answer says how many open roots were searched.
+
+**Token and fingerprint.** The functions do not change. The path is part of `resolved_selector`,
+`submit.control.selector`, `control.form` and every forbidden selector, so the token binds every
+host on the way and the fingerprint's signatures do too. The drift probe resolves paths exactly.
+
+**Apply.** Read-back and observation resolve paths page-side with the same resolver as the
+probe. A CDP act resolves a path in the frame's isolated world and requires exactly one element
+at every segment (`action_target_ambiguous` otherwise, before input). surf's selectors do not
+pierce, so a plan with any shadow path has no surf route: it runs on the DevTools connection, and
+if that does not bind the owned tab, apply refuses before a field is typed, with the bind's code.
+The hit test accepts a hit inside the target's own shadow tree as the target (a host control).
+
+**Closed roots are not supported, and nothing claims they are.** No page script can read them.
+A field in one is not found; the refusal says that open roots were searched and closed ones
+cannot be. The CLI help says "open shadow roots".
+
+**Kept as is.** `--until-text` still reads `document.body.innerText`, which omits shadow text: a
+confirmation shown only inside a root is not observed and the submit stays `unknown` (the safe
+direction). The frame and dialog policies are unchanged; a path works inside a frame plan too.
+
+Red-first tests: plan a shadow form by label (paths, submit identified, forbidden, token), a
+twin label in the document and a root (ambiguous), a closed root (refused, honest message), an
+exact `selector:` path, fill and submit over CDP with read-back and verification, no surf route
+without the connection (nothing typed), a replaced host (`plan_stale`), an ambiguous path at act
+time (before input), an edited host in the token (`submit_plan_mismatch`), and the schema.
+
+**Result.** Implemented as designed. `shadow-path.ts` owns the separator, the splitter and the
+page-side resolver; the splitter's own source is the page-side one, so the page and the runtime
+cannot split a path differently. The probe moved to `surf-plan-script.ts` (the probe module was
+at its budget), and the element functions moved out of `cdp-actions.ts` to
+`cdp-element-functions.ts`. The fakes model shadow roots: the stub DOM places a path-keyed node in
+its host's root (`closedShadowHosts` makes a root `null`), the fake surf refuses a path as real
+surf's selectors do, and the fake DevTools endpoint answers `document.querySelector` with a path
+the way Chromium does (a `SyntaxError`).
+
+Independent inspection (`openai-codex-2/gpt-6-astra`, three rounds) found four defects, each fixed
+red-first: a shadow `<label>` silently outranked a document field's `aria-label` (label-over-aria
+now holds within one root only; matches in two roots are ambiguous); ` >>> ` inside a quoted
+attribute value, and then inside a CSS comment, was read as a separator (the splitter now skips
+quotes, brackets, parentheses, comments and escapes); and the select's synthetic `input` event
+had become composed for every select (it is composed only inside a shadow root, as the
+browser's own is; a document select dispatches exactly as before).
+
+Live on Chromium (Agent) 153 at 127.0.0.1:9222, window on the unseen workspace and unfocused
+throughout, page targets 1 → 1, three rounds through the CLI (`$TMPDIR/cdp-6163-<session-id>/`):
+`label:` found the card, country and a checkbox in `pay-form#payhost`'s open root as
+`#payhost >>> …` paths, with the submit identified and Save card forbidden. Fill ran on the
+DevTools connection with all three read back (726-750 ms). The checkbox was set by a real pointer
+click inside the root. Submit was verified by the page leaving its URL (1027-1078 ms), and the
+server received `paid.html?card=4242&country=fr&…&terms=on`; the repeat was
+`submit_already_attempted`. A document and a shadow `Email` label were `plan_field_ambiguous`.
+The closed root's field was `plan_field_not_found`, and the refusal says three open roots were
+searched and closed ones cannot be. `outer-el >>> inner-el >>> #deep` (hosts by tag) and an
+exact `selector:#payhost >>> input[name="card"]` were filled. The same shadow form inside a
+`localhost` out-of-process frame was planned and submitted there (1000-1031 ms). With no
+DevTools endpoint, apply refused before typing (`cdp_endpoint_unreachable`, naming the path).
+
+`npm run check`: 736 passed, 1 skipped, 4/4 behavior scenarios, changed lines 460/460 covered;
+structure check passed with no new exceptions. Mutation checks, rerun as one set on the final
+code, killed 25 of 26 mutants: the resolver
+(an ambiguous host, a path read's first match), the probe (roots not searched, host chain, deep
+`selector:`, form path, document-only controls, label precedence), the act (path to
+`querySelector`, the ambiguity count, waiting instead of refusing), the surf fallback, the
+cross-root hit test, the schema, both refusal texts, both select event cases, read-back, both
+observations, and splitting on quotes, brackets, escapes and comments. One mutant survived: the
+hit test's `nodeType === 11` guard replaced by any node's `host`. It is equivalent in practice
+(only an `<a>` element's string `host` differs, and that walk ends without a match) and is not
+counted as killed.
+
+Residuals: closed roots are not supported. `--until-text` does not see shadow text (a submit
+confirmed only there stays `unknown`). A path is bound by its selectors, not by element
+identity: a host replaced by one with the same selectors and fields passes, exactly as a plain
+selector does. The `label.htmlFor` fallback (a label whose `control` is null) is not exercised by
+the fakes.
+
 ## 6. Done when
 
 Each slice: design section updated with what was learned, red-first tests with mutation checks

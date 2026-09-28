@@ -22,6 +22,7 @@ import { z } from "zod";
 import { canonicalDigest } from "./canonical-json.js";
 import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
+import { isWellFormedShadowPath } from "./shadow-path.js";
 
 export const SURF_PLAN_KIND = "test-capabilities.surf.plan";
 export const SURF_PLAN_SCHEMA_VERSION = 1;
@@ -361,6 +362,15 @@ export function describeLocator(locator: FieldLocator): string {
 // READING A PLAN BACK
 // ============================================
 
+/**
+ * A selector the plan resolved: plain CSS, or a shadow path whose every segment is non-empty
+ * (AK #6163). An empty segment would resolve against another root than the one reviewed.
+ */
+const ResolvedSelectorSchema = z
+  .string()
+  .min(1)
+  .refine(isWellFormedShadowPath, { message: "must not hold an empty shadow path segment" });
+
 const FieldLocatorSchema = z
   .object({ kind: z.enum(FIELD_LOCATOR_KINDS), value: z.string().min(1) })
   .strict();
@@ -370,13 +380,13 @@ const PlanFieldControlSchema = z
     tag: z.string().min(1),
     type: z.string().min(1).optional(),
     name: z.string().min(1).optional(),
-    form: z.string().min(1).optional(),
+    form: ResolvedSelectorSchema.optional(),
   })
   .strict();
 
 const PlanSubmitControlSchema = z
   .object({
-    selector: z.string().min(1),
+    selector: ResolvedSelectorSchema,
     tag: z.string().min(1),
     type: z.string().min(1).optional(),
     text: z.string(),
@@ -449,7 +459,7 @@ export const SurfPlanSchema = z
           .object({
             id: z.string().min(1),
             locator: FieldLocatorSchema,
-            resolved_selector: z.string().min(1),
+            resolved_selector: ResolvedSelectorSchema,
             control: PlanFieldControlSchema,
             current_value: z.string(),
             intended_value: z.string(),
