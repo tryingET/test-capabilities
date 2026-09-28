@@ -132,6 +132,8 @@ async function withFakes(body, { cdp: withCdp = true, model = MODEL } = {}) {
     },
   });
   const tree = cdpTree(PAGE);
+  // one page, as both fakes see it: the DevTools channel reads the same model surf does
+  tree.form = structuredClone(model);
   const cdp = withCdp ? await startFakeCdp({ pages: { P1: { url: PAGE, tree } } }) : undefined;
   const dir = mkdtempSync(path.join(os.tmpdir(), "tc-shadow-"));
   const previous = process.env.TEST_CAPABILITIES_CDP_ENDPOINT;

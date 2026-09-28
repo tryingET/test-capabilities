@@ -502,7 +502,9 @@ export async function planFromSession(
     `read the form on ${context.url}${request.frame ? ` in frame ${request.frame}` : ""} without changing it`,
     request.frame
       ? { name: frameOriginPath(request.frame) as string, match: "origin_path" }
-      : undefined,
+      : request.channel === "cdp"
+        ? "main"
+        : undefined,
   );
   await assertFieldsReachable(session, request, answer);
   if (request.frame && frameOriginPath(answer.href) !== frameOriginPath(request.frame)) {

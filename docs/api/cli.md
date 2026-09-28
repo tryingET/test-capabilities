@@ -275,6 +275,8 @@ The plan records every field with its resolved selector and `set_via: field_inpu
 
 Refused before any artifact exists: `plan_field_not_found` (in a `--frame` plan, a field the named frame does not have; no frame diagnosis runs, because the frame is already named), `plan_field_ambiguous`, `plan_field_unreachable` (a locator that matched nothing runs the same `frame.diagnose` observation explore does: `excluded` means the field is simply absent, anything else means a frame could hold it and the refusal carries `details.determination`), and `value_via_button_refused` when a field locator resolves to a button, a link or a submit input — a value is set only through the field's own input. An ambiguous or missing submit does not refuse the plan; it is recorded, so a fill-only dry run stays possible.
 
+The probe reads a top-document form over the DevTools endpoint (`TEST_CAPABILITIES_CDP_ENDPOINT`) whenever it binds the owned tab (the same time-origin proof apply uses), in an isolated world of the page's own frame, and on surf when it does not; `result.channel` says which (`cdp` or `surf`), and a note gives the reason for surf. A `--frame` plan is always read over the endpoint. The plan artifact, its fingerprint and its token do not record or depend on the channel: apply chooses its own. A probe that fails on the bound connection is that plan's failure; it is not read again on surf.
+
 ---
 
 ### `test-capabilities surf apply`

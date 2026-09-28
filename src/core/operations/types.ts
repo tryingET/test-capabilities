@@ -423,6 +423,8 @@ export interface SurfPlanOperationResultEnvelope extends OperationEffectEnvelope
     submit: PlanSubmit;
     forbiddenControls: PlanForbiddenControl[];
     fingerprint: PlanFingerprint;
+    /** the channel that read the page (AK #6165): the DevTools connection, or surf */
+    channel: "cdp" | "surf";
   };
   notes: string[];
 }

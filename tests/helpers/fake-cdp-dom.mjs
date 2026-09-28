@@ -21,7 +21,8 @@
  * `inputNavigatesTo` (typing into it moves its frame to that URL),
  * `dialog` (`{ type, message }` opened by a click), `betweenDocuments` (a click leaves its frame
  * answering that many reads with a destroyed context, as mid-navigation), `dialogOnRead` (a
- * click leaves a dialog that opens on its frame's next read).
+ * click leaves a dialog that opens on its frame's next read). A frame may carry `probeFails` (every
+ * plan probe read over the connection fails).
  *
  * Module functions are dispatched on their marker comment (`tc:state`, `tc:hit`, ...), never on
  * their body, so a change of implementation cannot silently change what the fake answers.
@@ -328,6 +329,11 @@ export function createFakeDom(page, initialEmit) {
             params: { ...tree.nextReadDialog, url: tree.url },
           });
           delete tree.nextReadDialog;
+        }
+        if (tree.probeFails && params.expression.includes("__testCapabilitiesSurfPlanProbe")) {
+          // a page that answers no plan probe over this connection
+          send({ id, error: { message: "Execution context was destroyed" } });
+          return true;
         }
         if (tree.betweenDocuments > 0) {
           // a frame between documents: its next reads fail as Chromium's do mid-navigation

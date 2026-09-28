@@ -14,6 +14,8 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
  * frame path of CDP program S3 - every act checked against its document just before input - and
  * the tab is pinned by its target id, so the observation after a submit that navigates it still
  * reaches it. Without the connection the steps run on surf, as before, and the envelope says so.
+ * `surf plan` reads a top-document form the same way (AK #6165): its probe runs over the
+ * connection when it binds the owned tab, on surf otherwise, and `result.channel` says which.
  */
 
 const { executeCliOperation } = await importRuntimeModule("core/operations.js");
@@ -108,8 +110,12 @@ function receiptsIn(dir) {
  * A fake surf with the form at FORM (landing at `landed`), and - unless `cdp: false` - a fake
  * DevTools endpoint holding the same page at the URL the tab landed on.
  */
-async function withFakes(body, { cdp: withCdp = true, landed = FORM, otherTab = false } = {}) {
+async function withFakes(
+  body,
+  { cdp: withCdp = true, landed = FORM, otherTab = false, surfFailOn } = {},
+) {
   const surf = createFakeSurf({
+    ...(surfFailOn ? { failOn: surfFailOn } : {}),
     pages: {
       [FORM]: {
         ...structuredClone(FORM_MODEL),
@@ -260,6 +266,7 @@ test("with the DevTools connection bound, a fill runs in the page over it and sa
   await withFakes(async ({ surf, cdp, dir, out, config }) => {
     await plan({ url: FORM, field: FIELDS, out, config });
     const planned = verbs(surf).length;
+    const proven = proofs(surf);
     const envelope = await apply({ plan: out, config });
     assert.equal(envelope.result.channel, "cdp");
     assert.deepEqual(
@@ -274,7 +281,11 @@ test("with the DevTools connection bound, a fill runs in the page over it and sa
       [],
       "surf opened, gated and closed the tab; it read and set nothing",
     );
-    assert.equal(proofs(surf), 1, "the tab was proven once, before the connection was bound");
+    assert.equal(
+      proofs(surf) - proven,
+      1,
+      "apply's tab was proven once, before the connection was bound",
+    );
     for (const receipt of receiptsIn(dir)) {
       assert.match(
         receipt.evidence[0],
@@ -375,4 +386,98 @@ test("an open that fails part-way closes its own connection", async (t) => {
   t.after(() => fake.close());
   await assert.rejects(openCdpActions(FORM, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url }));
   assert.equal(await fake.drained(), 0);
+});
+
+/** A plan without what differs between two runs: its id, its time, and the token over both. */
+const planContent = (out) => {
+  const { plan_id, generated_at, approval_token, ...content } = readPlan(out);
+  return content;
+};
+
+test("with the DevTools connection bound, the plan's probe reads the page over it and says so", async () => {
+  let overSurf;
+  await withFakes(
+    async ({ out, config }) => {
+      const envelope = await plan({ url: FORM, field: FIELDS, out, config });
+      assert.equal(envelope.result.channel, "surf");
+      overSurf = planContent(out);
+    },
+    { cdp: false },
+  );
+  await withFakes(async ({ surf, out, config }) => {
+    const envelope = await plan({ url: FORM, field: FIELDS, out, config });
+    assert.equal(envelope.result.channel, "cdp");
+    assert.deepEqual(envelope.notes, []);
+    assert.deepEqual(
+      verbs(surf).filter((verb) => ACTING.includes(verb)),
+      [],
+      "surf opened, gated and closed the tab; it read no form",
+    );
+    assert.equal(
+      proofs(surf),
+      1,
+      "the tab was proven once, before the probe ran over the connection",
+    );
+    assert.deepEqual(planContent(out), overSurf, "the same page read either way is the same plan");
+  });
+});
+
+test("without a DevTools connection the plan's probe runs on surf, and the envelope says why", async () => {
+  await withFakes(
+    async ({ surf, out, config }) => {
+      const envelope = await plan({ url: FORM, field: FIELDS, out, config });
+      assert.equal(envelope.result.channel, "surf");
+      assert.ok(
+        envelope.notes.some((note) =>
+          /probe ran on surf: the DevTools connection did not bind the owned tab \(cdp_endpoint_unreachable\)/.test(
+            note,
+          ),
+        ),
+      );
+      assert.ok(verbs(surf).includes("js"), "surf read the form");
+    },
+    { cdp: false },
+  );
+});
+
+test("a tab at the owned tab's URL that is not the owned tab is never read: the probe runs on surf", async () => {
+  await withFakes(
+    async ({ surf, cdp, out, config }) => {
+      const envelope = await plan({ url: FORM, field: FIELDS, out, config });
+      assert.equal(envelope.result.channel, "surf");
+      assert.ok(
+        envelope.notes.some((note) =>
+          /did not bind the owned tab \(tab_bind_ambiguous\)/.test(note),
+        ),
+      );
+      assert.ok(verbs(surf).includes("js"), "surf read the tab it owns");
+      assert.equal(await cdp.drained(), 0, "the refused bind closed its connection");
+    },
+    { otherTab: true },
+  );
+});
+
+test("a probe that fails over a bound connection is that failure, never read again on surf", async () => {
+  await withFakes(async ({ surf, tree, out, config }) => {
+    // the tab is proven and bound, and then the page answers no probe over the connection
+    tree.probeFails = true;
+    await assert.rejects(plan({ url: FORM, field: FIELDS, out, config }));
+    assert.equal(proofs(surf), 1, "the tab was proven, so the connection was bound");
+    assert.deepEqual(
+      verbs(surf).filter((verb) => ACTING.includes(verb)),
+      [],
+      "surf read nothing",
+    );
+  });
+});
+
+test("a bind whose tab proof cannot be read closes the connection it opened, and binds nothing", async () => {
+  await withFakes(
+    async ({ cdp, out, config }) => {
+      // surf reads nothing in this tab: neither the proof nor, on the fallback, the form
+      await assert.rejects(plan({ url: FORM, field: FIELDS, out, config }));
+      assert.equal(await cdp.drained(), 0, "the connection opened before the proof was closed");
+    },
+    { surfFailOn: ["js"] },
+  );
 });

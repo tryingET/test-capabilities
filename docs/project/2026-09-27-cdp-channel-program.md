@@ -537,6 +537,68 @@ identity: a host replaced by one with the same selectors and fields passes, exac
 selector does. The `label.htmlFor` fallback (a label whose `control` is null) is not exercised by
 the fakes.
 
+### AK #6165 — the top-document plan probe over CDP (design before implementation)
+
+Measured first (Chromium 153 (Agent), window unseen and unfocused, page targets 1 → 1): a
+top-document `surf plan` of one field takes 491-517 ms wall, its probe a surf `js` step; the
+envelope does not say which channel read the page. Frame plans already probe over the DevTools
+connection, and apply's drift probe of a top-document plan does too whenever that connection
+binds the owned tab (AK #6157), in the page's own frame, `main`, in an isolated world.
+
+**Channel.** After the gate, a top-document plan asks the same question apply asks,
+`bindsOverCdp`: the DevTools endpoint answers and exactly one of its page targets is the tab
+this run owns, proven by the document's `performance.timeOrigin`, as for every CDP step. If it
+binds, the probe runs over that connection in frame `main` (a read-only `js` step, so the
+isolated world); if it does not, it runs on surf exactly as before, and a note gives the reason
+and the code. A frame plan is unchanged: it has no surf route. No other step of a plan changes
+channel, and nothing a plan does acts.
+
+**Envelope, not artifact.** `result.channel` (`cdp` or `surf`) records which channel read the
+page. The plan artifact, its schema, its fingerprint and its approval token do not change: the
+same page read either way yields the same plan, so a plan never depends on which channel wrote
+it, and apply chooses its own channel again.
+
+**Same answer.** The probe is the same expression either way; the DOM, layout and native
+properties it reads are the same in the isolated world as in surf's. What differs cannot pass
+silently: a page whose own script changes what the probe would read yields a fingerprint apply
+compares again (`plan_stale`), fail-closed.
+
+**Refusals.** The probe's refusals (unreachable, ambiguous or unsuitable fields) are the same
+on both channels. A connection that binds and then fails during the probe is the probe's
+failure, not a fallback: a plan is read once, on the channel chosen, never read again elsewhere.
+
+**Result.** `surf plan` binds before its probe (`planChannelFor`), passes `channel` to the
+probe (frame `main` over the connection), and reports `result.channel` with a note on surf. The
+bind itself changed for every caller: `openForSession` now opens the endpoint first and reads
+the owned tab's time origin through surf only when an endpoint answered, closing the connection
+if that read fails - without an endpoint, a plan (or an apply, or a flow) no longer spends a
+surf read on a proof that cannot be used. Two test harnesses were aligned: the shadow suite's
+DevTools fake now holds the same page model as its surf fake (tests that changed only the surf
+model had passed only because the probe read surf), and the submit-gate suite points at an
+unreachable endpoint instead of whatever answers at the default port. `npm run check`: 829
+passed, 1 skipped, changed lines 54/54. Mutation checks: 11 mutants, 10 killed (the bind
+answer, the note, the probe frame, the request's channel, the envelope's, the dropped notes,
+the reordered proof, the close after a failed proof); one survived and is equivalent: without
+the frame shortcut a frame plan binds first and its probe reuses the pinned tab, the same
+channel on every path that produces a plan.
+
+Live on Chromium (Agent), window unseen and unfocused, page targets 1 → 1: top-document plans
+of a plain form and of the #6163 shadow page read with `result.channel: "cdp"` and no note;
+with no endpoint, `surf` and the note `... did not bind the owned tab
+(cdp_endpoint_unreachable)`; five plans of the same page, one per channel each, were identical
+but for id, time and token; apply of a plan read over CDP filled on `cdp`, both values read
+back; a frame plan reports `cdp`. The #6163 proofs (twin label ambiguous, closed root refused,
+nested paths, the frame submit) and the #6164 flow proofs gave the same results as before.
+
+Speed, measured honestly: the probe itself takes 7-13 ms over the connection against 56-60 ms
+on surf, but binding costs a surf read of the time origin (48-56 ms; the gate is one
+`wait.ready`, so no existing read carries it) and the process's first DevTools connection
+(~32 ms). A one-probe plan is therefore ~30 ms slower in wall time on the DevTools channel
+(plain form 522-530 ms against 491-498 ms on surf; shadow page 520-543 against 489-505), not
+faster: the ~470 ms of a plan is mostly opening, gating and closing the tab. The channel is
+used as specified - the same tab proof and the same isolated world apply reads in - and whether
+that is worth ~30 ms per plan is the operator's decision.
+
 ## 6. Done when
 
 Each slice: design section updated with what was learned, red-first tests with mutation checks

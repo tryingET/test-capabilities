@@ -231,12 +231,18 @@ async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv)
     const actions = await openCdpActions(href, env, { targetId: pins.targetId, dialogs: "fail" });
     return { actions, pins: pins.frames };
   }
-  const owned = await session.evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
-    id: "cdp.tab-proof",
-    intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
-    read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
-  });
+  // the endpoint first: without one there is nothing to prove, and no read is spent on it
   const actions = await openCdpActions(href, env, { dialogs: "fail" });
+  const owned = await session
+    .evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
+      id: "cdp.tab-proof",
+      intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
+      read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
+    })
+    .catch(async (error: unknown) => {
+      await actions.close();
+      throw error;
+    });
   if (owned !== undefined) {
     const bound = await actions
       .evaluate<string>(TIME_ORIGIN, { world: "isolated" })

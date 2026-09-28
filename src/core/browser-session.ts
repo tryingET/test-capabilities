@@ -182,6 +182,12 @@ export interface SessionPlanRequest {
    * is still opened and gated by surf.
    */
   frame?: string;
+  /**
+   * The channel a top-document plan's probe reads the page on (AK #6165): `cdp` in the page's
+   * own frame over the DevTools connection the caller proved binds the owned tab, `surf`
+   * (the default) otherwise. A frame plan always reads over the connection.
+   */
+  channel?: "cdp" | "surf";
 }
 
 /** What a caller hands `apply`: a plan to carry out, and how far it may go. */

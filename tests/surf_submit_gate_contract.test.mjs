@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 import { startFormFixtureServer } from "./fixtures/form-fixture-server.mjs";
 import { createFakeSurf, withFakeSurfEnv } from "./helpers/fake-surf.mjs";
@@ -85,11 +86,16 @@ async function withFake(options, body) {
     ...(options.failOn ? { failOn: options.failOn } : {}),
   });
   const dir = scratch();
+  // no DevTools endpoint answers here: these runs read and act on surf, never on a real browser
+  const previous = process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+  process.env.TEST_CAPABILITIES_CDP_ENDPOINT = "http://127.0.0.1:1";
   try {
     await withFakeSurfEnv(fake.path, async () => {
       await body({ fake, dir, out: path.join(dir, "plan.json") });
     });
   } finally {
+    if (previous === undefined) delete process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
+    else process.env.TEST_CAPABILITIES_CDP_ENDPOINT = previous;
     fake.cleanup();
     rmSync(dir, { recursive: true, force: true });
   }

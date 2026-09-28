@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { writeJsonArtifact } from "../artifacts.js";
+import { bindsOverCdp } from "../cdp-step-transport.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
@@ -93,7 +94,10 @@ function parseFields(specs: readonly string[]): PlanFieldRequest[] {
  * stay in the 0600 file (architecture review A10). An operator reads the file; a pipeline reads
  * the envelope.
  */
-function envelopeResultFrom(plan: SurfPlan): SurfPlanOperationResultEnvelope["result"] {
+function envelopeResultFrom(
+  plan: SurfPlan,
+  channel: "cdp" | "surf",
+): SurfPlanOperationResultEnvelope["result"] {
   return {
     target: {
       url: plan.target.url,
@@ -123,7 +127,27 @@ function envelopeResultFrom(plan: SurfPlan): SurfPlanOperationResultEnvelope["re
     submit: plan.submit,
     forbiddenControls: plan.forbidden_controls,
     fingerprint: plan.fingerprint,
+    channel,
   };
+}
+
+/**
+ * Which channel reads the page (AK #6165): a frame has no surf route; a top-document form is
+ * read over the DevTools connection whenever it binds the owned tab - the time-origin proof
+ * apply's steps use - and on surf otherwise, which a note says.
+ */
+async function planChannelFor(
+  normalized: NormalizedSurfPlanOperationInput,
+  session: SurfSession,
+  notes: string[],
+): Promise<"cdp" | "surf"> {
+  if (normalized.frame) return "cdp";
+  const bound = await bindsOverCdp(session);
+  if (bound.binds) return "cdp";
+  notes.push(
+    `The plan's probe ran on surf: the DevTools connection did not bind the owned tab (${bound.code}).`,
+  );
+  return "surf";
 }
 
 async function planPage(
@@ -131,7 +155,7 @@ async function planPage(
   runtime: SurfSessionRuntime,
   normalized: NormalizedSurfPlanOperationInput,
   fields: readonly PlanFieldRequest[],
-): Promise<{ plan: SurfPlan; notes: string[] }> {
+): Promise<{ plan: SurfPlan; notes: string[]; channel: "cdp" | "surf" }> {
   const session = new SurfSession({
     context,
     url: normalized.url,
@@ -142,13 +166,15 @@ async function planPage(
   await session.open();
   try {
     await session.gate();
+    const notes: string[] = [];
+    const channel = await planChannelFor(normalized, session, notes);
     const plan = await session.plan({
       fields,
       ...(normalized.submitText ? { submitText: normalized.submitText } : {}),
       ...(normalized.submitSelector ? { submitSelector: normalized.submitSelector } : {}),
-      ...(normalized.frame ? { frame: normalized.frame } : {}),
+      ...(normalized.frame ? { frame: normalized.frame } : { channel }),
     });
-    return { plan, notes: [...session.notes()] };
+    return { plan, notes: [...session.notes(), ...notes], channel };
   } finally {
     await session.close();
   }
@@ -160,7 +186,7 @@ async function runSurfPlanOperation(
 ): Promise<SurfPlanOperationResultEnvelope> {
   const fields = parseFields(normalized.field);
   const runtime = resolveSurfSessionRuntime();
-  const { plan, notes } = await planPage(context, runtime, normalized, fields);
+  const { plan, notes, channel } = await planPage(context, runtime, normalized, fields);
 
   // 0600: the artifact carries the values this plan intends to type (packet §5).
   const path = await writeJsonArtifact(normalized.out, plan, {
@@ -183,7 +209,7 @@ async function runSurfPlanOperation(
         artifactKind: SURF_PLAN_KIND,
         schemaVersion: plan.schema_version,
       },
-      result: envelopeResultFrom(plan),
+      result: envelopeResultFrom(plan, channel),
       notes,
     },
     context,

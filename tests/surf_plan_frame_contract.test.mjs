@@ -138,7 +138,9 @@ for (const href of [`${PAY}?other=token`, `${PAY}#changed`]) {
 test("a submit may be verified by a fragment change only after the click, using the full run URL", async () => {
   await withFakes(async ({ tree, dir, out }) => {
     const config = writeConfig(dir, ["https://shop.example", "https://pay.example"]);
-    await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    const planned = await plan({ url: SHOP, field: FIELDS, frame: PAY, out, config });
+    // a frame is read over the DevTools connection, the only route into it (AK #6165)
+    assert.equal(planned.result.channel, "cdp");
     tree.frames[0].elements["#pay"].navigatesTo = `${PAY}#paid`;
     const result = await apply({
       plan: out,
