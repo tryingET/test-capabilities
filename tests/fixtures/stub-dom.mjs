@@ -275,6 +275,8 @@ export function stubDocument(page) {
   const documentObject = {
     title: page.title,
     readyState: page.readyState,
+    // the rendered text, when a page model states it (`bodyText`)
+    ...(typeof page.bodyText === "string" ? { body: { innerText: page.bodyText } } : {}),
     getElementById(id) {
       return documentRoot.getElementById(id);
     },
@@ -312,6 +314,7 @@ export function normalizeStubPage(model, url) {
   const frames = model.frames ?? [];
   return {
     url,
+    bodyText: model.bodyText,
     shadowHosts: model.shadowHosts,
     closedShadowHosts: model.closedShadowHosts,
     title: model.title ?? "Fake page",

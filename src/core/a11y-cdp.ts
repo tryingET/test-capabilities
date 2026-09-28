@@ -333,8 +333,11 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
     return { forest, sessions };
   }
   // A same-process frame is not in its session's tree (measured live 2026-09-27): each is read
-  // with its own frameId, in the session that hosts it. Returns the session's root frame id.
-  const readSameProcess = async (sessionId: string | undefined): Promise<string | undefined> => {
+  // with its own frameId, in the session that hosts it. Returns the session's root frame: its id,
+  // and its URL now (an attached frame that navigated keeps its session, not its first URL).
+  const readSameProcess = async (
+    sessionId: string | undefined,
+  ): Promise<{ id: string; url: string } | undefined> => {
     let root: SessionFrameNode;
     try {
       ({ frameTree: root } = await connection.send<{ frameTree: SessionFrameNode }>(
@@ -364,10 +367,10 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
       }
     };
     await walk(root);
-    return root.frame.id;
+    return root.frame;
   };
-  const mainFrameId = await readSameProcess(undefined);
-  if (mainFrameId) forest[0] = { ...forest[0], frameId: mainFrameId };
+  const mainFrame = await readSameProcess(undefined);
+  if (mainFrame) forest[0] = { ...forest[0], frameId: mainFrame.id };
   const autoAttach = (on: boolean, sessionId?: string) =>
     connection.send(
       "Target.setAutoAttach",
@@ -391,8 +394,10 @@ export async function readAxForest(connection: CdpConnection): Promise<AxForestR
           {},
           entry.sessionId,
         );
+        const at = forest.length;
         forest.push({ frame, url: entry.url, frameId: entry.targetId, nodes: tree.nodes });
-        await readSameProcess(entry.sessionId);
+        const root = await readSameProcess(entry.sessionId);
+        if (root?.url) forest[at] = { ...(forest[at] as AxFrameTree), url: root.url };
         await autoAttach(true, entry.sessionId);
       } catch (error) {
         forest.push({

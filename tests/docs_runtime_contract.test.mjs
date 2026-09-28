@@ -4,7 +4,8 @@ import test from "node:test";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { JS_MUTATION_SIGNALS } = await importRuntimeModule("core/browser-session.js");
-const { SUBMIT_GATE_ERROR_CODES } = await importRuntimeModule("core/error-codes.js");
+const { FLOW_ERROR_CODES, SUBMIT_GATE_ERROR_CODES } =
+  await importRuntimeModule("core/error-codes.js");
 
 function load(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -321,8 +322,8 @@ test("errors docs carry the error envelope, the code registry and the outcome cl
     assert.match(errorsDoc, new RegExp(`\`${code}\``), `errors.md does not document ${code}`);
   }
 
-  // every submit-gate code the registry carries is documented as its own row (S7)
-  for (const code of SUBMIT_GATE_ERROR_CODES) {
+  // every submit-gate and flow code the registry carries is documented as its own row
+  for (const code of [...SUBMIT_GATE_ERROR_CODES, ...FLOW_ERROR_CODES]) {
     assert.equal(
       errorsDoc.includes(`| \`${code}\` |`),
       true,

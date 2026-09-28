@@ -45,6 +45,7 @@ export type OperationId =
   | "surf.explore"
   | "surf.plan"
   | "surf.apply"
+  | "surf.flow"
   | "quantum"
   | "heal"
   | "replacement-validation";
@@ -121,6 +122,15 @@ export interface SurfApplyOperationInput {
   confirmPlan?: string;
   untilUrlPrefix?: string;
   untilText?: string;
+  receiptOut?: string;
+  config?: string;
+  json?: boolean;
+}
+
+/** `surf flow` (AK #6164). The flow file names the URL and the steps; submit lands in slice F2. */
+export interface SurfFlowOperationInput {
+  file?: string;
+  confirmFlow?: string;
   receiptOut?: string;
   config?: string;
   json?: boolean;
@@ -446,6 +456,37 @@ export interface SurfApplyOperationResultEnvelope extends OperationEffectEnvelop
   notes: string[];
 }
 
+/** One flow step as the envelope reports it: what it addressed, never a value. */
+export interface SurfFlowStepResult {
+  id: string;
+  action: string;
+  target: string;
+  effect: "read_only" | "mutating";
+  /** `not_run`: the flow stopped before this step (a refusal, or the submit gate) */
+  outcome: "ok" | "not_run";
+  ms?: number;
+}
+
+export interface SurfFlowOperationResultEnvelope extends OperationEffectEnvelope {
+  operationId: "surf.flow";
+  input: Required<Pick<SurfFlowOperationInput, "file">> & Omit<SurfFlowOperationInput, "file">;
+  /** the approval token is the flow's id: `sha256` over its normalized content */
+  flow: { path: string; approvalToken: string; steps: number };
+  /** the last receipt this run wrote */
+  receipt?: { path: string; outcome: string };
+  receiptExport?: string;
+  result: {
+    url: string;
+    status: "completed" | "stopped_at_submit_gate";
+    /** the submit step the flow stopped before, without `--submit` */
+    stoppedAt?: string;
+    steps: SurfFlowStepResult[];
+    submitted: boolean | "unknown";
+    channel: "cdp";
+  };
+  notes: string[];
+}
+
 export interface QuantumOperationResultEnvelope extends OperationEffectEnvelope {
   operationId: "quantum";
   input: Required<Pick<QuantumOperationInput, "target" | "branches" | "collapse">>;
@@ -508,6 +549,7 @@ export type CliOperationResult =
   | SurfExploreOperationResultEnvelope
   | SurfPlanOperationResultEnvelope
   | SurfApplyOperationResultEnvelope
+  | SurfFlowOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope
   | ReplacementValidationOperationResultEnvelope;
@@ -520,6 +562,7 @@ export type CliOperationInputUnion =
   | SurfExploreOperationInput
   | SurfPlanOperationInput
   | SurfApplyOperationInput
+  | SurfFlowOperationInput
   | QuantumOperationInput
   | HealOperationInput
   | ReplacementValidationOperationInput;

@@ -101,6 +101,12 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `submit_control_disabled` | The submit control was still `disabled` when `surf.submit.controlEnableTimeoutMs` ran out |
 | `submit_control_changed` | The submit control is no longer unique, or no longer inside the fields' owning form, after the fill |
 | `submit_postcondition_unmet` | The click was sent and the post-condition was never observed. `submitted: "unknown"`, the receipt is `unknown`, and the plan can never be submitted again |
+| `action_focus_moved` | A focus handler moved focus off the element a fill, type or key press had just focused (to another field, into a frame). No text or key was sent; a handler ran, so the step settles `unknown` |
+| `flow_submit_undeclared` | A `surf flow` step would act on a form-level control (a form's button, a label for one, `Enter` in a form's field) without being a declared submit step (`submit: true`) run with `--submit` and the flow's approval token. Refused on the element, before any input; the receipt settles `failed` |
+| `flow_submit_cancelled` | A `surf flow` click's press made its control form-level (a mousedown handler set its form, or its type), so the release went outside the viewport and the click did not complete. The press was sent, so the step settles `unknown` |
+| `flow_approval_mismatch` | `surf flow --confirm-flow` does not equal the approval token of the flow file's content: the file changed after it was reviewed |
+| `flow_wait_timeout` | A `surf flow` `wait` step's condition did not hold before its deadline; the flow stops there |
+| `flow_assertion_failed` | A `surf flow` `assert` step's condition does not hold; the flow stops there |
 | `element_unreachable` | A browser step could not reach an element by selector or ref on a page whose readiness settled. It is the trigger for the frame diagnosis, never a verdict about the target |
 | `frame_diagnosis_failed` | `surf frame.diagnose` failed, answered a shape the framework cannot read, or is missing from the probed mechanisms. The determination is `unavailable` and the root cause is filed as `browser_coverage_gap`, never as selector drift |
 | `frame_context_unrestored` | `frame.main` did not restore the owned tab after an in-frame probe; the tab was closed so nothing later runs in that frame, and the remaining candidates are recorded unprobed |

@@ -118,8 +118,8 @@ Usage: test-capabilities surf [options] <action>
 Advanced browser testing with surf-cli
 
 Arguments:
-  action                       Action: explore | plan (implemented) | apply |
-                               flow | assert | compare | replay
+  action                       Action: explore | plan | apply | flow
+                               (implemented) | assert | compare | replay
 
 Options:
   -u, --url <url>              Target URL
@@ -183,8 +183,12 @@ Options:
                                until implemented
   --ai-diff                    Reserved surf explore flag; currently fails
                                until implemented
-  -f, --file <path>            Reserved surf flag; currently fails until
-                               implemented
+  -f, --file <path>            surf flow: the flow file (JSON or YAML) - start
+                               URL and steps: wait, assert, fill, select,
+                               check, uncheck, click, press
+  --confirm-flow <token>       surf flow: the approval token a flow run prints;
+                               with --submit it authorizes the flow's declared
+                               submit steps
   --json                       Print the full machine-readable operation
                                envelope
   -h, --help                   display help for command

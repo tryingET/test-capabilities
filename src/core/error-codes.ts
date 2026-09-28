@@ -211,6 +211,26 @@ export const CDP_ACTION_ERROR_CODES = [
   "action_frame_step_unsupported",
   /** the element's (or the frame's) document is not one the step named; nothing was sent */
   "action_document_changed",
+  /** a focus handler moved focus off the element: no text or key was sent, a handler ran */
+  "action_focus_moved",
+] as const;
+
+/**
+ * `surf flow` (AK #6164): what a flow refuses that no other surface raises. Everything else a flow
+ * refuses reuses its surface's code (`config_invalid`, `mutation_origin_not_allowed`, the submit
+ * gate's and the actions' codes).
+ */
+export const FLOW_ERROR_CODES = [
+  /** a step would act on a form-level control (or submit implicitly) without being a declared, authorized submit; nothing was sent */
+  "flow_submit_undeclared",
+  /** a press made its control form-level (a mousedown handler): the click was released away from it; the press was sent */
+  "flow_submit_cancelled",
+  /** `--confirm-flow` does not match the approval token of the flow file's content */
+  "flow_approval_mismatch",
+  /** a `wait` step's condition did not hold before its deadline */
+  "flow_wait_timeout",
+  /** an `assert` step's condition does not hold */
+  "flow_assertion_failed",
 ] as const;
 
 /**
@@ -268,6 +288,7 @@ export type SubmitGateErrorCode = (typeof SUBMIT_GATE_ERROR_CODES)[number];
 export type FrameRootCauseErrorCode = (typeof FRAME_ROOT_CAUSE_ERROR_CODES)[number];
 export type A11yChannelErrorCode = (typeof A11Y_CHANNEL_ERROR_CODES)[number];
 export type CdpActionErrorCode = (typeof CDP_ACTION_ERROR_CODES)[number];
+export type FlowErrorCode = (typeof FLOW_ERROR_CODES)[number];
 export type ResultOutcomeCode = (typeof RESULT_OUTCOME_CODES)[number];
 export type RecordedSignal = (typeof RESULT_RECORDED_SIGNALS)[number];
 
@@ -281,6 +302,7 @@ export const FRAMEWORK_ERROR_CODES = [
   ...FRAME_ROOT_CAUSE_ERROR_CODES,
   ...A11Y_CHANNEL_ERROR_CODES,
   ...CDP_ACTION_ERROR_CODES,
+  ...FLOW_ERROR_CODES,
 ] as const;
 
 export type FrameworkErrorCode = (typeof FRAMEWORK_ERROR_CODES)[number];

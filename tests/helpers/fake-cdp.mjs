@@ -35,6 +35,8 @@ export async function startFakeCdp({
   const doms = new Map();
   let nextSession = 0;
   let port = 0;
+  // every page socket ever opened: a caller that holds one connection opens one
+  let opened = 0;
 
   const server = createServer((request, response) => {
     if (request.url === "/json/version") {
@@ -76,6 +78,7 @@ export async function startFakeCdp({
       `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
     );
     sockets.add(socket);
+    opened += 1;
     socket.on("close", () => sockets.delete(socket));
     socket.on("error", () => sockets.delete(socket));
 
@@ -314,6 +317,10 @@ export async function startFakeCdp({
     get worlds() {
       return firstDom()?.record.worlds ?? [];
     },
+    /** the first page opens a dialog of its own, outside any command */
+    openDialog(dialog) {
+      firstDom()?.openDialog(dialog);
+    },
     /** what a navigation does to every isolated world of the first page */
     dropWorlds() {
       firstDom()?.dropWorlds();
@@ -323,6 +330,7 @@ export async function startFakeCdp({
       return firstDom()?.record.live ?? new Map();
     },
     openSockets: () => sockets.size,
+    socketsOpened: () => opened,
     /** resolves with the open socket count once it reaches 0, or after `ms` */
     async drained(ms = 1000) {
       const deadline = Date.now() + ms;

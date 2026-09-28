@@ -87,7 +87,8 @@ test("operation kernel registry and capability matrix stay aligned", () => {
   assert.equal(getCliCommandStatus("replacement-validation"), "implemented");
   assert.equal(getCliCommandStatus("predict"), "unsupported");
   assert.equal(getSurfActionStatus("explore"), "implemented");
-  assert.equal(getSurfActionStatus("flow"), "unsupported");
+  assert.equal(getSurfActionStatus("flow"), "implemented");
+  assert.equal(getSurfActionStatus("assert"), "unsupported");
   assert.equal(
     resolveCliRoute({ command: "surf", action: "explore" })?.operationId,
     "surf.explore",
@@ -1390,8 +1391,8 @@ test("dispatch helpers fail clearly for unsupported or malformed routes", () => 
 
 test("executeCliOperation fails clearly for unsupported or unknown routes", async () => {
   await assert.rejects(
-    async () => executeCliOperation({ command: "surf", action: "flow" }, {}),
-    /Unsupported surf action\(s\): flow/,
+    async () => executeCliOperation({ command: "surf", action: "assert" }, {}),
+    /Unsupported surf action\(s\): assert/,
   );
 
   await assert.rejects(
@@ -1472,6 +1473,7 @@ const EFFECT_INPUT_SAMPLES = {
     out: "plan.json",
   },
   "surf.apply": { plan: "plan.json" },
+  "surf.flow": { file: "flow.yaml" },
   quantum: { target: "https://example.com" },
   heal: { dir: "./tests", dryRun: true },
   "replacement-validation": { action: "plan", request: "request.json" },
@@ -1500,7 +1502,7 @@ test("every registered operation resolves an effect class with a reason", () => 
     }
     seen.push(operationId);
   }
-  assert.equal(seen.length, 10);
+  assert.equal(seen.length, 11);
 });
 
 test("the mode-dependent operations change class with their mode", () => {

@@ -12,6 +12,7 @@
  */
 
 import type { CdpConnection } from "./a11y-cdp.js";
+import { CLICK_PATH, FIND_CAPTOR } from "./cdp-element-functions.js";
 import { FrameworkError } from "./runtime-contract.js";
 
 /** An element resolved into its frame's isolated world. */
@@ -136,6 +137,140 @@ async function centre(
   };
 }
 
+/**
+ * Run `body` on what a pointer event at `point` would reach in the element's session, resolved
+ * into the element's world, and let it go after.
+ */
+export async function withNodeAt<T>(
+  connection: CdpConnection,
+  resolved: ResolvedElement,
+  point: { x: number; y: number },
+  body: (node: ResolvedElement) => Promise<T>,
+): Promise<T> {
+  const { backendNodeId } = await connection.send<{ backendNodeId: number }>(
+    "DOM.getNodeForLocation",
+    // integers only: Chromium answers "Invalid parameters" to a fractional point (measured live);
+    // `pointer-events: none` honoured, so the node is the one a real pointer event reaches
+    {
+      x: Math.round(point.x),
+      y: Math.round(point.y),
+      includeUserAgentShadowDOM: false,
+      ignorePointerEventsNone: false,
+    },
+    resolved.sessionId,
+  );
+  const { object } = await connection.send<{ object: { objectId: string } }>(
+    "DOM.resolveNode",
+    { backendNodeId, executionContextId: resolved.contextId },
+    resolved.sessionId,
+  );
+  const node = { ...resolved, objectId: object.objectId };
+  try {
+    return await body(node);
+  } finally {
+    await release(connection, node);
+  }
+}
+
+export type ElementCall = <T>(fn: string, args?: unknown[]) => Promise<T>;
+
+/**
+ * Call a function on what a pointer event at the element's point reaches. A node that cannot be
+ * read there is refused as obscured: nothing is sent to what cannot be judged.
+ */
+export function callAtPoint(connection: CdpConnection, element: ActionableElement): ElementCall {
+  return <T>(fn: string, args?: unknown[]) =>
+    withNodeAt(connection, element.resolved, element.point, (node) =>
+      callOn<T>(connection, node, fn, args),
+    ).catch((error: unknown) => {
+      if (error instanceof FrameworkError) throw error;
+      throw new FrameworkError(
+        "action_target_obscured",
+        "what the input would reach could not be read; nothing was sent",
+        {},
+      );
+    });
+}
+
+/**
+ * Whether a closed shadow root hosts anything on the path a click at the element's point takes.
+ * No page script can see inside one - not even which slot takes the content (`assignedSlot` is
+ * null) - but CDP can (measured live 2026-09-28: `DOM.describeNode` names a root `closed`, ~0.5 ms
+ * each). A path that cannot be read is answered as closed.
+ */
+export async function closedShadowOnPath(
+  connection: CdpConnection,
+  element: ActionableElement,
+): Promise<boolean> {
+  return withNodeAt(connection, element.resolved, element.point, (node) =>
+    closedShadowFrom(connection, node),
+  ).catch(() => true);
+}
+
+/** Both: the pointer's own path, and the path of whatever holds its capture (after a press). */
+export async function closedShadowReached(
+  connection: CdpConnection,
+  element: ActionableElement,
+): Promise<boolean> {
+  return (
+    (await closedShadowOnPath(connection, element)) ||
+    (await closedShadowAtCaptor(connection, element))
+  );
+}
+
+/** The same question for the element holding pointer capture, which receives the release. */
+export async function closedShadowAtCaptor(
+  connection: CdpConnection,
+  element: ActionableElement,
+): Promise<boolean> {
+  try {
+    const { result } = await connection.send<{ result: { objectId?: string } }>(
+      "Runtime.callFunctionOn",
+      { objectId: element.resolved.objectId, functionDeclaration: FIND_CAPTOR },
+      element.resolved.sessionId,
+    );
+    if (!result.objectId) return false;
+    const captor = { ...element.resolved, objectId: result.objectId };
+    try {
+      return await closedShadowFrom(connection, captor);
+    } finally {
+      await release(connection, captor);
+    }
+  } catch {
+    return true;
+  }
+}
+
+async function closedShadowFrom(
+  connection: CdpConnection,
+  node: ResolvedElement,
+): Promise<boolean> {
+  const { result } = await connection.send<{ result: { objectId?: string } }>(
+    "Runtime.callFunctionOn",
+    { objectId: node.objectId, functionDeclaration: CLICK_PATH },
+    node.sessionId,
+  );
+  if (!result.objectId) return true;
+  const { result: members } = await connection.send<{
+    result: Array<{ name: string; value?: { objectId?: string } }>;
+  }>("Runtime.getProperties", { objectId: result.objectId, ownProperties: true }, node.sessionId);
+  const held = members
+    .filter((member) => /^\d+$/.test(member.name) && member.value?.objectId)
+    .map((member) => member.value?.objectId as string);
+  try {
+    for (const objectId of held) {
+      const { node: described } = await connection.send<{
+        node: { shadowRoots?: Array<{ shadowRootType?: string }> };
+      }>("DOM.describeNode", { objectId, depth: 1, pierce: true }, node.sessionId);
+      if (described.shadowRoots?.some((root) => root.shadowRootType === "closed")) return true;
+    }
+    return false;
+  } finally {
+    for (const objectId of [...held, result.objectId])
+      await release(connection, { ...node, objectId });
+  }
+}
+
 /** Whether what a click at `point` reaches is the element or inside it. */
 async function receivesEvents(
   connection: CdpConnection,
@@ -143,29 +278,9 @@ async function receivesEvents(
   point: { x: number; y: number },
 ): Promise<boolean> {
   try {
-    const { backendNodeId } = await connection.send<{ backendNodeId: number }>(
-      "DOM.getNodeForLocation",
-      // integers only: Chromium answers "Invalid parameters" to a fractional point (measured live)
-      {
-        x: Math.round(point.x),
-        y: Math.round(point.y),
-        includeUserAgentShadowDOM: false,
-        ignorePointerEventsNone: true,
-      },
-      resolved.sessionId,
+    return await withNodeAt(connection, resolved, point, (node) =>
+      callOn<boolean>(connection, resolved, SAME_NODE, [{ objectId: node.objectId }]),
     );
-    const { object } = await connection.send<{ object: { objectId: string } }>(
-      "DOM.resolveNode",
-      { backendNodeId, executionContextId: resolved.contextId },
-      resolved.sessionId,
-    );
-    try {
-      return await callOn<boolean>(connection, resolved, SAME_NODE, [
-        { objectId: object.objectId },
-      ]);
-    } finally {
-      await release(connection, { ...resolved, objectId: object.objectId });
-    }
   } catch {
     // the point is on something outside this frame's world (a cover in another frame)
     return false;

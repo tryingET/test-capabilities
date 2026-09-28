@@ -237,7 +237,6 @@ returns a fresh view and a reader, so `evaluateA11yAssertion` can check `visible
 `attr` on the element a ref names, inside out-of-process frames too.
 
 Unsupported surf actions:
-- `flow`
 - `assert`
 - `compare`
 - `replay`
@@ -309,6 +308,42 @@ A fill needs the origin declared too: a fill is a bounded mutation, not a safe o
 Whenever the DevTools endpoint (`TEST_CAPABILITIES_CDP_ENDPOINT`) binds the owned tab, a top-document plan runs the same way in the page itself, and it runs on surf only when it does not; `result.channel` says which (`cdp` or `surf`), and a note gives the reason for surf. A frame plan runs every step in the frame over the DevTools endpoint: the fingerprint, each value (typed with trusted input, selected, or a checkbox clicked), each read-back, the observation and the one click. The frame is found by its declared address once and then pinned to its CDP frame id for the rest of the run, so a submit that navigates the frame is still observed there. New origin+path plans compare the fresh structural fingerprint, then freeze that run's full frame URL, query and fragment included. A token may change between plan and apply, but any URL change after this binding is refused before the next input. Read-back checks the URL in that same response; the fill observation, pre-submit observation, and default post-condition also use this run's URL, not the plan-time token. The default post-condition, "the URL leaves the plan's page", is judged by the frame's URL, never by the page's. Every fill and the click also name the documents the frame may hold. The element's own document is read immediately before any input, and a frame that swapped its document (it keeps its selectors) is refused with `action_document_changed`, with nothing sent. Before the click, the page, or the frame, must still be where the plan read it, or the run stops with `submit_control_changed`.
 
 The click is preceded by a receipt on disk and followed by the post-condition, which is that receipt's verification. A post-condition that never arrives leaves `submitted: "unknown"`, the receipt `unknown` and exit 1; it is never retried, and the plan can never be submitted again.
+
+---
+
+### `test-capabilities surf flow`
+
+Run a flow file's steps in a tab this run owns, on one DevTools connection held for the whole run
+(design `docs/project/2026-09-28-surf-flow-design.md`). surf opens, gates and closes the tab.
+
+```bash
+test-capabilities surf flow --file checkout.flow.yaml --config test-capabilities.yaml
+```
+
+```yaml
+schema_version: 1
+url: https://example.com/checkout
+steps:
+  - { id: card, action: fill, target: "#card", value: "4242" }
+  - { action: fill, target: { role: textbox, name: Name }, value: Alice }
+  - { action: select, target: "#country", value: fr }
+  - { action: check, target: "#terms" }
+  - { action: wait, for: { selector: "#summary" }, timeout_ms: 5000 }
+  - { action: assert, that: { field: { target: "#card", equals: "4242" } } }
+  - { action: click, target: "#pay", submit: true, expect: { url_prefix: "https://example.com/done" } }
+```
+
+| Option | Description |
+|--------|-------------|
+| `--file <file>` | Required flow file, JSON (by extension) or YAML, at most 1 MiB, a regular file |
+| `--confirm-flow <token>` | The approval token a flow run prints (stdout); only with `--submit` |
+| `--receipt-out <file>` | Export this run's mutation receipts as one JSON artifact |
+| `--config <file>` | Config holding `mutation.allowOrigins`, `receipts.dir` and `surf.submit.*` |
+| `--json` | Print the operation envelope |
+
+The file is validated closed: `wait` (`for`: `selector` visible, `text`, `url_prefix`), `assert` (`that`: those, or `field: { target, equals }`), `fill`, `select`, `check`, `uncheck`, `click` and `press` (`key` and a required `target`); a `target` is a CSS selector, a shadow path (`host >>> field`), or `{ role, name }`; `frame` names a frame by URL (origin+path); `timeout_ms` is at most 30000. Anything else is `config_invalid`, before a tab exists. A step's class comes from its action: `wait` and `assert` read in an isolated world and write no receipt; every act is `mutating`/`target`, receipted and attempted once, with an idempotency key from the flow's content and the step's id, so a rerun meets the in-doubt interlock (`mutation_replay_refused`).
+
+A flow that acts needs its start URL's origin in `mutation.allowOrigins` before a tab is opened, and each act checks the document of the element it acts on just before input: an origin the list does not name is `mutation_origin_not_allowed`, with nothing sent. An act on a form-level control (a form's button, a label for one, `Enter` in a form's field) is `flow_submit_undeclared` unless the step is a declared submit (`submit: true`). Without `--submit`, a flow stops before its first submit step: `result.status` is `stopped_at_submit_gate` and `result.stoppedAt` names the step. `--confirm-flow` without `--submit` is `submit_gate_closed`. If the DevTools endpoint does not bind the owned tab, the flow refuses before its first step. `result.steps` reports each step's id, action, target, effect, outcome and time, never a value.
 
 ---
 
@@ -435,10 +470,10 @@ These route statuses are mirrored by the exported operation registry / route man
 | `surf explore` | implemented |
 | `surf plan` | implemented |
 | `surf apply` | implemented |
+| `surf flow` | implemented |
 | `quantum` | implemented |
 | `heal` | implemented |
 | `replacement-validation` | implemented |
-| `surf flow` | unsupported |
 | `surf assert` | unsupported |
 | `surf compare` | unsupported |
 | `surf replay` | unsupported |

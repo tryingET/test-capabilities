@@ -524,8 +524,8 @@
       "name": "surf flow",
       "surface_kind": "cli-subcommand",
       "presence_state": "present",
-      "support_state": "unsupported",
-      "verification_state": "contract_only",
+      "support_state": "supported",
+      "verification_state": "verified",
       "evidence": {
         "tests": ["tests/operation_kernel_contract.test.mjs"],
         "commands": ["npm test"]

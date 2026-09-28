@@ -58,6 +58,7 @@ type CliOperationResult =
   | SurfExploreOperationResultEnvelope
   | SurfPlanOperationResultEnvelope
   | SurfApplyOperationResultEnvelope
+  | SurfFlowOperationResultEnvelope
   | QuantumOperationResultEnvelope
   | HealOperationResultEnvelope
   | ReplacementValidationOperationResultEnvelope;

@@ -11,6 +11,7 @@ export {
   executeReplacementValidationOperation,
   executeSurfApplyOperation,
   executeSurfExploreOperation,
+  executeSurfFlowOperation,
   executeSurfPlanOperation,
   executeTestOperation,
   getCliCommandStatus,

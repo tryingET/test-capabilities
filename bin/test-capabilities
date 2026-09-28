@@ -282,7 +282,7 @@ function collectRepeated(value, previous) {
 program
   .command("surf")
   .description("Advanced browser testing with surf-cli")
-  .argument("<action>", "Action: explore | plan (implemented) | apply | flow | assert | compare | replay")
+  .argument("<action>", "Action: explore | plan | apply | flow (implemented) | assert | compare | replay")
   .option("-u, --url <url>", "Target URL")
   .option("--depth <n>", "Explore same-origin links to bounded depth 1-3 with graded probe coverage")
   .option(
@@ -338,13 +338,20 @@ program
     "Reserved surf explore flag; currently fails until implemented",
   )
   .option("--ai-diff", "Reserved surf explore flag; currently fails until implemented")
-  .option("-f, --file <path>", "Reserved surf flag; currently fails until implemented")
+  .option(
+    "-f, --file <path>",
+    "surf flow: the flow file (JSON or YAML) - start URL and steps: wait, assert, fill, select, check, uncheck, click, press",
+  )
+  .option(
+    "--confirm-flow <token>",
+    "surf flow: the approval token a flow run prints; with --submit it authorizes the flow's declared submit steps",
+  )
   .option("--json", "Print the full machine-readable operation envelope")
   .action(async (action, options) => {
     const shouldPrintJson = Boolean(options.json);
     // `plan` and `apply` keep stdout machine-readable in text mode as well: the plan prints its
     // approval token as the only line on stdout so an operator can copy it (packet §4.1).
-    const quiet = action === "plan" || action === "apply";
+    const quiet = action === "plan" || action === "apply" || action === "flow";
     if (!shouldPrintJson && !quiet) {
       showBanner();
     }
@@ -372,6 +379,17 @@ program
         if (output.receipt) {
           console.error(chalk.dim(`Receipt ${output.receipt.outcome}: ${output.receipt.path}`));
         }
+      } else if (action === "flow") {
+        const ran = output.result.steps.filter((step) => step.outcome === "ok").length;
+        console.error(
+          chalk.dim(
+            `Flow ${output.result.status}: ${ran}/${output.flow.steps} step(s) ran${output.result.stoppedAt ? `, stopped before submit step ${output.result.stoppedAt}` : ""}.`,
+          ),
+        );
+        if (output.receipt) {
+          console.error(chalk.dim(`Receipt ${output.receipt.outcome}: ${output.receipt.path}`));
+        }
+        console.log(output.flow.approvalToken);
       } else if (action === "plan") {
         console.error(
           chalk.dim(

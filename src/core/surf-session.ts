@@ -350,7 +350,7 @@ export class SurfSession implements Session {
       throw this.lifecycleRefusal(`run '${step.command}' on a session that is already closed`);
     }
     const declaration = frameAwareDeclaration(step, () => this.declarationFor(step));
-    const args = this.targetArgs(step.command, step.args ?? [], declaration);
+    const args = this.targetArgs(step.frame ? "js" : step.command, step.args ?? [], declaration);
     if (SESSION_SCREENSHOTTING_COMMANDS.has(step.command) && !args.includes("--no-screenshot")) {
       args.push("--no-screenshot");
     }
@@ -359,7 +359,7 @@ export class SurfSession implements Session {
     return this.runLedgerStep<T>({
       id: step.id,
       command: step.command,
-      // a frame step gets the caller's own argv, read by position: the tab flags are surf's
+      // a frame step, held to js's owned-tab rule above, gets the caller's own argv by position
       ...(step.frame === undefined ? { args } : { args: step.args ?? [], frame: step.frame }),
       intent: step.intent,
       declaration,

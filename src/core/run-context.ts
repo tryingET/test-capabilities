@@ -204,10 +204,10 @@ export interface ConfigReceiptsSection {
 
 /**
  * The operations whose world is declared in a config file (operator decision D4, adjudication
- * claim 48): `test`, and the two submit-gate operations, which read `mutation.allowOrigins`,
- * `receipts.dir` and `surf.submit.*` through the same `--config` lookup.
+ * claim 48): `test`, the two submit-gate operations and `surf flow`, which read
+ * `mutation.allowOrigins`, `receipts.dir` and `surf.submit.*` through the same `--config` lookup.
  */
-const CONFIG_SCOPED_OPERATIONS = new Set(["test", "surf.plan", "surf.apply"]);
+const CONFIG_SCOPED_OPERATIONS = new Set(["test", "surf.plan", "surf.apply", "surf.flow"]);
 
 /**
  * Read `receipts` and `mutation` out of a config file without loading the whole config.

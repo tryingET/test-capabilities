@@ -32,7 +32,10 @@ import {
 } from "./a11y-cdp.js";
 import {
   type ActionableElement,
+  callAtPoint,
   callOn,
+  closedShadowReached,
+  type ElementCall,
   type ElementLookup,
   type ElementState,
   type Needs,
@@ -40,16 +43,19 @@ import {
   STATE_FUNCTION,
   waitForActionable,
 } from "./cdp-actionability.js";
+import { type CdpDialogRecord, watchDialogs } from "./cdp-dialogs.js";
 import {
   assertDocument,
+  CANCEL_CLICK,
   CONNECTED,
   DOCUMENT,
+  FOCUS_KEPT,
   SELECT_ALL,
   SELECT_OPTION,
+  UNCANCEL_CLICK,
 } from "./cdp-element-functions.js";
 import { characterKey, type KeyDefinition, MODIFIER_BITS, parseChord } from "./cdp-keys.js";
-import { frameWorlds, type WorldFrame } from "./cdp-worlds.js";
-import { frameOriginPath } from "./frame-address.js";
+import { frameByName, frameWorlds, type WorldFrame } from "./cdp-worlds.js";
 import { FrameworkError } from "./runtime-contract.js";
 import { isShadowPath, shadowQueryExpression } from "./shadow-path.js";
 
@@ -70,6 +76,28 @@ export interface CdpActionOptions {
   documents?: readonly string[];
   /** Keep the fragment too when guarding a freshly bound per-run document (AK #6162). */
   exactDocuments?: boolean;
+  /**
+   * A check on the actionable element, after the document check and before any input, focus
+   * included (a flow's guards, AK #6164).
+   */
+  before?: (probe: ElementProbe) => Promise<void>;
+  /**
+   * A check between a pointer's press and its release (a mousedown handler can change what the
+   * release completes): throwing cancels the click - released outside the viewport - and raises.
+   */
+  afterPress?: () => Promise<void>;
+  /** a check once a pointer's release went out: throwing raises (the input was sent) */
+  afterRelease?: () => Promise<void>;
+}
+
+/** What a check before input may ask about the element an act is about to take. */
+export interface ElementProbe {
+  /** run a function on the element */
+  call<T>(fn: string, args?: unknown[]): Promise<T>;
+  /** run it on what the input reaches: the node a pointer at the element's point hits, else the element */
+  reached<T>(fn: string, args?: unknown[]): Promise<T>;
+  /** whether a closed shadow root hosts anything on a pointer's path (false for other input) */
+  closedShadow(): Promise<boolean>;
 }
 
 export interface CdpClickOptions extends CdpActionOptions {
@@ -78,12 +106,7 @@ export interface CdpClickOptions extends CdpActionOptions {
   modifiers?: string[];
 }
 
-export interface CdpDialogRecord {
-  type: string;
-  message: string;
-  url: string;
-  answer: "accepted" | "dismissed" | "unanswered";
-}
+export type { CdpDialogRecord } from "./cdp-dialogs.js";
 
 export interface CdpActionsOpenOptions extends CdpActionOptions {
   /** what to do with an alert, confirm or prompt an action opens (default `dismiss`) */
@@ -136,6 +159,7 @@ interface FrameEntry extends WorldFrame {
 }
 
 const WORLD = "test-capabilities";
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const DEFAULT_TIMEOUT_MS = 5000;
 const STATE_SETTLE_MS = 1000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -190,38 +214,7 @@ export async function openCdpActions(
   }
 
   // dialogs: every session that hosts a frame reports them; each is answered by the policy
-  const dialogs: CdpDialogRecord[] = [];
-  const pendingAnswers = new Set<Promise<void>>();
-  let failingDialog: CdpDialogRecord | undefined;
-  const policy = options.dialogs ?? "dismiss";
-  const offDialogs = connection.on("Page.javascriptDialogOpening", (params, sessionId) => {
-    const accept = policy === "accept";
-    const record: CdpDialogRecord = {
-      type: String(params.type ?? ""),
-      message: String(params.message ?? ""),
-      url: String(params.url ?? ""),
-      answer: "unanswered",
-    };
-    dialogs.push(record);
-    if (policy === "fail") failingDialog = record;
-    const answering = connection
-      .send(
-        "Page.handleJavaScriptDialog",
-        {
-          accept,
-          ...(accept && options.promptText !== undefined ? { promptText: options.promptText } : {}),
-        },
-        sessionId,
-      )
-      .then(() => {
-        record.answer = accept ? "accepted" : "dismissed";
-      })
-      .catch(() => {
-        failingDialog = record;
-      });
-    pendingAnswers.add(answering);
-    void answering.then(() => pendingAnswers.delete(answering));
-  });
+  const dialogWatch = watchDialogs(connection, options.dialogs ?? "dismiss", options.promptText);
   const enabledPages = new Set<string>();
   const enablePages = async () => {
     for (const sessionId of new Set(frames.map((frame) => frame.sessionId))) {
@@ -234,42 +227,8 @@ export async function openCdpActions(
   await enablePages();
 
   // a frame by label (`main`, `f1`...), URL or CDP frame id
-  const frameOf = (name = "main", match?: "origin_path"): FrameEntry => {
-    const address = match ? frameOriginPath(name) : undefined;
-    const candidates = match
-      ? frames.filter(
-          (frame) =>
-            frame.label !== "main" &&
-            address !== undefined &&
-            frameOriginPath(frame.url) === address,
-        )
-      : [];
-    if (candidates.length > 1) {
-      throw new FrameworkError(
-        "action_frame_ambiguous",
-        `${candidates.length} frames match origin+path ${address}; none was guessed`,
-        { frame: name },
-      );
-    }
-    const found = match
-      ? candidates[0]
-      : (frames.find((frame) => frame.label === name) ??
-        frames.find((frame) => frame.label !== "main" && frame.url === name) ??
-        frames.find((frame) => frame.frameId === name));
-    if (!found) {
-      throw new FrameworkError(
-        "action_frame_unknown",
-        `'${name}' is not one of the owned tab's frames (${
-          frames
-            .filter((frame) => frame.label !== "main")
-            .map((frame) => frame.url)
-            .join(", ") || "none"
-        })`,
-        { frame: name },
-      );
-    }
-    return found;
-  };
+  const frameOf = (name = "main", match?: "origin_path"): FrameEntry =>
+    frameByName(frames, name, match);
 
   const { frameIdOf, worldOf, pageWorldOf, inContext, inWorld } = frameWorlds(connection, WORLD);
 
@@ -439,34 +398,70 @@ export async function openCdpActions(
     // (measured live 2026-09-27: 974 ms awaited, 1-2 ms not). So a click does not wait for it.
     const moved = send("mouseMoved", { modifiers: chord.mask });
     const button = options.button ?? "left";
-    for (let count = 1; count <= clickCount; count++) {
-      const click = { button, clickCount: count, modifiers: chord.mask };
-      await send("mousePressed", click);
-      await Promise.all(pendingAnswers);
-      // A mousedown/focus dialog must not be followed by a release on the control:
-      // release outside the viewport to clear held input without completing its click.
-      await send("mouseReleased", failingDialog ? { ...click, x: -1, y: -1 } : click);
-      if (failingDialog) break;
-    }
-    await moved;
-    for (const modifier of [...chord.modifiers].reverse()) {
-      await key("keyUp", modifier, 0, sessionId);
+    try {
+      for (let count = 1; count <= clickCount; count++) {
+        const click = { button, clickCount: count, modifiers: chord.mask };
+        await send("mousePressed", click);
+        await dialogWatch.settled();
+        const refused = dialogWatch.failing()
+          ? undefined
+          : await options.afterPress?.().then(
+              () => undefined,
+              (error: unknown) => error ?? new Error("refused"),
+            );
+        // A mousedown dialog, or a press that changed what the release would complete, must not be
+        // followed by a release on the control: release outside the viewport to clear held input.
+        const cancel = dialogWatch.failing() || refused;
+        const cancelling = (fn: string) => callOn(connection, element.resolved, fn).catch(() => 0);
+        if (cancel) await cancelling(CANCEL_CLICK);
+        await send("mouseReleased", cancel ? { ...click, x: -1, y: -1 } : click);
+        if (cancel) await cancelling(UNCANCEL_CLICK);
+        if (refused) throw refused;
+        if (cancel) break;
+        await options.afterRelease?.();
+      }
+    } finally {
+      await moved;
+      for (const modifier of [...chord.modifiers].reverse()) {
+        await key("keyUp", modifier, 0, sessionId);
+      }
     }
   };
 
   // every action ends here: releases its element, and raises a dialog the `fail` policy caught
   const settle = async (element: ActionableElement | undefined) => {
     if (element) await release(connection, element.resolved);
-    await Promise.all(pendingAnswers);
-    if (failingDialog) {
-      const opened = failingDialog;
-      failingDialog = undefined;
+    await dialogWatch.settled();
+    const opened = dialogWatch.takeFailing();
+    if (opened) {
       throw new FrameworkError(
         "action_dialog_opened",
         `the action opened a ${opened.type}; answer: ${opened.answer}`,
         { ...opened },
       );
     }
+  };
+
+  type Call = ElementCall;
+  // on the actionable element, before any input: its document, then the caller's own check
+  const guard = async (
+    element: ActionableElement,
+    actionTarget: CdpActionTarget,
+    options: CdpActionOptions | undefined,
+    reached?: Call,
+  ) => {
+    if (options?.documents) {
+      const href = await callOn<string>(connection, element.resolved, DOCUMENT);
+      assertDocument(
+        href,
+        options.documents,
+        `nothing was sent to ${describe(actionTarget)}`,
+        options.exactDocuments,
+      );
+    }
+    const call: Call = (fn, args) => callOn(connection, element.resolved, fn, args);
+    const closedShadow = async () => (reached ? closedShadowReached(connection, element) : false);
+    await options?.before?.({ call, reached: reached ?? call, closedShadow });
   };
 
   const act = async (
@@ -477,15 +472,8 @@ export async function openCdpActions(
   ) => {
     const element = await actionable(actionTarget, needs, options?.timeoutMs);
     try {
-      if (options?.documents) {
-        const href = await callOn<string>(connection, element.resolved, DOCUMENT);
-        assertDocument(
-          href,
-          options.documents,
-          `nothing was sent to ${describe(actionTarget)}`,
-          options.exactDocuments,
-        );
-      }
+      const reached = needs.hit === false ? undefined : callAtPoint(connection, element);
+      await guard(element, actionTarget, options, reached);
       await body(element);
     } finally {
       await settle(element);
@@ -502,7 +490,10 @@ export async function openCdpActions(
         );
       }
       if (element.state.checked === wanted) return;
-      await pointer(element, 1, {});
+      await pointer(element, 1, {
+        afterPress: options?.afterPress,
+        afterRelease: options?.afterRelease,
+      });
       const deadline = Date.now() + STATE_SETTLE_MS;
       for (;;) {
         const state = await callOn<ElementState>(connection, element.resolved, STATE_FUNCTION);
@@ -518,12 +509,25 @@ export async function openCdpActions(
     });
 
   const focusOn = async (element: ActionableElement) => {
-    await connection.send(
-      "DOM.focus",
-      { objectId: element.resolved.objectId },
-      element.resolved.sessionId,
-    );
+    await connection
+      .send("DOM.focus", { objectId: element.resolved.objectId }, element.resolved.sessionId)
+      .catch((error: unknown) => {
+        // Chromium refuses an element that takes no focus, and focus did not move: nothing sent
+        if (!/not focusable/.test(errorText(error))) throw error;
+        throw new FrameworkError(
+          "action_target_unsuitable",
+          "it takes no focus; nothing was sent",
+          {},
+        );
+      });
     await settle(undefined);
+    await assertFocusKept(element);
+  };
+  // text and keys go where focus is: one a handler moved elsewhere is not the element's
+  const assertFocusKept = async (element: ActionableElement) => {
+    if (!(await callOn<boolean>(connection, element.resolved, FOCUS_KEPT))) {
+      throw new FrameworkError("action_focus_moved", "focus left the element once focused", {});
+    }
   };
 
   let closed = false;
@@ -537,7 +541,7 @@ export async function openCdpActions(
         frames.filter((frame) => frame.label !== "main").map((frame) => [frame.label, frame.url]),
       );
     },
-    dialogs,
+    dialogs: dialogWatch.records,
     click: (actionTarget, options = {}) =>
       act(actionTarget, { enabled: true }, options, (element) => pointer(element, 1, options)),
     dblclick: (actionTarget, options = {}) =>
@@ -549,6 +553,8 @@ export async function openCdpActions(
         await focusOn(element);
         await callOn(connection, element.resolved, SELECT_ALL);
         await settle(undefined);
+        // a select handler may move focus too: checked again just before the text goes out
+        await assertFocusKept(element);
         if (text === "") {
           const erase = parseChord("Delete").key;
           await key("keyDown", erase, 0);
@@ -569,19 +575,26 @@ export async function openCdpActions(
     async press(chordText, options = {}) {
       const chord = parseChord(chordText);
       let element: ActionableElement | undefined;
-      if (options.target) {
-        element = await actionable(options.target, { hit: false }, options.timeoutMs);
-        await focusOn(element);
-      }
       try {
-        let held = 0;
-        for (const modifier of chord.modifiers) {
-          held |= MODIFIER_BITS[modifier.key] ?? 0;
-          await key("keyDown", modifier, held);
+        if (options.target) {
+          element = await actionable(options.target, { hit: false }, options.timeoutMs);
+          await guard(element, options.target, options);
+          await focusOn(element);
         }
-        await key("keyDown", chord.key, chord.mask);
-        await key("keyUp", chord.key, chord.mask);
-        for (const modifier of [...chord.modifiers].reverse()) await key("keyUp", modifier, 0);
+        let held = 0;
+        try {
+          for (const modifier of chord.modifiers) {
+            held |= MODIFIER_BITS[modifier.key] ?? 0;
+            await key("keyDown", modifier, held);
+            // a modifier's keydown handler may move focus: checked before anything more is sent
+            if (element) await assertFocusKept(element);
+          }
+          await key("keyDown", chord.key, chord.mask);
+          await key("keyUp", chord.key, chord.mask);
+          await options.afterRelease?.();
+        } finally {
+          for (const modifier of [...chord.modifiers].reverse()) await key("keyUp", modifier, 0);
+        }
       } finally {
         await settle(element);
       }
@@ -675,8 +688,8 @@ export async function openCdpActions(
     async close() {
       if (closed) return;
       closed = true;
-      offDialogs();
-      await Promise.all(pendingAnswers);
+      dialogWatch.off();
+      await dialogWatch.settled();
       await releaseForest(connection, sessions);
       connection.close();
     },

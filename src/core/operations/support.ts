@@ -36,6 +36,8 @@ const SURF_APPLY_ONLY_OPTIONS = [
   "receiptOut",
   "supersedeReceipt",
 ];
+/** `surf flow` takes its target and its steps from the flow file (AK #6164). */
+const SURF_FLOW_ONLY_OPTIONS = ["confirmFlow"];
 
 export const TEST_OPTION_SUPPORT = {
   target: "implemented",
@@ -95,7 +97,7 @@ export function assertSupportedSurfPlanOptions(options: Record<string, unknown>)
   refuseForeignOptions(
     "plan",
     options,
-    [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_APPLY_ONLY_OPTIONS],
+    [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_APPLY_ONLY_OPTIONS, ...SURF_FLOW_ONLY_OPTIONS],
     "Use --url, --field, --submit-text or --submit-selector, --frame, --out, --config and --json; a plan reads a form and writes an artifact, it never carries one out.",
   );
 }
@@ -105,8 +107,28 @@ export function assertSupportedSurfApplyOptions(options: Record<string, unknown>
   refuseForeignOptions(
     "apply",
     options,
-    [...SURF_EXPLORE_ONLY_OPTIONS, ...SURF_PLAN_ONLY_OPTIONS, ...SURF_TARGET_URL_OPTION],
+    [
+      ...SURF_EXPLORE_ONLY_OPTIONS,
+      ...SURF_PLAN_ONLY_OPTIONS,
+      ...SURF_TARGET_URL_OPTION,
+      ...SURF_FLOW_ONLY_OPTIONS,
+    ],
     "Use --plan, --submit with --confirm-plan, --until-url-prefix or --until-text, --receipt-out, --config and --json; what is filled, and where, is decided by the plan, not by the command line.",
+  );
+}
+
+/** `surf flow` takes the flow file and `--config`; its URL and steps come from the file. */
+export function assertSupportedSurfFlowOptions(options: Record<string, unknown>): void {
+  refuseForeignOptions(
+    "flow",
+    options,
+    [
+      ...SURF_EXPLORE_ONLY_OPTIONS.filter((option) => option !== "file"),
+      ...SURF_PLAN_ONLY_OPTIONS,
+      ...SURF_TARGET_URL_OPTION,
+      ...SURF_APPLY_ONLY_OPTIONS.filter((option) => option !== "receiptOut"),
+    ],
+    "Use --file, --confirm-flow, --receipt-out, --config and --json; where a flow runs and what it does is decided by the flow file, not by the command line.",
   );
 }
 
@@ -143,8 +165,8 @@ export function assertSupportedSurfExploreOptions(
   refuseForeignOptions(
     "explore",
     options as Record<string, unknown>,
-    [...SURF_PLAN_ONLY_OPTIONS, ...SURF_APPLY_ONLY_OPTIONS],
-    "Those options belong to 'surf plan' and 'surf apply'; explore reads pages and never fills a form.",
+    [...SURF_PLAN_ONLY_OPTIONS, ...SURF_APPLY_ONLY_OPTIONS, ...SURF_FLOW_ONLY_OPTIONS],
+    "Those options belong to 'surf plan', 'surf apply' and 'surf flow'; explore reads pages and never fills a form.",
   );
   const unsupported = collectUnsupportedOptions(SURF_EXPLORE_OPTION_SUPPORT, options);
 

@@ -19,13 +19,20 @@ import type { SessionReply } from "./browser-session.js";
 import type { CdpActions } from "./cdp-actions.js";
 import { openCdpActions } from "./cdp-actions.js";
 import { assertDocument } from "./cdp-element-functions.js";
+import { FLOW_COMMANDS, type FlowActPayload, runFlowAct } from "./cdp-flow-acts.js";
 import type { EffectDeclaration } from "./effects.js";
 import { classifyResult } from "./result-classification.js";
 import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
 import { parseSurfJsonOutput } from "./surf-runtime.js";
 
-/** The commands a step may run in a frame. */
-export const FRAME_STEP_COMMANDS: ReadonlySet<string> = new Set(["js", "type", "select", "click"]);
+/** The commands a step may run in a frame: surf's four, and a flow's (AK #6164). */
+export const FRAME_STEP_COMMANDS: ReadonlySet<string> = new Set([
+  "js",
+  "type",
+  "select",
+  "click",
+  ...FLOW_COMMANDS,
+]);
 
 /**
  * A frame, by URL, label or CDP frame id as `openCdpActions` names them - optionally with the
@@ -64,6 +71,9 @@ const BEFORE_INPUT = new Set([
   "cdp_endpoint_unreachable",
   "cdp_endpoint_not_chromium",
   "tab_bind_ambiguous",
+  // a flow's guards on the element, before any input (AK #6164)
+  "mutation_origin_not_allowed",
+  "flow_submit_undeclared",
 ]);
 
 function valueAfter(args: readonly string[], flag: string): string | undefined {
@@ -101,6 +111,9 @@ async function act(
     : {};
   const flag = (after: number) =>
     valueAfter(args.slice(after), "--selector") ?? valueAfter(args.slice(after), "--into");
+  if (command.startsWith("flow.")) {
+    return runFlowAct(actions, command, JSON.parse(args[0] ?? "{}") as FlowActPayload, frame);
+  }
   if (command === "js") {
     const [code] = args;
     if (code === undefined) throw unsupported(command, "there is no script");
@@ -176,6 +189,8 @@ export function frameAwareDeclaration<D extends { reason: string }>(
 interface SessionPins {
   targetId?: string;
   frames: Map<string, string>;
+  /** actions a flow holds for all its steps, bound once (AK #6164) */
+  held?: CdpActions;
 }
 const pinsBySession = new WeakMap<object, SessionPins>();
 
@@ -237,6 +252,26 @@ async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv)
   }
   pins.targetId = actions.targetId;
   return { actions, pins: pins.frames };
+}
+
+/**
+ * Hold one connection for every later step of this session, bound through the same tab proof:
+ * a flow of tens of steps pays the open once. The caller releases it before the tab closes.
+ */
+export async function holdCdpActions(
+  session: FrameStepSession,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<void> {
+  const { actions } = await openForSession(session, env);
+  (pinsBySession.get(session) as SessionPins).held = actions;
+}
+
+/** Let a held connection go; safe to call when none is held. */
+export async function releaseCdpActions(session: FrameStepSession): Promise<void> {
+  const pins = pinsBySession.get(session);
+  const held = pins?.held;
+  if (pins) delete pins.held;
+  await held?.close();
 }
 
 /**
@@ -304,10 +339,17 @@ export async function runStepInFrame(
   const frame = frameName(step.frame);
   const documents = typeof step.frame === "string" ? undefined : step.frame.documents;
   const started = Date.now();
-  const { actions, pins } = await openForSession(session, env);
+  const held = pinsBySession.get(session)?.held;
+  const { actions, pins } = held
+    ? { actions: held, pins: (pinsBySession.get(session) as SessionPins).frames }
+    : await openForSession(session, env);
+  // every dialog a held connection saw, one that arrived between steps included, stops this step
+  const dialogs = () => [...actions.dialogs];
   let value: unknown;
   let frameId: string | undefined;
   try {
+    // a held connection read its frames once; a step naming a frame reads them afresh
+    if (held && frame !== "main") await actions.refresh();
     frameId = await pinnedFrame(
       actions,
       pins,
@@ -320,15 +362,20 @@ export async function runStepInFrame(
       ...(documents ? { documents } : {}),
     });
     // evaluate() has no element settlement, but its script may also open a dialog.
-    if (actions.dialogs.length > 0) {
+    if (dialogs().length > 0) {
       throw new FrameworkError("action_dialog_opened", "the step opened a dialog");
     }
   } catch (error) {
-    if (actions.dialogs.length > 0) {
+    if (dialogs().length > 0) {
+      // a flow's dialog may echo a value it typed, in its words or its page's URL: only its type
+      // and answer are kept (AK #6164)
+      const recorded = command.startsWith("flow.")
+        ? dialogs().map(({ type, answer }) => ({ type, answer }))
+        : dialogs();
       throw new FrameworkError(
         "action_dialog_opened",
         `${command} opened a dialog; dismissal was requested. Input may already have taken effect; inspect the receipt for the answer before proceeding.`,
-        { command, frame, dialogs: [...actions.dialogs], outcome: { basis: "indeterminate" } },
+        { command, frame, dialogs: recorded, outcome: { basis: "indeterminate" } },
       );
     }
     if (effect === "read_only" || (isFrameworkError(error) && BEFORE_INPUT.has(error.code))) {
@@ -340,7 +387,7 @@ export async function runStepInFrame(
       { command, frame },
     );
   } finally {
-    await actions.close();
+    if (!held) await actions.close();
   }
   const target = { frame, frameId, channel: "cdp" };
   const stdout = JSON.stringify({ result: value ?? null, target });

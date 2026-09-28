@@ -9,6 +9,7 @@ import {
 } from "./replacement-validation-operation.js";
 import { executeSurfApplyOperation, SURF_APPLY_OPERATION } from "./surf-apply-operation.js";
 import { executeSurfExploreOperation, SURF_EXPLORE_OPERATION } from "./surf-explore-operation.js";
+import { executeSurfFlowOperation, SURF_FLOW_OPERATION } from "./surf-flow-operation.js";
 import { executeSurfPlanOperation, SURF_PLAN_OPERATION } from "./surf-plan-operation.js";
 import { executeTestOperation, TEST_OPERATION } from "./test-operation.js";
 import type {
@@ -30,6 +31,7 @@ export const CLI_OPERATION_REGISTRY = {
   "surf.explore": SURF_EXPLORE_OPERATION,
   "surf.plan": SURF_PLAN_OPERATION,
   "surf.apply": SURF_APPLY_OPERATION,
+  "surf.flow": SURF_FLOW_OPERATION,
   quantum: QUANTUM_OPERATION,
   heal: HEAL_OPERATION,
   "replacement-validation": REPLACEMENT_VALIDATION_OPERATION,
@@ -89,8 +91,9 @@ export const CLI_ROUTE_MANIFEST = [
   {
     command: "surf",
     action: "flow",
-    status: "unsupported",
-    description: "Registered surf action that currently fails clearly",
+    status: "implemented",
+    operationId: "surf.flow",
+    description: SURF_FLOW_OPERATION.description,
   },
   {
     command: "surf",
@@ -189,6 +192,7 @@ export {
   executeReplacementValidationOperation,
   executeSurfApplyOperation,
   executeSurfExploreOperation,
+  executeSurfFlowOperation,
   executeSurfPlanOperation,
   executeTestOperation,
 };

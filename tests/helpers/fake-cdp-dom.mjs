@@ -107,6 +107,12 @@ export function createFakeDom(page, initialEmit) {
     return [ox + x + drift, oy + y, w, h];
   };
 
+  let captured; // the element holding pointer capture since the last press, if any
+  let clickBlocked = false; // an isolated world's one-shot click blocker is armed
+  let guardArmed = false; // a flow's click-time guard is listening
+  let guardBlocked = false; // it prevented a click
+  const arraysById = new Map(); // a returned array's handle -> its members' object ids
+  let arrays = 0;
   const worlds = new Map(); // isolated context id -> tree
   const pageWorlds = new Map(); // page-world context id -> tree
   let nextContext = 100;
@@ -366,6 +372,21 @@ export function createFakeDom(page, initialEmit) {
         if (count <= 1) record.live.delete(params.objectId);
         else record.live.set(params.objectId, count - 1);
         reply({});
+        // the page's own timer fires once the act let go of its element: a dialog after the step
+        const released = objectOf(params.objectId);
+        const later = released?.element.clicked ? released.element.laterDialog : undefined;
+        if (later) {
+          delete released.element.laterDialog;
+          // a later task than the answer: the act has settled by the time the page asks
+          setTimeout(() => {
+            pendingDialog = { ...later, frame: released.tree.url };
+            emit({
+              method: "Page.javascriptDialogOpening",
+              ...(released.session ? { sessionId: released.session } : {}),
+              params: { ...later, url: released.tree.url },
+            });
+          }, 0);
+        }
         return true;
       }
       case "Runtime.callFunctionOn": {
@@ -398,13 +419,65 @@ export function createFakeDom(page, initialEmit) {
             type: element.type ?? null,
           };
         } else if (marker === "same-node") {
-          value = objectOf(args[0])?.element === element;
+          const other = objectOf(args[0]);
+          value = other?.element === element || (element.contains ?? []).includes(other?.selector);
         } else if (marker === "select-option") {
           const option = (element.options ?? []).find(
             (candidate) => candidate.value === args[0] || candidate.label === args[0],
           );
           if (option) record.values[entry.selector] = option.value;
           value = Boolean(option);
+        } else if (marker === "click-path") {
+          // the elements a click's path runs through, as the page model states them (`lightPath`)
+          const members = [
+            entry,
+            ...(element.lightPath ?? []).map((key) => ({ element: entry.tree.elements?.[key] })),
+          ]
+            .filter((member) => member.element)
+            .map((member) => handOut(member.element.backendNodeId));
+          const arrayId = `arr:${++arrays}`;
+          arraysById.set(arrayId, members);
+          reply({ result: { type: "object", subtype: "array", objectId: arrayId } });
+          return true;
+        } else if (marker === "click-guard") {
+          guardArmed = true;
+          guardBlocked = false;
+          value = true;
+        } else if (marker === "click-guard-end") {
+          guardArmed = false;
+          value = guardBlocked;
+        } else if (marker === "find-captor" && element.captorFails) {
+          send({ id, error: { message: "Execution context was destroyed" } });
+          return true;
+        } else if (marker === "find-captor") {
+          // the element holding pointer capture, by reference, or null
+          reply({
+            result: captured?.element
+              ? {
+                  type: "object",
+                  subtype: "node",
+                  objectId: handOut(captured.element.backendNodeId),
+                }
+              : { type: "object", subtype: "null", value: null },
+          });
+          return true;
+        } else if (marker === "captor-gate") {
+          // the element that holds pointer capture, judged as a click on it would be
+          value = captured?.element?.gated === true;
+        } else if (marker === "cancel-click") {
+          // pointer capture released, and the next click blocked
+          captured = undefined;
+          clickBlocked = true;
+          value = true;
+        } else if (marker === "uncancel-click") {
+          clickBlocked = false;
+          value = true;
+        } else if (marker === "focus-kept") {
+          // focus is still where the act put it: on this element
+          value = focused?.element === element;
+        } else if (marker === "flow-gate") {
+          // a flow's form-level control check, on what a click reaches
+          value = element.gated === true;
         } else if (marker === "iframe-index") {
           value = element.iframeIndex ?? -1;
         } else if (marker === "document") {
@@ -412,11 +485,40 @@ export function createFakeDom(page, initialEmit) {
         } else if (marker === "connected") {
           value = Boolean(entry) && !element.removed;
         } else if (marker === "select-all" || marker === "focus-check") {
+          // a select handler that moves focus on
+          if (marker === "select-all" && element.selectMovesFocusTo && focused) {
+            const to = focused.tree.elements?.[element.selectMovesFocusTo];
+            if (to) focused = { ...focused, selector: element.selectMovesFocusTo, element: to };
+          }
           value = true;
         } else {
           return false;
         }
         reply({ result: { type: typeof value, value } });
+        return true;
+      }
+      case "Runtime.getProperties": {
+        const members = arraysById.get(params.objectId);
+        if (!members) return false;
+        reply({
+          result: members.map((objectId, at) => ({
+            name: String(at),
+            value: { type: "object", objectId },
+          })),
+        });
+        return true;
+      }
+      case "DOM.describeNode": {
+        const described = objectOf(params.objectId);
+        if (!described) return false;
+        reply({
+          node: {
+            backendNodeId: described.element.backendNodeId,
+            ...(described.element.closedShadow
+              ? { shadowRoots: [{ shadowRootType: "closed" }] }
+              : {}),
+          },
+        });
         return true;
       }
       case "DOM.scrollIntoViewIfNeeded":
@@ -440,7 +542,7 @@ export function createFakeDom(page, initialEmit) {
           send({ id, error: { message: "Invalid parameters" } });
           return true;
         }
-        const found = elements().find((entry) => {
+        const under = elements().filter((entry) => {
           if (entry.session !== sessionId || !present(entry.element)) return false;
           const box = localBox(entry);
           return (
@@ -451,10 +553,31 @@ export function createFakeDom(page, initialEmit) {
             params.y <= box[1] + box[3]
           );
         });
+        // an element painted over the others (`onTop`) is what the point is on
+        const found = under.find((entry) => entry.element.onTop) ?? under[0];
         // a covered element hits the cover (backend 9999), which is no element of ours
-        const cover = found?.element.obscured === "other-frame" ? 8888 : 9999;
+        let cover = found?.element.obscured === "other-frame" ? 8888 : 9999;
+        // `hitOnce`: the first hit test reaches it, later ones a cover in another frame
+        if (found?.element.hitOnce) {
+          if (found.element.hitSeen) {
+            cover = 8888;
+            found.element.obscured = "other-frame";
+          }
+          found.element.hitSeen = true;
+        }
+        // a wrapper whose centre a descendant covers: the hit is the descendant; an element with
+        // pointer-events: none is hit only when the caller asks to ignore that, as Chromium does
+        const through =
+          found?.element.pointerEventsNone && !params.ignorePointerEventsNone
+            ? found.element.passesTo
+            : undefined;
+        const reached = through
+          ? found.tree.elements?.[through]
+          : found?.element.hitReaches
+            ? found.tree.elements?.[found.element.hitReaches]
+            : found?.element;
         reply({
-          backendNodeId: found && !found.element.obscured ? found.element.backendNodeId : cover,
+          backendNodeId: found && !found.element.obscured ? reached.backendNodeId : cover,
         });
         return true;
       }
@@ -469,7 +592,23 @@ export function createFakeDom(page, initialEmit) {
         return true;
       }
       case "DOM.focus":
+        // as Chromium answers for an element that takes no focus (a host without tabindex)
+        if (objectOf(params.objectId)?.element.unfocusable) {
+          send({ id, error: { message: "Element is not focusable" } });
+          return true;
+        }
+        if (objectOf(params.objectId)?.element.focusFails) {
+          send({ id, error: { message: objectOf(params.objectId).element.focusFails } });
+          return true;
+        }
         focused = objectOf(params.objectId);
+        // a focus handler that moves focus on to another element
+        if (focused?.element.focusMovesTo) {
+          const to = focused.tree.elements?.[focused.element.focusMovesTo];
+          focused = to
+            ? { ...focused, selector: focused.element.focusMovesTo, element: to }
+            : focused;
+        }
         if (focused.element.focusDialog) {
           pendingDialog = { ...focused.element.focusDialog, frame: focused.tree.url };
           emit({
@@ -502,6 +641,31 @@ export function createFakeDom(page, initialEmit) {
           modifiers: params.modifiers ?? 0,
           session: sessionId ?? "page",
         });
+        // a key that makes the page click an element (an access key, a keydown handler): judged by
+        // an armed click-time guard like any click
+        if (params.type !== "keyUp" && focused?.element.keyClicks) {
+          const clicked = focused.tree.elements?.[focused.element.keyClicks];
+          if (guardArmed && clicked?.gated) guardBlocked = true;
+          else if (clicked)
+            record.clicks.push({ frame: "main", selector: focused.element.keyClicks });
+        }
+        // a modifier's keydown handler that moves focus on
+        if (
+          params.type === "rawKeyDown" &&
+          ["Shift", "Control", "Alt", "Meta"].includes(params.key) &&
+          focused?.element.modifierMovesFocusTo
+        ) {
+          const to = focused.tree.elements?.[focused.element.modifierMovesFocusTo];
+          if (to)
+            focused = { ...focused, selector: focused.element.modifierMovesFocusTo, element: to };
+        }
+        // Enter in a field whose form submits by it: its frame moves
+        if (
+          params.type === "keyDown" &&
+          params.key === "Enter" &&
+          focused?.element.enterNavigatesTo
+        )
+          focused.tree.url = focused.element.enterNavigatesTo;
         // a key that types nothing arrives as rawKeyDown, as Chromium takes it
         if ((params.type === "keyDown" || params.type === "rawKeyDown") && focused) {
           if (params.key === "Delete") record.values[focused.selector] = "";
@@ -545,6 +709,16 @@ export function createFakeDom(page, initialEmit) {
           const landed = sessionId
             ? sessionHit(sessionId, params.x, params.y)
             : pageHit(params.x, params.y);
+          // a mousedown handler that makes the control form-level (sets its form=), captures the
+          // pointer (setPointerCapture), or covers the control with another frame
+          if (landed?.element.pressMakesGated) landed.element.gated = true;
+          if (landed?.element.capturesPointer) captured = landed;
+          // a pointerdown handler that hands the capture to another element
+          if (landed?.element.pointerdownCaptures) {
+            const to = landed.element.pointerdownCaptures;
+            captured = { ...landed, selector: to, element: landed.tree.elements?.[to] };
+          }
+          if (landed?.element.pressObscures) landed.element.obscured = "other-frame";
           if (landed?.element.pressDialog) {
             pendingDialog = { ...landed.element.pressDialog, frame: landed.tree.url };
             emit({
@@ -563,10 +737,23 @@ export function createFakeDom(page, initialEmit) {
           session: sessionId ?? "page",
         });
         if (params.type === "mouseReleased") {
-          // releases outside the viewport cancel held input, they do not click a control.
-          const landed = sessionId
+          // releases outside the viewport cancel held input, they do not click a control - unless
+          // the pointer is captured, when the release (and its click) go to the capturing element;
+          // a blocked click completes nothing
+          const hit = sessionId
             ? sessionHit(sessionId, params.x, params.y)
             : pageHit(params.x, params.y);
+          let landed = clickBlocked ? undefined : (captured ?? hit);
+          captured = undefined;
+          // a mouseup handler that makes the control form-level before the click lands; an armed
+          // click-time guard prevents a click that lands on a form-level control
+          if (landed?.element.releaseMakesGated) landed.element.gated = true;
+          // an onclick handler that does the same (judged by the guard's bubble listener)
+          if (landed?.element.clickMakesGated) landed.element.gated = true;
+          if (landed && guardArmed && landed.element.gated) {
+            guardBlocked = true;
+            landed = undefined;
+          }
           if (landed) {
             record.clicks.push({
               frame: landed.frame,
@@ -574,6 +761,26 @@ export function createFakeDom(page, initialEmit) {
               clickCount: params.clickCount,
             });
             const element = landed.element;
+            element.clicked = true;
+            // a click that navigates another frame of the page
+            if (element.navigatesFrame)
+              element.navigatesFrame.frame.url = element.navigatesFrame.to;
+            // a click that inserts a frame into its page (a checkout step revealing a payment form)
+            if (element.revealsFrame) {
+              const frame = element.revealsFrame;
+              landed.tree.frames = [...(landed.tree.frames ?? []), frame];
+              // the page's accessibility tree gains the frame's node, as Chromium's does
+              landed.tree.nodes = [
+                ...(landed.tree.nodes ?? []),
+                {
+                  nodeId: `frame-${frame.id}`,
+                  role: { value: "Iframe" },
+                  backendDOMNodeId: frame.owner?.backendNodeId,
+                  childIds: [],
+                },
+              ];
+              delete element.revealsFrame;
+            }
             if (element.type === "checkbox" && !element.stuck) element.checked = !element.checked;
             // a submit that navigates its frame: same frame, same id, a new URL
             if (element.navigatesTo) landed.tree.url = element.navigatesTo;
@@ -645,6 +852,11 @@ export function createFakeDom(page, initialEmit) {
     },
     setPageOrigin(fn) {
       pageOrigin = fn;
+    },
+    /** the page opens a dialog of its own, outside any command (a timer) */
+    openDialog(dialog) {
+      pendingDialog = { ...dialog, frame: page.url };
+      emit({ method: "Page.javascriptDialogOpening", params: { ...dialog, url: page.url } });
     },
     frameIdOf,
   };
