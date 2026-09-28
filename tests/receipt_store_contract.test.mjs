@@ -189,6 +189,28 @@ test("the store filters by key, plan, mode and doubt", async () => {
     "applied is a definite outcome and is not in doubt",
   );
   assert.equal((await store.list()).length, 2);
+  // a flow's submit receipts, by the flow's approval token (surf flow, AK #6164)
+  await store.append(
+    receipt({
+      receipt_id: "r3",
+      run_id: "run-3",
+      idempotency_key: "sha256:cc",
+      outcome: "unknown",
+      details: { flow_id: "sha256:f1", mode: "submit" },
+    }),
+  );
+  assert.deepEqual(
+    (await store.list({ flowId: "sha256:f1", mode: "submit" })).map((entry) => entry.receipt_id),
+    ["r3"],
+  );
+  assert.deepEqual(
+    (await store.list({ flowId: "sha256:f2", mode: "submit" })).map((entry) => entry.receipt_id),
+    [],
+  );
+  assert.deepEqual(
+    (await store.list({ flowId: "sha256:f1", mode: "act" })).map((entry) => entry.receipt_id),
+    [],
+  );
 });
 
 test("a damaged receipt file blocks its key instead of unlocking it", async () => {
@@ -379,4 +401,35 @@ test("a config file's receipts and mutation sections are read without loading th
   assert.deepEqual(Object.keys(minted.adapters).sort(), ["bombadil", "cli", "surf"]);
   assert.equal(minted.receiptStore.dir, path.join(dir, "r"));
   assert.equal(minted.ledger.receipts().length, 0);
+});
+
+test("a reservation is claimed once, atomically and durably, and is never a receipt", async () => {
+  const { FileReceiptStore } = await importRuntimeModule("core/artifacts.js");
+  const dir = scratch();
+  const store = new FileReceiptStore(dir);
+  const claims = await Promise.all([
+    store.reserve("flow-submit-aa", { run_id: "run-1" }),
+    store.reserve("flow-submit-aa", { run_id: "run-2" }),
+  ]);
+  assert.deepEqual([...claims].sort(), [false, true], "one claim wins");
+  assert.equal(await store.reserve("flow-submit-aa", { run_id: "run-3" }), false);
+  assert.equal(await store.reserve("flow-submit-bb", { run_id: "run-3" }), true);
+  const held = await store.reservation("flow-submit-aa");
+  assert.ok(["run-1", "run-2"].includes(held.run_id));
+  assert.equal(await store.reservation("flow-submit-cc"), undefined);
+  assert.deepEqual(await store.list(), [], "a reservation is not a receipt");
+  const file = path.join(dir, "reservations", "flow-submit-aa.json");
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  await assert.rejects(store.reserve("../escape", {}), { code: "mutation_receipt_write_failed" });
+  // a claim whose content was lost is still a claim
+  writeFileSync(file, "{ torn");
+  assert.deepEqual(await store.reservation("flow-submit-aa"), {});
+  // a store that cannot claim says so, and one it cannot read is not taken as unclaimed
+  const blocked = path.join(scratch(), "not-a-dir");
+  writeFileSync(blocked, "");
+  await assert.rejects(new FileReceiptStore(blocked).reserve("flow-submit-aa", {}), {
+    code: "mutation_receipt_write_failed",
+  });
+  fs.mkdirSync(path.join(dir, "reservations", "flow-submit-dd.json"));
+  await assert.rejects(store.reservation("flow-submit-dd"), { code: "EISDIR" });
 });

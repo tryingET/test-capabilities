@@ -318,6 +318,9 @@ Run a flow file's steps in a tab this run owns, on one DevTools connection held 
 
 ```bash
 test-capabilities surf flow --file checkout.flow.yaml --config test-capabilities.yaml
+# after reviewing the file, with the token the run above printed:
+test-capabilities surf flow --file checkout.flow.yaml --config test-capabilities.yaml \
+  --submit --confirm-flow sha256:...
 ```
 
 ```yaml
@@ -336,6 +339,7 @@ steps:
 | Option | Description |
 |--------|-------------|
 | `--file <file>` | Required flow file, JSON (by extension) or YAML, at most 1 MiB, a regular file |
+| `--submit` | Run the flow's declared submit steps; needs `--confirm-flow` |
 | `--confirm-flow <token>` | The approval token a flow run prints (stdout); only with `--submit` |
 | `--receipt-out <file>` | Export this run's mutation receipts as one JSON artifact |
 | `--config <file>` | Config holding `mutation.allowOrigins`, `receipts.dir` and `surf.submit.*` |
@@ -343,7 +347,9 @@ steps:
 
 The file is validated closed: `wait` (`for`: `selector` visible, `text`, `url_prefix`), `assert` (`that`: those, or `field: { target, equals }`), `fill`, `select`, `check`, `uncheck`, `click` and `press` (`key` and a required `target`); a `target` is a CSS selector, a shadow path (`host >>> field`), or `{ role, name }`; `frame` names a frame by URL (origin+path); `timeout_ms` is at most 30000. Anything else is `config_invalid`, before a tab exists. A step's class comes from its action: `wait` and `assert` read in an isolated world and write no receipt; every act is `mutating`/`target`, receipted and attempted once, with an idempotency key from the flow's content and the step's id, so a rerun meets the in-doubt interlock (`mutation_replay_refused`).
 
-A flow that acts needs its start URL's origin in `mutation.allowOrigins` before a tab is opened, and each act checks the document of the element it acts on just before input: an origin the list does not name is `mutation_origin_not_allowed`, with nothing sent. An act on a form-level control (a form's button, a label for one, `Enter` in a form's field) is `flow_submit_undeclared` unless the step is a declared submit (`submit: true`). Without `--submit`, a flow stops before its first submit step: `result.status` is `stopped_at_submit_gate` and `result.stoppedAt` names the step. `--confirm-flow` without `--submit` is `submit_gate_closed`. If the DevTools endpoint does not bind the owned tab, the flow refuses before its first step. `result.steps` reports each step's id, action, target, effect, outcome and time, never a value.
+A flow that acts needs its start URL's origin in `mutation.allowOrigins` before a tab is opened, and each act checks the document of the element it acts on just before input: an origin the list does not name is `mutation_origin_not_allowed`, with nothing sent. An act on a form-level control (a form's button, a label for one, `Enter` in a form's field) is `flow_submit_undeclared` unless the step is a declared submit (`submit: true`). Without `--submit`, a flow stops before its first submit step: `result.status` is `stopped_at_submit_gate` and `result.stoppedAt` names the step. `--confirm-flow` without `--submit` is `submit_gate_closed`.
+
+With `--submit`, before a tab exists: the flow must declare a submit step (else `config_invalid`), `--confirm-flow` must be given (`submit_gate_closed`) and equal the token of the file's content (`flow_approval_mismatch`), and no submit receipt, nor a claim, may exist for the flow (`submit_already_attempted`, whatever its outcome): a flow is submitted at most once. Just before its first submit acts, a run claims the flow's submit in `receipts.dir/reservations/`, atomically; a run that raced past the first check finds the claim taken and is refused there, before input. Authorization covers the declared submit steps only; any other act on a form-level control is still `flow_submit_undeclared`. A submit step's act settles `unknown`; its `expect` (`url_prefix`, `text`, or `left_url: true`, the default: the page leaves the document the act started in) is polled within `surf.submit.postconditionTimeoutMs`, and only an expect observed within that deadline promotes the receipt to `applied` (`verified_by: post_read`). Unobserved, the receipt stays `unknown`, the flow stops with `submit_postcondition_unmet`, and later steps never run. A dialog during a submit, or while its expect is looked for, is `action_dialog_opened` and is never promoted. The receipt's evidence names the expect, never the address or text the page showed. `result.submitted` is `true` once a submit step was verified. If the DevTools endpoint does not bind the owned tab, the flow refuses before its first step. `result.steps` reports each step's id, action, target, effect, outcome and time, never a value.
 
 ---
 

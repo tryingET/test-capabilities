@@ -274,7 +274,9 @@ receipts:
 Every mutating step writes a receipt here **before** it acts, and reads the directory back
 before the next attempt with the same key: a receipt that is still `attempting` or `unknown`
 refuses the rerun (`mutation_replay_refused`) until an operator passes
-`--supersede-receipt <receipt_id>`. Nothing under `receipts.dir` is ever deleted by the
+`--supersede-receipt <receipt_id>`. `receipts.dir/reservations/` holds the claims an act that
+must happen at most once across concurrent runs takes before it acts (a `surf flow` submit, one
+file per flow, created exclusively). Nothing under `receipts.dir` is ever deleted by the
 framework; deleting it by hand is an interlock reset with the same standing as superseding.
 
 The base the relative `dir` is resolved against is defined per operation, because `heal`,

@@ -285,6 +285,71 @@ export class FileReceiptStore implements ReceiptStore {
     }
   }
 
+  reservationPath(name: string): string {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(name)) {
+      throw new FrameworkError(
+        "mutation_receipt_write_failed",
+        `A reservation name must be 1-128 of A-Z a-z 0-9 _ -, not ${JSON.stringify(name)}. Nothing was claimed.`,
+        { name },
+      );
+    }
+    return path.join(this.dir, "reservations", `${name}.json`);
+  }
+
+  /**
+   * `<receipts.dir>/reservations/<name>.json`, created exclusively (`wx`), synced with its
+   * directory before this returns. It is never released: like a receipt, deleting it is an
+   * interlock reset.
+   */
+  async reserve(name: string, content: Record<string, unknown>): Promise<boolean> {
+    const target = this.reservationPath(name);
+    let fd: number;
+    try {
+      fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+      fd = fs.openSync(target, "wx", ARTIFACT_FILE_MODE);
+    } catch (error) {
+      if (errorCodeOf(error) === "EEXIST") return false;
+      throw new FrameworkError(
+        "mutation_receipt_write_failed",
+        `Could not claim ${target}: ${error instanceof Error ? error.message : String(error)}. Nothing was claimed and the step was not run.`,
+        { path: target },
+      );
+    }
+    try {
+      fs.writeSync(fd, `${JSON.stringify(content)}\n`);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    const dirFd = fs.openSync(path.dirname(target), "r");
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+    return true;
+  }
+
+  async reservation(name: string): Promise<Record<string, unknown> | undefined> {
+    const target = this.reservationPath(name);
+    let text: string;
+    try {
+      text = fs.readFileSync(target, "utf-8");
+    } catch (error) {
+      if (errorCodeOf(error) === "ENOENT") return undefined;
+      throw error;
+    }
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      // a claim whose content was lost is still a claim
+      return {};
+    }
+  }
+
   async list(filter?: ReceiptFilter): Promise<MutationReceipt[]> {
     const receipts: MutationReceipt[] = [];
     for (const entry of listJsonArtifacts(this.dir, MUTATION_RECEIPT_KIND)) {

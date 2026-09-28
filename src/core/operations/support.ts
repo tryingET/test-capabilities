@@ -126,9 +126,9 @@ export function assertSupportedSurfFlowOptions(options: Record<string, unknown>)
       ...SURF_EXPLORE_ONLY_OPTIONS.filter((option) => option !== "file"),
       ...SURF_PLAN_ONLY_OPTIONS,
       ...SURF_TARGET_URL_OPTION,
-      ...SURF_APPLY_ONLY_OPTIONS.filter((option) => option !== "receiptOut"),
+      ...SURF_APPLY_ONLY_OPTIONS.filter((option) => option !== "receiptOut" && option !== "submit"),
     ],
-    "Use --file, --confirm-flow, --receipt-out, --config and --json; where a flow runs and what it does is decided by the flow file, not by the command line.",
+    "Use --file, --submit with --confirm-flow, --receipt-out, --config and --json; where a flow runs and what it does is decided by the flow file, not by the command line.",
   );
 }
 

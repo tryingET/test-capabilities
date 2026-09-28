@@ -93,14 +93,14 @@ and `renderErrorLine` so a programmatic caller renders the same two shapes.
 | `field_readback_mismatch` | The value read back out of the field is not the value the plan intended. The refusal names the field id and its selector, never the value |
 | `fill_side_effect_observed` | The page navigated, or the form vanished, while filling. A dry run that moved the page is a failed dry run, never a passed one |
 | `submit_origin_not_allowed` | The world: `mutation.allowOrigins` does not name the plan's origin. No flag and no environment variable adds one |
-| `submit_gate_closed` | The intent: `--submit` without `--confirm-plan`, or `--confirm-plan` without `--submit` |
+| `submit_gate_closed` | The intent: `--submit` without `--confirm-plan` (`surf flow`: `--confirm-flow`), or the confirmation without `--submit` |
 | `submit_plan_mismatch` | The intent: `--confirm-plan` does not equal the token recomputed from the plan file, or the file no longer hashes to its own `approval_token` (an edited plan) |
-| `submit_already_attempted` | At-most-once: a submit-mode receipt for this `plan_id` already exists, whatever its outcome. Fill-mode receipts never block a submit |
+| `submit_already_attempted` | At-most-once: a submit-mode receipt for this `plan_id` (`surf flow`: this flow's approval token, or another run's claim on its submit in `receipts.dir/reservations/`) already exists, whatever its outcome. Fill-mode receipts (a flow's other acts) never block a submit |
 | `plan_submit_ambiguous` | The plan recorded more than one submit candidate. Re-plan with `--submit-text` or `--submit-selector` |
 | `plan_submit_missing` | The plan recorded no submit control at all (often an SPA with no owning form). Re-plan with `--submit-selector` |
 | `submit_control_disabled` | The submit control was still `disabled` when `surf.submit.controlEnableTimeoutMs` ran out |
 | `submit_control_changed` | The submit control is no longer unique, or no longer inside the fields' owning form, after the fill |
-| `submit_postcondition_unmet` | The click was sent and the post-condition was never observed. `submitted: "unknown"`, the receipt is `unknown`, and the plan can never be submitted again |
+| `submit_postcondition_unmet` | The click was sent and the post-condition was never observed. `submitted: "unknown"`, the receipt is `unknown`, and the plan can never be submitted again. `surf flow`: a declared submit step's `expect` was never observed; the flow stops there and is never submitted again |
 | `action_focus_moved` | A focus handler moved focus off the element a fill, type or key press had just focused (to another field, into a frame). No text or key was sent; a handler ran, so the step settles `unknown` |
 | `flow_submit_undeclared` | A `surf flow` step would act on a form-level control (a form's button, a label for one, `Enter` in a form's field) without being a declared submit step (`submit: true`) run with `--submit` and the flow's approval token. Refused on the element, before any input; the receipt settles `failed` |
 | `flow_submit_cancelled` | A `surf flow` click's press made its control form-level (a mousedown handler set its form, or its type), so the release went outside the viewport and the click did not complete. The press was sent, so the step settles `unknown` |

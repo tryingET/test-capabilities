@@ -130,6 +130,8 @@ export interface SurfApplyOperationInput {
 /** `surf flow` (AK #6164). The flow file names the URL and the steps; submit lands in slice F2. */
 export interface SurfFlowOperationInput {
   file?: string;
+  /** open the submit gate for the flow's declared submit steps; needs `confirmFlow` */
+  submit?: boolean;
   confirmFlow?: string;
   receiptOut?: string;
   config?: string;

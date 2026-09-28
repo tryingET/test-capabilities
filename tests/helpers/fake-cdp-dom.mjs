@@ -19,7 +19,9 @@
  * `disabled`, `readonly`, `hidden`, `obscured`, `removed`, `options`, `type`, `checked`, `stuck`
  * (a checkbox that ignores clicks), `navigatesTo` (a click moves its frame to that URL),
  * `inputNavigatesTo` (typing into it moves its frame to that URL),
- * `dialog` (`{ type, message }` opened by a click).
+ * `dialog` (`{ type, message }` opened by a click), `betweenDocuments` (a click leaves its frame
+ * answering that many reads with a destroyed context, as mid-navigation), `dialogOnRead` (a
+ * click leaves a dialog that opens on its frame's next read).
  *
  * Module functions are dispatched on their marker comment (`tc:state`, `tc:hit`, ...), never on
  * their body, so a change of implementation cannot silently change what the fake answers.
@@ -315,6 +317,22 @@ export function createFakeDom(page, initialEmit) {
           reply({
             result: { type: typeof value, value: isolated ? `isolated:${value}` : value },
           });
+          return true;
+        }
+        if (tree.nextReadDialog && tree.form) {
+          // a dialog a submit's handler opens while the page is being read
+          pendingDialog = { ...tree.nextReadDialog, frame: tree.url };
+          emit({
+            method: "Page.javascriptDialogOpening",
+            ...(sessionId ? { sessionId } : {}),
+            params: { ...tree.nextReadDialog, url: tree.url },
+          });
+          delete tree.nextReadDialog;
+        }
+        if (tree.betweenDocuments > 0) {
+          // a frame between documents: its next reads fail as Chromium's do mid-navigation
+          tree.betweenDocuments -= 1;
+          send({ id, error: { message: "Execution context was destroyed" } });
           return true;
         }
         if (tree.form) {
@@ -784,6 +802,8 @@ export function createFakeDom(page, initialEmit) {
             if (element.type === "checkbox" && !element.stuck) element.checked = !element.checked;
             // a submit that navigates its frame: same frame, same id, a new URL
             if (element.navigatesTo) landed.tree.url = element.navigatesTo;
+            if (element.betweenDocuments) landed.tree.betweenDocuments = element.betweenDocuments;
+            if (element.dialogOnRead) landed.tree.nextReadDialog = element.dialogOnRead;
             if (element.dialog) {
               pendingDialog = { ...element.dialog, frame: landed.frame };
               emit({

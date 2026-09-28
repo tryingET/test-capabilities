@@ -320,7 +320,7 @@ program
   .option("--plan <file>", "surf apply: the plan artifact to carry out")
   .option(
     "--submit",
-    "surf apply: open the submit gate; needs --confirm-plan and an allowlisted origin",
+    "surf apply/flow: open the submit gate; needs --confirm-plan (apply) or --confirm-flow (flow) and an allowlisted origin",
   )
   .option("--confirm-plan <token>", "surf apply: the approval token printed by surf plan")
   .option("--until-url-prefix <prefix>", "surf apply: post-condition, the URL starts with this")
@@ -383,7 +383,7 @@ program
         const ran = output.result.steps.filter((step) => step.outcome === "ok").length;
         console.error(
           chalk.dim(
-            `Flow ${output.result.status}: ${ran}/${output.flow.steps} step(s) ran${output.result.stoppedAt ? `, stopped before submit step ${output.result.stoppedAt}` : ""}.`,
+            `Flow ${output.result.status}: ${ran}/${output.flow.steps} step(s) ran${output.result.stoppedAt ? `, stopped before submit step ${output.result.stoppedAt}` : ""}${output.result.submitted === true ? ", submitted and verified" : ""}.`,
           ),
         );
         if (output.receipt) {

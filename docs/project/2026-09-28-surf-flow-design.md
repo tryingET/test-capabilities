@@ -129,11 +129,22 @@ All three refuse before input: the receipt settles `failed`, and the flow stops.
 - **With `--submit`**, before a tab exists: the flow must declare a submit step (else
   `config_invalid`), `--confirm-flow` must be given (`submit_gate_closed`) and equal the token
   (`flow_approval_mismatch`), and no submit receipt may exist for the flow id
-  (`submit_already_attempted`, any outcome): a flow is submitted at most once.
+  (`submit_already_attempted`, any outcome): a flow is submitted at most once. Just before its
+  first submit acts, a run claims the flow's submit in the receipt store, atomically across
+  processes (`receipts.dir/reservations/<flow>.json`, created exclusively, never released); a
+  run that raced past the first check finds the claim taken and stops there, before input. A
+  store that cannot claim cannot hold at most once, and nothing is submitted through it.
 - A submit step's act settles `unknown`; its `expect` is the receipt's `verify`, polled within
-  `surf.submit.postconditionTimeoutMs`. Seen: `applied`. Not seen: the receipt stays `unknown`,
-  the flow stops with `submit_postcondition_unmet`, and later steps never run. A dialog during a
-  submit is `action_dialog_opened` and is never promoted.
+  `surf.submit.postconditionTimeoutMs`; only a look that ended within that deadline counts.
+  Seen: `applied`. Not seen: the receipt stays `unknown`, the flow stops with
+  `submit_postcondition_unmet`, and later steps never run. A dialog during a submit, or while its
+  expect is looked for, is `action_dialog_opened` and is never promoted.
+- A flow may declare several submit steps; one approval covers them all, each is verified by its
+  own `expect`, and the first unmet one stops the flow. Authorization covers the declared submit
+  steps only: every other act on a form-level control is still `flow_submit_undeclared`.
+- The receipt's evidence names the expect (`url_prefix` with the prefix the reviewed file gives,
+  or `text`, `left_url`), never the address or the text the page showed: a GET form puts what was
+  typed into the address it lands on.
 
 ## 8. Refusal model
 
@@ -354,3 +365,65 @@ the receipt the kernel writes durably before and after every act (44 ms from `st
 boundary, so it stays. The 30-step flow (17 acts, 13 reads) spent 0.9 s in its steps against
 ~2.3 s for the same verbs on surf by the gate table (type 69, select 72, click 190, a `js` read 54
 ms), and the tab's open, gate and close are the same either way.
+
+### F2 (submit authorization)
+
+`--submit` and `--confirm-flow` (`surf-flow-submit.ts`): before a tab, the flow declares a
+submit step (`config_invalid`), the token is given (`submit_gate_closed`) and matches
+(`flow_approval_mismatch`), and no submit receipt exists for the flow id - a new receipt filter,
+`flowId` - whatever its outcome (`submit_already_attempted`); a run without `--submit` is not
+refused by an earlier submit and still stops at the gate. A submit step runs with the guard's
+authorization (the origin check stays), settles `unknown`, and its `verify` polls `flow.observe`
+in the step's frame every 100 ms within `surf.submit.postconditionTimeoutMs`: `url_prefix` and
+`text` as the page answers them, `left_url` against the element's document the act started in
+(no start - an act that failed before its read - is never taken as left). An observation that
+fails while the page is between documents is asked again. After a dialog the verify promotes
+nothing. Unmet, the step is `submit_postcondition_unmet` with the receipt `unknown`.
+
+Tests red first; mutation checks on `dist/` killed all 23 mutants of the new code (among them:
+the token and step checks, at-most-once and its per-flow and per-mode scope, the settle, the
+dialog and no-start refusals of the verify, the retry of a failed observation, the authorization
+of undeclared steps, `submitted`). Two tests exist only to kill mutants the first run left: the
+dialog and no-start refusals are pinned on `submitStepOf` directly (in the fake, an observation
+after a dialog already fails), and the retry needs more failed reads than the connection's own
+single retry of a destroyed context. One unrelated F1 test failed once during a mutation run and
+passed in 25 later runs; its cause is unknown.
+
+Live on Chromium (Agent), window unseen and unfocused, page targets 1 -> 1: a flow stopped at
+the gate and printed its token; `--submit` without a token and with a wrong one were refused
+before a tab (targets unchanged); with the token, a fill and a click submitted the form once
+(`GET /paid.html?card=4242`), the receipt `applied`, `verified_by: post_read`, evidence
+`expect url_prefix .../paid.html observed`, and the assert after it ran; the same flow again was
+`submit_already_attempted` before a tab. `Enter` in the card field declared a submit, with a
+`text` expect, and a click with the default `left_url`, were each verified. A form whose submit
+handler stays on the page was `submit_postcondition_unmet` after 3 s, its receipt `unknown`, and
+refused the next time. A submit whose handler opens an alert was `action_dialog_opened`: the
+page went on to submit once the alert was dismissed, and the receipt stayed `unknown` ("a dialog
+opened; no promotion"). An undeclared `Enter` before a declared submit was refused before input
+under `--submit` and the flow's token; nothing was submitted. No receipt or envelope held a typed
+value. The F1 live cases and #6163's apply proofs were rerun unchanged.
+
+Inspection round 1 (F2) found three defects, each fixed red first. (1) Two runs of one flow could
+both submit: both passed the receipt scan before either wrote a receipt, and an `applied`
+receipt does not block the ledger. Measured live: two runs, the second started 0.3 s after the
+first (so that its scan came before the first run's submit and its tab bound after the first
+run's page had left the start URL - started together, the two tabs at one URL are refused as
+`tab_bind_ambiguous`), both clicked and both verified. The run now claims the flow's submit in
+the store just before its first submit acts (`reserve`, an exclusive create, synced with its
+directory), and the scan before a tab also refuses a claim with no receipt (a run that stopped
+in between). Live, same timing: the second run was `submit_already_attempted` at the claim
+("another run claimed its submit first"), nothing clicked. (2) A dialog that opened while the
+expect was looked for was swallowed as "not yet" and reported `submit_postcondition_unmet`; it
+is now `action_dialog_opened`, never promoted. Live: a form landing on a page that alerts on
+load was `action_dialog_opened`, the receipt `unknown` ("a dialog opened while the expect was
+looked for; no promotion"), neither the typed value nor the dialog's text in any record. (3) An
+expect first seen after the deadline was still accepted; now only a look that ended within the
+deadline counts, and the last poll is shortened to end at it. Mutation checks: 17 mutants of
+these fixes, 14 killed; the survivors are the shortened last poll (the acceptance check is the
+boundary; the shortening only saves time) and the two `fsync` calls of the claim, whose
+durability no test can observe. Apply's own at-most-once check has the same window before its
+receipt; it is outside this task.
+
+Residual (by construction, not measured): a frame is addressed by origin and path, so a submit
+inside a frame that navigates the frame to another path cannot be observed there and ends
+`unknown`.

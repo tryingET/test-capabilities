@@ -67,6 +67,8 @@ export interface MutationReceipt {
 export interface ReceiptFilter {
   idempotencyKey?: string;
   planId?: string;
+  /** a `surf flow` run's receipts, by the flow's approval token */
+  flowId?: string;
   mode?: string;
   outcome?: MutationOutcome;
   /** only the receipts that are in doubt (`attempting` or `unknown`) */
@@ -82,6 +84,14 @@ export interface ReceiptStore {
   readonly dir: string;
   append(receipt: MutationReceipt): Promise<void>;
   list(filter?: ReceiptFilter): Promise<MutationReceipt[]>;
+  /**
+   * Claim `name` for good, atomically across processes and durably: true when this call made
+   * the claim, false when it was made before. An act that must happen at most once across runs
+   * that may race is held by it (surf flow's submit, AK #6164). A store without it cannot.
+   */
+  reserve?(name: string, content: Record<string, unknown>): Promise<boolean>;
+  /** the claim made for `name`, if any */
+  reservation?(name: string): Promise<Record<string, unknown> | undefined>;
 }
 
 /** `attempting` and `unknown` are the two states that block a later run with the same key. */
@@ -102,6 +112,9 @@ export function matchesReceiptFilter(receipt: MutationReceipt, filter?: ReceiptF
     return false;
   }
   if (filter.planId !== undefined && detailValue(receipt, "plan_id") !== filter.planId) {
+    return false;
+  }
+  if (filter.flowId !== undefined && detailValue(receipt, "flow_id") !== filter.flowId) {
     return false;
   }
   if (filter.mode !== undefined && detailValue(receipt, "mode") !== filter.mode) {

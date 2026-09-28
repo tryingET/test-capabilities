@@ -8,9 +8,11 @@
  * control (only a declared submit step, only when authorized). Every step is one ledger step on
  * the DevTools connection, held once for the run; surf opens, gates and closes the tab.
  *
- * Before a tab exists: the file, the world (the start URL's origin, when the flow acts). Before
- * the first step: the DevTools connection must bind the owned tab. Without `--submit` the flow
- * stops before its first submit step, having acted up to it, like apply's fill mode.
+ * Before a tab exists: the file, the world (the start URL's origin, when the flow acts), the
+ * intent (`--submit` with the flow's token) and at-most-once. Before the first step: the
+ * DevTools connection must bind the owned tab. Without `--submit` the flow stops before its first
+ * submit step, having acted up to it, like apply's fill mode; with it, each declared submit step
+ * acts and is verified by its `expect` (`surf-flow-submit.ts`).
  */
 
 import fs from "node:fs/promises";
@@ -38,6 +40,14 @@ import { FrameworkError, isFrameworkError } from "../runtime-contract.js";
 import { parseSurfJsonOutput } from "../surf-runtime.js";
 import { resolveSurfSessionRuntime, SurfSession } from "../surf-session.js";
 import { assertSupportedSurfFlowOptions } from "./support.js";
+import type { FlowCondition, FlowLook } from "./surf-flow-submit.js";
+import {
+  asSubmitUnmet,
+  assertFlowNotSubmitted,
+  assertSubmitIntent,
+  reserveFlowSubmit,
+  submitStepOf,
+} from "./surf-flow-submit.js";
 import type {
   OperationDefinition,
   SurfFlowOperationInput,
@@ -64,6 +74,7 @@ export const SurfFlowOperationInputSchema = z.preprocess(
   },
   z.object({
     file: z.string({ required_error: "Surf flow requires --file <flow.json|flow.yaml>." }).min(1),
+    submit: z.boolean().optional().default(false),
     confirmFlow: z.string().min(1).optional(),
     receiptOut: z.string().min(1).optional(),
     config: z.string().min(1).optional(),
@@ -170,6 +181,29 @@ function sessionStepOf(
   };
 }
 
+/** A read of where the page is after a submit step: its expect's condition, in the step's frame. */
+function observeStepOf(
+  flowId: string,
+  step: FlowStep,
+  condition: FlowCondition,
+): BrowserStep<Record<string, unknown>> {
+  const payload: FlowActPayload = { step: step.id, condition, origins: [], submit: "undeclared" };
+  return {
+    id: `surf.flow.observe:${flowId}:${step.id}`,
+    frame: step.frame
+      ? { name: frameOriginPath(step.frame) as string, match: "origin_path" }
+      : "main",
+    command: "flow.observe",
+    args: [JSON.stringify(payload)],
+    intent: `flow step ${step.id}: look for the submit's expect`,
+    declare: { effect: "read_only", reason: "reads where the page is after a submit" },
+    read: (reply: SessionReply) => {
+      const data = parseSurfJsonOutput(reply.stdout, reply.command).data;
+      return typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+    },
+  };
+}
+
 /** A step's refusal, named by the step, with its code kept. */
 function stepFailure(error: unknown, step: FlowStep, flowId: string, context: RunContext): unknown {
   if (!isFrameworkError(error)) return error;
@@ -216,13 +250,8 @@ async function runSurfFlowOperation(
   const flow = await readFlowFile(normalized.file);
   const flowId = flowApprovalToken(flow);
   assertStartOriginAllowed(flow, context);
-  if (normalized.confirmFlow !== undefined) {
-    throw new FrameworkError(
-      "submit_gate_closed",
-      "Surf flow was given --confirm-flow without --submit. An approval is not an instruction: the gate is opened by --submit, and this run refuses rather than running with a confirmation nobody asked it to act on.",
-      { flow_id: flowId },
-    );
-  }
+  assertSubmitIntent(flow, flowId, path.resolve(normalized.file), normalized);
+  if (normalized.submit) await assertFlowNotSubmitted(flowId, context);
 
   const session = new SurfSession({
     context,
@@ -239,6 +268,23 @@ async function runSurfFlowOperation(
   }));
   let status: "completed" | "stopped_at_submit_gate" = "completed";
   let stoppedAt: string | undefined;
+  let submitted = false;
+  const observe =
+    (step: FlowStep) =>
+    async (condition: FlowCondition): Promise<FlowLook> => {
+      let answer: Record<string, unknown>;
+      try {
+        answer = await session.step(observeStepOf(flowId, step, condition));
+      } catch (error) {
+        // a dialog is the page's answer, and it is never the submit's effect
+        if (isFrameworkError(error) && error.code === "action_dialog_opened") return "dialog";
+        // a page between documents answers nothing: not yet, so the verify asks again
+        return undefined;
+      }
+      return typeof answer.href === "string"
+        ? { held: answer.held === true, href: answer.href }
+        : undefined;
+    };
   const notes: string[] = [];
 
   try {
@@ -254,23 +300,35 @@ async function runSurfFlowOperation(
       );
     }
     for (const [index, step] of flow.steps.entries()) {
-      if (isSubmitStep(step)) {
+      const submits = isSubmitStep(step);
+      if (submits && !normalized.submit) {
         // the gate stays closed: no step at or after the first submit runs
         status = "stopped_at_submit_gate";
         stoppedAt = step.id;
         break;
       }
       const started = Date.now();
+      // the flow's submit is claimed once, for good, before the first submit acts
+      if (submits && !submitted) await reserveFlowSubmit(flowId, context);
+      // authorization covers the declared submit steps only; every other act stays gated
+      const base = sessionStepOf(flowId, step, {
+        origins: context.config.mutation.allowOrigins,
+        submit: submits ? "authorized" : "undeclared",
+      });
+      const submit = submits
+        ? submitStepOf(base, step, observe(step), context.config.surf.submit.postconditionTimeoutMs)
+        : undefined;
       try {
-        await session.step(
-          sessionStepOf(flowId, step, {
-            origins: context.config.mutation.allowOrigins,
-            submit: "undeclared",
-          }),
-        );
+        await session.step(submit ?? base);
       } catch (error) {
-        throw stepFailure(error, step, flowId, context);
+        throw stepFailure(
+          submit ? asSubmitUnmet(error, step, flowId, context, submit.dialogOpened()) : error,
+          step,
+          flowId,
+          context,
+        );
       }
+      submitted ||= submits;
       results[index] = {
         ...(results[index] as SurfFlowStepResult),
         outcome: "ok",
@@ -304,7 +362,7 @@ async function runSurfFlowOperation(
         status,
         ...(stoppedAt ? { stoppedAt } : {}),
         steps: results,
-        submitted: false,
+        submitted,
         channel: "cdp" as const,
       },
       notes,
@@ -319,7 +377,7 @@ export const SURF_FLOW_OPERATION = {
   effect: SURF_FLOW_OPERATION_EFFECT,
   route: { command: "surf", action: "flow" },
   description:
-    "Run a flow file's steps (wait, assert, fill, select, check, uncheck, click, press) in an owned tab on one DevTools connection: every act is receipted, checked on its element before input against mutation.allowOrigins, and refused on a form-level control unless the flow declares that step a submit; without --submit a flow stops before its first submit step.",
+    "Run a flow file's steps (wait, assert, fill, select, check, uncheck, click, press) in an owned tab on one DevTools connection: every act is receipted, checked on its element before input against mutation.allowOrigins, and refused on a form-level control unless the flow declares that step a submit; without --submit a flow stops before its first submit step, with --submit and --confirm-flow its declared submits run once, each verified by its expect.",
   inputSchema: SurfFlowOperationInputSchema,
   execute: runSurfFlowOperation,
 } satisfies OperationDefinition<NormalizedSurfFlowOperationInput, SurfFlowOperationResultEnvelope>;

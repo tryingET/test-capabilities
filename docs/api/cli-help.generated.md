@@ -161,8 +161,9 @@ Options:
   --out <file>                 surf plan: write the reviewable plan artifact
                                here (mode 0600)
   --plan <file>                surf apply: the plan artifact to carry out
-  --submit                     surf apply: open the submit gate; needs
-                               --confirm-plan and an allowlisted origin
+  --submit                     surf apply/flow: open the submit gate; needs
+                               --confirm-plan (apply) or --confirm-flow (flow)
+                               and an allowlisted origin
   --confirm-plan <token>       surf apply: the approval token printed by surf
                                plan
   --until-url-prefix <prefix>  surf apply: post-condition, the URL starts with
