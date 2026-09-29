@@ -297,6 +297,15 @@ export function createFakeDom(page, initialEmit) {
           return true;
         }
         if (params.expression === "String(performance.timeOrigin)") {
+          if (tree.proofDialog) {
+            // a page timer's dialog, opening while the tab's time origin is read
+            pendingDialog = { ...tree.proofDialog, frame: tree.url };
+            emit({
+              method: "Page.javascriptDialogOpening",
+              ...(sessionId ? { sessionId } : {}),
+              params: { ...tree.proofDialog, url: tree.url },
+            });
+          }
           const origin = String(tree.timeOrigin ?? DEFAULT_TIME_ORIGIN);
           reply({ result: { type: "string", value: origin } });
           return true;

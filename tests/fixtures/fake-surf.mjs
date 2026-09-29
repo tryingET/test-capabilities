@@ -221,7 +221,7 @@ if (command === "page.read" && hasFlag("--help")) {
 
 if (command === "--help-full" || command === "--help") {
   const lines = [
-    "surf v2.18.0 - Browser automation CLI",
+    process.env.FAKE_SURF_HELP_HEADER ?? "surf v2.18.0 - Browser automation CLI",
     "",
     "TAB - Tab management",
     "  tab.list                      List all open tabs",

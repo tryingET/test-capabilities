@@ -191,6 +191,12 @@ interface SessionPins {
   frames: Map<string, string>;
   /** actions a flow holds for all its steps, bound once (AK #6164) */
   held?: CdpActions;
+  /**
+   * The dialogs the held connection saw before it was handed over for steps: a bind that holds
+   * its connection (AK #6221) answers a dialog during the tab proof and does not report it, as
+   * the connection it used to close did not.
+   */
+  heldDialogsFrom?: number;
 }
 const pinsBySession = new WeakMap<object, SessionPins>();
 
@@ -276,21 +282,31 @@ export async function holdCdpActions(
 export async function releaseCdpActions(session: FrameStepSession): Promise<void> {
   const pins = pinsBySession.get(session);
   const held = pins?.held;
-  if (pins) delete pins.held;
+  if (pins) {
+    delete pins.held;
+    delete pins.heldDialogsFrom;
+  }
   await held?.close();
 }
 
 /**
  * Whether the DevTools connection binds this session's tab. A run that asks decides once, before
- * it acts, which channel its steps take; binding here also pins the tab for them.
+ * it acts, which channel its steps take; binding here also pins the tab for them. With `hold`,
+ * the bound connection is kept for the session's next steps (release it with
+ * `releaseCdpActions`) instead of closed and opened again.
  */
 export async function bindsOverCdp(
   session: FrameStepSession,
   env: NodeJS.ProcessEnv = process.env,
+  options: { hold?: boolean } = {},
 ): Promise<{ binds: true } | { binds: false; code: string; message: string }> {
   try {
     const { actions } = await openForSession(session, env);
-    await actions.close();
+    if (options.hold) {
+      const pins = pinsBySession.get(session) as SessionPins;
+      pins.held = actions;
+      pins.heldDialogsFrom = actions.dialogs.length;
+    } else await actions.close();
     return { binds: true };
   } catch (error) {
     return {
@@ -350,7 +366,8 @@ export async function runStepInFrame(
     ? { actions: held, pins: (pinsBySession.get(session) as SessionPins).frames }
     : await openForSession(session, env);
   // every dialog a held connection saw, one that arrived between steps included, stops this step
-  const dialogs = () => [...actions.dialogs];
+  const since = held ? (pinsBySession.get(session)?.heldDialogsFrom ?? 0) : 0;
+  const dialogs = () => actions.dialogs.slice(since);
   let value: unknown;
   let frameId: string | undefined;
   try {

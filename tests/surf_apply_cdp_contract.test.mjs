@@ -481,3 +481,78 @@ test("a bind whose tab proof cannot be read closes the connection it opened, and
     { surfFailOn: ["js"] },
   );
 });
+
+for (const [label, arrange, expectPlan] of [
+  ["a plan", () => {}, true],
+  [
+    "a probe that fails",
+    (tree) => {
+      tree.probeFails = true;
+    },
+    false,
+  ],
+  [
+    "a plan refused after its probe",
+    (tree) => {
+      tree.form.fields["#card"].label = "Something else";
+    },
+    false,
+  ],
+]) {
+  test(`the plan's bind and its probe share one connection, and let it go: ${label}`, async () => {
+    await withFakes(async ({ cdp, tree, out, config }) => {
+      arrange(tree);
+      const planned = plan({ url: FORM, field: FIELDS, out, config });
+      if (expectPlan) assert.equal((await planned).result.channel, "cdp");
+      else await assert.rejects(planned);
+      assert.equal(cdp.socketsOpened(), 1, "the tab was proven and read on one connection");
+      assert.equal(await cdp.drained(), 0, "and it was let go");
+    });
+  });
+}
+
+test("a dialog the page opens while its tab is proven is answered and does not stop the plan, as before", async () => {
+  await withFakes(async ({ tree, out, config }) => {
+    tree.proofDialog = { type: "alert", message: "Welcome back" };
+    const envelope = await plan({ url: FORM, field: FIELDS, out, config });
+    assert.equal(envelope.result.channel, "cdp");
+    assert.equal(readPlan(out).fields.length, 2);
+  });
+});
+
+test("a bind that held its connection hands a later hold no baseline: its first dialog stops a step", async (t) => {
+  const { bindsOverCdp, holdCdpActions, releaseCdpActions, runStepInFrame } =
+    await importRuntimeModule("core/cdp-step-transport.js");
+  const tree = cdpTree(FORM);
+  tree.proofDialog = { type: "alert", message: "Welcome back" };
+  const cdp = await startFakeCdp({ pages: { P1: { url: FORM, tree } } });
+  t.after(() => cdp.close());
+  const env = { TEST_CAPABILITIES_CDP_ENDPOINT: cdp.url };
+  const { DEFAULT_TIME_ORIGIN } = await import("./fixtures/stub-dom.mjs");
+  // the owned tab answers the time-origin proof, as a SurfSession reads it through surf
+  const session = {
+    url: FORM,
+    readiness: { href: FORM },
+    evaluate: async () => String(DEFAULT_TIME_ORIGIN),
+  };
+  const read = { command: "js", args: ["1"], frame: "main", effect: "read_only" };
+  // the plan's bind: the dialog during its proof is answered and not reported
+  const answered = async (count) => {
+    const deadline = Date.now() + 2000;
+    while (cdp.dialogs.length < count && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return cdp.dialogs.length;
+  };
+  assert.deepEqual(await bindsOverCdp(session, env, { hold: true }), { binds: true });
+  assert.equal(await answered(1), 1, "the proof's dialog was answered");
+  await runStepInFrame(session, env, read);
+  await releaseCdpActions(session);
+  // a flow's hold on the same session counts every dialog its own connection sees
+  delete tree.proofDialog;
+  await holdCdpActions(session, env);
+  cdp.openDialog({ type: "alert", message: "Later" });
+  assert.equal(await answered(2), 2, "the new connection answered the later dialog");
+  await assert.rejects(runStepInFrame(session, env, read), { code: "action_dialog_opened" });
+  await releaseCdpActions(session);
+});

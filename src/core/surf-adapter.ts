@@ -49,20 +49,25 @@ export function probeSurfRuntime(
     return cached;
   }
 
-  const version = runSurfCommand(resolution, ["--version"], {
-    timeoutMs: 15_000,
-    env: options.env,
-  });
-  assertProbeAnswer(resolution, "--version", version);
-
   const help = runSurfCommand(resolution, ["--help-full"], {
     timeoutMs: 15_000,
     env: options.env,
   });
   assertProbeAnswer(resolution, "--help-full", help);
 
-  const versionOutput = version.stdout.trim();
-  const versionMatch = versionOutput.match(/(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
+  // one surf process, not two (AK #6221): the help's first line says the version
+  // (`surf v2.20.0 - ...`); `--version` is asked only when it does not
+  let versionOutput = (help.stdout.split("\n", 1)[0] ?? "").trim();
+  let versionMatch = versionOutput.match(/^surf v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/);
+  if (!versionMatch) {
+    const version = runSurfCommand(resolution, ["--version"], {
+      timeoutMs: 15_000,
+      env: options.env,
+    });
+    assertProbeAnswer(resolution, "--version", version);
+    versionOutput = version.stdout.trim();
+    versionMatch = versionOutput.match(/(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/);
+  }
   const mechanisms = Object.fromEntries(
     Object.entries(SURF_MECHANISM_COMMANDS).map(([key, command]) => [
       key,

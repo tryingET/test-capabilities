@@ -4,13 +4,17 @@
  * TEST-CAPABILITIES - Fail-closed testing capability framework
  */
 
+import module from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import chalk from "chalk";
-import { Command } from "commander";
-import figlet from "figlet";
-import ora from "ora";
+
+// Node's on-disk compile cache (AK #6221): a later start does not compile the same code again.
+// It lives in the temp dir; NODE_DISABLE_COMPILE_CACHE turns it off. Everything below is loaded
+// after it, so it is cached too.
+module.enableCompileCache?.();
+const { default: chalk } = await import("chalk");
+const { Command } = await import("commander");
 
 function resolveRuntimeDistRoot() {
   if (process.env.TEST_CAPABILITIES_DIST_ROOT) {
@@ -34,7 +38,9 @@ const {
 
 const program = new Command();
 
-function showBanner() {
+/** The banner and the spinner are for a person: a machine-readable run never loads them. */
+async function showBanner() {
+  const { default: figlet } = await import("figlet");
   console.log(
     chalk.cyan(
       figlet.textSync("TEST-CAPABILITIES", {
@@ -45,6 +51,11 @@ function showBanner() {
   );
   console.log(chalk.dim(`  Fail-closed Testing Capability Framework v${VERSION}`));
   console.log();
+}
+
+async function startSpinner(text) {
+  const { default: ora } = await import("ora");
+  return ora(text).start();
 }
 
 function printSuiteSummary(summary) {
@@ -116,11 +127,11 @@ program
   .action(async (options) => {
     const shouldPrintJson = Boolean(options.json);
     if (!shouldPrintJson) {
-      showBanner();
+      await showBanner();
     }
     const spinner = shouldPrintJson
       ? undefined
-      : ora("Running TEST-CAPABILITIES doctor...").start();
+      : await startSpinner("Running TEST-CAPABILITIES doctor...");
 
     try {
       assertSupportedCliCommand("doctor");
@@ -163,9 +174,9 @@ program
   .action(async (options) => {
     const shouldPrintJson = Boolean(options.json);
     if (!shouldPrintJson && !options.print) {
-      showBanner();
+      await showBanner();
     }
-    const spinner = shouldPrintJson || options.print ? undefined : ora("Generating config...").start();
+    const spinner = shouldPrintJson || options.print ? undefined : await startSpinner("Generating config...");
 
     try {
       assertSupportedCliCommand("init");
@@ -192,11 +203,11 @@ program
   .action(async (options) => {
     const shouldPrintJson = Boolean(options.json);
     if (!shouldPrintJson) {
-      showBanner();
+      await showBanner();
     }
     const spinner = shouldPrintJson
       ? undefined
-      : ora("Running TEST-CAPABILITIES built-in demo...").start();
+      : await startSpinner("Running TEST-CAPABILITIES built-in demo...");
 
     try {
       assertSupportedCliCommand("demo");
@@ -243,11 +254,11 @@ program
   .action(async (options) => {
     const shouldPrintJson = Boolean(options.json);
     if (!shouldPrintJson) {
-      showBanner();
+      await showBanner();
     }
     const spinner = shouldPrintJson
       ? undefined
-      : ora("Initializing TEST-CAPABILITIES operation kernel...").start();
+      : await startSpinner("Initializing TEST-CAPABILITIES operation kernel...");
 
     try {
       assertSupportedCliCommand("test");
@@ -353,12 +364,12 @@ program
     // approval token as the only line on stdout so an operator can copy it (packet §4.1).
     const quiet = action === "plan" || action === "apply" || action === "flow";
     if (!shouldPrintJson && !quiet) {
-      showBanner();
+      await showBanner();
     }
     const spinner =
       shouldPrintJson || quiet
         ? undefined
-        : ora(`Resolving surf ${action} through the operation kernel...`).start();
+        : await startSpinner(`Resolving surf ${action} through the operation kernel...`);
 
     try {
       assertSupportedCliCommand("surf");
@@ -423,8 +434,8 @@ program
   .option("--history <dir>", "Historical test data directory")
   .option("--horizon <hours>", "Prediction horizon in hours", "24")
   .action(async () => {
-    showBanner();
-    const spinner = ora("Checking prediction capability...").start();
+    await showBanner();
+    const spinner = await startSpinner("Checking prediction capability...");
 
     try {
       assertSupportedCliCommand("predict");
@@ -441,8 +452,8 @@ program
   .option("-b, --branches <n>", "Positive integer branch count", "100")
   .option("--collapse", "Collapse results to significant findings")
   .action(async (options) => {
-    showBanner();
-    const spinner = ora("Executing registered quantum operation...").start();
+    await showBanner();
+    const spinner = await startSpinner("Executing registered quantum operation...");
 
     try {
       assertSupportedCliCommand("quantum");
@@ -492,8 +503,8 @@ program
     "Apply mode only: proceed past an in-doubt receipt you have inspected; the new receipt records which one it supersedes",
   )
   .action(async (options) => {
-    showBanner();
-    const spinner = ora("Executing registered healing operation...").start();
+    await showBanner();
+    const spinner = await startSpinner("Executing registered healing operation...");
 
     try {
       assertSupportedCliCommand("heal");
@@ -555,11 +566,11 @@ program
   .action(async (action, options) => {
     const shouldPrintJson = Boolean(options.json);
     if (!shouldPrintJson) {
-      showBanner();
+      await showBanner();
     }
     const spinner = shouldPrintJson
       ? undefined
-      : ora("Planning replacement validation...").start();
+      : await startSpinner("Planning replacement validation...");
 
     try {
       assertSupportedCliCommand("replacement-validation");
@@ -597,8 +608,8 @@ program
   .option("--real-time", "Enable real-time updates")
   .option("--port <n>", "Port for real-time dashboard", "3001")
   .action(async () => {
-    showBanner();
-    const spinner = ora("Checking visualization capability...").start();
+    await showBanner();
+    const spinner = await startSpinner("Checking visualization capability...");
 
     try {
       assertSupportedCliCommand("visualize");
@@ -616,8 +627,8 @@ program
   .option("-f, --format <formats>", "Formats (json,html,md)", "html,json")
   .option("--upload", "Upload to configured destination")
   .action(async () => {
-    showBanner();
-    const spinner = ora("Checking report capability...").start();
+    await showBanner();
+    const spinner = await startSpinner("Checking report capability...");
 
     try {
       assertSupportedCliCommand("report");

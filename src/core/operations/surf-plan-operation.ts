@@ -14,7 +14,7 @@
 
 import { z } from "zod";
 import { writeJsonArtifact } from "../artifacts.js";
-import { bindsOverCdp } from "../cdp-step-transport.js";
+import { bindsOverCdp, releaseCdpActions } from "../cdp-step-transport.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { RunContext } from "../run-context.js";
 import { finalizeEnvelope, mintOperationContext } from "../run-context.js";
@@ -134,7 +134,8 @@ function envelopeResultFrom(
 /**
  * Which channel reads the page (AK #6165): a frame has no surf route; a top-document form is
  * read over the DevTools connection whenever it binds the owned tab - the time-origin proof
- * apply's steps use - and on surf otherwise, which a note says.
+ * apply's steps use - and on surf otherwise, which a note says. The bound connection is held
+ * for the probe (AK #6221): one connection proves the tab and reads it.
  */
 async function planChannelFor(
   normalized: NormalizedSurfPlanOperationInput,
@@ -142,7 +143,7 @@ async function planChannelFor(
   notes: string[],
 ): Promise<"cdp" | "surf"> {
   if (normalized.frame) return "cdp";
-  const bound = await bindsOverCdp(session);
+  const bound = await bindsOverCdp(session, process.env, { hold: true });
   if (bound.binds) return "cdp";
   notes.push(
     `The plan's probe ran on surf: the DevTools connection did not bind the owned tab (${bound.code}).`,
@@ -176,6 +177,8 @@ async function planPage(
     });
     return { plan, notes: [...session.notes(), ...notes], channel };
   } finally {
+    // the held connection goes before the tab does
+    await releaseCdpActions(session);
     await session.close();
   }
 }

@@ -160,7 +160,7 @@ test("surf runtime probe reports the version and the branch mechanisms", () => {
     const probe = probeSurfRuntime(resolution, { cache: false });
 
     assert.equal(probe.version, "2.18.0");
-    assert.equal(probe.versionOutput, "surf version 2.18.0");
+    assert.equal(probe.versionOutput, "surf v2.18.0 - Browser automation CLI");
     assert.deepEqual(probe.mechanisms, {
       waitReady: true,
       pageReadiness: true,
@@ -169,10 +169,45 @@ test("surf runtime probe reports the version and the branch mechanisms", () => {
     });
     assert.deepEqual(probe.missingExploreMechanisms, []);
     assert.doesNotThrow(() => assertSurfExploreMechanisms(resolution, probe));
+    // one surf process: the help's first line carries the version (AK #6221)
     assert.deepEqual(
       fake.calls().map((call) => call[0]),
-      ["--version", "--help-full"],
+      ["--help-full"],
     );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("surf runtime probe asks --version only when the help does not say the version", () => {
+  const fake = createFakeSurf({ helpHeader: "Browser automation CLI" });
+  try {
+    const resolution = resolveSurfRuntimeResolution({
+      PATH: "/nonexistent",
+      HOME: fake.dir,
+      TEST_CAPABILITIES_SURF_BIN: fake.path,
+    });
+    const probe = probeSurfRuntime(resolution, { cache: false });
+    assert.equal(probe.version, "2.18.0");
+    assert.equal(probe.versionOutput, "surf version 2.18.0");
+    assert.deepEqual(
+      fake.calls().map((call) => call[0]),
+      ["--help-full", "--version"],
+    );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a version in the help's body is not the version: only its first line says it", () => {
+  const fake = createFakeSurf({ helpHeader: "Browser automation CLI (see surf v9.9.9 notes)" });
+  try {
+    const resolution = resolveSurfRuntimeResolution({
+      PATH: "/nonexistent",
+      HOME: fake.dir,
+      TEST_CAPABILITIES_SURF_BIN: fake.path,
+    });
+    assert.equal(probeSurfRuntime(resolution, { cache: false }).version, "2.18.0");
   } finally {
     fake.cleanup();
   }
@@ -205,7 +240,7 @@ test("surf runtime probe detects an upstream build without the mechanisms and re
   }
 });
 
-test("surf runtime probe fails closed when the binary does not answer --version", () => {
+test("surf runtime probe fails closed when the binary does not answer", () => {
   const tmp = withTempDir();
   try {
     const broken = path.join(tmp.dir, "surf");
@@ -217,7 +252,7 @@ test("surf runtime probe fails closed when the binary does not answer --version"
     });
     assert.throws(
       () => probeSurfRuntime(resolution, { cache: false }),
-      /did not answer --version: not surf/,
+      /did not answer --help-full: not surf/,
     );
   } finally {
     tmp.cleanup();
