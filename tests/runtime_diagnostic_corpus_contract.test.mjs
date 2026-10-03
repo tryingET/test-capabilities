@@ -1,10 +1,53 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
 import test from "node:test";
 import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const scriptPath = new URL("../scripts/runtime-diagnostic-corpus.mjs", import.meta.url).pathname;
 const repoRoot = new URL("..", import.meta.url).pathname;
+
+for (const reverse of [false, true]) {
+  test(
+    `Given a truly Node-only PATH, When mixed sensors run ${reverse ? "reverse" : "forward"}, Then actual exit/timeout evidence remains mixed`,
+    { timeout: 20000 },
+    () => {
+      const dir = mkdtempSync(path.join(os.tmpdir(), "runtime-corpus-hermetic-"));
+      const bin = path.join(dir, "bin");
+      mkdirSync(bin);
+      symlinkSync(process.execPath, path.join(bin, "node"));
+      const env = runtimeEnv({ PATH: bin });
+      try {
+        for (const tool of ["ak", "mkdir", "sleep"]) {
+          const probe = spawnSync(tool, ["--version"], { env, encoding: "utf8" });
+          assert.equal(probe.error?.code, "ENOENT", `${tool} genuinely unavailable`);
+        }
+        const result = spawnSync(
+          process.execPath,
+          [scriptPath, "--json", ...(reverse ? ["--reverse-agents"] : [])],
+          { cwd: repoRoot, env, encoding: "utf8" },
+        );
+        assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+        const payload = JSON.parse(result.stdout);
+        assert.equal(payload.coverage.cases, 5);
+        assert.equal(payload.coverage.positiveRootCauseCases, 2);
+        assert.equal(payload.coverage.noRootCauseGuardrailCases, 3);
+        const mixed = payload.cases.find((entry) => entry.name.includes("mixed CLI evidence"));
+        assert.equal(mixed.rootCauseCount, 0);
+        assert.deepEqual(
+          mixed.observedFailureCodes,
+          ["exit_127", "timeout"],
+          "guardrail is proved with one real intended failure and one framework-enforced timeout",
+        );
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+}
 
 test(
   "runtime diagnostic corpus dogfoods real cli-tester root-cause calibration",

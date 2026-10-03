@@ -8,16 +8,16 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { cleanupConsumerArtifact, consumerArtifactInput } from "./prepare-release-artifact.mjs";
 
 const repoRoot = process.cwd();
 const localTempRoot = path.join(repoRoot, ".tmp");
 mkdirSync(localTempRoot, { recursive: true });
 const tempDir = mkdtempSync(path.join(localTempRoot, "test-capabilities-consumer-"));
-let tarballPath;
+let artifactInput;
 
 function runRaw(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -87,16 +87,12 @@ function sanitizedExternalToolEnv(packageRoot, nodeBinDir) {
 }
 
 try {
-  const packResult = run("npm", ["pack", "--json"]);
-  const packOutput = JSON.parse(packResult.stdout);
-  // npm <= 11 prints an array; npm 12 prints an object keyed by package name.
-  const packEntry = Array.isArray(packOutput) ? packOutput[0] : Object.values(packOutput ?? {})[0];
-  const tarballName = packEntry?.filename;
-  const packedFiles = Array.isArray(packEntry?.files)
-    ? packEntry.files.map((entry) => entry?.path).filter((value) => typeof value === "string")
-    : [];
-
-  assert.equal(typeof tarballName, "string", "npm pack did not return a tarball filename");
+  artifactInput = consumerArtifactInput({
+    root: repoRoot,
+    args: process.argv.slice(2),
+    pack: () => run("npm", ["pack", "--json"]).stdout,
+  });
+  const { tarballPath, packedFiles } = artifactInput;
   assert.ok(packedFiles.includes("package.json"), "packed artifact missing package.json");
   assert.ok(packedFiles.includes("README.md"), "packed artifact missing README.md");
   assert.ok(
@@ -151,9 +147,6 @@ try {
     false,
     "packed artifact should exclude JS and declaration source maps",
   );
-
-  tarballPath = path.join(repoRoot, tarballName);
-  assert.ok(existsSync(tarballPath), `tarball missing: ${tarballPath}`);
 
   run("npm", ["init", "-y"], { cwd: tempDir });
   run("npm", ["install", tarballPath], { cwd: tempDir });
@@ -359,6 +352,7 @@ try {
     const refused = await createTestCapabilities({
       version: "2.0",
       name: "Packed Consumer Bombadil Without An Allowlist",
+      receipts: { dir: "./fixture-receipts", ephemeral: true }, // authored scratch fixture, not deployment permission
       targets: { web: "https://example.com" },
       agents: {
         web: { enabled: true, type: "bombadil", intensity: "gentle", duration: "10ms" },
@@ -373,6 +367,7 @@ try {
     const result = await createTestCapabilities({
       version: "2.0",
       name: "Packed Consumer Bombadil External Requirement",
+      receipts: { dir: "./fixture-receipts", ephemeral: true }, // preserve the real hosted-workspace durability guard
       targets: { web: "https://example.com" },
       mutation: { allowOrigins: ["https://example.com"] },
       agents: {
@@ -750,7 +745,5 @@ try {
   console.log("consumer-contract: ok");
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
-  if (tarballPath && existsSync(tarballPath)) {
-    unlinkSync(tarballPath);
-  }
+  cleanupConsumerArtifact(artifactInput);
 }

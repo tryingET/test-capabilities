@@ -10,7 +10,7 @@ type: "reference"
 
 > Runtime-accurate summary of the exported TypeScript surface.
 
-Where schema support and runtime support differ, this document calls that out explicitly.
+Where schema and runtime support differ, this document calls that out. For low-level CDP recovery intent, see [evaluation recovery](cdp-evaluation-recovery.md).
 
 ---
 

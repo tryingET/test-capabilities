@@ -24,6 +24,8 @@ function quoteCommandPart(value) {
   return JSON.stringify(value);
 }
 
+const quoteShellPart = (value) => `'${String(value).replace(/'/g, `'"'"'`)}'`;
+
 function cliTargetFor(scriptPath) {
   return `${quoteCommandPart(process.execPath)} ${quoteCommandPart(scriptPath)}`;
 }
@@ -43,17 +45,19 @@ function baseConfig(name, target, agents, intelligence = { correlation: true }) 
 }
 
 function cliAgents(count, duration = "200ms") {
-  return Object.fromEntries(
-    Array.from({ length: count }, (_, index) => [
-      `cli${index + 1}`,
-      { enabled: true, type: "cli-tester", duration },
-    ]),
-  );
+  const agents = Array.from({ length: count }, (_, index) => [
+    `cli${index + 1}`,
+    { enabled: true, type: "cli-tester", duration },
+  ]);
+  return Object.fromEntries(process.argv.includes("--reverse-agents") ? agents.reverse() : agents);
 }
 
 function rootCauses(run) {
   return (run.observations ?? []).filter((observation) => observation.kind === "root_cause");
 }
+
+// Correlation may append presentation findings; only sensor findings carry transport outcomes.
+const sensorFindings = (run) => run.findings.filter((finding) => finding.outcome !== undefined);
 
 function assertNoPredictionLanguage(name, run) {
   const rendered = JSON.stringify(
@@ -127,6 +131,13 @@ async function runCase(definition) {
     rootCauseCount: roots.length,
     expected: definition.expected,
     actualRootCauses: roots.map(summarizeRootCause),
+    ...(definition.captureFailureCodes
+      ? {
+          observedFailureCodes: sensorFindings(run)
+            .map((finding) => finding.outcome?.code)
+            .sort(),
+        }
+      : {}),
   };
   results.push(entry);
 
@@ -147,22 +158,20 @@ try {
     { mode: 0o700 },
   );
 
-  // The first agent to take the lock fails fast with an ENOENT, the other hangs into the
-  // budget: two failure classes on one component, which must suppress root_cause. The fixture
-  // is /bin/sh, not node, and the budget is 2 s: with a node fixture and 200 ms, interpreter
-  // startup under a loaded pre-push run could exceed the budget, both agents timed out, and the
-  // corpus saw two same-class failures (a real root_cause) instead of mixed evidence.
+  // Atomic shell-builtin lock: first sensor emits ENOENT, the other execs the absolute Node
+  // hanging fixture. Neither branch depends on mkdir/sleep/AK being on PATH. Keep the shell
+  // fast path and original 2 s budget; assert the actual mixed outcomes, not merely zero roots.
   const mixedFixture = path.join(tempRoot, "mixed-fixture.sh");
   const mixedLock = path.join(tempRoot, "mixed-first.lock");
   await writeFile(
     mixedFixture,
     [
       "#!/bin/sh",
-      `if mkdir ${JSON.stringify(mixedLock)} 2>/dev/null; then`,
+      `if (set -C; : > ${quoteShellPart(mixedLock)}) 2>/dev/null; then`,
       "  echo 'spawn /definitely-missing-test-capabilities-runtime-fixture ENOENT' >&2",
       "  exit 127",
       "fi",
-      "exec sleep 600",
+      `exec ${quoteShellPart(process.execPath)} ${quoteShellPart(timeoutFixture)}`,
       "",
     ].join("\n"),
     { mode: 0o700 },
@@ -215,7 +224,23 @@ try {
         executableTargetFor(mixedFixture),
         cliAgents(2, "2s"),
       ),
-      assert: ({ roots }) => assert.equal(roots.length, 0),
+      captureFailureCodes: true,
+      assert: ({ run, roots }) => {
+        assert.equal(sensorFindings(run).length, 2, "both actual sensor outcomes must be present");
+        assert.deepEqual(
+          sensorFindings(run)
+            .map((finding) => finding.outcome?.code)
+            .sort(),
+          ["exit_127", "timeout"],
+          "mixed fixture must observe one actual exit and one framework-enforced timeout",
+        );
+        const exit = run.findings.find((finding) => finding.outcome?.code === "exit_127");
+        assert.match(
+          exit.evidence.join("\n"),
+          /spawn \/definitely-missing-test-capabilities-runtime-fixture ENOENT/,
+        );
+        assert.equal(roots.length, 0);
+      },
     },
     {
       name: "Real CLI correlation disabled emits no synthesized diagnosis",

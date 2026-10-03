@@ -17,102 +17,135 @@ on:
         options:
           - full
           - deep
+      coverage_base:
+        description: "Existing strict ancestor used by the coverage ratchet"
+        type: string
+        default: refs/tags/v0.3.0
 
 permissions:
   contents: read
 
+# v0.3.0 predates ratchet files. Preserve its full coverage scope, but compare
+# structure-ledger changes against the qualified adopted budget state.
+env:
+  STRUCTURE_BASE: 30f1a868b6e56e6475fc399e691e9f0d5cdb760f
+
 jobs:
   smoke:
+    env:
+      COVERAGE_BASE: ${{ github.event.pull_request.base.sha }}
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout complete comparison history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, official commits/v6
         with:
-          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
-          # (else HEAD^), so the history must be present.
           fetch-depth: 0
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - name: Setup declared Node lane
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, official commits/v6
         with:
           node-version-file: .nvmrc
-
+      - name: Use qualified npm and fail closed on lane/history/comparison
+        run: |
+          npm install -g npm@12.0.2
+          node scripts/prepare-release-artifact.mjs preflight
       - name: Ensure ripgrep is available
         run: |
           if ! command -v rg >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends ripgrep
           fi
-
       - name: Install dependencies
-        run: npm install
-
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run smoke lane
-        env:
-          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run release:check
 
   full:
+    env:
+      COVERAGE_BASE: ${{ github.event_name == 'push' && github.event.before || inputs.coverage_base }}
     if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'full') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout complete comparison history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, official commits/v6
         with:
-          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
-          # (else HEAD^), so the history must be present.
           fetch-depth: 0
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - name: Setup declared Node lane
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, official commits/v6
         with:
           node-version-file: .nvmrc
-
+      - name: Use qualified npm and fail closed on lane/history/comparison
+        run: |
+          npm install -g npm@12.0.2
+          node scripts/prepare-release-artifact.mjs preflight
       - name: Ensure ripgrep is available
         run: |
           if ! command -v rg >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends ripgrep
           fi
-
       - name: Install dependencies
-        run: npm install
-
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run full lane
-        env:
-          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run release:check
 
   deep:
+    env:
+      COVERAGE_BASE: ${{ github.event_name == 'schedule' && 'refs/tags/v0.3.0' || inputs.coverage_base }}
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'deep') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout complete comparison history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, official commits/v6
         with:
-          # The coverage ratchet diffs changed src lines against COVERAGE_BASE
-          # (else HEAD^), so the history must be present.
           fetch-depth: 0
-
-      - name: Setup Node 22
-        uses: actions/setup-node@v4
+          persist-credentials: false
+      - name: Setup declared Node lane
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, official commits/v6
         with:
           node-version-file: .nvmrc
-
+      - name: Use qualified npm and fail closed on lane/history/comparison
+        run: |
+          npm install -g npm@12.0.2
+          node scripts/prepare-release-artifact.mjs preflight
       - name: Ensure ripgrep is available
         run: |
           if ! command -v rg >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends ripgrep
           fi
-
       - name: Install dependencies
-        run: npm install
-
-      - name: Run deep lane
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run deep package lane
+        run: npm run release:check
+      - name: Require private canonical docs provider inputs
         env:
-          COVERAGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DOCS_PROVIDER_CLIENT_ID: ${{ vars.DOCS_PROVIDER_CLIENT_ID }}
+          DOCS_PROVIDER_PRIVATE_KEY: ${{ secrets.DOCS_PROVIDER_PRIVATE_KEY }}
         run: |
-          npm run release:check
-          npm run docs:list -- --docs . --strict
+          test -n "$DOCS_PROVIDER_CLIENT_ID" || { echo '::error::Configure DOCS_PROVIDER_CLIENT_ID for read-only agent-scripts access'; exit 1; }
+          test -n "$DOCS_PROVIDER_PRIVATE_KEY" || { echo '::error::Configure DOCS_PROVIDER_PRIVATE_KEY for read-only agent-scripts access'; exit 1; }
+      - name: Read-only token for canonical docs provider
+        id: docs_provider_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0, official release commit
+        with:
+          client-id: ${{ vars.DOCS_PROVIDER_CLIENT_ID }}
+          private-key: ${{ secrets.DOCS_PROVIDER_PRIVATE_KEY }}
+          owner: tryingET
+          repositories: agent-scripts
+          permission-contents: read
+          skip-token-revoke: false
+      - name: Checkout complete pinned canonical docs provider
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: tryingET/agent-scripts
+          ref: d30dabe63500e8f0e2acc4c62f9458e22245fece
+          path: .tmp/strict-docs-provider
+          token: ${{ steps.docs_provider_token.outputs.token }}
+          persist-credentials: false
+      - name: Run canonical strict docs provider
+        run: |
+          test "$(git -C .tmp/strict-docs-provider rev-parse HEAD)" = d30dabe63500e8f0e2acc4c62f9458e22245fece
+          node .tmp/strict-docs-provider/scripts/docs-list.mjs --docs . --strict

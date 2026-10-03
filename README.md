@@ -16,7 +16,7 @@ Fail-closed testing capability framework for CLI, browser, property, healing, an
 
 > *We don't build tests. We build the immune system of software.*
 
-See [docs/project/vision.md](docs/project/vision.md) for the durable north-star vision and [docs/project/product-posture.md](docs/project/product-posture.md) for the current product maturity snapshot.
+See [docs/project/vision.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/project/vision.md) for the durable north-star vision and [docs/project/product-posture.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/project/product-posture.md) for the current product maturity snapshot.
 
 ## Components
 
@@ -33,16 +33,16 @@ See [docs/project/vision.md](docs/project/vision.md) for the durable north-star 
 
 | Doc | Description |
 |-----|-------------|
-| [docs/project/vision.md](docs/project/vision.md) | Durable product vision and strategic direction |
-| [docs/project/product-posture.md](docs/project/product-posture.md) | Current product maturity, supported/unsupported boundary, and major gaps |
-| [docs/TEST-CAPABILITIES-FRAMEWORK.md](docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
-| [docs/LLM-TESTING-GUIDE.md](docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
-| [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | Tool selection decision matrix |
-| [docs/adoption/](docs/adoption/) | Greenfield, brownfield, minimal first-run, and Bombadil 0.5 adoption guides |
-| [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md) | Repo-local deterministic screening proof path via `ts-quality` |
-| [docs/npm-publishing-checklist.md](docs/npm-publishing-checklist.md) | Public npm release readiness checklist |
-| [docs/releases/release-workflow.md](docs/releases/release-workflow.md) | GitHub Release → npm Trusted Publishing workflow |
-| [docs/api/](docs/api/) | TEST-CAPABILITIES API reference docs |
+| [docs/project/vision.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/project/vision.md) | Durable product vision and strategic direction |
+| [docs/project/product-posture.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/project/product-posture.md) | Current product maturity, supported/unsupported boundary, and major gaps |
+| [docs/TEST-CAPABILITIES-FRAMEWORK.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/TEST-CAPABILITIES-FRAMEWORK.md) | TEST-CAPABILITIES autonomous testing framework |
+| [docs/LLM-TESTING-GUIDE.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/LLM-TESTING-GUIDE.md) | Guide for LLM-driven testing |
+| [docs/DECISION-MATRIX.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/DECISION-MATRIX.md) | Tool selection decision matrix |
+| [docs/adoption/](https://github.com/tryingET/test-capabilities/tree/v0.4.0/docs/adoption) | Greenfield, brownfield, minimal first-run, and Bombadil 0.5 adoption guides |
+| [docs/dev/ts-quality-screening.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/dev/ts-quality-screening.md) | Repo-local deterministic screening proof path via `ts-quality` |
+| [docs/npm-publishing-checklist.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/npm-publishing-checklist.md) | Public npm release readiness checklist |
+| [docs/releases/release-workflow.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/releases/release-workflow.md) | GitHub Release → npm Trusted Publishing workflow |
+| [docs/api/](https://github.com/tryingET/test-capabilities/tree/v0.4.0/docs/api) | TEST-CAPABILITIES API reference docs |
 
 ## Polished core use case
 
@@ -54,7 +54,7 @@ node ./bin/test-capabilities demo --json
 ```
 
 This proves the package can load, run a real CLI command through `cli-tester`, and emit `observation.v1` diagnostic evidence without a surf CLI, Bombadil, network access, or a target application.
-For the full `doctor -> init -> demo -> test --json` path, use [Minimal CLI smoke walkthrough](docs/adoption/minimal-cli-smoke-walkthrough.md). For adoption strategy, use [Greenfield bootstrap](docs/adoption/greenfield-bootstrap-how-to.md) or [Brownfield integration](docs/adoption/brownfield-integration-how-to.md). See [`examples/demo/README.md`](examples/demo/README.md) for the packaged demo fixture.
+For the full `doctor -> init -> demo -> test --json` path, use [Minimal CLI smoke walkthrough](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/adoption/minimal-cli-smoke-walkthrough.md). For adoption strategy, use [Greenfield bootstrap](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/adoption/greenfield-bootstrap-how-to.md) or [Brownfield integration](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/adoption/brownfield-integration-how-to.md). See [`examples/demo/README.md`](https://github.com/tryingET/test-capabilities/blob/v0.4.0/examples/demo/README.md) for the packaged demo fixture.
 
 ## Capability Contract
 
@@ -77,7 +77,7 @@ For Surf-backed web exploration, the runtime is the upstream [nicobailon/surf-cl
 For Bombadil-backed web exploration, the supported orchestrator resolves the binary through `TEST_CAPABILITIES_BOMBADIL_BIN`, a built source checkout referenced by `TEST_CAPABILITIES_BOMBADIL_REPO`, repo-local `external/bombadil`, or `bombadil` on `PATH`.
 A Bombadil-compatible source checkout only overrides the parked repo-local fallback once it has a built `target/release/bombadil` or `target/debug/bombadil`; upstream Bombadil 0.5 centralizes builds and no longer requires `esbuild`, though local source builds may still need project-specific prerequisites such as `trunk` or the project Nix shell.
 Bombadil 0.5 request headers, trace output paths, trace reproduction, viewport/instrumentation/permission knobs, and `test-external` debugger settings are exposed through `agents.<name>.bombadil` config. Bombadil's disabled-control skipping, quiescence timers, and dialog auto-accept behavior come from the resolved Bombadil binary itself. A bounded experimental `terminal-fuzzer` agent wraps `bombadil terminal test -- <command> [args...]` and emits normalized `observation.v1` runtime evidence whose subject is the resolved terminal command, without claiming production stability or autonomy.
-Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass. See [docs/project/bombadil-distribution-posture.md](docs/project/bombadil-distribution-posture.md) and [docs/adoption/bombadil-0.5-how-to.md](docs/adoption/bombadil-0.5-how-to.md). The same packed-consumer smoke also proves calibrated `root_cause` and low-calibration non-authoritative `propagation` observations survive through the distributed library API.
+Packed npm consumers should treat Bombadil as an external tool requirement: the package intentionally excludes `external/bombadil`, and `npm run consumer:smoke` verifies that a packed consumer without `TEST_CAPABILITIES_BOMBADIL_BIN`, `TEST_CAPABILITIES_BOMBADIL_REPO`, or `bombadil` on `PATH` receives a clear failing Bombadil finding instead of a fake pass. See [docs/project/bombadil-distribution-posture.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/project/bombadil-distribution-posture.md) and [docs/adoption/bombadil-0.5-how-to.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/adoption/bombadil-0.5-how-to.md). The same packed-consumer smoke also proves calibrated `root_cause` and low-calibration non-authoritative `propagation` observations survive through the distributed library API.
 
 ### Implemented today
 
@@ -119,7 +119,7 @@ These surfaces fail clearly when enabled or invoked:
 - `chaos` execution
 - CLI commands: `predict`, `visualize`, `report`
 - `test` flags: `--autonomous`, `--self-heal`, `--predict`, `--fail-threshold`, `--upload-artifacts`, `--report`
-- surf actions: `flow`, `assert`, `compare`, `replay`
+- surf actions: `assert`, `compare`, `replay`
 
 ## Changes in 0.4.0
 
@@ -132,6 +132,14 @@ The 0.4.0 line removes surface before any quality floor is measured, then adds t
 | `command-runner` internals and `scripts/test-agent-browser.sh` | none (dead code; the script launched its own Chrome against the owned-browser rule) |
 
 Also in this line: the config schema lives in `src/core/config.ts` and is exported from the package root under the same names; `heal` derives `appliedCount` from proven writes and refuses to re-apply a healed selector as a prefix; the runtime import cycle that broke deep imports of `dist/core/operations/dispatch.js` is gone; `quantum` and the prediction engine are marked parked (see below).
+
+The complete v0.3.0-to-v0.4.0 source scope also includes frame-aware CDP actions, open-shadow
+paths, bounded receipted `surf flow`, interruption/parser hardening and context no-replay.
+See the [v0.4.0 release notes](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/releases/2026-10-03-v0.4.0-github-release.md).
+For low-level `CdpActions.evaluate`, arbitrary scripts no longer retry after context loss;
+only an explicitly pure read may opt in using the third argument `"read_only"`, independently
+of execution world. This is recovery intent, not purity enforcement or mutation authorization.
+Source/fixture and package checks do not establish live crash-canary or speed acceptance.
 
 Mutating a page is a prepared act, not a call. `surf plan` writes what an operator reviews and `surf apply` carries out that artifact and nothing else: values are set through the field's own input, never through a form-level button; the submit clicks one pre-identified control, never Enter; the origin has to be named in `mutation.allowOrigins`, which no flag and no environment variable can add to; the approval token binds to the plan's content, so an edited plan is refused; and every act is preceded by a receipt on disk, so a submit whose effect was never observed is `unknown` and the plan can never be submitted again.
 
@@ -152,6 +160,7 @@ Failures are typed. A framework error carries a registered code: text mode print
 | interrupt a mutating run | the next run for that step refuses with `mutation_replay_refused` and names the in-doubt receipt | inspect the target, then re-run with `--supersede-receipt <id>`; `doctor` reports the in-doubt count and the store it found |
 | use `quantum` or the prediction API as a testing capability | the same output as before, now marked parked everywhere it is documented | nothing to change; they contact no target and never influence a verdict (operator decision D1) |
 | parse `test --json` | the same envelope with additive fields | nothing; `passed` still means what it meant, and every new field is optional |
+| use low-level `CdpActions.evaluate` and depend on automatic context retry | two-argument calls still work, but a lost arbitrary-script result is not replayed in either world | pass `"read_only"` as the third argument only for an actual pure read; keep mutating work inside the kernel receipt/approval boundary |
 
 ## Commands
 
@@ -210,7 +219,7 @@ npm run docs:list:workspace  # Workspace-wide doc scan
 
 ## Screening proof path
 
-Repo-local `ts-quality` screening currently starts with a narrow operation-kernel slice over the test-capabilities source surface. For the wrapper, commands, and changed-scope rules, see [docs/dev/ts-quality-screening.md](docs/dev/ts-quality-screening.md).
+Repo-local `ts-quality` screening currently starts with a narrow operation-kernel slice over the test-capabilities source surface. For the wrapper, commands, and changed-scope rules, see [docs/dev/ts-quality-screening.md](https://github.com/tryingET/test-capabilities/blob/v0.4.0/docs/dev/ts-quality-screening.md).
 
 ## Capability drill
 

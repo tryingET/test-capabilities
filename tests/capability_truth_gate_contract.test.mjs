@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import { after, test } from "node:test";
 import { runtimeEnv } from "./helpers/runtime-dist.mjs";
 
 const repoRoot = new URL("..", import.meta.url).pathname;
-const nodeOnlyPath = path.dirname(process.execPath);
+const nodeOnlyPath = mkdtempSync(path.join(os.tmpdir(), "truth-node-only-"));
+symlinkSync(process.execPath, path.join(nodeOnlyPath, "node"));
+after(() => rmSync(nodeOnlyPath, { recursive: true, force: true }));
 
 function runTruthGate({ requireAkDirection, pathOverride = nodeOnlyPath }) {
   return spawnSync(process.execPath, ["./scripts/capability-truth-gate.mjs"], {
@@ -32,7 +34,13 @@ function withFakeAk(scriptBody, callback) {
   }
 }
 
-test("portable truth gate does not require workstation AK direction state", () => {
+test("Given Node-only PATH without AK or shell utilities, When portable truth runs, Then diagnostic proof passes without workstation authority", () => {
+  for (const tool of ["ak", "mkdir", "sleep"]) {
+    assert.equal(
+      spawnSync(tool, ["--version"], { env: runtimeEnv({ PATH: nodeOnlyPath }) }).error?.code,
+      "ENOENT",
+    );
+  }
   const result = runTruthGate({ requireAkDirection: false });
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
