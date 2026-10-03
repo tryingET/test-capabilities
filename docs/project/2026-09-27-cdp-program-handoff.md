@@ -1,12 +1,27 @@
 ---
-summary: "Handoff after the CDP channel program (2026-09-27): what landed, how it is proven, the operating rules the work ran under, and the ordered next tasks (AK #6161-#6165) with where to start each."
+summary: "Archived 2026-09-27 CDP handoff: historical implementation/proof record and superseded operating instructions; maintenance AK6575."
 read_when:
-  - "You pick up test-capabilities browser work after 2026-09-27."
-  - "You take one of AK #6161-#6165."
+  - "You need the dated CDP implementation history, not current execution instructions."
 type: "handoff"
+status: "archived"
+task_id: 6575
 ---
 
 # Handoff: the CDP channel program, and what comes next (2026-09-27)
+
+> **Archived historical snapshot, not live execution guidance.** The statements below describe
+> 2026-09-27. AK readback on 2026-10-03 confirms tasks 6161–6165 are done. Current Git/AK,
+> repository `AGENTS.md` and source-owned runtime checks determine current scope and authority.
+> Do not replay the historical commands in §2: direct checkout AK gates, another harness's
+> session identity, duplicate transient browser units and inline scanner suppressions are not
+> current authorization or safe operating recipes. Use the admitted installed `ak` wrapper and
+> your actual harness-qualified session identity. Chromium Agent supervision belongs to the
+> workstation owner; follow its current
+> [deployment/runbook](../../../../infra/workstation/docs/project/2026-10-03-chromium-agent-autostart.md).
+> New interruption proof and its separately approved live-canary boundary are recorded in
+> [AK6545's source/fixture report](2026-10-03-surf-crash-interruption.md) and
+> [canary approval packet](2026-10-03-surf-crash-live-canary-plan.md).
+> AK6575 owns this archival correction; it does not retroactively accept the historical proofs.
 
 ## 1. Where things stand
 
@@ -35,7 +50,7 @@ code that depends on it):
 - `performance.timeOrigin` is equal in surf, the page world and an isolated world, and differs
   between two tabs of the same page: the tab ownership proof.
 
-## 2. How the work is done here (keep doing it)
+## 2. Historical operating notes — superseded, do not execute
 
 - AK only via `~/ai-society/softwareco/owned/agent-kernel/scripts/ak-runtime-gate.sh -- <args>`;
   claim and complete with `--agent session-<your Claude session uuid>`; `--result` takes JSON.
@@ -61,7 +76,7 @@ code that depends on it):
 - Another session may commit to this repo concurrently (one did, `09fcc0e`); check
   `git status` / `git log` before committing and never commit what you did not change.
 
-## 3. Next, in order
+## 3. Historical next-task list — now completed in AK
 
 1. **AK #6161 (P1) - dialogs during apply.** The CDP route opens actions with the default
    `dialogs: "dismiss"` (`src/core/cdp-step-transport.ts`, `openForSession`). A
