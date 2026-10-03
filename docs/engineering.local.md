@@ -76,6 +76,130 @@ syntax, typecheck, structure, contract and coverage checks remain unchanged.
 - `npm run ci:smoke`
 - `npm run quality:ci`
 
+## Standardized Justfile surface (AK6583)
+
+The owned-lane [contract](../../docs/project/standardized-justfile-contract.md) standardizes
+outer names. Direct evidence (`policy/engineering-lane.json`, `package.json`, `.nvmrc`)
+selects `pi-ts`, Node >=22 and npm; CI uses Node 22. The pi-ts Justfile addendum and its
+`disciplines/validation.md` cross-reference were read from the engineering-core owner.
+This repo ships a CLI/library, not a dev server or an extension activation command.
+
+| Target | Delegation / scope |
+| --- | --- |
+| `help` (default) | `just --list` |
+| `test` | `npm test`: default Node suite and prerequisite build |
+| `check` | `npm run check`: existing canonical quality gate; lighter than release CI, but still includes full tests and coverage, not an instant/file-local gate |
+| `build` | `npm run build`: native tsgo JS/declaration artifact build |
+| `lint` | `node scripts/ci_lint.mjs` + local `biome lint`: syntax and non-formatting lint only |
+| `fmt <file> ...` | Local `biome format --write` on explicit files only; no arguments fail with usage before invoking Biome |
+| `ci` | Sequential `npm run check`, direct truth script on its fresh artifact, `npm run release:check:quick` |
+| `doctor` | Node/npm/just/local tsgo/local Biome version diagnostics; no product runtime |
+| `run [args ...]` | `npm run test-capabilities -- ...`; defaults to `--help`, builds then executes the primary CLI once |
+
+There is no natural watch/server development surface, so `dev` is intentionally absent.
+Existing npm and loop scripts remain unchanged. `npm run lint` includes Biome formatting
+and assist checks (`biome check`), whereas `just lint` deliberately excludes formatting.
+`check`/`ci` retain those checks through the original quality script. `npm run fix` remains
+its existing blanket fixer; `just fmt` does **not** delegate to it. The fmt guard checks all
+arguments before formatting, rejects options, directories, symlink files, paths outside
+the repo and canonical paths under `docs/_core/` or `.git/`; it requires `realpath`.
+Use only authorized file paths. Biome's supported languages and configured exclusions
+still apply; this is not a Markdown or Justfile formatter.
+
+### CI proof ownership and delegated-script inspection
+
+`.github/workflows/ci.yml` uses `npm run release:check` for product smoke/full jobs.
+That npm command remains exactly `check && truth:gate && release:check:quick`.
+`just ci` preserves its proof dimensions but bypasses only the build prefix of
+`truth:gate`: successful `check` ends with a fresh source-map build, whose JS and
+`.d.ts` satisfy the truth script's reads/imports/type fixture. Map presence is irrelevant
+to those assertions. Consumer smoke subsequently runs `npm pack` and its unchanged
+`prepack` lifecycle to replace that artifact with a default **map-free** build. Do not
+add `test`, `build`, `lint`, `verify` or `release:check` as extra CI dependencies.
+There are no parallel or overlapping aggregate recipe dependencies.
+
+| Reached invocation | Distinct proof / why retained |
+| --- | --- |
+| `check -> quality:ci -> quality-gate.sh ci -> ci_lint.mjs`, Biome `check .` | Node >=22 and JS/MJS/bin syntax; configured lint, formatting and assist conformance, without write mode |
+| Quality `tsgo --noEmit` | Whole source TypeScript compatibility, independent of artifact/runtime assertions |
+| Quality `npm run build` -> `build.mjs`, ordinary `node --test tests/*.test.*` | Default artifact build plus uninstrumented contracts, subprocess adapters, property tests and failure behavior |
+| Quality `test:behavior:raw` -> Cucumber steps/features | Separate behavior corpus exercising documented CLI paths and a fake Surf provider; no extra build |
+| Quality direct `check-contract-sync.mjs` | Runtime command/status set, generated CLI help/export bytes, type unions, schema properties/closedness and derived config type drift; reuses the default build |
+| Quality `coverage-ratchet.mjs` -> source-map build, c8 `--all` / Node corpus | Different build/measurement mode: source remapping, merged child/grandchild coverage, Node-major lines/branches/functions floors, changed executable lines and reduction ledger; not equivalent to the ordinary test pass |
+| Direct `capability-truth-gate.mjs` | Runtime `.d.ts` consumer type fixture; documentation/package posture and vocabulary/overclaim constraints; diagnostic corpus assertions; byte-identical generated passport. Uses the fresh coverage build, no new build |
+| Truth -> `root-cause-corpus.mjs --json` | Mock-agent diagnostic classification/calibration and bounded propagation/no-propagation invariants; exact current fixture coverage locks (97 cases) |
+| Truth -> `runtime-diagnostic-corpus.mjs --json` | Separate real cli-tester subprocess failure/timeout/mixed-class/correlation-disabled evidence (5 cases), unique IDs and no overclaim wording |
+| Truth -> `generate-capability-passport.mjs --stdout` -> Biome stdin formatting | Generated projection byte identity from runtime capability matrix and package metadata; no projection write |
+| `release:check:quick -> consumer:smoke -> consumer_contract_smoke.mjs -> npm pack -> prepack -> build.mjs` | Distribution lifecycle and map-free packed file inventory; required/excluded files checked. This build is not the coverage artifact |
+| Consumer smoke -> isolated npm init/install, tsgo fixture, installed CLI/API processes | Actual installed package resolution, exported declarations, CLI help/doctor/init/demo/test, config/schema/API/determinism, external-Bombadil refusal under sanitized PATH, removed/replacement browser exports, packed root-cause/propagation invariants. Checkout assertions cannot replace this boundary |
+
+Transitive inspection also covered the test delegates, not just npm command spellings:
+
+- `ci_targeted_smoke.test.mjs` retains the build-lock timeout and isolated symlink-publication
+  refusal builds. The former must preserve another owner's lock; the latter compiles to
+  staging then refuses the overridden `.tmp/` output without changing the default dist.
+  These intentional failure modes are not redundant successful artifact builds.
+- `capability_truth_gate_contract.test.mjs` runs portable and AK-required truth paths under
+  missing/fake AK PATHs, including an import that executes the script's top-level assertions.
+  Those environment/authority/failure-mode contracts remain inside **both** Node passes.
+- Root-cause/runtime corpus contract tests exercise text and JSON modes and assert output
+  details; truth adds aggregate coverage locks. Passport contract tests assert projection
+  identity. `quality_ratchet_contract.test.mjs` exercises structure failures in isolated Git
+  fixtures, real-tree structure without passport, pure coverage logic and programmatic
+  contract-sync. The standalone contract-sync stage retains its CLI reporting/exit contract.
+- `capability_drill_contract.test.mjs` invokes `capability-drill.sh --skip-build --surf-mode
+  shim` in text/JSON modes: 12 fixture checks, a loopback fixture server, CLI/healing/library
+  behavior and fake Surf, not live browser proof. The delegated fixture server was inspected.
+  `bombadil_fixture_contract.test.mjs` reaches only `bombadil-rich-smoke.sh --help`, not its
+  build/browser phases (the wrapper still creates scratch before handling help).
+- Generated-workspace contract tests run Biome/Git against isolated malformed generated and
+  source fixtures with VCS policy enabled/disabled. Child-coverage and source-map-remapper
+  fixtures check subprocess hit propagation and remapping rather than replacing the ratchet.
+  Runtime test helpers select dist and hermetic CDP environments; they do not build it.
+
+This is **outer build deduplication**, not a claim of exactly one transitive truth/corpus,
+passport, contract-sync or compiler invocation. Test-owned adapter/output/environment
+proofs overlap the standalone assertions and run again under c8's distinct measurement
+mode. Their semantics and npm scripts are preserved; further internal optimization needs
+owner-authorized script/test changes and actual evidence. The ordinary build, instrumented
+build, map-free packed build and build-isolation refusal tests must not be collapsed.
+
+### Limits and bounded establishment evidence
+
+`npm run ci:full` is the separate ROCS ontology validate/build profile wrapper (including
+ontology-dist cleanup), not product release CI; it is intentionally not wrapped by `ci`.
+The scheduled/deep workflow's strict docs discovery, explicit `test:runtime` opt-in,
+release-intent/public-registry checks and live Surf/Bombadil/browser experiments are not
+added to the main product surface. `ci` is a local reproduction of product release proofs,
+not publication authorization or the hosted platform/Node matrix. Portable truth skips
+required AK direction conformance; the existing `truth:gate:local` remains separate.
+
+Use the standard build environment (no alternate dist/source-map overrides; if supplied,
+`TEST_CAPABILITIES_PACKAGE_ROOT` must name this checkout), installed optional native compiler
+dependencies, and a valid coverage comparison ref/history. Floors
+currently cover Node 22 and 26; other majors fail closed. Consumer smoke requires npm
+installation/registry access and creates isolated scratch/tarball state. These gates produce
+build/coverage/fixture artifacts even though their conformance checks are non-fixing.
+Do not run them concurrently with source changes or another build/test invocation.
+
+AK6583 establishment used the canonical `/establish-standard-justfile` procedure, bounded
+to `Justfile` and this document. Initial dry-runs/help/version checks were followed by actual
+parent verification after source changes settled: `help`, `doctor`, `lint`, `build`, `test`,
+`run` (default and explicit help), and `ci` passed on Node 26.9.0. CI executed the unchanged
+`npm run check` quality gate, direct truth assertions and packed-consumer smoke; structure
+and strict docs checks also passed. The dry-run expanded to the three commands listed above.
+`check` was exercised transitively once inside this CI run, not added redundantly alongside it.
+
+Formatter refusal probes for no files, options, directories, symlink files, outside paths and
+protected `docs/_core/` paths all failed before writes. A mixed authorized/protected argument
+list left every input byte-identical. Formatting the two authorized AK6582 source/test files
+succeeded. The initial positive scratch probe was under excluded `.tmp/` and truthfully failed
+with no files processed; that log is retained, not a bypass of generated-state policy.
+
+AK evidence owns the exact revisions and retained logs. This is local source/fixture and
+isolated packed-consumer proof, not live Surf/browser behavior, source-owner acceptance,
+host-runtime installation, release approval or publication.
+
 ## Repo loop validation
 
 test-capabilities adopts `repo-loop-validation-v1` for fail-closed testing capability and diagnostic loop work. The machine-readable declaration lives in `policy/engineering-lane.json`.
