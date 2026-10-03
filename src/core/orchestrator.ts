@@ -995,9 +995,8 @@ function inferRootCauseClass(
   observations: Observation[],
   findings: Finding[],
 ): RootCauseFailureClass {
-  // Structurally, before any regex: a frame determination is a fact the run recorded, and the
-  // regex corpus would read the same failure text as selector drift (frame-root-cause packet,
-  // "Consumer permissions per determination").
+  // Recorded frame facts precede regex; not selector drift.
+  // Frame-root-cause packet, "Consumer permissions per determination".
   const frame = frameDeterminationOf(observations, findings);
   if (frame === "confirmed") {
     return "frame_boundary";
@@ -1007,7 +1006,6 @@ function inferRootCauseClass(
     // travels on the finding either way, so a reader can disagree with the label.
     return "browser_coverage_gap";
   }
-
   const corpus = rootCauseCorpus(observations, findings);
   const hasCliContext =
     observations.some(
@@ -1021,7 +1019,6 @@ function inferRootCauseClass(
     observations.some(
       (observation) => observation.subject === "web" || observation.semantics?.component === "web",
     ) || findings.some((finding) => finding.component === "web");
-
   const hasApiContractEvidence =
     (hasApiContext || findings.some((finding) => finding.type === "api_contract")) &&
     /api[_ -]?contract|contract|openapi|schema[^\n]*(mismatch|drift|contract|validation)|schema[ -]?validation|contract[ -]?validation|response[^\n]*(body|payload|field|element|property)|payload[^\n]*(field|element|property|missing|required)|required[^\n]*(field|property|element)/.test(
@@ -1030,7 +1027,6 @@ function inferRootCauseClass(
   if (findings.some((finding) => finding.type === "api_contract") || hasApiContractEvidence) {
     return "contract_mismatch";
   }
-
   const hasCliCommandResolutionEvidence =
     hasCliContext &&
     (/\bspawn\s+[^\n]+\s+enoent\b/.test(corpus) ||
@@ -1065,7 +1061,11 @@ function inferRootCauseClass(
     return "network_connectivity";
   }
 
-  if (/timeout|timed out|latency|duration|slow|sigterm|sigkill/.test(corpus)) {
+  if (
+    /timeout|timed out|latency|\bduration\b[ \t]*[:=]?[ \t]*(?:\d+(?:\.\d+)?[ \t]*(?:ms|s|us|ns|m|h)?[ \t]*)?>[ \t]*\d|slow|sigterm|sigkill/.test(
+      corpus,
+    )
+  ) {
     return "timeout_or_latency";
   }
 
