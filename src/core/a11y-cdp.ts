@@ -19,7 +19,8 @@
 
 import type { AxFrameTree, AxHandle, AxRawNode } from "./a11y-ax-tree.js";
 import type { A11yCheckReader, A11yCheckReading } from "./a11y-snapshot.js";
-import { FrameworkError } from "./runtime-contract.js";
+import { waitForCdpClose } from "./cdp-close.js";
+import { FrameworkError, isFrameworkError } from "./runtime-contract.js";
 
 export const CDP_ENDPOINT_ENV = "TEST_CAPABILITIES_CDP_ENDPOINT";
 export const DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222";
@@ -167,6 +168,33 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** Bounded cleanup still runs; its rejection must not replace an already pending primary error. */
+export async function closeCdpAfterFailure(
+  close: () => Promise<void>,
+  primary: unknown,
+): Promise<void> {
+  try {
+    await close();
+  } catch (error) {
+    const note = {
+      phase: "cdp_close",
+      message: error instanceof Error ? error.message : String(error),
+    };
+    try {
+      if (isFrameworkError(primary) && primary.details) {
+        primary.details.cleanup_errors ??= [];
+        (primary.details.cleanup_errors as unknown[]).push(note);
+      } else if (primary instanceof Error) {
+        const carrier = primary as Error & { cleanupErrors?: unknown[] };
+        carrier.cleanupErrors ??= [];
+        carrier.cleanupErrors.push(note);
+      }
+    } catch {
+      // Frozen/non-Error primaries cannot carry annotations; their identity still wins.
+    }
+  }
+}
+
 /** One socket to one page target. Commands, flattened child sessions, attach events. */
 export class CdpConnection {
   private readonly socket: WebSocket;
@@ -176,6 +204,9 @@ export class CdpConnection {
     Set<(params: Record<string, unknown>, sessionId?: string) => void>
   >();
   private nextId = 0;
+  private intentionalClose = false;
+  private disconnected: Error | undefined;
+  private readonly disconnectListeners = new Set<(error: Error) => void>();
   /** frame targets as they attach; `parentSessionId` is the session that announced one (none: the page) */
   readonly attached: Array<{
     sessionId: string;
@@ -185,19 +216,22 @@ export class CdpConnection {
     parentSessionId?: string;
   }> = [];
 
-  private constructor(socket: WebSocket) {
+  private constructor(
+    socket: WebSocket,
+    private readonly beforeSend?: () => void,
+  ) {
     this.socket = socket;
     socket.addEventListener("message", (event) => this.onMessage(String(event.data)));
-    socket.addEventListener("close", () => {
-      for (const entry of this.pending.values()) {
-        clearTimeout(entry.timer);
-        entry.reject(new Error("the DevTools socket closed"));
-      }
-      this.pending.clear();
-    });
+    socket.addEventListener("close", () =>
+      this.disconnect(new Error("the DevTools socket closed")),
+    );
+    socket.addEventListener("error", () =>
+      this.disconnect(new Error("the DevTools socket failed")),
+    );
   }
 
-  static async open(url: string): Promise<CdpConnection> {
+  static async open(url: string, beforeSend?: () => void): Promise<CdpConnection> {
+    beforeSend?.();
     const socket = new WebSocket(url);
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -214,7 +248,7 @@ export class CdpConnection {
         reject(new Error(`the DevTools socket at ${url} failed`));
       });
     });
-    return new CdpConnection(socket);
+    return new CdpConnection(socket, beforeSend);
   }
 
   private onMessage(raw: string): void {
@@ -282,16 +316,39 @@ export class CdpConnection {
     return () => set.delete(listener);
   }
 
+  /** Unexpected close/error or an unanswered command; intentional teardown never notifies. */
+  onDisconnect(listener: (error: Error) => void): () => void {
+    if (this.disconnected && !this.intentionalClose) listener(this.disconnected);
+    else this.disconnectListeners.add(listener);
+    return () => this.disconnectListeners.delete(listener);
+  }
+
+  private disconnect(error: Error): void {
+    if (this.disconnected) return;
+    this.disconnected = error;
+    for (const entry of this.pending.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(error);
+    }
+    this.pending.clear();
+    if (!this.intentionalClose) {
+      for (const listener of this.disconnectListeners) listener(error);
+    }
+    this.disconnectListeners.clear();
+  }
+
   send<T>(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<T> {
     const id = ++this.nextId;
-    if (this.socket.readyState !== WebSocket.OPEN) {
+    if (this.disconnected || this.socket.readyState !== WebSocket.OPEN) {
       // a closed socket answers nothing: fail now instead of waiting out the command timeout
       return Promise.reject(new Error(`${method}: the DevTools socket is not open`));
     }
     return new Promise<T>((resolve, reject) => {
+      // Synchronous at every RPC boundary: revocation reaches continuations after every await.
+      this.beforeSend?.();
       const timer = setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`${method} did not answer within ${COMMAND_TIMEOUT_MS} ms`));
+        this.disconnect(new Error(`${method} did not answer within ${COMMAND_TIMEOUT_MS} ms`));
+        this.socket.close();
       }, COMMAND_TIMEOUT_MS);
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject, timer });
       this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -299,7 +356,14 @@ export class CdpConnection {
   }
 
   close(): void {
+    this.intentionalClose = true;
     this.socket.close();
+  }
+
+  /** Opt-in bounded completion; legacy void close creates no rejecting waiter. */
+  closeAndWait(timeoutMs?: number): Promise<void> {
+    this.intentionalClose = true;
+    return waitForCdpClose(this.socket, timeoutMs);
   }
 }
 

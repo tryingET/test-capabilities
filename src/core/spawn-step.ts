@@ -12,11 +12,13 @@
  * on the output the framework keeps in memory.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { type ChildProcessWithoutNullStreams, spawn, spawnSync } from "node:child_process";
 import process from "node:process";
 import type { RawResult, ResultSource } from "./result-classification.js";
 
 export const DEFAULT_MAX_OUTPUT_CHARS = 64_000;
+/** What `spawnSync` reads of stdout and stderr together before it kills the child (Node's default). */
+export const SPAWN_SYNC_MAX_BUFFER = 1024 * 1024;
 export const FORCE_KILL_GRACE_MS = 1_000;
 
 export interface SpawnStepInput {
@@ -190,6 +192,7 @@ export function spawnStepSync(input: SpawnStepInput): RawResult {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: input.timeoutMs,
+    maxBuffer: SPAWN_SYNC_MAX_BUFFER,
     ...(input.env ? { env: input.env } : {}),
     ...(input.cwd ? { cwd: input.cwd } : {}),
   });
@@ -200,15 +203,18 @@ export function spawnStepSync(input: SpawnStepInput): RawResult {
   if (result.error) {
     const error = result.error as NodeJS.ErrnoException;
     const timedOut = error.code === "ETIMEDOUT";
+    const bufferKilled = error.code === "ENOBUFS";
     return {
       source: input.source,
-      exitCode: result.status,
-      signal: result.signal ?? null,
+      // A handled kill can exit 0 or nonzero; neither proves a complete answer.
+      exitCode: timedOut || bufferKilled ? null : result.status,
+      signal: bufferKilled ? (result.signal ?? "SIGTERM") : (result.signal ?? null),
       stdout,
       stderr,
       durationMs,
       timedOut,
-      ...(timedOut ? {} : { spawnFailure: error.message }),
+      // ENOBUFS killed a started child, unlike ENOENT/EACCES startup refusals.
+      ...(timedOut || bufferKilled ? {} : { spawnFailure: error.message }),
     };
   }
 
@@ -221,4 +227,43 @@ export function spawnStepSync(input: SpawnStepInput): RawResult {
     durationMs,
     timedOut: false,
   };
+}
+
+/**
+ * A command's whole output as `spawnStepSync` would have returned it (AK #6221): a `surf --stdio`
+ * reply arrives whole, so it is cut the same way, and output past spawnSync's buffer is the same
+ * failure - the command killed (`ENOBUFS`) before it reported, in doubt.
+ */
+export function asSpawnSyncResult(raw: RawResult, _command: string): RawResult {
+  const stdout = appendCappedOutput("", raw.stdout, DEFAULT_MAX_OUTPUT_CHARS);
+  const stderr = appendCappedOutput("", raw.stderr, DEFAULT_MAX_OUTPUT_CHARS);
+  if (Buffer.byteLength(raw.stdout) + Buffer.byteLength(raw.stderr) <= SPAWN_SYNC_MAX_BUFFER) {
+    return { ...raw, stdout, stderr };
+  }
+  return {
+    ...raw,
+    exitCode: null,
+    signal: "SIGTERM",
+    stdout,
+    stderr,
+    timedOut: false,
+    // This command was sent; retain the kill signal, not an unsent startup failure.
+    spawnFailure: undefined,
+  };
+}
+
+/**
+ * A long-lived child the caller talks to over its pipes - `surf --stdio`, one process for a
+ * session's many commands (AK #6221). Its budgets are the caller's, per request; the caller ends
+ * it (closing stdin, then a signal) when it is done.
+ */
+export function spawnLongLived(input: {
+  command: string;
+  args: readonly string[];
+  env?: NodeJS.ProcessEnv;
+}): ChildProcessWithoutNullStreams {
+  return spawn(input.command, [...input.args], {
+    env: input.env ?? process.env,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 }

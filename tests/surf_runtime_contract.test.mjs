@@ -166,6 +166,7 @@ test("surf runtime probe reports the version and the branch mechanisms", () => {
       pageReadiness: true,
       extract: true,
       frameDiagnose: true,
+      stdio: false,
     });
     assert.deepEqual(probe.missingExploreMechanisms, []);
     assert.doesNotThrow(() => assertSurfExploreMechanisms(resolution, probe));
@@ -174,6 +175,20 @@ test("surf runtime probe reports the version and the branch mechanisms", () => {
       fake.calls().map((call) => call[0]),
       ["--help-full"],
     );
+  } finally {
+    fake.cleanup();
+  }
+});
+
+test("a surf whose help lists `surf --stdio` offers a session (AK #6221)", () => {
+  const fake = createFakeSurf({ stdio: true });
+  try {
+    const resolution = resolveSurfRuntimeResolution({
+      PATH: "/nonexistent",
+      HOME: fake.dir,
+      TEST_CAPABILITIES_SURF_BIN: fake.path,
+    });
+    assert.equal(probeSurfRuntime(resolution, { cache: false }).mechanisms.stdio, true);
   } finally {
     fake.cleanup();
   }
@@ -229,6 +244,7 @@ test("surf runtime probe detects an upstream build without the mechanisms and re
       pageReadiness: false,
       extract: false,
       frameDiagnose: false,
+      stdio: false,
     });
     assert.deepEqual(probe.missingExploreMechanisms, ["wait.ready", "extract"]);
     assert.throws(

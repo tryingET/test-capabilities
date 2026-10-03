@@ -25,6 +25,14 @@ const ENV_KEYS = [
   "FAKE_SURF_LOG",
   "FAKE_SURF_ECHO",
   "FAKE_SURF_HELP_HEADER",
+  "FAKE_SURF_STDIO",
+  "FAKE_SURF_STDIO_LOG",
+  "FAKE_SURF_STDIO_REFUSE",
+  "FAKE_SURF_STDIO_DIE_ON",
+  "FAKE_SURF_STDIO_SILENT_ON",
+  "FAKE_SURF_STDIO_TIMEOUT_ON",
+  "FAKE_SURF_STDIO_NOISE",
+  "FAKE_SURF_FLOOD_ON",
 ];
 
 function shellQuote(value) {
@@ -36,7 +44,10 @@ function shellQuote(value) {
  * the script, so both in-process callers and child CLI processes see the same fake browser.
  *
  * options: { pages, mode, doctor, failOn, emptyOn, hangOn, signalOn, zeroRowsOn,
- *            bookkeepingOnlyOn, echo, log, name, helpHeader }
+ *            bookkeepingOnlyOn, echo, log, name, helpHeader,
+ *            stdio: true | "broken", stdioRefuse, stdioDieOn, stdioSilentOn, stdioTimeoutOn,
+ *            floodOn }
+ * With `stdio`, `stdioCalls()` lists the requests the `surf --stdio` process was sent.
  */
 export function createFakeSurf(options = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-fake-surf-"));
@@ -71,6 +82,14 @@ export function createFakeSurf(options = {}) {
     FAKE_SURF_LOG: logFile,
     FAKE_SURF_ECHO: options.echo ? "1" : undefined,
     FAKE_SURF_HELP_HEADER: options.helpHeader,
+    FAKE_SURF_STDIO: options.stdio === true ? "1" : options.stdio,
+    FAKE_SURF_STDIO_LOG: options.stdio ? path.join(dir, "stdio.log") : undefined,
+    FAKE_SURF_STDIO_REFUSE: options.stdioRefuse,
+    FAKE_SURF_STDIO_DIE_ON: options.stdioDieOn,
+    FAKE_SURF_STDIO_SILENT_ON: options.stdioSilentOn,
+    FAKE_SURF_STDIO_TIMEOUT_ON: options.stdioTimeoutOn,
+    FAKE_SURF_STDIO_NOISE: options.stdioNoise ? "1" : undefined,
+    FAKE_SURF_FLOOD_ON: options.floodOn,
   };
   const exports = ENV_KEYS.filter((key) => env[key] !== undefined)
     .map((key) => `export ${key}=${shellQuote(env[key])}`)
@@ -95,6 +114,13 @@ export function createFakeSurf(options = {}) {
       }
       try {
         return readCalls(logFile);
+      } catch {
+        return [];
+      }
+    },
+    stdioCalls() {
+      try {
+        return readCalls(path.join(dir, "stdio.log"));
       } catch {
         return [];
       }

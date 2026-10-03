@@ -1,23 +1,14 @@
 /**
- * The surf implementation of the kernel `Session`: one tab this run created, one readiness
- * gate, declared steps through the mutation ledger, registered read-only observers, and
- * `tab.close` in `finally` (architecture review A8; adjudication claim 22; mutation-safety
- * packet, "Interaction with the surf runtime").
+ * The surf kernel Session: one owned tab/readiness gate, ledgered steps and read-only observers
+ * (architecture A8; adjudication 22). Normal cleanup closes the tab; loss discards ownership.
  *
- * Mediated ring: this is the only browser-facing object that reaches the world, and it reaches
- * it through two seams only - the surf adapter's transport and `context.ledger.runStep`. Three
- * rules hold everything the packet asks for:
+ * The mediated ring reaches the world only through transport and `context.ledger.runStep`:
  *
- *   1. **Owned tabs only.** Every step is pointed at the tab `open()` created. A command whose
- *      argv mapping cannot carry `--tab-id` is refused rather than run against whatever tab the
- *      browser happens to have in front, and a caller that names a different tab is refused
- *      with `owned_tab_required`.
- *   2. **The class comes from the adapter's static map, not from the caller.** `Adapter.effects`
- *      decides; a declaration that contradicts it is `effect_declaration_invalid`; the browser
- *      lifecycle verbs belong to the session, so `step()` refuses them.
- *   3. **`js` has no class.** The caller declares one, and a `read_only` claim is checked
- *      against the denylist in `browser-session.ts` before anything runs. A hit is
- *      `read_only_violation`, raised before a process exists.
+ *   1. Owned tabs only: commands unable to carry --tab-id, or naming another tab, are refused.
+ *   2. The adapter's static effect map decides; contradictory declarations and lifecycle steps
+ *      are refused. open()/close() alone own lifecycle.
+ *   3. js requires a declaration; a read_only script hitting browser-session.ts's denylist is
+ *      refused before any process exists.
  */
 
 import { randomUUID } from "node:crypto";
@@ -38,7 +29,11 @@ import {
   findJsMutationSignals,
   SESSION_LIFECYCLE_EFFECT,
 } from "./browser-session.js";
-import { frameAwareDeclaration, runStepInFrame } from "./cdp-step-transport.js";
+import {
+  frameAwareDeclaration,
+  invalidateSessionCdp,
+  runStepInFrame,
+} from "./cdp-step-transport.js";
 import type { EffectAttempt, EffectDeclaration, EffectSettlement, EffectStep } from "./effects.js";
 import { idempotencyKeyFor, MutationError, resolveEffectDeclaration } from "./effects.js";
 import type { ExplainUnreachableOptions } from "./frame-diagnosis.js";
@@ -47,12 +42,12 @@ import type { FrameRootCause } from "./frame-root-cause.js";
 import type { ExpectDeclaration } from "./result-classification.js";
 import type { RunContext } from "./run-context.js";
 import { FrameworkError } from "./runtime-contract.js";
-import { probeSurfRuntime, runSurfCommand, settleSurfAttempt, surfEffect } from "./surf-adapter.js";
+import { probeSurfRuntime, settleSurfAttempt, surfEffect } from "./surf-adapter.js";
 import { createApplyRunner } from "./surf-apply-runner.js";
 import type { SurfPlan } from "./surf-plan.js";
 import { planFromSession } from "./surf-plan-probe.js";
 import { readinessRefusalFromFailure, settledReadinessOrRefuse } from "./surf-readiness.js";
-import type { SurfCommandResult, SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
+import type { SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
 import {
   assertSurfExploreMechanisms,
   isSurfReadinessErrorCode,
@@ -60,20 +55,19 @@ import {
   parseSurfJsonOutput,
   resolveSurfRuntimeResolution,
   SurfCommandError,
-  translateSurfArgs,
 } from "./surf-runtime.js";
+import { resultOf, SessionTransport, scriptOf } from "./surf-session-command.js";
+import { SessionInterruption } from "./surf-session-interruption.js";
 
 /** Re-exported where it always was: the settlement rule lives with the surf transport now. */
 export { settleSurfAttempt };
 
 export const SURF_SESSION_COMMAND_TIMEOUT_MS = 90_000;
 export const SURF_SESSION_READY_TIMEOUT_MS = 20_000;
+/** surf's finest readiness poll: at its default 400 ms, a page ready just after the gate began waited most of a poll */
+const SURF_SESSION_READY_POLL_MS = "50";
 
-/**
- * The commands a session may point at the tab it owns: their argv mapping accepts `--tab-id`.
- * Any other page-facing verb would run against whichever tab the browser has in front, which is
- * exactly what the owned-tab rule forbids, so it is refused instead of run untargeted.
- */
+/** Commands whose argv mapping can carry the session's owned --tab-id. */
 const SESSION_TAB_SCOPED_COMMANDS = new Set([
   "wait.ready",
   "page.readiness",
@@ -126,33 +120,6 @@ export interface SurfSessionOptions {
   idPrefix?: string;
 }
 
-/** The page-side script of a step, when the command carries one. */
-function scriptOf(command: string, args: readonly string[]): string | undefined {
-  if (command === "js") {
-    return args.find((arg) => !arg.startsWith("--"));
-  }
-  const index = args.indexOf("--code");
-  return index >= 0 ? args[index + 1] : undefined;
-}
-
-function replyFrom(
-  command: string,
-  args: readonly string[],
-  result: SurfCommandResult,
-): SessionReply {
-  return {
-    command,
-    args,
-    display: result.commandDisplay,
-    stdout: result.stdout,
-    stderr: result.stderr,
-    exitCode: result.code,
-    outcome: result.outcome,
-    ok: result.ok,
-    ...(result.failure ? { failure: result.failure } : {}),
-  } as SessionReply;
-}
-
 interface LedgerStepRequest<T> {
   id: string;
   command: string;
@@ -191,12 +158,20 @@ export class SurfSession implements Session {
   private ownedTab: OwnedTab | undefined;
   private gated: SessionReadiness | undefined;
   private closed = false;
+  private readonly interruption = new SessionInterruption();
+  private readonly transport: SessionTransport;
 
   constructor(options: SurfSessionOptions) {
     this.context = options.context;
     this.runId = options.context.runId;
     this.url = options.url;
     this.runtime = options.runtime ?? resolveSurfSessionRuntime();
+    this.transport = new SessionTransport(
+      this.runtime,
+      this.lifecycleNotes,
+      () => this.interruption.assertActive(),
+      (reason) => this.interrupt(reason),
+    );
     this.timeoutMs = options.timeoutMs ?? SURF_SESSION_COMMAND_TIMEOUT_MS;
     this.readyTimeoutMs = options.readyTimeoutMs ?? SURF_SESSION_READY_TIMEOUT_MS;
     this.idPrefix = options.idPrefix ?? `surf.session.${randomUUID().slice(0, 8)}`;
@@ -219,9 +194,18 @@ export class SurfSession implements Session {
     return [...this.observed];
   }
 
+  /** Terminal loss discards ownership; cleanup must never close a reused tab id. */
+  interrupt(reason: string): void {
+    this.interruption.interrupt(reason);
+    this.ownedTab = undefined;
+    this.gated = undefined;
+    invalidateSessionCdp(this);
+  }
+
   // ---- lifecycle -----------------------------------------------------------
 
   async open(): Promise<{ tab: OwnedTab; reply: SessionReply }> {
+    this.interruption.assertActive();
     if (this.closed) {
       throw this.lifecycleRefusal("open a tab on a session that is already closed");
     }
@@ -231,6 +215,7 @@ export class SurfSession implements Session {
       );
     }
 
+    // a session that owns no tab has nothing to close later: its surf process goes now
     const reply = await this.runLedgerStep({
       id: `${this.idPrefix}.open`,
       command: "tab.new",
@@ -239,16 +224,21 @@ export class SurfSession implements Session {
       declaration: SESSION_LIFECYCLE_EFFECT,
       subject: this.url,
       read: (value: SessionReply) => value,
+    }).catch(async (error: unknown) => {
+      await this.transport.close();
+      throw error;
     });
 
     const tabId = parseCreatedTabId(reply.stdout);
     if (tabId === undefined) {
+      await this.transport.close();
       const preview = reply.stdout.trim().slice(0, 200);
       throw new Error(
         `Surf session could not open an owned tab for ${this.url}: 'surf tab.new' did not report a tab id (output: ${preview || "(empty)"}).`,
       );
     }
 
+    this.interruption.assertActive();
     this.ownedTab = { id: tabId, url: this.url, openedAt: new Date().toISOString() };
     return { tab: this.ownedTab, reply };
   }
@@ -265,6 +255,8 @@ export class SurfSession implements Session {
         String(tab.id),
         "--timeout",
         String(options.timeoutMs ?? this.readyTimeoutMs),
+        "--interval",
+        SURF_SESSION_READY_POLL_MS,
         ...(options.selector ? ["--selector", options.selector] : []),
       ],
       intent: `wait until ${this.url} settles before anything reads it`,
@@ -284,7 +276,7 @@ export class SurfSession implements Session {
       if (isSurfReadinessErrorCode(failure.code)) {
         throw readinessRefusalFromFailure(this.url, failure, reply.outcome);
       }
-      throw new SurfCommandError(this.commandResultOf(reply));
+      throw new SurfCommandError(resultOf(reply));
     }
 
     const readiness = settledReadinessOrRefuse(
@@ -292,6 +284,7 @@ export class SurfSession implements Session {
       parseSurfJsonOutput(reply.stdout, "wait.ready").data,
       reply.outcome,
     );
+    this.interruption.assertActive();
     this.gated = readiness;
     return { readiness, reply };
   }
@@ -317,6 +310,7 @@ export class SurfSession implements Session {
     const tab = this.ownedTab;
     this.ownedTab = undefined;
     if (!tab) {
+      await this.transport.close();
       return;
     }
 
@@ -341,11 +335,13 @@ export class SurfSession implements Session {
         `Surf explore could not close owned tab ${tab.id}: ${errorMessage(error)} [error]`,
       );
     }
+    await this.transport.close();
   }
 
   // ---- steps ---------------------------------------------------------------
 
   async step<T>(step: BrowserStep<T>): Promise<T> {
+    this.interruption.assertActive();
     if (this.closed) {
       throw this.lifecycleRefusal(`run '${step.command}' on a session that is already closed`);
     }
@@ -400,6 +396,7 @@ export class SurfSession implements Session {
   // ---- observation ---------------------------------------------------------
 
   observe(name: string, observer: SessionObserver): void {
+    this.interruption.assertActive();
     if (this.closed) {
       throw this.lifecycleRefusal(`register the observer '${name}' on a closed session`);
     }
@@ -419,7 +416,9 @@ export class SurfSession implements Session {
   }
 
   async runObservers(): Promise<readonly SessionObservation[]> {
+    this.interruption.assertActive();
     for (const entry of this.registered) {
+      this.interruption.assertActive();
       if (this.observed.some((observation) => observation.name === entry.name)) {
         continue;
       }
@@ -449,12 +448,7 @@ export class SurfSession implements Session {
 
   // ---- seams later slices fill --------------------------------------------
 
-  /**
-   * The frame diagnosis (S8): one read-only `frame.diagnose` in the tab this run owns, cached
-   * for the page visit, turned into the kernel determination by the pure classifier. The step
-   * list lives in `frame-diagnosis.ts`, not here: a seam is a composition over the session,
-   * never a hook inside it.
-   */
+  /** Frame-context probing restores only a still-owned tab, never a lost browser handle. */
   async inFrame<T>(domIndex: number, body: () => Promise<T>): Promise<T> {
     const tab = this.requireTab("frame.switch");
     await this.frameContextStep("frame.switch", [
@@ -467,8 +461,12 @@ export class SurfSession implements Session {
       return await body();
     } finally {
       try {
-        await this.frameContextStep("frame.main", ["--tab-id", String(tab.id)]);
+        if (!this.interruption.interrupted) {
+          await this.frameContextStep("frame.main", ["--tab-id", String(tab.id)]);
+        }
       } catch (error) {
+        // biome-ignore lint/correctness/noUnsafeFinally: preserve the loss, never restore stale context
+        if (this.interruption.interrupted) throw error;
         await this.close();
         // biome-ignore lint/correctness/noUnsafeFinally: a tab left in a frame must not be reused
         throw new FrameworkError(
@@ -496,29 +494,22 @@ export class SurfSession implements Session {
     selector: string,
     options: ExplainUnreachableOptions = {},
   ): Promise<FrameRootCause> {
+    this.interruption.assertActive();
     if (this.closed) {
       throw this.lifecycleRefusal(`diagnose '${selector}' on a session that is already closed`);
     }
     return explainUnreachable(this, this.context, selector, options);
   }
 
-  /**
-   * The reviewable plan: one read-only probe over the gated page, the submit-gate packet's
-   * refusals, and the artifact. Nothing is typed and nothing is clicked (§4.1). The step list
-   * lives in `surf-plan-probe.ts`, not here: a seam is a composition over the session, never a
-   * hook inside it.
-   */
+  /** A reviewable plan is a read-only composition over the gated page (§4.1). */
   async plan(request: SessionPlanRequest): Promise<SurfPlan> {
+    this.interruption.assertActive();
     return planFromSession(this, request);
   }
 
-  /**
-   * The capability-restricted runner over this session (§4.3). What the caller gets back can
-   * address the plan's own fields and, in submit mode with an identified control, that one
-   * control - and nothing else. The runner is built in `surf-apply-runner.ts`; this session
-   * hands it the tab it owns.
-   */
+  /** The restricted runner addresses only plan fields and the identified submit control (§4.3). */
   async apply(request: SessionApplyRequest): Promise<ApplyRunner> {
+    this.interruption.assertActive();
     const readiness = this.gated;
     if (readiness === undefined) {
       throw new FrameworkError(
@@ -649,6 +640,7 @@ export class SurfSession implements Session {
   }
 
   private requireTab(command: string): OwnedTab {
+    this.interruption.assertActive();
     if (!this.ownedTab) {
       throw new MutationError(
         "owned_tab_required",
@@ -673,29 +665,9 @@ export class SurfSession implements Session {
     );
   }
 
-  private commandResultOf(reply: SessionReply): SurfCommandResult {
-    return {
-      ok: reply.ok,
-      code: reply.exitCode,
-      stdout: reply.stdout,
-      stderr: reply.stderr,
-      commandDisplay: [...reply.display],
-      outcome: reply.outcome,
-      ...(reply.failure ? { failure: reply.failure } : {}),
-    };
-  }
-
   // ---- the one path to the world -------------------------------------------
 
-  /**
-   * The key that decides whether this act already happened.
-   *
-   * The ledger's default derives it from the step's subject, and a browser subject carries the
-   * tab id - which is this run's handle on the page, not part of what the step means. Two runs
-   * asking the same page for the same change get different tab ids, and a key that moved with
-   * them would let the second run repeat an attempt the first one left in doubt. So the key is
-   * built from the page, not from the handle (mutation-safety packet, "In-doubt interlock").
-   */
+  /** Replay keys name the intent/page, never the replaceable tab handle (In-doubt interlock). */
   private idempotencyKeyFor<T>(request: LedgerStepRequest<T>): string {
     return idempotencyKeyFor(this.context.operationId, {
       id: request.id,
@@ -705,6 +677,7 @@ export class SurfSession implements Session {
   }
 
   private async runLedgerStep<T>(request: LedgerStepRequest<T>): Promise<T> {
+    this.interruption.assertActive();
     const { command, args, declaration } = request;
     const step: EffectStep<T> = {
       id: request.id,
@@ -724,26 +697,22 @@ export class SurfSession implements Session {
       ...(request.observe ? { observe: request.observe } : {}),
       ...(request.verify ? { verify: request.verify } : {}),
       ...(declaration.effect === "mutating" ? { settle: request.settle ?? settleSurfAttempt } : {}),
-      run: async (attempt) => {
+      // Internal retries keep the first transport error; new calls get the reinitialization refusal.
+      run: this.interruption.guardAttempt(async (attempt) => {
         if (request.frame !== undefined) {
           const step = { command, args, frame: request.frame, effect: declaration.effect };
           return request.read(await runStepInFrame(this, process.env, step), attempt);
         }
-        const result = runSurfCommand(
-          this.runtime.resolution,
-          translateSurfArgs(command, [...args]),
-          {
-            timeoutMs: request.timeoutMs ?? this.timeoutMs,
-            effect: declaration.effect,
-            ...(request.expect ? { expect: request.expect } : {}),
-          },
-        );
-        const reply = replyFrom(command, args, result);
+        const { result, reply } = await this.transport.run(command, args, {
+          timeoutMs: request.timeoutMs ?? this.timeoutMs,
+          effect: declaration.effect,
+          ...(request.expect ? { expect: request.expect } : {}),
+        });
         if (!result.ok && request.acceptFailure !== true) {
           throw new SurfCommandError(result);
         }
         return request.read(reply, attempt);
-      },
+      }),
     };
 
     return this.context.ledger.runStep(step);

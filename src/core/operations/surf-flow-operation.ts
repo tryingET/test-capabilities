@@ -21,6 +21,7 @@ import yaml from "js-yaml";
 import { z } from "zod";
 import { writeJsonArtifact } from "../artifacts.js";
 import type { BrowserStep, SessionReply } from "../browser-session.js";
+import { closeCdpAndOwnedTab } from "../cdp-close.js";
 import type { FlowActPayload } from "../cdp-flow-acts.js";
 import { holdCdpActions, releaseCdpActions } from "../cdp-step-transport.js";
 import type { EffectDeclaration } from "../effects.js";
@@ -286,6 +287,7 @@ async function runSurfFlowOperation(
         : undefined;
     };
   const notes: string[] = [];
+  let operationFailed = false;
 
   try {
     await session.open();
@@ -335,10 +337,16 @@ async function runSurfFlowOperation(
         ms: Date.now() - started,
       };
     }
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
-    await releaseCdpActions(session);
     notes.push(...session.notes());
-    await session.close();
+    await closeCdpAndOwnedTab(
+      () => releaseCdpActions(session),
+      () => session.close(),
+      operationFailed,
+    );
   }
 
   const receipts = context.ledger.envelopeReceipts();

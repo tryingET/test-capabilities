@@ -76,6 +76,13 @@ test("every registered code is unique across the namespaces", () => {
   assert.deepEqual([...new Set(signals)], signals);
 });
 
+test("browser transport loss is a registered terminal session refusal", () => {
+  assert.ok(EFFECT_ERROR_CODES.includes("surf_session_interrupted"));
+  assert.equal(isRegisteredFrameworkErrorCode("surf_session_interrupted"), true);
+  const error = new FrameworkError("surf_session_interrupted", "Initialize a NEW session.");
+  assert.equal(toErrorEnvelope(error).error.code, "surf_session_interrupted");
+});
+
 test("every code is a lowercase snake_case identifier", () => {
   for (const code of [
     ...FRAMEWORK_ERROR_CODES,

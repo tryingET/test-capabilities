@@ -73,6 +73,8 @@ export const EFFECT_ERROR_CODES = [
   "read_only_violation_observed",
   /** a target-affecting browser command without a tab this run owns */
   "owned_tab_required",
+  /** browser transport loss discarded ownership; a NEW session is required, never replay */
+  "surf_session_interrupted",
   /** a mutating/target step whose web origin is not in `mutation.allowOrigins` */
   "mutation_origin_not_allowed",
   /** `receipts.dir` resolves inside a workspace that does not survive the run (D5) */

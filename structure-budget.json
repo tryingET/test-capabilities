@@ -4,9 +4,8 @@
   "exceptions": {
     "src/core/operations/surf-explore-operation.ts": 1047,
     "src/core/orchestrator.ts": 1722,
-    "src/core/surf-runtime.ts": 858,
     "src/healing/self-healing.ts": 1192,
-    "src/core/surf-session.ts": 755
+    "src/core/surf-session.ts": 724
   },
   "allowed_cycles": [],
   "pure_ring": [

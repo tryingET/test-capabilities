@@ -15,6 +15,7 @@
  * ledger settles `unknown` and never repeats.
  */
 
+import { closeCdpAfterFailure } from "./a11y-cdp.js";
 import type { SessionReply } from "./browser-session.js";
 import type { CdpActions } from "./cdp-actions.js";
 import { openCdpActions } from "./cdp-actions.js";
@@ -187,6 +188,7 @@ export function frameAwareDeclaration<D extends { reason: string }>(
  * the CDP frame id it first reached. Both ids survive navigation (measured live 2026-09-27).
  */
 interface SessionPins {
+  interrupted?: boolean;
   targetId?: string;
   frames: Map<string, string>;
   /** actions a flow holds for all its steps, bound once (AK #6164) */
@@ -207,11 +209,31 @@ const pinsBySession = new WeakMap<object, SessionPins>();
 export interface FrameStepSession {
   readonly url: string;
   readonly readiness?: { href?: string } | undefined;
+  interrupt?(reason: string): void;
   evaluate?(
     code: string,
     declaration: EffectDeclaration,
     options: { id: string; intent: string; read: (reply: SessionReply) => unknown },
   ): Promise<unknown>;
+}
+
+/** Forget addresses, not history: a lost session may never bind by URL again. */
+export function invalidateSessionCdp(session: FrameStepSession): void {
+  const pins = pinsBySession.get(session) ?? { frames: new Map<string, string>() };
+  pins.interrupted = true;
+  delete pins.targetId;
+  pins.frames.clear();
+  pinsBySession.set(session, pins);
+  // Keep only the dead connection's cleanup handle until releaseCdpActions.
+}
+
+function assertConnectedSession(session: FrameStepSession): void {
+  if (pinsBySession.get(session)?.interrupted) {
+    throw new FrameworkError(
+      "surf_session_interrupted",
+      "Browser transport lost; initialize a NEW owned-page/session explicitly before binding or acting.",
+    );
+  }
 }
 
 /** A document's time origin: unique per document in practice, the same in every world of it. */
@@ -230,40 +252,54 @@ const TIME_ORIGIN_EFFECT: EffectDeclaration = {
  * isolated world; another tab of the same page differs), and pins the target only when they match.
  */
 async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv) {
+  assertConnectedSession(session);
+  const onDisconnect = (error: Error) => {
+    invalidateSessionCdp(session);
+    session.interrupt?.(error.message);
+  };
   const pins = pinsBySession.get(session) ?? { frames: new Map<string, string>() };
   pinsBySession.set(session, pins);
   const href = session.readiness?.href ?? session.url;
-  if (pins.targetId !== undefined) {
-    const actions = await openCdpActions(href, env, { targetId: pins.targetId, dialogs: "fail" });
-    return { actions, pins: pins.frames };
-  }
-  // the endpoint first: without one there is nothing to prove, and no read is spent on it
-  const actions = await openCdpActions(href, env, { dialogs: "fail" });
-  const owned = await session
-    .evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
-      id: "cdp.tab-proof",
-      intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
-      read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
-    })
-    .catch(async (error: unknown) => {
-      await actions.close();
-      throw error;
-    });
-  if (owned !== undefined) {
-    const bound = await actions
-      .evaluate<string>(TIME_ORIGIN, { world: "isolated" })
-      .catch(() => undefined);
-    if (bound !== owned) {
-      await actions.close();
-      throw new FrameworkError(
-        "tab_bind_ambiguous",
-        `The page at ${href} on the DevTools connection is not the tab this run opened: its document's time origin is ${bound ?? "unreadable"}, the owned tab's is ${owned}. Nothing was bound.`,
-        { url: href, target: actions.targetId },
-      );
+  // Acquired actions stay locally owned until every post-await guard/proof has succeeded.
+  const actions = await openCdpActions(href, env, {
+    ...(pins.targetId === undefined ? {} : { targetId: pins.targetId }),
+    dialogs: "fail",
+    onDisconnect,
+    beforeSend: () => assertConnectedSession(session),
+  });
+  try {
+    assertConnectedSession(session);
+    if (pins.targetId === undefined) {
+      const owned = await session.evaluate?.(TIME_ORIGIN, TIME_ORIGIN_EFFECT, {
+        id: "cdp.tab-proof",
+        intent: "read the owned tab's document time origin, to bind the DevTools connection to it",
+        read: (reply: SessionReply) => parseSurfJsonOutput(reply.stdout, "js").data,
+      });
+      assertConnectedSession(session);
+      if (owned !== undefined) {
+        const bound = await actions
+          .evaluate<string>(TIME_ORIGIN, { world: "isolated" })
+          .catch((error: unknown) => {
+            if (pins.interrupted) throw error;
+            return undefined;
+          });
+        assertConnectedSession(session);
+        if (bound !== owned) {
+          throw new FrameworkError(
+            "tab_bind_ambiguous",
+            `The page at ${href} on the DevTools connection is not the tab this run opened: its document's time origin is ${bound ?? "unreadable"}, the owned tab's is ${owned}. Nothing was bound.`,
+            { url: href, target: actions.targetId },
+          );
+        }
+      }
     }
+    assertConnectedSession(session);
+    pins.targetId = actions.targetId;
+    return { actions, pins: pins.frames };
+  } catch (error) {
+    await closeCdpAfterFailure(() => actions.close(), error);
+    throw error;
   }
-  pins.targetId = actions.targetId;
-  return { actions, pins: pins.frames };
 }
 
 /**
@@ -275,7 +311,13 @@ export async function holdCdpActions(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<void> {
   const { actions } = await openForSession(session, env);
-  (pinsBySession.get(session) as SessionPins).held = actions;
+  try {
+    assertConnectedSession(session);
+    (pinsBySession.get(session) as SessionPins).held = actions;
+  } catch (error) {
+    await closeCdpAfterFailure(() => actions.close(), error);
+    throw error;
+  }
 }
 
 /** Let a held connection go; safe to call when none is held. */
@@ -300,15 +342,23 @@ export async function bindsOverCdp(
   env: NodeJS.ProcessEnv = process.env,
   options: { hold?: boolean } = {},
 ): Promise<{ binds: true } | { binds: false; code: string; message: string }> {
+  let actions: CdpActions | undefined;
+  let closing = false;
   try {
-    const { actions } = await openForSession(session, env);
+    ({ actions } = await openForSession(session, env));
+    assertConnectedSession(session);
     if (options.hold) {
       const pins = pinsBySession.get(session) as SessionPins;
       pins.held = actions;
       pins.heldDialogsFrom = actions.dialogs.length;
-    } else await actions.close();
+    } else {
+      closing = true;
+      await actions.close();
+    }
     return { binds: true };
   } catch (error) {
+    if (actions && !closing)
+      await closeCdpAfterFailure(() => (actions as CdpActions).close(), error);
     return {
       binds: false,
       code: isFrameworkError(error) ? error.code : "cdp_endpoint_unreachable",
@@ -326,12 +376,14 @@ async function pinnedFrame(
   actions: CdpActions,
   pins: Map<string, string>,
   frame: string,
+  guard: () => void,
   match?: "origin_path",
 ) {
   const address = JSON.stringify([frame, match ?? "exact"]);
   const pinned = pins.get(address);
   if (pinned === undefined) {
     const frameId = await actions.frameId(frame, match);
+    guard();
     pins.set(address, frameId);
     return frameId;
   }
@@ -357,6 +409,7 @@ export async function runStepInFrame(
   env: NodeJS.ProcessEnv,
   step: FrameStep,
 ): Promise<SessionReply> {
+  assertConnectedSession(session);
   const { command, args, effect } = step;
   const frame = frameName(step.frame);
   const documents = typeof step.frame === "string" ? undefined : step.frame.documents;
@@ -370,6 +423,7 @@ export async function runStepInFrame(
   const dialogs = () => actions.dialogs.slice(since);
   let value: unknown;
   let frameId: string | undefined;
+  let primary: { error: unknown } | undefined;
   try {
     // a held connection read its frames once; a step naming a frame reads them afresh
     if (held && frame !== "main") await actions.refresh();
@@ -377,6 +431,7 @@ export async function runStepInFrame(
       actions,
       pins,
       frame,
+      () => assertConnectedSession(session),
       typeof step.frame === "string" ? undefined : step.frame.match,
     );
     value = await act(actions, command, args, frameId, {
@@ -395,22 +450,50 @@ export async function runStepInFrame(
       const recorded = command.startsWith("flow.")
         ? dialogs().map(({ type, answer }) => ({ type, answer }))
         : dialogs();
-      throw new FrameworkError(
-        "action_dialog_opened",
-        `${command} opened a dialog; dismissal was requested. Input may already have taken effect; inspect the receipt for the answer before proceeding.`,
-        { command, frame, dialogs: recorded, outcome: { basis: "indeterminate" } },
-      );
+      primary = {
+        error: new FrameworkError(
+          "action_dialog_opened",
+          `${command} opened a dialog; dismissal was requested. Input may already have taken effect; inspect the receipt for the answer before proceeding.`,
+          { command, frame, dialogs: recorded, outcome: { basis: "indeterminate" } },
+        ),
+      };
+    } else if (
+      effect === "read_only" ||
+      (isFrameworkError(error) && BEFORE_INPUT.has(error.code))
+    ) {
+      primary = { error };
+    } else {
+      primary = {
+        error: new FrameworkError(
+          "mutation_outcome_unknown",
+          `${command} in frame ${frame} failed (${error instanceof Error ? error.message : String(error)}); input may have been sent, so whether it took effect is unknown.`,
+          { command, frame },
+        ),
+      };
     }
-    if (effect === "read_only" || (isFrameworkError(error) && BEFORE_INPUT.has(error.code))) {
-      throw error;
-    }
-    throw new FrameworkError(
-      "mutation_outcome_unknown",
-      `${command} in frame ${frame} was sent and then failed (${error instanceof Error ? error.message : String(error)}); whether it took effect is unknown.`,
-      { command, frame },
-    );
+    throw primary.error;
   } finally {
-    if (!held) await actions.close();
+    if (!held) {
+      if (primary) await closeCdpAfterFailure(() => actions.close(), primary.error);
+      else
+        await actions.close().catch((error: unknown) => {
+          if (effect === "read_only") throw error;
+          const message = error instanceof Error ? error.message : String(error);
+          // An acknowledged act cannot become a definite failed effect because cleanup failed.
+          // A thrown step cannot settle applied; unknown preserves the replay interlock.
+          throw new FrameworkError(
+            "mutation_outcome_unknown",
+            `${command} in frame ${frame} was acknowledged, but cleanup failed (${message}); input may already have taken effect and must not be replayed.`,
+            {
+              command,
+              frame,
+              acknowledged: true,
+              outcome: { basis: "indeterminate" },
+              cleanup_errors: [{ phase: "cdp_close", message }],
+            },
+          );
+        });
+    }
   }
   const target = { frame, frameId, channel: "cdp" };
   const stdout = JSON.stringify({ result: value ?? null, target });

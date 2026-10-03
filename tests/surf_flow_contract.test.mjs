@@ -9,6 +9,7 @@ import {
   cdpTree,
   EVIL,
   flowOf,
+  LEAKED_CARD,
   MODEL,
   PAGE,
   receiptsIn,
@@ -146,9 +147,11 @@ test("a journey runs every action on one held connection, a receipt per act and 
       assert.equal(receipt.outcome, "applied");
       assert.match(receipt.evidence[0], /in the page over the DevTools connection$/);
       assert.equal(receipt.details.flow_id, envelope.flow.approvalToken);
-      assert.doesNotMatch(JSON.stringify(receipt), /4242|alice/, "values stay out of receipts");
+      assert.doesNotMatch(JSON.stringify(receipt), LEAKED_CARD, "values stay out of receipts");
+      assert.doesNotMatch(JSON.stringify(receipt), /alice/, "values stay out of receipts");
     }
-    assert.doesNotMatch(JSON.stringify(envelope), /4242|alice/, "values stay out of the envelope");
+    assert.doesNotMatch(JSON.stringify(envelope), LEAKED_CARD, "values stay out of the envelope");
+    assert.doesNotMatch(JSON.stringify(envelope), /alice/, "values stay out of the envelope");
     assert.equal(await cdp.drained(), 0, "the held connection was released");
   });
 });
@@ -485,7 +488,7 @@ test("a dialog a step opened is recorded without its URL either: a page may put 
     );
     const [receipt] = receiptsIn(dir);
     assert.match(JSON.stringify(receipt.evidence), /alert/);
-    assert.doesNotMatch(JSON.stringify(receipt), /4242/);
+    assert.doesNotMatch(JSON.stringify(receipt), LEAKED_CARD);
   });
 });
 
@@ -1123,9 +1126,9 @@ test("a frame refusal lists the page's frames by origin only", async () => {
         (error) =>
           error.code === "action_frame_unknown" &&
           /https:\/\/pay\.example/.test(error.message) &&
-          !/4242/.test(`${error.message} ${JSON.stringify(error.details)}`),
+          !LEAKED_CARD.test(`${error.message} ${JSON.stringify(error.details)}`),
       );
-      assert.doesNotMatch(JSON.stringify(receiptsIn(dir)), /4242/);
+      assert.doesNotMatch(JSON.stringify(receiptsIn(dir)), LEAKED_CARD);
     },
     { tree: withFrame, origins: ["https://shop.example", "https://pay.example"] },
   );
@@ -1160,7 +1163,7 @@ test("a refusal names the page's origin, never a URL a page may have put a value
       }),
       (error) =>
         error.code === "flow_assertion_failed" &&
-        !/4242/.test(`${error.message} ${JSON.stringify(error.details)}`),
+        !LEAKED_CARD.test(`${error.message} ${JSON.stringify(error.details)}`),
     );
     tree.url = PAGE;
     tree.elements["a.away"].navigatesTo = `${EVIL}?value=4242`;
@@ -1177,9 +1180,9 @@ test("a refusal names the page's origin, never a URL a page may have put a value
       }),
       (error) =>
         error.code === "mutation_origin_not_allowed" &&
-        !/4242/.test(`${error.message} ${JSON.stringify(error.details)}`),
+        !LEAKED_CARD.test(`${error.message} ${JSON.stringify(error.details)}`),
     );
-    assert.doesNotMatch(JSON.stringify(receiptsIn(dir)), /4242/);
+    assert.doesNotMatch(JSON.stringify(receiptsIn(dir)), LEAKED_CARD);
   });
 });
 
@@ -1196,7 +1199,7 @@ test("a dialog a step opened is recorded without its message: a page may echo a 
     const [receipt] = receiptsIn(dir);
     assert.equal(receipt.outcome, "unknown");
     assert.match(JSON.stringify(receipt.evidence), /alert/);
-    assert.doesNotMatch(JSON.stringify(receipt), /4242/);
+    assert.doesNotMatch(JSON.stringify(receipt), LEAKED_CARD);
   });
 });
 

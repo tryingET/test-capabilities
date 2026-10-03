@@ -16,7 +16,12 @@ import type { ExpectDeclaration, RawResult, ResultOutcome } from "./result-class
 import { classifyResult } from "./result-classification.js";
 import { parseSurfErrorOutput } from "./result-payload.js";
 import { isFrameworkError } from "./runtime-contract.js";
-import { spawnStepSync } from "./spawn-step.js";
+import {
+  asSpawnSyncResult,
+  SPAWN_SYNC_MAX_BUFFER,
+  spawnLongLived,
+  spawnStepSync,
+} from "./spawn-step.js";
 import type { SurfCommandResult, SurfRuntimeProbe, SurfRuntimeResolution } from "./surf-runtime.js";
 import {
   DEFAULT_SURF_TIMEOUT_MS,
@@ -27,6 +32,7 @@ import {
   type SurfMechanism,
   translateSurfArgs,
 } from "./surf-runtime.js";
+import { SurfStdio } from "./surf-stdio.js";
 
 const probeCache = new Map<string, SurfRuntimeProbe>();
 
@@ -202,6 +208,40 @@ function surfCommandResultFromRaw(
   return { ...base, ok: true };
 }
 
+/** Start the one surf process a session's commands go through (AK #6221). */
+export function startSurfStdio(
+  resolution: SurfRuntimeResolution,
+  env: NodeJS.ProcessEnv = process.env,
+): SurfStdio {
+  return SurfStdio.attach(
+    spawnLongLived({ command: resolution.command, args: [...resolution.baseArgs, "--stdio"], env }),
+    { maxBuffer: SPAWN_SYNC_MAX_BUFFER },
+  );
+}
+
+/**
+ * One surf command through a `surf --stdio` session when there is one (AK #6221), as its own
+ * process otherwise or when the session refuses it: the same result either way.
+ */
+export async function runSurfCommandVia(
+  stdio: SurfStdio | undefined,
+  resolution: SurfRuntimeResolution,
+  argv: string[],
+  options: Parameters<typeof runSurfCommand>[2] = {},
+): Promise<SurfCommandResult> {
+  options.assertActive?.();
+  const answer = stdio
+    ? await stdio.run(argv, surfInvocation(resolution, argv, options).timeoutMs)
+    : undefined;
+  if (!answer || "refused" in answer) return runSurfCommand(resolution, argv, options);
+  const raw = asSpawnSyncResult(answer.raw, resolution.command);
+  return surfCommandResultFromRaw(
+    options.effect === undefined ? raw : { ...raw, effect: options.effect },
+    surfInvocation(resolution, argv, options),
+    options.expect,
+  );
+}
+
 export function runSurfCommand(
   resolution: SurfRuntimeResolution,
   argv: string[],
@@ -215,9 +255,12 @@ export function runSurfCommand(
      * the ledger reads the basis back to settle the attempt `unknown`.
      */
     effect?: "read_only" | "mutating";
+    /** Session authority must still hold at each dispatch, including after stdio refusal. */
+    assertActive?: () => void;
   } = {},
 ): SurfCommandResult {
   const invocation = surfInvocation(resolution, argv, options);
+  options.assertActive?.();
   const raw = spawnStepSync(invocation);
   return surfCommandResultFromRaw(
     options.effect === undefined ? raw : { ...raw, effect: options.effect },

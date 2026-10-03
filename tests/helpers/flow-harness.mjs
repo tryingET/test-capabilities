@@ -14,6 +14,11 @@ import { createFakeSurf, withFakeSurfEnv } from "./fake-surf.mjs";
 export const PAGE = "https://shop.example/flow";
 export const DONE = "https://shop.example/done";
 export const EVIL = "https://evil.example/x";
+/**
+ * The card number the flows type, found where it leaked: never as part of a longer hex run, since
+ * every receipt carries random UUIDs and digests that contain "4242" by chance now and then.
+ */
+export const LEAKED_CARD = /(?<![0-9a-f])4242(?![0-9a-f])/;
 
 export const ax = (id, role, name, backendDOMNodeId, children = []) => ({
   nodeId: id,

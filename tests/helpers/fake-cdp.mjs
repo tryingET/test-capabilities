@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { appendFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createFakeDom } from "./fake-cdp-dom.mjs";
 
@@ -28,8 +29,15 @@ export async function startFakeCdp({
   versionBody,
   listBody,
   noise = false,
+  // TCP callbacks are not evidence of client WebSocket close completion.
+  log,
+  holdCloseReply = false,
 } = {}) {
   const methods = [];
+  const requests = [];
+  let replyFault;
+  let disconnectOnFault = true;
+  let replyGate;
   const sockets = new Set();
   // one DOM per page, shared by every socket to it; session ids are unique across sockets
   const doms = new Map();
@@ -37,8 +45,17 @@ export async function startFakeCdp({
   let port = 0;
   // every page socket ever opened: a caller that holds one connection opens one
   let opened = 0;
+  let closeFrames = 0;
+  let closeReplies = 0;
+  let replyReleased = !holdCloseReply;
+  const waitingReplies = [];
+  let frameReceived;
+  const closeFrameReceived = new Promise((resolve) => {
+    frameReceived = resolve;
+  });
 
   const server = createServer((request, response) => {
+    requests.push(request.url);
     if (request.url === "/json/version") {
       response.writeHead(versionStatus, { "content-type": "application/json" });
       response.end(versionBody ?? JSON.stringify({ Browser: browser, "Protocol-Version": "1.3" }));
@@ -79,7 +96,10 @@ export async function startFakeCdp({
     );
     sockets.add(socket);
     opened += 1;
-    socket.on("close", () => sockets.delete(socket));
+    socket.on("close", () => {
+      sockets.delete(socket);
+      if (log) appendFileSync(log, `${JSON.stringify(["cdp.tcp.closed"])}\n`);
+    });
     socket.on("error", () => sockets.delete(socket));
 
     // session id -> tree; the page itself is the session `undefined`
@@ -116,7 +136,22 @@ export async function startFakeCdp({
     const emitted = new Set();
     let buffer = Buffer.alloc(0);
 
+    let handling;
     const send = (value) => {
+      // The handler already acted; lose only its answer, not the input it received.
+      if (value.id !== undefined && replyFault?.(handling)) {
+        replyFault = undefined;
+        if (disconnectOnFault) socket.destroy();
+        return;
+      }
+      if (value.id !== undefined && replyGate?.predicate(handling)) {
+        const gate = replyGate;
+        replyGate = undefined;
+        gate.handled(handling);
+        gate.releaseReply = () =>
+          send(gate.error ? { id: value.id, error: { message: gate.error } } : value);
+        return;
+      }
       const payload = Buffer.from(JSON.stringify(value));
       const header =
         payload.length < 126
@@ -130,6 +165,7 @@ export async function startFakeCdp({
     dom.setEmit(send);
     let noisy = noise;
     const handle = (message) => {
+      handling = message;
       const { id, method, params = {}, sessionId } = message;
       if (noisy) {
         // what a real socket may carry: a frame that is not JSON, and an answer nobody asked for
@@ -285,7 +321,16 @@ export async function startFakeCdp({
         }
         buffer = buffer.subarray(offset + length);
         if (opcode === 8) {
-          socket.end(Buffer.from([0x88, 0]));
+          closeFrames += 1;
+          if (log) appendFileSync(log, `${JSON.stringify(["cdp.close.frame"])}\n`);
+          const reply = () => {
+            closeReplies += 1;
+            if (log) appendFileSync(log, `${JSON.stringify(["cdp.close.reply"])}\n`);
+            socket.end(Buffer.concat([Buffer.from([0x88, payload.length]), payload]));
+          };
+          if (replyReleased) reply();
+          else waitingReplies.push(reply);
+          frameReceived();
           return;
         }
         if (opcode === 1) handle(JSON.parse(payload.toString("utf8")));
@@ -299,6 +344,36 @@ export async function startFakeCdp({
   return {
     url: `http://127.0.0.1:${port}`,
     methods,
+    requests,
+    dropReplyAfterHandled(predicate, { disconnect = true } = {}) {
+      replyFault = predicate;
+      disconnectOnFault = disconnect;
+    },
+    disconnectUnexpectedly() {
+      for (const socket of sockets) socket.destroy();
+    },
+    /** Stop after the fake handled a command, before its answer reaches the client. */
+    gateReplyAfterHandled(predicate, { error } = {}) {
+      const gate = { predicate, error };
+      const handled = new Promise((resolve) => {
+        gate.handled = resolve;
+      });
+      replyGate = gate;
+      return { handled, release: () => gate.releaseReply() };
+    },
+    closeResponse: {
+      received: closeFrameReceived,
+      release() {
+        replyReleased = true;
+        for (const reply of waitingReplies.splice(0)) reply();
+      },
+      get frames() {
+        return closeFrames;
+      },
+      get replies() {
+        return closeReplies;
+      },
+    },
     get input() {
       return firstDom()?.record.input ?? [];
     },
@@ -340,7 +415,15 @@ export async function startFakeCdp({
       return sockets.size;
     },
     async close() {
-      for (const socket of sockets) socket.destroy();
+      await Promise.all(
+        [...sockets].map(
+          (socket) =>
+            new Promise((resolve) => {
+              socket.once("close", resolve);
+              socket.destroy();
+            }),
+        ),
+      );
       await new Promise((resolve) => server.close(resolve));
     },
   };

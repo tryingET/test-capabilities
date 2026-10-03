@@ -61,12 +61,16 @@
  *                         code, a signal, and nothing said about the target
  * - FAKE_SURF_ZERO_ROWS_ON       comma list of commands whose extract payload has zero rows
  * - FAKE_SURF_BOOKKEEPING_ONLY_ON comma list of commands that answer with bookkeeping keys only
+ * - FAKE_SURF_FLOOD_ON    a command that prints 2,000,000 characters, and 100 ms later a line
+ *                         on stderr, then exits 0: past spawnSync's buffer before it is done
  * - FAKE_SURF_LOG         file that receives one JSON line per invocation (argv)
  * - FAKE_SURF_ECHO        "1": echo argv (one per line) for every command except version/help/doctor
  */
+import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { documentFormCount, runInStub, stubDocument } from "./stub-dom.mjs";
 
 const argv = process.argv.slice(2);
@@ -75,6 +79,87 @@ const wantJson = argv.includes("--json");
 
 if (process.env.FAKE_SURF_LOG) {
   appendFileSync(process.env.FAKE_SURF_LOG, `${JSON.stringify(argv)}\n`);
+}
+
+// `surf --stdio` (our surf-cli fork, AK #6222), when FAKE_SURF_STDIO is set: one process answers
+// many requests, each by running this fake as its own invocation - so a session answers exactly
+// as separate processes would, and every other knob applies; a request's maxBuffer ends it as the
+// real session does, at the output that passes it (here: as spawnSync does), and ends the session. FAKE_SURF_STDIO=broken ends it
+// before it is ready; the FAKE_SURF_STDIO_* lists refuse a command, die on it, answer it as timed
+// out (and end), or never answer it. FAKE_SURF_STDIO_LOG receives each request it was sent.
+if (argv[0] === "--stdio" && process.env.FAKE_SURF_STDIO) {
+  if (process.env.FAKE_SURF_STDIO === "broken") process.exit(1);
+  const reply = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
+  const listed = (name) => (process.env[name] || "").split(",").filter(Boolean);
+  // a line that is no reply (a stray log) is ignored by the client
+  if (process.env.FAKE_SURF_STDIO_NOISE) process.stdout.write("not a reply\n");
+  reply({ id: null, ready: true });
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) {
+    buffer += chunk;
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      const { id, argv: sent, maxBuffer } = JSON.parse(buffer.slice(0, newline));
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf("\n");
+      if (process.env.FAKE_SURF_STDIO_LOG) {
+        appendFileSync(process.env.FAKE_SURF_STDIO_LOG, `${JSON.stringify(sent)}\n`);
+      }
+      const command = sent[0];
+      if (listed("FAKE_SURF_STDIO_REFUSE").includes(command)) {
+        reply({ id, code: 2, stdout: "", stderr: "refused\n", refused: true });
+        continue;
+      }
+      if (listed("FAKE_SURF_STDIO_DIE_ON").includes(command)) {
+        process.stderr.write("session crashed\n");
+        process.exit(137);
+      }
+      if (listed("FAKE_SURF_STDIO_SILENT_ON").includes(command)) continue;
+      if (listed("FAKE_SURF_STDIO_TIMEOUT_ON").includes(command)) {
+        reply({ id, code: null, stdout: "", stderr: "", timedOut: true });
+        process.exit(124);
+      }
+      const ran = spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...sent], {
+        encoding: "utf-8",
+        env: process.env,
+        maxBuffer: maxBuffer ?? Number.POSITIVE_INFINITY,
+      });
+      if (ran.error?.code === "ENOBUFS") {
+        // as the session does: its replies are out before it exits
+        const { stdout, stderr } = ran;
+        const line = JSON.stringify({
+          id,
+          code: null,
+          stdout,
+          stderr,
+          signal: "SIGTERM",
+          overflowed: true,
+        });
+        process.stdout.write(`${line}\n`, () => process.exit(1));
+        await new Promise(() => {});
+      }
+      reply({ id, code: ran.status, stdout: ran.stdout, stderr: ran.stderr });
+    }
+  }
+  if (process.env.FAKE_SURF_LOG) {
+    appendFileSync(process.env.FAKE_SURF_LOG, `${JSON.stringify(["--stdio:end"])}\n`);
+  }
+  process.exit(0);
+}
+
+function floodOutput() {
+  process.stdout.write("x".repeat(2_000_000));
+  setTimeout(() => {
+    process.stderr.write("late diagnostic\n");
+    process.exit(0);
+  }, 100);
+}
+
+// Mutating commands flood only AFTER persisting their input; reads keep the old flood point.
+if (process.env.FAKE_SURF_FLOOD_ON === argv[0] && !["type", "select", "click"].includes(argv[0])) {
+  floodOutput();
+  await new Promise(() => {});
 }
 
 function flag(name) {
@@ -138,6 +223,10 @@ function fail(code, message, details) {
 }
 
 function emit(data, target) {
+  if (process.env.FAKE_SURF_FLOOD_ON === argv[0]) {
+    floodOutput();
+    return;
+  }
   if (wantJson) {
     console.log(JSON.stringify(target ? { result: data, target, notice: null } : data, null, 2));
   } else if (typeof data === "string") {
@@ -279,6 +368,9 @@ if (command === "--help-full" || command === "--help") {
     "  --tab-id <id>     Target specific tab",
     "  --json            Output raw JSON including target metadata",
   );
+  if (process.env.FAKE_SURF_STDIO) {
+    lines.push("", "Stdio Mode:", "  surf --stdio             Run many commands in one process");
+  }
   console.log(lines.join("\n"));
   process.exit(0);
 }

@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { cdpTree, DONE, flowOf, PAGE, receiptsIn, withFlowFakes } from "./helpers/flow-harness.mjs";
+import {
+  cdpTree,
+  DONE,
+  flowOf,
+  LEAKED_CARD,
+  PAGE,
+  receiptsIn,
+  withFlowFakes,
+} from "./helpers/flow-harness.mjs";
 import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 /**
@@ -232,8 +240,8 @@ test("a submit's receipt names its expect, never the address the page landed on"
     assert.equal(envelope.result.submitted, true);
     const submit = receiptsIn(dir).find((receipt) => receipt.details.mode === "submit");
     assert.equal(submit.outcome, "applied");
-    assert.doesNotMatch(JSON.stringify(submit), /4242/);
-    assert.doesNotMatch(JSON.stringify(envelope), /4242/);
+    assert.doesNotMatch(JSON.stringify(submit), LEAKED_CARD);
+    assert.doesNotMatch(JSON.stringify(envelope), LEAKED_CARD);
   });
 });
 

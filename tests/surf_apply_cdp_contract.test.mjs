@@ -20,6 +20,8 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
 
 const { executeCliOperation } = await importRuntimeModule("core/operations.js");
 const { openCdpActions } = await importRuntimeModule("core/cdp-actions.js");
+const { CdpConnection } = await importRuntimeModule("core/a11y-cdp.js");
+const { SurfSession } = await importRuntimeModule("core/surf-session.js");
 
 const FORM = "https://shop.example/pay";
 const LANDED = "https://shop.example/pay?step=1";
@@ -112,10 +114,20 @@ function receiptsIn(dir) {
  */
 async function withFakes(
   body,
-  { cdp: withCdp = true, landed = FORM, otherTab = false, surfFailOn } = {},
+  {
+    cdp: withCdp = true,
+    landed = FORM,
+    otherTab = false,
+    surfFailOn,
+    stdio,
+    log,
+    holdCloseReply,
+  } = {},
 ) {
   const surf = createFakeSurf({
     ...(surfFailOn ? { failOn: surfFailOn } : {}),
+    ...(stdio ? { stdio } : {}),
+    ...(log ? { log } : {}),
     pages: {
       [FORM]: {
         ...structuredClone(FORM_MODEL),
@@ -130,7 +142,13 @@ async function withFakes(
   const tree = cdpTree(landed);
   // another tab at the same URL: the one the endpoint lists is not the document surf opened
   if (otherTab) tree.timeOrigin = 1;
-  const cdp = withCdp ? await startFakeCdp({ pages: { P1: { url: landed, tree } } }) : undefined;
+  const cdp = withCdp
+    ? await startFakeCdp({
+        pages: { P1: { url: landed, tree } },
+        ...(log ? { log } : {}),
+        holdCloseReply,
+      })
+    : undefined;
   const dir = mkdtempSync(path.join(os.tmpdir(), "tc-apply-cdp-"));
   const previous = process.env.TEST_CAPABILITIES_CDP_ENDPOINT;
   if (cdp) process.env.TEST_CAPABILITIES_CDP_ENDPOINT = cdp.url;
@@ -556,3 +574,130 @@ test("a bind that held its connection hands a later hold no baseline: its first 
   await assert.rejects(runStepInFrame(session, env, read), { code: "action_dialog_opened" });
   await releaseCdpActions(session);
 });
+
+test(
+  "the plan waits for client close completion before surf closes the tab (AK #6221)",
+  { timeout: 5000 },
+  async (t) => {
+    // Observe the client's result and tab-close invocation in this process, not server TCP timing.
+    const closeAndWait = CdpConnection.prototype.closeAndWait;
+    let clientCompleted = false;
+    let tabAttempted = false;
+    let completion;
+    if (closeAndWait)
+      t.mock.method(CdpConnection.prototype, "closeAndWait", function (...args) {
+        completion = closeAndWait.apply(this, args).then(() => {
+          clientCompleted = true;
+        });
+        return completion;
+      });
+    const closeTab = SurfSession.prototype.close;
+    t.mock.method(SurfSession.prototype, "close", async function () {
+      const completedBeforeTab = clientCompleted;
+      tabAttempted = true;
+      await closeTab.call(this);
+      assert.equal(completedBeforeTab, true, "client completion precedes the tab-close invocation");
+    });
+    try {
+      await withFakes(
+        async ({ surf, cdp, out, config }) => {
+          let finished = false;
+          const planned = plan({ url: FORM, field: FIELDS, out, config });
+          planned.then(
+            () => {
+              finished = true;
+            },
+            () => {
+              finished = true;
+            },
+          );
+          await Promise.race([
+            cdp.closeResponse.received,
+            planned.then(() => {
+              throw new Error("the plan ended without a close frame");
+            }),
+          ]);
+          assert.equal(finished, false);
+          assert.equal(tabAttempted, false);
+          assert.ok(
+            !surf.stdioCalls().some((call) => call[0] === "tab.close"),
+            "the tab stays owned until the peer replies",
+          );
+          cdp.closeResponse.release();
+          const envelope = await planned;
+          assert.equal(envelope.result.channel, "cdp");
+          assert.ok(surf.stdioCalls().some((call) => call[0] === "tab.close"));
+          assert.equal(clientCompleted, true);
+        },
+        { stdio: true, holdCloseReply: true },
+      );
+    } finally {
+      // Even a failed mutation witness leaves no outstanding mock completion.
+      await completion?.catch(() => undefined);
+    }
+  },
+);
+
+for (const operation of ["plan", "flow"]) {
+  for (const primaryFailure of [false, true]) {
+    test(
+      `${operation}: withheld close reply still cleans owned tab${primaryFailure ? " and preserves primary refusal over both cleanup failures" : " and reports timeout"}`,
+      { timeout: 5000 },
+      async (t) => {
+        const closeAndWait = CdpConnection.prototype.closeAndWait;
+        t.mock.method(CdpConnection.prototype, "closeAndWait", function () {
+          return closeAndWait.call(this, 80); // only the fixture's socket deadline is shortened
+        });
+        let tabAttempted = false;
+        const closeTab = SurfSession.prototype.close;
+        t.mock.method(SurfSession.prototype, "close", async function () {
+          tabAttempted = true;
+          await closeTab.call(this);
+          if (primaryFailure) throw new Error("secondary tab cleanup failure");
+        });
+        await withFakes(
+          async ({ surf, cdp, tree, dir, out, config }) => {
+            let running;
+            if (operation === "plan") {
+              if (primaryFailure) tree.form.fields["#card"].label = "Something else";
+              running = plan({ url: FORM, field: FIELDS, out, config });
+            } else {
+              if (primaryFailure) tree.elements["#pay"].gated = true;
+              const file = path.join(dir, "flow.json");
+              writeFileSync(
+                file,
+                JSON.stringify({
+                  schema_version: 1,
+                  url: FORM,
+                  steps: primaryFailure
+                    ? [{ action: "click", target: "#pay" }]
+                    : [{ action: "assert", that: { url_prefix: FORM } }],
+                }),
+              );
+              running = executeCliOperation({ command: "surf", action: "flow" }, { file, config });
+            }
+            // Observe rejection immediately, before waiting for the frame witness.
+            const rejected = assert.rejects(
+              running,
+              primaryFailure
+                ? { code: operation === "plan" ? "plan_field_not_found" : "flow_submit_undeclared" }
+                : /DevTools socket did not close within 80 ms/,
+            );
+            await cdp.closeResponse.received;
+            const frameAt = performance.now();
+            await rejected;
+            assert.ok(
+              performance.now() - frameAt < 1500,
+              "bounded socket wait reaches tab cleanup",
+            );
+            assert.equal(tabAttempted, true);
+            assert.ok(surf.stdioCalls().some((call) => call[0] === "tab.close"));
+            assert.equal(cdp.closeResponse.replies, 0);
+            assert.equal(cdp.openSockets(), 1, "native timeout is not forced peer teardown");
+          },
+          { stdio: true, holdCloseReply: true },
+        );
+      },
+    );
+  }
+}

@@ -155,6 +155,17 @@ test("a session opens one tab, gates it once, closes it, and receipts none of th
   });
 });
 
+test("the gate polls readiness at surf's finest interval, so a page ready soon is seen soon (AK #6221)", async () => {
+  // at surf's default 400 ms a gate that starts before the page completed waits most of a poll;
+  // with surf's start gone from between tab.new and the gate, that is the common case
+  await withSession({ gate: true }, async ({ session, fake }) => {
+    await session.close();
+    const gate = fake.calls().find((call) => call[0] === "wait.ready");
+    const at = gate.indexOf("--interval");
+    assert.deepEqual(gate.slice(at, at + 2), ["--interval", "50"]);
+  });
+});
+
 test("the tab is closed even when a step threw, and closing twice is one close", async () => {
   await withSession({ gate: true, failOn: ["js"] }, async ({ session, fake }) => {
     await assert.rejects(async () => session.step(TITLE_STEP), /surf exploded/);

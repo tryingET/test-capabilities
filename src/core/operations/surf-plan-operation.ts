@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { writeJsonArtifact } from "../artifacts.js";
+import { closeCdpAndOwnedTab } from "../cdp-close.js";
 import { bindsOverCdp, releaseCdpActions } from "../cdp-step-transport.js";
 import type { EffectDeclaration } from "../effects.js";
 import type { RunContext } from "../run-context.js";
@@ -165,6 +166,7 @@ async function planPage(
   });
 
   await session.open();
+  let operationFailed = false;
   try {
     await session.gate();
     const notes: string[] = [];
@@ -176,10 +178,16 @@ async function planPage(
       ...(normalized.frame ? { frame: normalized.frame } : { channel }),
     });
     return { plan, notes: [...session.notes(), ...notes], channel };
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
-    // the held connection goes before the tab does
-    await releaseCdpActions(session);
-    await session.close();
+    // The tab cleanup runs even if bounded CDP close fails; an existing refusal wins.
+    await closeCdpAndOwnedTab(
+      () => releaseCdpActions(session),
+      () => session.close(),
+      operationFailed,
+    );
   }
 }
 

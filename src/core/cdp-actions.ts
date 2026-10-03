@@ -1,20 +1,9 @@
 /**
- * Actions on the owned tab over our own CDP connection (AK #6099; CDP program S1, AK #6126;
- * design `docs/project/2026-09-27-cdp-channel-program.md`).
- *
- * The a11y channel binds the tab surf owns and holds one DevTools connection to it; a held
- * connection is where Playwright's speed came from. This module acts over the same binding:
- * - every action waits until its element is actionable (`cdp-actionability.ts`) and refuses with
- *   the conditions that never held;
- * - a target is an a11y ref, a CSS selector in a frame, or `{ role, name }` resolved against a
- *   fresh read of the page, so it survives navigation and re-rendering;
- * - every frame is addressable by label, URL or CDP frame id - out-of-process frames through their
- *   sessions, same-process frames in their host's session - and elements are resolved into an
- *   isolated world per frame, where the page's scripts cannot see or tamper with the reads;
- * - pointer input is real, dispatched on the session that hosts the element, in its coordinates;
- * - dialogs an action opens are answered by policy, never left blocking the page.
- * Its effect is mutating, so it is its own entry point, never part of the read-only a11y channel.
- * It creates, navigates and closes nothing.
+ * Actions over the owned tab's CDP binding (AK #6099/#6126; cdp-channel-program.md).
+ * Elements must be actionable; targets are refs, selectors or freshly resolved role/name pairs.
+ * Frames are addressed by label/URL/id, with isolated-world reads and native pointer input.
+ * Dialogs are answered by policy. The optional per-RPC guard fences async continuations too.
+ * This mutating entry point creates/navigates/closes no page; its caller owns socket teardown.
  */
 
 import { existsSync } from "node:fs";
@@ -24,6 +13,7 @@ import {
   bindOwnedTarget,
   boundTarget,
   CdpConnection,
+  closeCdpAfterFailure,
   listCdpTargets,
   probeCdpBrowser,
   readAxForest,
@@ -43,6 +33,7 @@ import {
   STATE_FUNCTION,
   waitForActionable,
 } from "./cdp-actionability.js";
+import { cdpCloseOnce } from "./cdp-close.js";
 import { type CdpDialogRecord, watchDialogs } from "./cdp-dialogs.js";
 import {
   assertDocument,
@@ -109,14 +100,16 @@ export interface CdpClickOptions extends CdpActionOptions {
 export type { CdpDialogRecord } from "./cdp-dialogs.js";
 
 export interface CdpActionsOpenOptions extends CdpActionOptions {
+  onDisconnect?: (error: Error) => void;
+  beforeSend?: () => void;
+  /** Separate finite budgets for close preparation and the native socket close (default 1000). */
+  closeTimeoutMs?: number;
   /** what to do with an alert, confirm or prompt an action opens (default `dismiss`) */
   dialogs?: "dismiss" | "accept" | "fail";
   /** the text a prompt is accepted with under `dialogs: "accept"` */
   promptText?: string;
   /**
-   * The page target to bind, by id, instead of by URL: a caller that bound the owned tab once
-   * keeps it across the tab's own navigations (the id survives same- and cross-site navigation,
-   * measured live 2026-09-27), where its URL would no longer find it.
+   * Bind by the owned tab's pinned target id, which survives navigation (2026-09-27).
    */
   targetId?: string;
 }
@@ -166,7 +159,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Bind the owned tab at `href`, read its page (refs and frames), and return actions on it. The
- * caller closes it: frame sessions are detached and the socket is closed.
+ * caller closes it: frame cleanup and native socket completion each have a finite budget.
  */
 export async function openCdpActions(
   href: string,
@@ -174,13 +167,19 @@ export async function openCdpActions(
   options: CdpActionsOpenOptions = {},
 ): Promise<CdpActions> {
   const endpoint = resolveCdpEndpoint(env);
+  options.beforeSend?.();
   await probeCdpBrowser(endpoint);
+  options.beforeSend?.();
   const targets = await listCdpTargets(endpoint);
   const target =
     options.targetId === undefined
       ? bindOwnedTarget(targets, href)
       : boundTarget(targets, options.targetId, href);
-  const connection = await CdpConnection.open(target.webSocketDebuggerUrl as string);
+  const connection = await CdpConnection.open(
+    target.webSocketDebuggerUrl as string,
+    options.beforeSend,
+  );
+  if (options.onDisconnect) connection.onDisconnect(options.onDisconnect);
   const defaultTimeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   let rendering: AxRendering = {
@@ -209,7 +208,7 @@ export async function openCdpActions(
     await read();
   } catch (error) {
     // no actions object reaches the caller, so nothing else would close this socket
-    connection.close();
+    await closeCdpAfterFailure(() => connection.closeAndWait(options.closeTimeoutMs), error);
     throw error;
   }
 
@@ -529,8 +528,15 @@ export async function openCdpActions(
       throw new FrameworkError("action_focus_moved", "focus left the element once focused", {});
     }
   };
-
-  let closed = false;
+  const close = cdpCloseOnce(
+    connection,
+    async () => {
+      dialogWatch.off();
+      await dialogWatch.settled();
+      await releaseForest(connection, sessions);
+    },
+    options.closeTimeoutMs,
+  );
   return {
     targetId: target.id,
     get refs() {
@@ -685,13 +691,6 @@ export async function openCdpActions(
       await read();
       await enablePages();
     },
-    async close() {
-      if (closed) return;
-      closed = true;
-      dialogWatch.off();
-      await dialogWatch.settled();
-      await releaseForest(connection, sessions);
-      connection.close();
-    },
+    close,
   };
 }
