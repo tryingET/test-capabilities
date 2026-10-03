@@ -295,16 +295,16 @@ test("a session that cannot start runs nothing: every command goes to its own pr
   await stdio.close();
 });
 
-test("a line on the session's stdout that is no reply is ignored", async () => {
+test("malformed: stdout noise before ready terminalizes stdio without sending a command", async () => {
   const { startSurfStdio } = await importRuntimeModule("core/surf-adapter.js");
   const surf = createFakeSurf({ stdio: true, stdioNoise: true });
   try {
     const stdio = startSurfStdio({ command: surf.path, baseArgs: [] });
     const answer = await stdio.run(["--version"], 5000);
-    assert.equal(answer.raw.stdout, "surf version 2.18.0\n");
-    assert.equal(answer.raw.exitCode, 0);
+    assert.deepEqual(answer, { refused: true }, "pre-ready corruption sent nothing");
     await stdio.close();
-    assert.equal(stdio.endedEarly(), undefined);
+    assert.match(stdio.endedEarly(), /malformed.*reply/i);
+    assert.deepEqual(surf.stdioCalls(), []);
   } finally {
     surf.cleanup();
   }
@@ -371,6 +371,311 @@ function childDouble({ ready = true, obeys = true } = {}) {
 }
 const settledSoon = async (promise, ms = 50) =>
   Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve("pending"), ms))]);
+
+const malformedFrames = [
+  ["null", "null"],
+  ["scalar", "42"],
+  ["boolean", "true"],
+  ["string", '"diagnostic"'],
+  ["array", "[]"],
+  ["syntax", '{"id":'],
+  ["empty line", ""],
+  ["missing id", '{"code":0}'],
+  ["string id", '{"id":"1","code":0}'],
+  ["fractional id", '{"id":1.5,"code":0}'],
+  ["unsafe id", '{"id":9007199254740992,"code":0}'],
+  ["zero id", '{"id":0,"code":0}'],
+  ["missing status", '{"id":1}'],
+  ["string status", '{"id":1,"code":"0"}'],
+  ["fractional status", '{"id":1,"code":0.5}'],
+  ["negative status", '{"id":1,"code":-1}'],
+  ["object stdout", '{"id":1,"code":0,"stdout":{}}'],
+  ["array stderr", '{"id":1,"code":0,"stderr":[]}'],
+  ["string refusal", '{"id":1,"code":0,"refused":"true"}'],
+  ["string timeout", '{"id":1,"code":0,"timedOut":"true"}'],
+  ["string overflow", '{"id":1,"code":0,"overflowed":"true"}'],
+  ["object signal", '{"id":1,"code":null,"signal":{}}'],
+  ["empty signal", '{"id":1,"code":null,"signal":""}'],
+  ["null without loss", '{"id":1,"code":null}'],
+  ["successful timeout", '{"id":1,"code":0,"timedOut":true}'],
+  ["successful overflow", '{"id":1,"code":0,"overflowed":true}'],
+  ["successful refusal", '{"id":1,"code":0,"refused":true}'],
+  ["refused loss", '{"id":1,"refused":true,"timedOut":true}'],
+  ["false ready", '{"ready":false}'],
+  ["string ready", '{"ready":"true"}'],
+  ["duplicate ready", '{"id":null,"ready":true}'],
+  ["mixed ready/result", '{"id":1,"ready":true,"code":0}'],
+];
+
+for (const [label, frame] of malformedFrames) {
+  test(`malformed: ${label} settles sent mutation unknown, never sends queued work`, async () => {
+    const { SurfStdio } = await importRuntimeModule("core/surf-stdio.js");
+    const { runSurfCommandVia, settleSurfAttempt } =
+      await importRuntimeModule("core/surf-adapter.js");
+    const { SurfCommandError } = await importRuntimeModule("core/surf-runtime.js");
+    const { surfTransportLost } = await importRuntimeModule("core/surf-session-interruption.js");
+    const child = childDouble({ ready: false });
+    const stdio = SurfStdio.attach(child);
+    child.answer({ id: null, ready: true });
+    const running = runSurfCommandVia(
+      stdio,
+      { command: "/nonexistent/surf", baseArgs: [] },
+      ["click", "#pay"],
+      { effect: "mutating", timeoutMs: 5000 },
+    );
+    const queued = stdio.run(["type", "later"], 5000);
+    assert.equal(child.sent.length, 1, "first command actually sent before corruption");
+    try {
+      // A later plausible answer in the SAME chunk must not rescue the corrupted stream.
+      assert.doesNotThrow(() => child.stdout.write(`${frame}\n{"id":1,"code":0}\n`));
+      const result = await settledSoon(running, 100);
+      assert.notEqual(result, "pending", "parser settles immediately, not command timeout");
+      assert.equal(result.ok, false);
+      assert.equal(result.failure.code, "signal_SESSION_EXIT");
+      assert.equal(result.outcome.basis, "indeterminate");
+      assert.equal(surfTransportLost(result), true);
+      assert.equal(
+        settleSurfAttempt({ attempt: 1, error: new SurfCommandError(result) }).outcome,
+        "unknown",
+      );
+      assert.deepEqual(await settledSoon(queued), { refused: true }, "queued work was unsent");
+      child.answer({ ready: true });
+      child.answer({ id: 1, code: 0 }); // later chunks cannot revive the stopped stream either
+      assert.deepEqual(await stdio.run(["click", "again"], 5000), { refused: true });
+      assert.equal(child.sent.length, 1, "no parser dispatch or mutating replay");
+      assert.match(stdio.endedEarly(), /malformed.*reply/i);
+      assert.deepEqual(child.signals, ["SIGKILL"]);
+    } finally {
+      child.exit(1);
+      await stdio.close();
+    }
+  });
+}
+
+test("malformed control: fragmented valid ready/result, refusal, timeout and overflow", async () => {
+  const { SurfStdio } = await importRuntimeModule("core/surf-stdio.js");
+  for (const reply of [
+    { code: 0, stdout: "ok", stderr: "", extra: "forward-compatible" },
+    { code: 2, stdout: "", stderr: "ordinary failure" },
+    { refused: true },
+    { code: null, timedOut: true },
+    { code: null, overflowed: true, signal: "SIGTERM" },
+  ]) {
+    const child = childDouble({ ready: false });
+    const stdio = SurfStdio.attach(child);
+    const pending = stdio.run(["tab.list"], 5000);
+    try {
+      child.stdout.write('{"id":null,"ready":');
+      assert.deepEqual(child.sent, [], "partial ready sends nothing");
+      child.stdout.write("true}\n");
+      assert.equal(child.sent.length, 1);
+      // Well-shaped unmatched ids retain the existing correlation rule.
+      child.answer({ id: 999, code: 0, stdout: "not ours" });
+      const line = `${JSON.stringify({ id: child.sent[0].id, ...reply })}\n`;
+      child.stdout.write(line.slice(0, -2));
+      child.stdout.write(line.slice(-2));
+      const answer = await settledSoon(pending);
+      assert.notEqual(answer, "pending");
+      if (reply.refused) assert.deepEqual(answer, { refused: true });
+      else {
+        assert.equal(answer.raw.exitCode, reply.code);
+        assert.equal(answer.raw.stdout, reply.stdout ?? "");
+        assert.equal(answer.raw.timedOut, reply.timedOut);
+        assert.equal(answer.raw.signal, reply.signal);
+      }
+      assert.equal(child.signals.length, 0, "valid replies are not killed by the parser");
+      if (!reply.timedOut && !reply.overflowed) assert.equal(stdio.endedEarly(), undefined);
+    } finally {
+      child.exit(0);
+      await stdio.close();
+    }
+  }
+});
+
+for (const frame of ["null", '{"ready":"true"}', '{"id":']) {
+  test(`malformed startup: ${frame} was unsent, not mutation uncertainty`, async () => {
+    const { SurfStdio } = await importRuntimeModule("core/surf-stdio.js");
+    const child = childDouble({ ready: false });
+    const stdio = SurfStdio.attach(child);
+    const pending = stdio.run(["click", "#pay"], 5000);
+    try {
+      assert.doesNotThrow(() => child.stdout.write(`${frame}\n`));
+      assert.deepEqual(await settledSoon(pending), { refused: true });
+      child.answer({ ready: true });
+      assert.deepEqual(child.sent, [], "late ready must not dispatch after startup corruption");
+      assert.match(stdio.endedEarly(), /malformed.*reply/i);
+    } finally {
+      child.exit(1);
+      await stdio.close();
+    }
+  });
+}
+
+for (const loss of [{ overflowed: true }, { signal: "SIGTERM" }]) {
+  test(`malformed follow-up: accepted loss ${JSON.stringify(loss)} is unknown and drains queue`, async () => {
+    const { SurfStdio } = await importRuntimeModule("core/surf-stdio.js");
+    const { runSurfCommandVia, settleSurfAttempt } =
+      await importRuntimeModule("core/surf-adapter.js");
+    const { SurfCommandError } = await importRuntimeModule("core/surf-runtime.js");
+    const { surfTransportLost } = await importRuntimeModule("core/surf-session-interruption.js");
+    const child = childDouble({ ready: false });
+    const stdio = SurfStdio.attach(child);
+    child.answer({ ready: true });
+    const running = runSurfCommandVia(
+      stdio,
+      { command: "/nonexistent/surf", baseArgs: [] },
+      ["click", "#pay"],
+      { effect: "mutating" },
+    );
+    const queued = stdio.run(["type", "later"], 5000);
+    try {
+      child.stdout.write(`${JSON.stringify({ id: 1, code: null, ...loss })}\n{"id":2,"code":0}\n`);
+      const result = await settledSoon(running);
+      assert.equal(result.outcome.basis, "indeterminate");
+      assert.equal(surfTransportLost(result), true);
+      assert.equal(
+        settleSurfAttempt({ attempt: 1, error: new SurfCommandError(result) }).outcome,
+        "unknown",
+      );
+      assert.deepEqual(await settledSoon(queued), { refused: true });
+      assert.equal(child.sent.length, 1, "loss never dispatches queued mutation");
+      assert.ok(stdio.endedEarly());
+      child.answer({ ready: true });
+      assert.deepEqual(await stdio.run(["click", "again"], 5000), { refused: true });
+      assert.deepEqual(child.signals, [], "answered loss is not a fabricated OS kill");
+    } finally {
+      child.exit(1);
+      await stdio.close();
+    }
+  });
+}
+
+/** Corrupt a reply only AFTER the real fake provider handled type and answered it. */
+function corruptingProxy(surf, dir, corrupt) {
+  const file = path.join(dir, "corrupt-stdio.mjs");
+  const witness = path.join(dir, "handled-type.json");
+  writeFileSync(
+    file,
+    `#!${process.execPath}
+    import { spawn } from 'node:child_process';
+    import { writeFileSync } from 'node:fs';
+    const args = process.argv.slice(2);
+    const child = spawn(${JSON.stringify(surf.path)}, args, { stdio: ['pipe','pipe','inherit'] });
+    if (!args.includes('--stdio')) {
+      process.stdin.pipe(child.stdin); child.stdout.pipe(process.stdout);
+    } else {
+      const commands = new Map(); let input = '', output = '';
+      process.stdin.on('data', chunk => {
+        input += chunk;
+        for (let at; (at = input.indexOf('\\n')) >= 0;) {
+          const request = JSON.parse(input.slice(0, at)); input = input.slice(at + 1);
+          commands.set(request.id, request.argv[0]);
+          child.stdin.write(JSON.stringify(request) + '\\n');
+        }
+      });
+      process.stdin.on('end', () => child.stdin.end());
+      child.stdout.on('data', chunk => {
+        output += chunk;
+        for (let at; (at = output.indexOf('\\n')) >= 0;) {
+          const line = output.slice(0, at); output = output.slice(at + 1);
+          const reply = JSON.parse(line);
+          if (commands.get(reply.id) === 'type') {
+            writeFileSync(${JSON.stringify(witness)}, JSON.stringify(reply));
+            process.stdout.write(${JSON.stringify(corrupt)}.replace('$ID', String(reply.id)) + '\\n');
+          } else process.stdout.write(line + '\\n');
+        }
+      });
+    }
+    child.stdin.on('error', () => {});
+    child.on('error', error => { console.error(error); process.exit(1); });
+    child.on('close', code => process.exit(code ?? 1));
+  `,
+    { mode: 0o755 },
+  );
+  return { file, witness };
+}
+
+for (const [label, corrupt] of [
+  ["null", "null"],
+  ["bad stdout", '{"id":$ID,"code":0,"stdout":{}}'],
+]) {
+  test(`malformed integration: handled type then ${label} revokes ownership and refuses replay`, async () => {
+    const { SurfSession } = await importRuntimeModule("core/surf-session.js");
+    const { createRunContext } = await importRuntimeModule("core/run-context.js");
+    const { SESSION_LIFECYCLE_EFFECT } = await importRuntimeModule("core/browser-session.js");
+    await withFakes(
+      async ({ surf, dir }) => {
+        const { file, witness } = corruptingProxy(surf, dir, corrupt);
+        await withFakeSurfEnv(file, async () => {
+          const makeSession = () =>
+            new SurfSession({
+              url: FORM,
+              context: createRunContext({
+                operationId: "surf.apply",
+                effect: SESSION_LIFECYCLE_EFFECT,
+                env: {
+                  ...process.env,
+                  TEST_CAPABILITIES_RECEIPTS_DIR: path.join(dir, "receipts"),
+                  TEST_CAPABILITIES_RECEIPTS_EPHEMERAL: "1",
+                },
+                config: { mutation: { allowOrigins: ["https://shop.example"] } },
+              }),
+            });
+          const step = {
+            id: "stdio.corrupt.type",
+            command: "type",
+            args: ["4242", "--selector", "#card"],
+            intent: "fill",
+            read: (reply) => reply,
+          };
+          const session = makeSession();
+          try {
+            await session.open();
+            await session.gate();
+            await assert.rejects(session.step(step), { code: "mutation_outcome_unknown" });
+            assert.equal(
+              JSON.parse(readFileSync(witness, "utf8")).code,
+              0,
+              "provider completed the input before its reply was corrupted",
+            );
+            const state = JSON.parse(
+              readFileSync(path.join(surf.dir, "state", "tabs.json"), "utf8"),
+            );
+            assert.equal(state.fields[FORM]["#card"].value, "4242");
+            assert.equal(session.tab, undefined);
+            assert.equal(session.readiness, undefined);
+            assert.deepEqual(
+              receiptsIn(dir).map((receipt) => receipt.outcome),
+              ["unknown"],
+            );
+            assert.equal(receiptsIn(dir)[0].error.code, "signal_SESSION_EXIT");
+            const before = surf.calls();
+            await assert.rejects(session.step(step), { code: "surf_session_interrupted" });
+            await assert.rejects(session.open(), { code: "surf_session_interrupted" });
+            await session.close();
+            assert.deepEqual(
+              surf.calls().filter((call) => call[0] !== "--stdio:end"),
+              before.filter((call) => call[0] !== "--stdio:end"),
+              "no fallback or stale tab.close",
+            );
+            const fresh = makeSession();
+            try {
+              await fresh.open();
+              await fresh.gate();
+              await assert.rejects(fresh.step(step), { code: "mutation_replay_refused" });
+              assert.equal(surf.stdioCalls().filter((call) => call[0] === "type").length, 1);
+            } finally {
+              await fresh.close();
+            }
+          } finally {
+            await session.close();
+          }
+        });
+      },
+      { stdio: true },
+    );
+  });
+}
 
 for (const exit of [0, 2]) {
   test(`repair: sent timeout remains loss when SIGTERM is handled with exit ${exit}`, async () => {

@@ -5,13 +5,14 @@
  *
  * surf runs each request through its own CLI code, unchanged, and answers what `surf <argv>`
  * would have printed; this module turns the answer into the same raw result a spawned surf
- * returns, so classification, the ledger and receipts are the same either way. What the session
- * refuses runs as its own process.
+ * returns, so classification, the ledger and receipts are the same either way. An unsent refusal
+ * may use the CLI only while the owning SurfSession still has authority.
  *
  * A command is sent once the session said it is ready and the command before it was answered, and
  * its time starts then: so at any moment at most one command can have run in the session without
  * an answer. When the session ends, that one is in doubt, as a surf process killed mid-command
- * is; every other was never sent, and runs as its own process.
+ * is; every other was never sent. Sent loss terminalizes the owning session, so its queued work
+ * cannot escape to CLI fallback. Malformed JSON/shape is lost transport truth, not a reply.
  */
 
 import type { Socket } from "node:net";
@@ -46,6 +47,40 @@ interface Reply {
   timedOut?: boolean;
   overflowed?: boolean;
   signal?: string;
+}
+
+/** Decode untrusted JSON before it can acknowledge/refuse a possibly mutating command. */
+function isReply(value: unknown): value is Reply {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  for (const key of ["ready", "refused", "timedOut", "overflowed"]) {
+    if (reply[key] !== undefined && typeof reply[key] !== "boolean") return false;
+  }
+  for (const key of ["stdout", "stderr", "signal"]) {
+    if (reply[key] !== undefined && typeof reply[key] !== "string") return false;
+  }
+  if (reply.signal === "") return false;
+  if (reply.ready !== undefined) {
+    return (
+      reply.ready === true &&
+      (reply.id === undefined || reply.id === null) &&
+      ["code", "stdout", "stderr", "refused", "timedOut", "overflowed", "signal"].every(
+        (key) => reply[key] === undefined,
+      )
+    );
+  }
+  if (typeof reply.id !== "number" || !Number.isSafeInteger(reply.id) || reply.id < 1) return false;
+  const loss = reply.timedOut === true || reply.overflowed === true || reply.signal !== undefined;
+  const code = reply.code;
+  // A refusal grants CLI fallback only when it unambiguously says the command was unsent.
+  if (reply.refused === true) {
+    return (
+      !loss &&
+      (code === undefined || (typeof code === "number" && Number.isInteger(code) && code > 0))
+    );
+  }
+  if (code === null) return loss;
+  return typeof code === "number" && Number.isInteger(code) && code >= 0 && !loss;
 }
 
 /** A command's answer: what it printed and how it ended, or that it must run as its own process. */
@@ -114,7 +149,7 @@ export class SurfStdio {
     return new SurfStdio(child, options.maxBuffer);
   }
 
-  /** Why this session ended before it was closed, if it did: the rest ran as separate processes. */
+  /** Why this transport ended early; sent loss is terminal for the owning SurfSession. */
   endedEarly(): string | undefined {
     return this.ended === undefined || this.ended === "closed" ? undefined : this.ended;
   }
@@ -176,19 +211,30 @@ export class SurfStdio {
   }
 
   private read(chunk: string): void {
+    // Drain on intentional close, but never revive a stream whose replies already lost trust.
+    if (this.ended !== undefined && this.ended !== "closed") return;
     this.buffer += chunk;
     let newline = this.buffer.indexOf("\n");
     while (newline >= 0) {
       const line = this.buffer.slice(0, newline);
       this.buffer = this.buffer.slice(newline + 1);
       newline = this.buffer.indexOf("\n");
-      let reply: Reply;
+      let reply: unknown;
       try {
-        reply = JSON.parse(line) as Reply;
+        reply = JSON.parse(line);
       } catch {
-        continue;
+        this.giveUp("malformed JSON reply");
+        return;
+      }
+      if (!isReply(reply)) {
+        this.giveUp("malformed reply shape");
+        return;
       }
       if (reply.ready === true) {
+        if (this.ready) {
+          this.giveUp("malformed repeated ready reply");
+          return;
+        }
         this.ready = true;
         clearTimeout(this.startTimer);
         continue;
@@ -204,7 +250,12 @@ export class SurfStdio {
           raw: {
             source: "surf",
             exitCode: reply.timedOut === true || reply.signal ? null : (reply.code ?? null),
-            ...(reply.signal ? { signal: reply.signal } : {}),
+            // A buffer-loss reply without an OS signal still lost the result, not a target fault.
+            ...(reply.signal
+              ? { signal: reply.signal }
+              : reply.overflowed === true
+                ? { signal: "SESSION_EXIT" }
+                : {}),
             stdout: reply.stdout ?? "",
             stderr: reply.stderr ?? "",
             durationMs: Date.now() - sent.started,
@@ -212,10 +263,12 @@ export class SurfStdio {
           },
         });
       }
-      // a session that answered a timeout or an overflow ends itself: what waits was never sent
+      // Every answered loss terminalizes the transport before queued work can be sent.
       if (reply.timedOut === true) this.stop("a command timed out", "SESSION_EXIT");
       if (reply.overflowed === true)
         this.stop("a command's output passed its buffer", "SESSION_EXIT");
+      if (reply.signal) this.stop(`a command ended by ${reply.signal}`, reply.signal);
+      if (this.ended !== undefined) return;
     }
     this.send();
     if (this.sent === undefined && this.waiting.length === 0) this.idle();
@@ -223,7 +276,7 @@ export class SurfStdio {
 
   /**
    * The session ended: the command it was sent and did not answer is in doubt; the ones never
-   * sent go to their own processes.
+   * sent are refused. The owner decides whether unsent fallback still has authority.
    */
   private stop(why: string, signal: string, timedOut = false): void {
     if (this.ended === undefined) this.ended = why;
