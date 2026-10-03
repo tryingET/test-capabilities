@@ -8,6 +8,10 @@ npm-debug.log*
 convex/_generated/
 
 # Local temp artifacts
+# Repo-root isolated builds and fixture evidence (retain bytes; never source).
+/.tmp/
+# SCI workspace indexes/snapshots/logs, owned by the producer, not source ontology/.
+/.ontology/
 tmp/
 out/
 coverage/

@@ -14,6 +14,10 @@
       "!**/coverage/**/*",
       "!external/**/*",
       "!ontology/**/*",
+      // Producer-owned SCI indexes and repo-root scratch; never rewrite their evidence bytes.
+      // Root-anchored: similarly named source subdirectories remain checked.
+      "!.ontology",
+      "!.tmp",
       // Exported from AK; formatting is owned by the projection generator, not Biome.
       "!governance/work-items.json",
       // Recorded browser output (Chromium accessibility trees): evidence, kept byte-for-byte.
