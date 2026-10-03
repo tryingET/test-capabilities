@@ -3,14 +3,21 @@
  * program S1/S3): an isolated world per frame, where the page's own scripts can neither see nor
  * tamper with a read, and the page's own world per frame, for a script that has to act as the
  * page does. Both are found by the frame's id, so a same-process frame is reached in its own
- * document rather than its host's; a navigation destroys a world, and a stale one is made once
- * more.
+ * document rather than its host's. Context acquisition can recover before a script is sent;
+ * after dispatch only explicitly read-only bodies may recover from a stale-context error.
  */
 
 import { randomUUID } from "node:crypto";
 import type { CdpConnection } from "./a11y-cdp.js";
 import { frameOriginPath } from "./frame-address.js";
 import { FrameworkError } from "./runtime-contract.js";
+
+/** Only producer stale-context errors permit bounded recovery, never arbitrary context text. */
+const contextLost = (error: unknown): boolean =>
+  error instanceof Error &&
+  /^(?:Execution context was destroyed(?:[.,]|$)|Cannot find (?:execution )?context with (?:specified )?id(?:[ .:]|$))/i.test(
+    error.message,
+  );
 
 /** A frame as the worlds need it: where it is hosted and, once known, its CDP frame id. */
 export interface WorldFrame {
@@ -94,7 +101,8 @@ export function frameWorlds(connection: CdpConnection, worldName: string) {
     const frameId = await frameIdOf(frame);
     const known = worlds.get(keyOf(frame, frameId));
     if (known !== undefined && !fresh) {
-      if (await stamped(known, frame.sessionId).catch(() => false)) return known;
+      // Probe errors propagate to inContext, which owns the single recovery budget.
+      if (await stamped(known, frame.sessionId)) return known;
     }
     const { executionContextId } = await connection.send<{ executionContextId: number }>(
       "Page.createIsolatedWorld",
@@ -150,20 +158,36 @@ export function frameWorlds(connection: CdpConnection, worldName: string) {
     pageWorlds.set(keyOf(frame, frameId), contextId);
     return contextId;
   };
-  // a navigation destroys a world; a stale one is made again once
+  // One stale-context-error recovery, not a cap on stamp-mismatch world replacement.
+  // A lost body answer permits replay only under an explicit read-only declaration.
   const inContext = async <T>(
     world: (frame: WorldFrame, fresh?: boolean) => Promise<number>,
     frame: WorldFrame,
     body: (contextId: number) => Promise<T>,
+    effect: "read_only" | "mutating" = "mutating",
   ): Promise<T> => {
+    let contextId: number;
+    let recovered = false;
     try {
-      return await body(await world(frame));
+      contextId = await world(frame);
     } catch (error) {
-      if (!/context/i.test(error instanceof Error ? error.message : "")) throw error;
-      return body(await world(frame, true));
+      if (!contextLost(error)) throw error;
+      recovered = true;
+      contextId = await world(frame, true);
+    }
+    try {
+      return await body(contextId);
+    } catch (error) {
+      if (effect !== "read_only" || recovered || !contextLost(error)) throw error;
+      try {
+        contextId = await world(frame, true);
+      } catch {
+        throw error; // A fresh-acquisition refusal must not replace the first body's failure.
+      }
+      return body(contextId);
     }
   };
   const inWorld = <T>(frame: WorldFrame, body: (contextId: number) => Promise<T>): Promise<T> =>
-    inContext(worldOf, frame, body);
+    inContext(worldOf, frame, body, "read_only");
   return { frameIdOf, worldOf, pageWorldOf, inContext, inWorld };
 }

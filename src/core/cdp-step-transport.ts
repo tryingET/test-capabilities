@@ -122,7 +122,7 @@ async function act(
     if (step.documents) {
       // read before the script runs: a frame whose document cannot be read ran nothing
       const href = await actions
-        .evaluate<string>("location.href", { frame, world: "isolated" })
+        .evaluate<string>("location.href", { frame, world: "isolated" }, "read_only")
         .catch((error: unknown) => {
           throw new FrameworkError(
             "action_document_changed",
@@ -132,7 +132,7 @@ async function act(
         });
       assertDocument(href, step.documents, "the script was not run", step.exactDocuments);
     }
-    return actions.evaluate(code, { frame, world });
+    return actions.evaluate(code, { frame, world }, step.effect);
   }
   if (command === "type") {
     const [text] = args;
@@ -278,7 +278,7 @@ async function openForSession(session: FrameStepSession, env: NodeJS.ProcessEnv)
       assertConnectedSession(session);
       if (owned !== undefined) {
         const bound = await actions
-          .evaluate<string>(TIME_ORIGIN, { world: "isolated" })
+          .evaluate<string>(TIME_ORIGIN, { world: "isolated" }, "read_only")
           .catch((error: unknown) => {
             if (pins.interrupted) throw error;
             return undefined;

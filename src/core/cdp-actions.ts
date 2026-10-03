@@ -133,9 +133,11 @@ export interface CdpActions {
   uncheck(target: CdpActionTarget, options?: CdpActionOptions): Promise<void>;
   select(target: CdpActionTarget, value: string, options?: CdpActionOptions): Promise<void>;
   setFiles(target: CdpActionTarget, files: string[], options?: CdpActionOptions): Promise<void>;
+  /** Reads may opt into context recovery; arbitrary scripts never replay by default. */
   evaluate<T = unknown>(
     expression: string,
     frame?: string | { frame?: string; world?: "page" | "isolated" },
+    effect?: "read_only" | "mutating",
   ): Promise<T>;
   /**
    * The CDP frame id of a frame named by label, URL or id. It stays the frame's id while the
@@ -652,6 +654,7 @@ export async function openCdpActions(
     async evaluate<T>(
       expression: string,
       where?: string | { frame?: string; world?: "page" | "isolated" },
+      effect: "read_only" | "mutating" = "mutating",
     ): Promise<T> {
       const { frame: name, world = "page" } =
         typeof where === "string" ? { frame: where } : (where ?? {});
@@ -674,6 +677,7 @@ export async function openCdpActions(
         world === "isolated" ? worldOf : pageWorldOf,
         frame,
         run,
+        effect,
       );
       if (exceptionDetails) {
         throw new FrameworkError(

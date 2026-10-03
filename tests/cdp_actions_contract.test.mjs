@@ -413,9 +413,12 @@ test("evaluate runs in the page's world or an isolated one, in any frame", async
   // never the host document's (measured live 2026-09-27: Runtime.enable reports one default
   // context per frame before it answers)
   assert.equal(await actions.evaluate("document.title", "https://app.test/embedded"), "embedded");
-  // a navigation destroys the page world too: the next evaluate finds the new one
+  // The declared read may recover a stale page world; arbitrary scripts may not replay.
   fake.dropWorlds();
-  assert.equal(await actions.evaluate("document.title", "https://app.test/embedded"), "embedded");
+  assert.equal(
+    await actions.evaluate("document.title", "https://app.test/embedded", "read_only"),
+    "embedded",
+  );
   assert.equal(
     await actions.evaluate("document.title", {
       frame: "https://app.test/embedded",
@@ -423,16 +426,25 @@ test("evaluate runs in the page's world or an isolated one, in any frame", async
     }),
     "isolated:embedded",
   );
-  // a frame caught mid-navigation reports no page world: refused, never run in its host
+  // A lost cached context preserves the dispatch failure; an unclassified body is not retried.
   tree.sameProcess[0].noPageWorld = true;
   fake.dropWorlds();
   await assert.rejects(actions.evaluate("document.title", "https://app.test/embedded"), {
-    code: "action_frame_unknown",
+    message: /Cannot find context with specified id/,
   });
-  await assert.rejects(actions.evaluate("nope"), {
-    code: "action_evaluate_failed",
-    message: /ReferenceError: nope is not defined/,
-  });
+  // Fresh acquisition sees the absent page world before any body, never in its host document.
+  const fresh = await openCdpActions(URL_UNDER_TEST, { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url });
+  try {
+    await assert.rejects(fresh.evaluate("document.title", "https://app.test/embedded"), {
+      code: "action_frame_unknown",
+    });
+    await assert.rejects(fresh.evaluate("nope"), {
+      code: "action_evaluate_failed",
+      message: /ReferenceError: nope is not defined/,
+    });
+  } finally {
+    await fresh.close();
+  }
   // element reads go through the isolated world named for this channel
   await actions.click({ selector: "#greet" });
   assert.ok(fake.worlds.every((world) => world.name === "test-capabilities"));

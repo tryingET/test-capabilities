@@ -337,6 +337,7 @@ export async function runFlowAct(
       actions.evaluate<{ held: boolean; href: string }>(
         conditionScript(payload.condition as Condition),
         { frame, world: "isolated" },
+        "read_only",
       );
     let answer = await read();
     if (command !== "flow.wait") {
