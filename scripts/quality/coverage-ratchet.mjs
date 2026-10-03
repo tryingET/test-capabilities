@@ -348,6 +348,7 @@ export function collectCoverage({ root, baseline, reportDir }) {
     ...(baseline.exclude?.dist ?? []).flatMap((pattern) => ["--exclude", pattern]),
     "--reporter=lcov",
     "--reporter=json-summary",
+    "--reporter=json",
     "--report-dir",
     reportDir,
     "--temp-directory",
@@ -356,7 +357,10 @@ export function collectCoverage({ root, baseline, reportDir }) {
     "--test",
     ...testFiles,
   ];
-  const result = run(process.execPath, args, { cwd: root, env: { ...process.env } });
+  const result = run(process.execPath, args, {
+    cwd: root,
+    env: { ...process.env, NODE_DISABLE_COMPILE_CACHE: "1" },
+  });
   const output = `${result.stdout}\n${result.stderr}`;
   const summary = parseTestSummary(output);
   if (result.status !== 0 || summary.fail !== 0) {
@@ -367,8 +371,26 @@ export function collectCoverage({ root, baseline, reportDir }) {
   }
   const summaryPath = path.join(reportDir, "coverage-summary.json");
   const lcovPath = path.join(reportDir, "lcov.info");
-  if (!existsSync(summaryPath) || !existsSync(lcovPath)) {
-    throw new Error(`coverage: c8 wrote no report under ${reportDir}`);
+  const detailPath = path.join(reportDir, "coverage-final.json");
+  if (![summaryPath, lcovPath, detailPath].every(existsSync)) {
+    throw new Error(`coverage: c8 wrote no complete report under ${reportDir}`);
+  }
+  const detail = JSON.parse(readFileSync(detailPath, "utf8"));
+  if (
+    !detail ||
+    typeof detail !== "object" ||
+    Array.isArray(detail) ||
+    Object.keys(detail).length === 0 ||
+    Object.values(detail).some(
+      (file) =>
+        !file ||
+        typeof file.f !== "object" ||
+        file.f === null ||
+        typeof file.fnMap !== "object" ||
+        file.fnMap === null,
+    )
+  ) {
+    throw new Error("coverage: per-function report is malformed or empty");
   }
   const total = JSON.parse(readFileSync(summaryPath, "utf8")).total;
   const measured = {};

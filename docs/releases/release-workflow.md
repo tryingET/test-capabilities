@@ -146,6 +146,17 @@ Build/test distribution and source-map overrides are refused; a supplied package
 must name the same source checkout. Separate ordinary/instrumented/packed proof dimensions
 remain intentional, not permission to test a different distribution and publish another.
 
+The coverage collector disables Node compile-cache reuse only in the c8 measurement
+launcher environment, inherited by measured descendants. Ordinary CLI caching and explicit
+startup cache-on/off contracts remain unchanged. Node documents potentially less precise
+V8 coverage for deserialized functions; a tiny probe is not attribution of a full hosted
+function-floor failure. A successful collected measurement requires readable summary,
+per-function JSON and LCOV reports. CI attempts to archive available reports on all outcomes;
+a failure before report generation can leave none, and upload warnings do not change gate
+failure. Unchanged floors still determine success. Inspect genuine missing hits if an
+isolated measurement remains below its floor; never rerun unchanged failures
+until green, manufacture zero-hit coverage, or lower a floor to conceal the difference.
+
 ### Canonical strict-docs provider in hosted deep CI
 
 `tryingET/agent-scripts` is the private source owner of `docs-list.mjs`. Hosted deep CI

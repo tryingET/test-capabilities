@@ -60,6 +60,17 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run smoke lane
         run: npm run release:check
+      - name: Retain coverage measurement evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 7
 
   full:
     env:
@@ -90,6 +101,17 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run full lane
         run: npm run release:check
+      - name: Retain coverage measurement evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 7
 
   deep:
     env:
@@ -120,6 +142,17 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run deep package lane
         run: npm run release:check
+      - name: Retain coverage measurement evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 7
       - name: Require private canonical docs provider inputs
         env:
           DOCS_PROVIDER_CLIENT_ID: ${{ vars.DOCS_PROVIDER_CLIENT_ID }}
