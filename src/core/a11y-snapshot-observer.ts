@@ -11,6 +11,7 @@
  * (964 buttons on MDN that surf missed) and reaches out-of-process frames.
  */
 
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { type AxRendering, renderAxForest } from "./a11y-ax-tree.js";
 import {
@@ -117,12 +118,13 @@ function writeSnapshotArtifact(
   artifact: A11ySnapshotArtifact,
   sequence: number,
 ): { artifact: string } | { artifactError: string } {
-  const file = path.join(
-    context.config.receipts.dir,
-    context.runId,
-    `a11y-snapshot-${sequence}-${Date.now()}.json`,
-  );
   try {
+    const file = path.join(
+      context.config.receipts.dir,
+      context.runId,
+      // Sequence orders a run; neither it nor the clock identifies an individual write.
+      `a11y-snapshot-${sequence}-${Date.now()}-${randomUUID()}.json`,
+    );
     return {
       artifact: writeJsonArtifactSync(
         file,

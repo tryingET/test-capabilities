@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -94,6 +96,156 @@ function artifactsIn(dir, runId) {
     }));
 }
 
+/** Check the returned file immediately, then keep its original bytes for end-of-stream checks. */
+function rememberArtifact(observation) {
+  assert.equal(observation.artifactError, undefined);
+  assert.equal(typeof observation.artifact, "string");
+  assert.equal(statSync(observation.artifact).mode & 0o777, 0o600);
+  const bytes = readFileSync(observation.artifact);
+  const body = JSON.parse(bytes.toString("utf8"));
+  assert.equal(body.status, observation.status);
+  assert.equal(body.reason, observation.reason);
+  assert.equal(body.detail, observation.detail);
+  return { observation, bytes };
+}
+
+function assertRetainedArtifacts(dir, runId, records) {
+  assert.equal(artifactsIn(dir, runId).length, records.length);
+  assert.equal(
+    new Set(records.map(({ observation }) => observation.artifact)).size,
+    records.length,
+  );
+  for (const { observation, bytes } of records) {
+    assert.equal(statSync(observation.artifact).mode & 0o777, 0o600);
+    assert.deepEqual(readFileSync(observation.artifact), bytes, "earlier evidence must not change");
+  }
+  assert.equal(
+    readdirSync(path.join(dir, runId)).some((name) => name.endsWith(".tmp")),
+    false,
+  );
+}
+
+// Given one run and a frozen filename clock, when refusals are written, then each keeps its
+// own evidence. Explicit 1/2 sequences are the passing control: ordering is not write identity.
+for (const scenario of ["fresh default handles", "same default handle", "explicit sequences 1/2"]) {
+  test(`Given a frozen clock, When ${scenario} refuse, Then both artifacts survive`, async (t) => {
+    const dir = scratch();
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const context = observerContext(dir);
+    t.mock.method(Date, "now", () => 1_700_000_000_000);
+    const fetch = t.mock.method(globalThis, "fetch", () => assert.fail("no HTTP request allowed"));
+    const env = { TEST_CAPABILITIES_CDP_ENDPOINT: "MALFORMED endpoint first" };
+    const sameHandle = createA11ySnapshotObserver({ context, required: false, env });
+    const records = [];
+    for (const [index, endpoint] of [
+      "MALFORMED endpoint first",
+      "MALFORMED endpoint second",
+    ].entries()) {
+      env.TEST_CAPABILITIES_CDP_ENDPOINT = endpoint;
+      const handle =
+        scenario === "same default handle"
+          ? sameHandle
+          : createA11ySnapshotObserver({
+              context,
+              required: false,
+              env: { TEST_CAPABILITIES_CDP_ENDPOINT: endpoint },
+              ...(scenario === "explicit sequences 1/2" ? { sequence: index + 1 } : {}),
+            });
+      const observation = await handle.observer.run(stubSession(context.runId, PAGE_URL));
+      assert.equal(handle.observation(), observation);
+      assert.equal(observation.status, "unavailable");
+      assert.equal(observation.reason, "cdp_endpoint_refused");
+      assert.ok(observation.detail.includes(endpoint));
+      records.push(rememberArtifact(observation));
+    }
+    assert.notEqual(records[0].observation.detail, records[1].observation.detail);
+    assert.equal(fetch.mock.callCount(), 0);
+    assertRetainedArtifacts(dir, context.runId, records);
+  });
+}
+
+test(
+  "Given a frozen clock, When the same handle captures twice, Then both trees survive",
+  { timeout: 5_000 },
+  async (t) => {
+    const dir = scratch();
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const tree = {
+      nodes: [
+        {
+          nodeId: "1",
+          backendDOMNodeId: 1,
+          role: { value: "button" },
+          name: { value: "first capture" },
+        },
+      ],
+    };
+    const fake = await startFakeCdp({ pages: { OWNED: { url: PAGE_URL, tree } } });
+    t.after(() => fake.close());
+    const context = observerContext(dir);
+    const clock = t.mock.method(Date, "now", () => 1_700_000_000_000);
+    const handle = createA11ySnapshotObserver({
+      context,
+      required: true,
+      env: { TEST_CAPABILITIES_CDP_ENDPOINT: fake.url },
+    });
+    const records = [];
+    for (const name of ["first capture", "second capture"]) {
+      tree.nodes[0].name.value = name;
+      const observation = await handle.observer.run(stubSession(context.runId, PAGE_URL));
+      assert.equal(observation.status, "captured");
+      assert.equal(
+        observation.sequence,
+        1,
+        "repeated reads do not increment the ordering sequence",
+      );
+      assert.equal(handle.observation(), observation);
+      const record = rememberArtifact(observation);
+      const body = JSON.parse(record.bytes.toString("utf8"));
+      assert.equal(body.sequence, 1);
+      assert.ok(body.snapshot.includes(name));
+      assert.equal(body.digest, snapshotDigest(body.snapshot));
+      assert.equal(observation.digest, body.digest);
+      assert.equal(observation.snapshot, undefined, "tree text stays out of the observation");
+      records.push(record);
+    }
+    clock.mock.restore(); // fixture drain deadlines must run on a progressing clock
+    assert.equal(await fake.drained(), 0);
+    assert.equal(
+      fake.methods.filter((method) => method === "Accessibility.getFullAXTree").length,
+      2,
+    );
+    assert.equal(fake.methods.includes("Target.createTarget"), false);
+    assert.notEqual(records[0].observation.digest, records[1].observation.digest);
+    assertRetainedArtifacts(dir, context.runId, records);
+  },
+);
+
+test("Given identity generation fails, When an optional refusal is observed, Then the reason survives with artifactError rather than a raw rejection", async (t) => {
+  const dir = scratch();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const context = observerContext(dir);
+  const failure = t.mock.method(crypto, "randomUUID", () => {
+    throw new Error("controlled snapshot identity failure");
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    failure.mock.restore();
+    syncBuiltinESMExports();
+  });
+  const handle = createA11ySnapshotObserver({
+    context,
+    required: false,
+    env: { TEST_CAPABILITIES_CDP_ENDPOINT: "MALFORMED identity failure" },
+  });
+  const observation = await handle.observer.run(stubSession(context.runId, PAGE_URL));
+  assert.equal(handle.observation(), observation);
+  assert.equal(observation.status, "unavailable");
+  assert.equal(observation.reason, "cdp_endpoint_refused");
+  assert.equal(observation.artifact, undefined);
+  assert.equal(observation.artifactError, "controlled snapshot identity failure");
+});
+
 test("one read of the owned tab: the text stays in the 0600 file, the digest in the envelope", async (t) => {
   const dir = scratch();
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -158,10 +310,12 @@ test("no endpoint, an ambiguous tab and an empty tree are typed refusals, each w
     TEST_CAPABILITIES_CDP_ENDPOINT: "http://127.0.0.1:9",
   });
   assert.equal(unreachable.reason, "cdp_endpoint_unreachable");
+  const records = [rememberArtifact(unreachable)];
   const refused = await run(RELEASES_URL, {
     TEST_CAPABILITIES_CDP_ENDPOINT: "http://10.1.1.1:9222",
   });
   assert.equal(refused.reason, "cdp_endpoint_refused");
+  records.push(rememberArtifact(refused));
 
   const twice = await startFakeCdp({
     pages: {
@@ -174,10 +328,14 @@ test("no endpoint, an ambiguous tab and an empty tree are typed refusals, each w
   const ambiguous = await run(RELEASES_URL, { TEST_CAPABILITIES_CDP_ENDPOINT: twice.url });
   assert.equal(ambiguous.reason, "tab_bind_ambiguous");
   assert.match(ambiguous.detail, /Candidates: A, B/);
+  records.push(rememberArtifact(ambiguous));
   const empty = await run(PAGE_URL, { TEST_CAPABILITIES_CDP_ENDPOINT: twice.url });
   assert.equal(empty.reason, "empty_snapshot");
+  records.push(rememberArtifact(empty));
 
   assert.equal(artifactsIn(dir, context.runId).length, 4);
+  assertRetainedArtifacts(dir, context.runId, records);
+  assert.equal(await twice.drained(), 0, "all refusal sockets were closed");
 });
 
 test("required raises a11y_channel_unavailable and still reports what it saw", async (t) => {
