@@ -176,9 +176,10 @@ test("Given hosted deep CI without the workstation, When strict docs runs, Then 
 });
 
 // Native Given/When/Then contracts: each negative changes the causal input only.
-test("Given an authorized artifact-only dispatch, When clean hosted qualification runs, Then exact source and verified bytes are retained without public release effects", () => {
+test("Given authorized source-push or artifact-only dispatch qualification, When clean hosted qualification runs, Then exact source and verified bytes are retained without public release effects", () => {
   const ci = yaml.load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
   assert.ok(ci.on.workflow_dispatch.inputs.lane.options.includes("artifact"));
+  assert.deepEqual(ci.on.push.branches, ["main"], "automatic qualification is main-only");
   const job = ci.jobs.artifact;
   assert.ok(job, "independent exact-artifact qualification must exist");
   assert.equal(
@@ -187,6 +188,11 @@ test("Given an authorized artifact-only dispatch, When clean hosted qualificatio
     "full release scope cannot be narrowed by dispatch input",
   );
   assert.match(job.if, /workflow_dispatch.*inputs\.lane\s+={2}\s+'artifact'/);
+  assert.match(job.if, /github\.event_name\s+={2}\s+'push'/);
+  assert.match(
+    job.env.QUALIFICATION_SHA,
+    /^\$\{\{ github\.event_name ={2} 'push' && github\.sha \|\| inputs\.qualification_sha \}\}$/,
+  );
   assert.deepEqual(ci.permissions, { contents: "read" });
   assert.equal(job.environment, undefined, "not the protected publisher environment");
   assert.equal(job.permissions, undefined, "no elevated publication/OIDC permissions");

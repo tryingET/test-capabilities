@@ -39,11 +39,11 @@ env:
 
 jobs:
   artifact:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.lane == 'artifact' }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.lane == 'artifact') }}
     runs-on: ubuntu-latest
     env:
       COVERAGE_BASE: refs/tags/v0.3.0
-      QUALIFICATION_SHA: ${{ inputs.qualification_sha }}
+      QUALIFICATION_SHA: ${{ github.event_name == 'push' && github.sha || inputs.qualification_sha }}
     steps:
       - name: Checkout complete comparison history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

@@ -69,8 +69,11 @@ If package contents, metadata, README, LICENSE, built output, or generated capab
 
 ### Independent hosted qualification without publication
 
-When separately authorized, dispatch the `ci` workflow's `artifact` lane on an exact source
-revision. This is a clean Node 22/npm 12.0.2 source-and-package proof, not public release intent:
+The `ci` workflow's `artifact` lane runs on authorized `main` source pushes and can also be
+separately dispatched on an exact revision. It supplies clean Node 22/npm 12.0.2 source-and-package
+proof without public release intent. Source pushes run both the ordinary full lane and this
+distinct retained-artifact proof. Manual dispatch requires Actions-write access:
+
 
 ```bash
 SHA=$(git rev-parse HEAD)
@@ -78,8 +81,10 @@ SHA=$(git rev-parse HEAD)
 gh workflow run ci.yml --ref main -f lane=artifact -f qualification_sha="$SHA" -f coverage_base=refs/tags/v0.3.0
 ```
 
-The runner checks both checkout HEAD and GitHub's source SHA against `qualification_sha`.
-It refuses any pre-existing version tag and creates a synthetic `v<package-version>` ref
+The runner checks both checkout HEAD and GitHub's source SHA against the push SHA or,
+for manual runs, `qualification_sha`. Release-wide coverage is pinned to `refs/tags/v0.3.0`,
+not the dispatch's selectable comparison. It refuses any pre-existing version tag and
+creates a synthetic `v<package-version>` ref
 **only in that disposable checkout** to exercise the publisher's source/tag contract. It
 never pushes that ref or creates a GitHub Release. The job has only contents-read permission,
 no publisher environment, no OIDC write permission and no publish/attachment step.
@@ -89,7 +94,9 @@ and full consumer verification of that same tarball. The pinned manifest/artifac
 are rechecked; current source budgets remain enforced. The workflow retains the exact
 `.tgz`/`.manifest.json` and available coverage reports. Downloaded bytes must match the
 manifest and runner's digest outputs before treating retention as artifact identity proof.
-A synthetic qualification ref is not a public tag or production attestation. Canonical
+A synthetic qualification ref is not a public tag or production attestation. A version
+already carrying a canonical tag cannot qualify new bytes as the same release; select a
+new package version through its owning release process rather than replacing that tag. Canonical
 strict-docs-provider access and external npm Trusted Publisher settings remain separate
 pre-publication checks; this lane neither provisions nor claims them.
 
