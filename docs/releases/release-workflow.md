@@ -67,6 +67,36 @@ COVERAGE_BASE=v0.3.0 STRUCTURE_BASE=30f1a868b6e56e6475fc399e691e9f0d5cdb760f npm
 
 If package contents, metadata, README, LICENSE, built output, or generated capability surfaces change after this proof, rerun the proof before creating the release.
 
+### Independent hosted qualification without publication
+
+When separately authorized, dispatch the `ci` workflow's `artifact` lane on an exact source
+revision. This is a clean Node 22/npm 12.0.2 source-and-package proof, not public release intent:
+
+```bash
+SHA=$(git rev-parse HEAD)
+# First obtain explicit authorization for the source push and this exact dispatch.
+gh workflow run ci.yml --ref main -f lane=artifact -f qualification_sha="$SHA" -f coverage_base=refs/tags/v0.3.0
+```
+
+The runner checks both checkout HEAD and GitHub's source SHA against `qualification_sha`.
+It refuses any pre-existing version tag and creates a synthetic `v<package-version>` ref
+**only in that disposable checkout** to exercise the publisher's source/tag contract. It
+never pushes that ref or creates a GitHub Release. The job has only contents-read permission,
+no publisher environment, no OIDC write permission and no publish/attachment step.
+
+Fresh dependencies, unchanged full quality/coverage checks and truth checks precede one pack
+and full consumer verification of that same tarball. The pinned manifest/artifact digests
+are rechecked; current source budgets remain enforced. The workflow retains the exact
+`.tgz`/`.manifest.json` and available coverage reports. Downloaded bytes must match the
+manifest and runner's digest outputs before treating retention as artifact identity proof.
+A synthetic qualification ref is not a public tag or production attestation. Canonical
+strict-docs-provider access and external npm Trusted Publisher settings remain separate
+pre-publication checks; this lane neither provisions nor claims them.
+
+A hosted proof is an independent runner path, not relief for refused local heavy-job
+admission. Preserve local retained state and its owner blocker. Any changed source needs
+fresh qualification; a red result is investigated, not blindly retried.
+
 ## Tag/version contract
 
 The release tag must exactly match `package.json` as `v<version>`.

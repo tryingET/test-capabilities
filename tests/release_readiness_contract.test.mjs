@@ -176,6 +176,83 @@ test("Given hosted deep CI without the workstation, When strict docs runs, Then 
 });
 
 // Native Given/When/Then contracts: each negative changes the causal input only.
+test("Given an authorized artifact-only dispatch, When clean hosted qualification runs, Then exact source and verified bytes are retained without public release effects", () => {
+  const ci = yaml.load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
+  assert.ok(ci.on.workflow_dispatch.inputs.lane.options.includes("artifact"));
+  const job = ci.jobs.artifact;
+  assert.ok(job, "independent exact-artifact qualification must exist");
+  assert.equal(
+    job.env.COVERAGE_BASE,
+    "refs/tags/v0.3.0",
+    "full release scope cannot be narrowed by dispatch input",
+  );
+  assert.match(job.if, /workflow_dispatch.*inputs\.lane\s+={2}\s+'artifact'/);
+  assert.deepEqual(ci.permissions, { contents: "read" });
+  assert.equal(job.environment, undefined, "not the protected publisher environment");
+  assert.equal(job.permissions, undefined, "no elevated publication/OIDC permissions");
+  const script = job.steps.map((step) => step.run || "").join("\n");
+  assert.doesNotMatch(
+    script,
+    /git push|npm publish|gh release|verify-release-artifact\.mjs (publish|attach)|continue-on-error/,
+  );
+  const prepare = job.steps.find((step) => step.id === "prepare");
+  assert.match(prepare.run, /prepare-release-artifact\.mjs prepare --output-dir "\$RUNNER_TEMP\//);
+  assert.equal(
+    job.steps.filter((step) => /prepare-release-artifact\.mjs prepare/.test(step.run || "")).length,
+    1,
+  );
+  const verify = job.steps.find((step) => step.name === "Recheck pinned qualification bytes");
+  assert.match(verify.env.RELEASE_MANIFEST_SHA256, /steps\.prepare\.outputs\.manifest_sha256/);
+  assert.match(verify.env.RELEASE_ARTIFACT_SHA256, /steps\.prepare\.outputs\.artifact_sha256/);
+  assert.match(verify.run, /verify-release-artifact\.mjs verify --manifest/);
+  const upload = job.steps.find((step) => step.name === "Retain exact qualification artifact");
+  assert.equal(upload.with["if-no-files-found"], "error");
+  assert.match(upload.with.path, /artifact_path/);
+  assert.match(upload.with.path, /manifest_path/);
+  assert.doesNotMatch(upload.with.path, /\*/);
+  for (const step of job.steps) assert.equal(step["continue-on-error"], undefined);
+});
+
+test("Given a qualification-only local version reference, When source or an existing version conflicts, Then no tag is changed and qualification stops", () => {
+  const ci = yaml.load(readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8"));
+  const step = ci.jobs.artifact?.steps.find(
+    (item) => item.name === "Bind exact source and qualification-only local version reference",
+  );
+  assert.ok(step);
+  const f = fixture();
+  const head = f.env.GITHUB_SHA;
+  const output = path.join(f.out, "github-env");
+  const invoke = (sha, githubSha = head) =>
+    spawnSync("bash", ["-euo", "pipefail", "-c", step.run], {
+      cwd: f.dir,
+      encoding: "utf8",
+      env: { ...f.env, QUALIFICATION_SHA: sha, GITHUB_SHA: githubSha, GITHUB_ENV: output },
+    });
+  const originalTag = run("git", ["rev-parse", "refs/tags/v0.4.0"], f.dir);
+  assert.notEqual(invoke(head).status, 0, "existing version must independently refuse");
+  assert.equal(run("git", ["rev-parse", "refs/tags/v0.4.0"], f.dir), originalTag);
+  run("git", ["tag", "-d", "v0.4.0"], f.dir); // Newly owned fixture only.
+  for (const sha of ["", "not-a-sha", f.base]) {
+    assert.notEqual(
+      invoke(sha).status,
+      0,
+      "wrong source must refuse without a masking tag conflict",
+    );
+    assert.equal(run("git", ["tag", "--list", "v0.4.0"], f.dir), "");
+  }
+  assert.notEqual(
+    invoke(head, f.base).status,
+    0,
+    "GitHub SHA must independently match checkout HEAD",
+  );
+  assert.equal(run("git", ["tag", "--list", "v0.4.0"], f.dir), "");
+  const ok = invoke(head);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(run("git", ["rev-parse", "refs/tags/v0.4.0"], f.dir), head);
+  assert.equal(readFileSync(output, "utf8"), "RELEASE_TAG=v0.4.0\n");
+  assert.equal(run("git", ["status", "--porcelain"], f.dir), "");
+});
+
 test("Given coverage and adopted-structure histories, When release proof selects bases, Then both are explicit strict ancestors without weakening either ratchet", async () => {
   const { prepare } = await modules();
   const f = fixture();

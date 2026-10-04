@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import {
+  CARD,
   cdpTree,
   DONE,
   flowOf,
@@ -19,7 +20,6 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
  * and no submit may have been attempted for it before. The submit settles `unknown` until its
  * `expect` is observed; unobserved, the flow stops there and never runs it again.
  */
-
 const { executeCliOperation } = await importRuntimeModule("core/operations.js");
 const { flowApprovalToken, parseFlow } = await importRuntimeModule("core/flow-file.js");
 
@@ -34,7 +34,7 @@ const withFakes = (body, options = {}) => withFlowFakes(body, { tree: submitTree
 const tokenOf = (content) => flowApprovalToken(parseFlow(content, "flow.json"));
 
 const PAY = [
-  { action: "fill", target: "#card", value: "4242" },
+  { action: "fill", target: "#card", value: CARD },
   { id: "pay", action: "click", target: "#pay", submit: true, expect: { url_prefix: DONE } },
   { id: "after", action: "assert", that: { url_prefix: DONE } },
 ];
@@ -194,7 +194,7 @@ test("a declared submit may press Enter in the form's field", async () => {
   await withFakes(async ({ cdp, tree, config, write }) => {
     tree.elements["#card"].enterNavigatesTo = DONE;
     const content = flowOf([
-      { action: "fill", target: "#card", value: "4242" },
+      { action: "fill", target: "#card", value: CARD },
       {
         id: "enter",
         action: "press",
@@ -229,7 +229,7 @@ test("without --submit the stopped flow still reports the token the operator app
 test("a submit's receipt names its expect, never the address the page landed on", async () => {
   await withFakes(async ({ dir, tree, config, write }) => {
     // a GET form puts what was typed into the address it lands on
-    tree.elements["#pay"].navigatesTo = `${DONE}?card=4242`;
+    tree.elements["#pay"].navigatesTo = `${DONE}?card=${CARD}`;
     const content = flowOf(PAY);
     const envelope = await flow({
       file: write(content),

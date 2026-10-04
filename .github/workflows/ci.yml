@@ -17,6 +17,10 @@ on:
         options:
           - full
           - deep
+          - artifact
+      qualification_sha:
+        description: "Exact 40-character source SHA required for artifact-only qualification"
+        type: string
       coverage_base:
         description: "Existing strict ancestor used by the coverage ratchet"
         type: string
@@ -25,12 +29,89 @@ on:
 permissions:
   contents: read
 
+# artifact is a non-publishing proof lane. Its version ref exists only in the
+# disposable checkout and is never pushed; no Release/OIDC/npm mutation occurs.
+
 # v0.3.0 predates ratchet files. Preserve its full coverage scope, but compare
 # structure-ledger changes against the qualified adopted budget state.
 env:
   STRUCTURE_BASE: 30f1a868b6e56e6475fc399e691e9f0d5cdb760f
 
 jobs:
+  artifact:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.lane == 'artifact' }}
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_BASE: refs/tags/v0.3.0
+      QUALIFICATION_SHA: ${{ inputs.qualification_sha }}
+    steps:
+      - name: Checkout complete comparison history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup declared Node lane
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Bind exact source and qualification-only local version reference
+        shell: bash
+        run: |
+          [[ "$QUALIFICATION_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$QUALIFICATION_SHA"
+          test "$GITHUB_SHA" = "$QUALIFICATION_SHA"
+          VERSION="$(node -p "require('./package.json').version")"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          TAG="v$VERSION"
+          test -z "$(git tag --list "$TAG")" || { echo 'Qualification refuses a pre-existing version tag'; exit 1; }
+          git tag "$TAG"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Use qualified npm and fail closed on lane/history/comparison
+        run: |
+          npm install -g npm@12.0.2
+          node scripts/prepare-release-artifact.mjs preflight
+      - name: Ensure ripgrep is available
+        run: |
+          if ! command -v rg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ripgrep
+          fi
+      - name: Install fresh dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check package/version contract without creating public intent
+        run: npm run release:intent:check
+      - name: Qualify clean source and one exact consumer artifact
+        id: prepare
+        run: node scripts/prepare-release-artifact.mjs prepare --output-dir "$RUNNER_TEMP/qualification-${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Recheck pinned qualification bytes
+        env:
+          MANIFEST_PATH: ${{ steps.prepare.outputs.manifest_path }}
+          RELEASE_MANIFEST_SHA256: ${{ steps.prepare.outputs.manifest_sha256 }}
+          RELEASE_ARTIFACT_SHA256: ${{ steps.prepare.outputs.artifact_sha256 }}
+        run: node scripts/verify-release-artifact.mjs verify --manifest "$MANIFEST_PATH"
+      - name: Check current source budgets
+        run: npm run structure:check
+      - name: Retain exact qualification artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qualified-package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.prepare.outputs.artifact_path }}
+            ${{ steps.prepare.outputs.manifest_path }}
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain coverage measurement evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 7
+
   smoke:
     env:
       COVERAGE_BASE: ${{ github.event.pull_request.base.sha }}

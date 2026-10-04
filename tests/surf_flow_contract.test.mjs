@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { startFakeCdp } from "./helpers/fake-cdp.mjs";
 import {
   ax,
+  CARD,
   cdpTree,
   EVIL,
   flowOf,
@@ -24,7 +25,6 @@ import { importRuntimeModule } from "./helpers/runtime-dist.mjs";
  * approved submit step; read steps write no receipt. Without `--submit` a flow stops before its
  * first submit step.
  */
-
 const { executeCliOperation } = await importRuntimeModule("core/operations.js");
 const { parseFlow, flowApprovalToken } = await importRuntimeModule("core/flow-file.js");
 const { FLOW_GATE } = await importRuntimeModule("core/cdp-flow-acts.js");
@@ -38,14 +38,14 @@ const acting = (surf) =>
 
 const JOURNEY = [
   { id: "user", action: "fill", target: { role: "textbox", name: "User" }, value: "alice" },
-  { action: "fill", target: "#card", value: "4242" },
+  { action: "fill", target: "#card", value: CARD },
   { action: "select", target: "#country", value: "fr" },
   { action: "check", target: "#terms" },
   { action: "press", key: "Tab", target: "#card" },
   { action: "click", target: "#help" },
   { action: "wait", for: { selector: "#card" } },
   { action: "wait", for: { text: "Welcome" } },
-  { action: "assert", that: { field: { target: "#card", equals: "4242" } } },
+  { action: "assert", that: { field: { target: "#card", equals: CARD } } },
   { action: "assert", that: { field: { target: "#terms", equals: "true" } } },
   { action: "assert", that: { url_prefix: PAGE } },
 ];
@@ -134,7 +134,7 @@ test("a journey runs every action on one held connection, a receipt per act and 
       envelope.result.steps.map((step) => [step.id, step.outcome]),
       JOURNEY.map((_, index) => [index === 0 ? "user" : `s${index + 1}`, "ok"]),
     );
-    assert.deepEqual(cdp.values, { "#user": "alice", "#card": "4242", "#country": "fr" });
+    assert.deepEqual(cdp.values, { "#user": "alice", "#card": CARD, "#country": "fr" });
     assert.deepEqual(
       cdp.clicks.map((click) => click.selector),
       ["#terms", "#help"],
@@ -161,7 +161,7 @@ test("the library entry runs a flow too, and --receipt-out exports its receipts"
   await withFakes(async ({ dir, config, write }) => {
     const receiptOut = path.join(dir, "receipts-export.json");
     const envelope = await executeSurfFlowOperation({
-      file: write(flowOf([{ action: "fill", target: "#card", value: "4242" }])),
+      file: write(flowOf([{ action: "fill", target: "#card", value: CARD }])),
       config,
       receiptOut,
     });
@@ -179,7 +179,7 @@ test("an act on a document whose origin is not allowlisted is refused before inp
     const file = write(
       flowOf([
         { action: "click", target: "a.away" },
-        { id: "card", action: "fill", target: "#card", value: "4242" },
+        { id: "card", action: "fill", target: "#card", value: CARD },
       ]),
     );
     await assert.rejects(flow({ file, config }), (error) => {
@@ -219,7 +219,7 @@ test("without --submit a flow stops before its first submit step, having acted u
   await withFakes(async ({ cdp, dir, config, write }) => {
     const file = write(
       flowOf([
-        { action: "fill", target: "#card", value: "4242" },
+        { action: "fill", target: "#card", value: CARD },
         { id: "pay", action: "click", target: "#pay", submit: true, expect: { text: "Paid" } },
         { action: "assert", that: { text: "Paid" } },
       ]),
@@ -269,7 +269,7 @@ test("a read-only flow needs no allowlisted origin", async () => {
 test("without the DevTools connection a flow refuses before its first step", async () => {
   await withFakes(
     async ({ surf, dir, config, write }) => {
-      const file = write(flowOf([{ action: "fill", target: "#card", value: "4242" }]));
+      const file = write(flowOf([{ action: "fill", target: "#card", value: CARD }]));
       await assert.rejects(flow({ file, config }), (error) => {
         assert.equal(error.code, "cdp_endpoint_unreachable");
         assert.match(error.message, /No step ran/);
@@ -477,11 +477,11 @@ test("focus is kept only while the element's document holds the page's focus and
 
 test("a dialog a step opened is recorded without its URL either: a page may put a value there", async () => {
   await withFakes(async ({ tree, dir, config, write }) => {
-    tree.elements["#card"].inputNavigatesTo = `${PAGE}?value=4242`;
+    tree.elements["#card"].inputNavigatesTo = `${PAGE}?value=${CARD}`;
     tree.elements["#card"].inputDialog = { type: "alert", message: "saved" };
     await assert.rejects(
       flow({
-        file: write(flowOf([{ id: "card", action: "fill", target: "#card", value: "4242" }])),
+        file: write(flowOf([{ id: "card", action: "fill", target: "#card", value: CARD }])),
         config,
       }),
       { code: "action_dialog_opened" },
@@ -1097,7 +1097,7 @@ test("a frame refusal lists the page's frames by origin only", async () => {
   const withFrame = (url) => {
     const tree = cdpTree(url);
     const pay = {
-      ...cdpTree("https://pay.example/form?secret=4242"),
+      ...cdpTree(`https://pay.example/form?secret=${CARD}`),
       id: "PAYFRAME",
       owner: { backendNodeId: 50, box: [0, 200, 500, 300] },
     };
@@ -1150,12 +1150,12 @@ test("a fill whose select handler moves focus types nothing there", async () => 
 
 test("a refusal names the page's origin, never a URL a page may have put a value into", async () => {
   await withFakes(async ({ tree, dir, config, write }) => {
-    tree.elements["#card"].inputNavigatesTo = `${PAGE}?value=4242`;
+    tree.elements["#card"].inputNavigatesTo = `${PAGE}?value=${CARD}`;
     await assert.rejects(
       flow({
         file: write(
           flowOf([
-            { action: "fill", target: "#card", value: "4242" },
+            { action: "fill", target: "#card", value: CARD },
             { id: "says", action: "assert", that: { text: "Nope" } },
           ]),
         ),
@@ -1166,7 +1166,7 @@ test("a refusal names the page's origin, never a URL a page may have put a value
         !LEAKED_CARD.test(`${error.message} ${JSON.stringify(error.details)}`),
     );
     tree.url = PAGE;
-    tree.elements["a.away"].navigatesTo = `${EVIL}?value=4242`;
+    tree.elements["a.away"].navigatesTo = `${EVIL}?value=${CARD}`;
     await assert.rejects(
       flow({
         file: write(
@@ -1188,10 +1188,10 @@ test("a refusal names the page's origin, never a URL a page may have put a value
 
 test("a dialog a step opened is recorded without its message: a page may echo a value", async () => {
   await withFakes(async ({ tree, dir, config, write }) => {
-    tree.elements["#card"].inputDialog = { type: "alert", message: "you typed 4242" };
+    tree.elements["#card"].inputDialog = { type: "alert", message: `you typed ${CARD}` };
     await assert.rejects(
       flow({
-        file: write(flowOf([{ id: "card", action: "fill", target: "#card", value: "4242" }])),
+        file: write(flowOf([{ id: "card", action: "fill", target: "#card", value: CARD }])),
         config,
       }),
       { code: "action_dialog_opened" },
@@ -1225,7 +1225,7 @@ test("a frame that navigated after the connection was held is found at its new a
         file: write(
           flowOf([
             { action: "click", target: "#help" },
-            { id: "card", action: "fill", target: "#card", value: "4242", frame: TWO },
+            { id: "card", action: "fill", target: "#card", value: CARD, frame: TWO },
           ]),
         ),
         config,
@@ -1286,7 +1286,7 @@ test("an act that opens a dialog stops the flow as a dialog, its receipt unknown
     const file = write(
       flowOf([
         { id: "help", action: "click", target: "#help" },
-        { action: "fill", target: "#card", value: "4242" },
+        { action: "fill", target: "#card", value: CARD },
       ]),
     );
     await assert.rejects(flow({ file, config }), (error) => {
@@ -1351,7 +1351,7 @@ test("a step names a frame by URL: it acts there, and the frame's origin must be
     };
   };
   const steps = [
-    { id: "card", action: "fill", target: "#card", value: "4242", frame: `${FRAME}?t=1` },
+    { id: "card", action: "fill", target: "#card", value: CARD, frame: `${FRAME}?t=1` },
   ];
   await withFakes(
     async ({ config, write }) => {
@@ -1389,7 +1389,7 @@ test("a frame the page inserts after the flow started is found: a held connectio
         file: write(
           flowOf([
             { action: "click", target: "#help" },
-            { id: "card", action: "fill", target: "#card", value: "4242", frame: FRAME },
+            { id: "card", action: "fill", target: "#card", value: CARD, frame: FRAME },
           ]),
         ),
         config,
