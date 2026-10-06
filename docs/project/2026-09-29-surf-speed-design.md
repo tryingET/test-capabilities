@@ -5,7 +5,7 @@ read_when:
   - "You change surf-cli's session mode on the fork (feat/persistent-session)."
   - "A run is slower than the numbers below, or surf answers differently in a session than from the CLI."
 type: "design"
-status: "design before implementation; results appended per slice"
+status: "accepted as measured by the owner 2026-10-06; results appended per slice"
 ---
 
 # Faster surf runs: one surf process per run, one probe, one connection (AK #6221, #6222)
@@ -276,3 +276,10 @@ on the after tree, `dist/index.js` loads in 35-47 ms and `surf-plan-operation.js
 about 9 ms, which bounds what the overlap could save. Evidence:
 `~/.local/state/pi-quests/tmp/surf-live-1be8c1a7/bench/` (`bench2.sh`, `bench3.sh`, results,
 provenance); AK evidence 14033 and 14040.
+
+**Owner decision (2026-10-06).** Accepted as measured: plan and apply meet the 30 % gate with a
+`--stdio` surf. The flow journey is recorded as measured (-12 to -15 %). Lazy operation loading and
+the overlapped bind are dropped as not worth their risk (at most about 25 ms together). The owner
+also had `44a6e83` installed as the live surf runtime (`promote.sh 44a6e83`, `promoted` at
+2026-10-06 19:56). With it, default runs use the session with no override; a dogfood plan and
+flow passed on it. `promote.sh 70fd595` reverses it. AK evidence 14136.
