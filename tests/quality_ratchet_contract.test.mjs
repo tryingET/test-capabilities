@@ -777,6 +777,18 @@ test("test-summary parsing reads both the spec and the tap footer", () => {
   assert.equal(ratchet.parseTestSummary("").tests, undefined);
 });
 
+test("Given forced color, When the spec footer is colored, Then the summary still parses (AK6758)", () => {
+  // An inherited FORCE_COLOR (Claude Code shells export 3) colors the corpus run's footer.
+  const colored = (line) => `\u001b[34m${line}\u001b[39m\n`;
+  const footer = ["ℹ tests 1048", "ℹ pass 1047", "ℹ fail 0", "ℹ skipped 1"].map(colored).join("");
+  assert.deepEqual(ratchet.parseTestSummary(footer), {
+    tests: 1048,
+    pass: 1047,
+    fail: 0,
+    skipped: 1,
+  });
+});
+
 test("exclude globs match the parked directories and nothing else", () => {
   assert.equal(ratchet.isExcludedSourcePath("src/quantum/simulator.ts", ["src/quantum/**"]), true);
   assert.equal(
