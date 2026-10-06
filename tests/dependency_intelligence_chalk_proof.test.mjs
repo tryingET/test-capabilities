@@ -73,6 +73,24 @@ test("dependency intelligence: CLI doctor preserves current forced-color chalk r
   assert.match(escapedStderr, /<ESC>\[32m✔<ESC>\[39m Doctor passed/);
 });
 
+test("Given an inherited FORCE_COLOR, When a test spawns the CLI through runtimeEnv, Then it prints plain text unless the test asks for color (AK6758)", () => {
+  // A gate run on a terminal gets FORCE_COLOR from node --test, and Claude Code shells export
+  // FORCE_COLOR=3; neither may turn plain-text assertions into color-dependent ones.
+  const previous = process.env.FORCE_COLOR;
+  process.env.FORCE_COLOR = "3";
+  try {
+    const result = runDoctor();
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(result.stdout.includes(ANSI_ESCAPE), false);
+    assert.equal(result.stderr.includes(ANSI_ESCAPE), false);
+    assert.match(result.stdout, /pass Node\.js runtime/);
+  } finally {
+    if (previous === undefined) delete process.env.FORCE_COLOR;
+    else process.env.FORCE_COLOR = previous;
+  }
+});
+
 test("dependency intelligence: CLI doctor preserves current no-color chalk rendering", () => {
   const result = runDoctor({ FORCE_COLOR: undefined, NO_COLOR: "1" });
 

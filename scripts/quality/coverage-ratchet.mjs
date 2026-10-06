@@ -304,8 +304,11 @@ export function raiseFloors({ baseline, measured, nodeMajor, measurement }) {
 }
 
 export function parseTestSummary(output) {
+  // An inherited FORCE_COLOR colors the spec footer; its escapes are not part of the summary.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes on purpose
+  const plain = output.replace(/\u001b\[[0-9;]*m/g, "");
   const pick = (label) => {
-    const match = new RegExp(`(?:^|\\n)(?:# |ℹ )${label} (\\d+)`).exec(output);
+    const match = new RegExp(`(?:^|\\n)(?:# |ℹ )${label} (\\d+)`).exec(plain);
     return match ? Number(match[1]) : undefined;
   };
   return { tests: pick("tests"), pass: pick("pass"), fail: pick("fail"), skipped: pick("skipped") };
