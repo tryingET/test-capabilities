@@ -948,6 +948,7 @@ export class TestFileHealer {
     try {
       handle = await fs.open(tempPath, "wx", originalStat.mode & 0o777);
       tempCreated = true;
+      await handle.chmod(originalStat.mode & 0o777); // open()'s mode is umask-masked (AK6748)
       await handle.writeFile(content, "utf-8");
       await handle.close();
       handle = undefined;

@@ -332,6 +332,39 @@ test("TestFileHealer.applyProposal preserves target file mode", async () => {
   }
 });
 
+test("Given a private umask, When a proposal is applied, Then the target keeps its mode (AK6748)", async () => {
+  // heavy-job runs with umask 077; a mode passed to open() is masked by it, so a 0755 file
+  // would come back 0700 unless the writer sets the mode explicitly.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-umask-"));
+  const file = path.join(dir, "sample.test.ts");
+  writeFileSync(
+    file,
+    "test('one', async () => { await page.locator('#old-login').click(); });\n",
+    "utf8",
+  );
+  chmodSync(file, 0o755);
+  const previousUmask = process.umask(0o077);
+
+  try {
+    const healer = new TestFileHealer();
+    await healer.applyProposal({
+      file,
+      line: 1,
+      oldSelector: "#old-login",
+      newSelector: "#new-login",
+      confidence: 0.95,
+      strategy: "manual",
+      requiresReview: false,
+    });
+
+    assert.equal(statSync(file).mode & 0o777, 0o755);
+    assert.match(readFileSync(file, "utf8"), /#new-login/);
+  } finally {
+    process.umask(previousUmask);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TestFileHealer.applyProposal rejects symlink files before mutation", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "test-capabilities-healing-symlink-"));
   const realFile = path.join(dir, "real.test.ts");

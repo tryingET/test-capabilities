@@ -4,7 +4,7 @@
   "exceptions": {
     "src/core/operations/surf-explore-operation.ts": 1047,
     "src/core/orchestrator.ts": 1722,
-    "src/healing/self-healing.ts": 1192,
+    "src/healing/self-healing.ts": 1193,
     "src/core/surf-session.ts": 724
   },
   "allowed_cycles": [],
@@ -248,6 +248,13 @@
       "to": 755,
       "reason": "AK #6157: Session.apply hands the runner the channel the operation chose (the DevTools connection whenever it binds the owned tab, else surf); the decision, the tab pin and the frame path live in cdp-step-transport.ts and surf-apply-runner.ts.",
       "ref": "AK #6157"
+    },
+    {
+      "file": "src/healing/self-healing.ts",
+      "from": 1192,
+      "to": 1193,
+      "reason": "AK #6748: writeFile sets the temp file's mode explicitly with handle.chmod; open()'s mode is masked by the process umask, so under heavy-job's umask 077 a 0755 target came back 0700. One line; the scheduled shrink is unchanged.",
+      "ref": "AK #6748"
     }
   ]
 }
