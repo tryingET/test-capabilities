@@ -18,6 +18,39 @@ Use it to answer:
 
 The central catalog in a sibling `../ts-quality/` checkout, when present, is a downstream overview, not the authority for this repo.
 
+## ts-quality adoption state
+
+- adoptionStatus: `accepted-repo-local`
+- acceptedBy: Holding Owner (owner decision of 2026-10-06, recorded on ts-quality AK6550 evidence 14172)
+- acceptedAt: 2026-10-06
+- packageSource: npm `ts-quality@0.7.0`, pinned exactly as a devDependency. `scripts/screening/ts-quality-common.sh` resolves `node_modules/.bin/ts-quality` first; `TS_QUALITY_BIN` and the sibling `../ts-quality/dist` fallback are not the accepted source.
+- repoLocalControlPlane: `ts-quality.config.json` (mutations.timeoutMs 60000, because the full runtime suite takes about 30 s), `.ts-quality/invariants.ts`, `.ts-quality/constitution.ts`, `.ts-quality/agents.ts`, `.ts-quality/approvals.json`, `.ts-quality/waivers.json`, `.ts-quality/overrides.json`, `.ts-quality/witnesses/README.md`, `scripts/screening/*`
+- artifactRetentionPolicy: per `.gitignore`, `.ts-quality/runs/`, `latest.json`, `mutation-manifest.json`, `materialized/`, `locks/`, `tmp-mutants/`, `attestations/`, `keys/`, `witnesses/*.json` and `coverage/` stay local and uncommitted; config, control-plane files and the witness README are committed.
+- acceptedSlices: the four live slices below, each with content-bound (0.7.0) execution witnesses.
+- latestEvidence (2026-10-06, normal checkout, npm 0.7.0):
+
+| Slice | Run id | Outcome | Mutation | Witness |
+|---|---|---|---|---|
+| `operation.kernel.fail-closed` | `tc-operation-kernel-accept-20261006` | pass, 90/100 | 6 killed / 6 | execution-backed |
+| `healing.collect-files.boundary` | `tc-collect-files-accept-20261006` | pass, 90/100 | 10 killed / 10 | execution-backed |
+| `operation.quantum.input-envelope.contract` | `tc-quantum-operation-accept-20261006` | pass, 90/100 | 3 killed / 3 | execution-backed |
+| `operation.test.config-override.contract` | `tc-config-overrides-accept-20261006` | pass, 90/100 | 16 killed / 16 | execution-backed |
+
+- commands (from a normal checkout):
+
+```bash
+npm ci
+npm run screening:witness-refresh -- --changed "src/core/operations/dispatch-execution.ts,src/healing/collect-files-core.ts,src/core/operations/quantum-operation.ts,src/core/operations/config-targets-core.ts,src/core/operations/config-quick-mode-core.ts,src/core/operations/config-load-core.ts"
+npm run screening:check -- --changed src/core/operations/quantum-operation.ts --run-id <new-run-id>
+npx ts-quality explain --run-id <new-run-id>
+npx ts-quality report --run-id <new-run-id>
+```
+
+  Use a new run id for every check; 0.7.0 refuses to reuse one.
+- knownGaps: every slice still carries coverage pressure, because some changed functions are under 80% line coverage (the lowest changed function is 0% in `dispatch-execution.ts`). Mutation runs use the whole runtime suite per mutant, so a slice takes minutes. The April runs `tc-config-overrides-screen` and `tc-quantum-operation-screen` predate 0.7.0 (unbound witnesses, no changed-path digests) and are kept only as history; a public 0.7.0 run with the old 15 s timeout failed closed on the baseline (`tc-quantum-operation-v070-20261006`).
+- centralCatalogStatus: entry updated in `../ts-quality/docs/adoption/entries/test-capabilities.json` on 2026-10-06.
+- rollback: `npm uninstall ts-quality`, revert `mutations.timeoutMs`, and set adoptionStatus to `paused`; keep this file and the witness README as history. Local run artifacts are ignored and can be deleted.
+
 ## Current live slices
 
 | Invariant | Screened test-capabilities file(s) | Witness test | Current status | Notes |
@@ -32,7 +65,7 @@ The central catalog in a sibling `../ts-quality/` checkout, when present, is a d
 No single ready-next slice is declared right now.
 This repo should pause widening until one later candidate has a clearly behavior-bearing boundary and one focused witness path that is reviewable on its own.
 Do not force another slice just to increase coverage count.
-Let the current five-slice set settle before naming another ready-next candidate.
+Let the current four-slice set settle before naming another ready-next candidate.
 
 ## Candidate later slices
 

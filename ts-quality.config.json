@@ -6,7 +6,7 @@
   "mutations": {
     "testCommand": ["./scripts/screening/run-runtime-tests.sh"],
     "coveredOnly": true,
-    "timeoutMs": 15000,
+    "timeoutMs": 60000,
     "maxSites": 64,
     "runtimeMirrorRoots": ["dist"]
   },
