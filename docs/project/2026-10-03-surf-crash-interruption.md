@@ -4,7 +4,7 @@ read_when:
   - "Inspecting the SOURCE/FIXTURE-ONLY browser interruption contract and its proof limits."
 type: "reference"
 task_id: 6545
-status: "source-fixture-qualified; live proof pending"
+status: "source-fixture-qualified; live budget-path rehearsal 2026-10-06; crash canary prepared, not executed"
 ---
 
 # Surf crash interruption — AK6545
@@ -196,3 +196,33 @@ this document grants no publication or runtime activation.
 canary, AK5596 installation and AK6536 acceptance. No live fault, install, restart, push, logout,
 private-audio access or personal-profile/GPU change occurred. Native close timeout still is not
 forced socket teardown; bounded preparation still is not background quiescence.
+
+## Live rehearsal in the agent browser (2026-10-06): the budget path, not the crash
+
+Owner docket 2026-10-06 (`surf-live-tests` = A) approved one deliberate crash test in the agent
+Chromium. Before spending that single fault, a rehearsal without any fault exercised the same
+mechanism live. Source `9bb568c` (isolated export), installed surf `70fd595` through an
+argv-logging wrapper. A loopback fixture (`canary_server.py`, 127.0.0.1:18767) served an owned page
+with one button outside any form. Its click handler makes a synchronous XHR to `/barrier`, which
+records the entry and never answers. So the flow's `click` really reached the page, and its
+`Input.dispatchMouseEvent` reply stayed outstanding.
+
+- The server saw exactly one barrier entry, under the run's nonce.
+- After the 15 s command budget the flow stopped with `mutation_outcome_unknown`. Cause:
+  "Input.dispatchMouseEvent did not answer within 15000 ms; input may have been sent". The durable
+  receipt says `outcome: unknown` and refuses the next run for that key.
+- surf saw `--help-full`, `tab.new`, `wait.ready` and the tab proof's `js`: no `tab.close` of the
+  interrupted tab and no replay.
+- Afterwards the fixture process was stopped and the proven-owned rehearsal tab (its URL carried the
+  nonce) was closed explicitly.
+
+This is live proof of the sent-but-unanswered contract through the budget path. It is **not** the
+crash canary: the SIGKILL of the browser's main process, with recovery and a fresh session, was not
+executed, because this session's auto-mode classifier refused the disruptive step. The runner is
+prepared, unexecuted, with the approval packet's stop conditions:
+`~/.local/state/pi-quests/tmp/surf-live-1be8c1a7/canary/canary.sh`. AK evidence 14042.
+
+The canary's source-freeze aggregate check (`npm run check` under heavy-job at `9bb568c`) ran
+1046 tests: 1044 pass, 1 existing opt-in skip, and one failure unrelated to surf. That failure is
+`healing_contract` "preserves target file mode", which fails under heavy-job's umask 077 because
+`fs.open(tmp, "wx", mode)` is masked by the umask (AK6748). AK evidence 14051.

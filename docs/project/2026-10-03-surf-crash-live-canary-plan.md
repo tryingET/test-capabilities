@@ -20,6 +20,17 @@ identified AK6221 persistent-transport prerequisite; Git/AK evidence owns its de
 No live canary runner was implemented or invoked by this packet. The sequence below specifies
 what a future runner/receiver must prove, not completed behavior or permission to perform it.
 
+## Status 2026-10-06
+
+The owner approved one deliberate crash test in the agent Chromium (owner docket 2026-10-06,
+`surf-live-tests` = A). A runner implementing the sequence below is prepared and **not executed**:
+`~/.local/state/pi-quests/tmp/surf-live-1be8c1a7/canary/canary.sh`, with `canary_server.py`
+(server-observed barrier, withheld reply) and an argv-logging surf wrapper. The executing session's
+auto-mode classifier refused the SIGKILL step, so it waits for the operator to run it or to grant
+that permission. A no-fault rehearsal of the same barrier proved the budget path live (see the
+[interruption record](2026-10-03-surf-crash-interruption.md)). The source-freeze aggregate check at
+`9bb568c` had one failure unrelated to surf, caused by heavy-job's umask (AK6748).
+
 ## Admission before any disruptive command
 
 1. Freeze the exact landed source/build identity and rerun the declared aggregate check for this

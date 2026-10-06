@@ -244,3 +244,35 @@ revocation also fences post-await CLI fallback. Acknowledged mutating input plus
 is conservatively unknown, not failed. ENOBUFS and timeouts remain sent loss even when a
 SIGTERM handler exits 0 or nonzero. See the [source/fixture report](2026-10-03-surf-crash-interruption.md).
 No live fault, new timing run, installed runtime update or upstream submission was executed.
+
+### Fresh live qualification (2026-10-06, owner docket `surf-live-tests` = A)
+
+Agent Chromium 153 at 127.0.0.1:9222 (startup readiness passed), the same frozen loopback fixture
+pages, 11 runs per scenario interleaved across configurations, each run a fresh CLI process, warm-up
+excluded. Sources are isolated `git archive` exports: before = `1ab2304` (the commit before slice 1),
+after = `9bb568c`. Medians in ms:
+
+| scenario | before, installed surf `70fd595` | after, installed `70fd595` (no `--stdio`) | after, surf CLI `44a6e83` (`--stdio`) |
+|---|---|---|---|
+| plan, DevTools channel | 535 | 471 (-12 %) | 326 (**-39 %**) |
+| plan, surf channel | 516 | 448 (-13 %) | 301 (**-42 %**) |
+| apply fill | 684 | 615 (-10 %) | 457 (**-33 %**) |
+| flow journey | 1428 | 1371 (-4 %) | 1262 (-12 %) |
+
+The third column selects the fork's CLI with `TEST_CAPABILITIES_SURF_BIN` against the installed host.
+During the workstation's AK6546 promotion test, `44a6e83` was briefly the *installed* runtime;
+measured then with no override: plan (DevTools) 553 -> 334 ms (-40 %), plan (surf) 534 -> 309
+(-42 %), apply 686 -> 482 (-30 %), flow 1498 -> 1273 (-15 %). The installed runtime is `70fd595`
+again. A tap on the session showed `tab.new`, `wait.ready`, `js` and `tab.close` over one
+`surf --stdio` child; before and after wrote byte-identical plans. No run failed.
+
+Reading: the gate in section 5 (plan on the DevTools channel at least 30 % faster) holds only with a
+surf that has `--stdio`; the installed `70fd595` does not, so a default run today gains 4-13 %.
+Apply is at the line (-33 % and -30 %). The flow journey gains 12-15 %: its page holds a fixed
+400 ms `setTimeout`, and its 14 steps run over the DevTools connection with a durable receipt per act.
+Still not built: section 4.5 (overlap) and lazy loading of the operation registry. Measured
+on the after tree, `dist/index.js` loads in 35-47 ms and `surf-plan-operation.js` alone in about
+31 ms, so lazy loading would save about 12-16 ms. With the session, the tab proof's surf read takes
+about 9 ms, which bounds what the overlap could save. Evidence:
+`~/.local/state/pi-quests/tmp/surf-live-1be8c1a7/bench/` (`bench2.sh`, `bench3.sh`, results,
+provenance); AK evidence 14033 and 14040.
